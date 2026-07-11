@@ -159,6 +159,8 @@ Match the prefix to the task type. Never create `release/` or `hotfix/` branches
 
 **Sanitize logs.** Never log passwords, tokens, or PII. Use safe IDs. Strip line breaks from user-provided text.
 
+**Path traversal.** Validate that paths constructed from untrusted input resolve strictly within the target directory boundary.
+
 **Idempotency.** Ensure scripts, migrations, and setup commands are safe to re-run.
 
 ## Concurrency & shared state
@@ -228,6 +230,8 @@ def find_user(groups, target_id) -> User | None:
 **No extended ASCII.** Use 7-bit ASCII (0-127) for code and comments. Limit Unicode to domain/framework requirements.
 
 **Avoid emojis.** Do not use emojis unless contextually justified and approved by the user.
+
+**Imperative tone.** Maintain an imperative and professional tone. Instruct, teach, and direct. Do not override the user or attempt to bully them into changing their mind.
 
 **Comment the why.** Document the reasoning and business logic. The code shows the execution.
 

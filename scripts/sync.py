@@ -12,6 +12,7 @@ COPIES = [
     ".cursorrules",
     ".clinerules",
     ".windsurfrules",
+    ".copilot-instructions",
     ".github/copilot-instructions.md",
 ]
 
@@ -49,7 +50,7 @@ def sync_copies(check_only: bool) -> int:
     if check_only:
         if stale:
             print(f"out of sync with {SOURCE}: {', '.join(stale)}", file=sys.stderr)
-            print("run: python scripts/sync.py", file=sys.stderr)
+            print("run: make sync (or python scripts/sync.py)", file=sys.stderr)
             return 1
         print("all copies in sync")
         return 0
