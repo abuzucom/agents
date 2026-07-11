@@ -144,6 +144,15 @@ Match the prefix to the task type. Never create `release/` or `hotfix/` branches
 
 **Retry discipline.** Do not run a failing command more than twice. Stop, analyze the error, and change strategy.
 
+**Documentation and versioning.** Update README (for substantial changes) and CHANGELOG (for all changes) if present. If no CHANGELOG exists, ask the user once if they want it created. Adhere to SemVer (X.Y.Z):
+- Use non-negative integers without leading zeros (X.Y.Z).
+- Treat 0.y.z as unstable initial development.
+- Define public API stability at 1.0.0.
+- Increment Z (patch) for backward-compatible bug fixes.
+- Increment Y (minor) for backward-compatible API changes or private improvements; reset Z to 0.
+- Increment X (major) for breaking changes; reset Y and Z to 0. Obtain user consent before proceeding.
+- Append hyphen and dot-separated ASCII alphanumeric/hyphen identifiers for pre-releases (e.g., -alpha.1).
+
 ## Correctness & safety
 
 **Trace execution paths.** Check preconditions before use. Validate ranges first. Do not re-test states already ruled out.
