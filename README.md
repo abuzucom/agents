@@ -16,16 +16,25 @@ compatibility and Banned agents below. Copy into a repository and adapt.
   judgment calls.
 - **Orientation template** (commented out, end of file) — Commands, Do not
   touch, Architecture, Gotchas, doc pointers. Per-repo; fill on adoption.
+- **`.claudeignore`** — excludes noisy/generated paths (`node_modules/`,
+  build output, lockfiles, `.env*`, etc.) from Claude Code's context. Part
+  of the template, not optional tooling — see Adopting step 1.
 
 ## Adopting
 
-1. Copy `AGENTS.md` to your repo root.
+1. Copy `AGENTS.md` **and** `.claudeignore` to your repo root — both are
+   part of this template. If you (human or agent) are asked to add this
+   AGENTS.md setup to another repository, `.claudeignore` is in scope by
+   default; do not drop it just because it wasn't named explicitly.
+   Adjust its patterns to the target repo's stack (build output dirs,
+   dependency dirs, secrets globs).
 2. Uncomment the orientation block; fill Commands and Do not touch first;
    delete unused sections. Move filled sections up, after "Non-negotiable".
 3. Swap code examples to your dominant language if it isn't Python.
 4. Tool files (`CLAUDE.md`, `GEMINI.md`, etc.) are real copies of
    AGENTS.md (Windows compatibility). After editing AGENTS.md, run
-   `python scripts/sync.py`; `--check` in CI catches drift.
+   `python scripts/sync.py`; `--check` in CI catches drift. `.claudeignore`
+   is not part of this sync — it's a single shared file, copied as-is.
 5. Back lintable rules (nesting, function size, line length, empty
    catches, cond-assign, injection, MD5) with linter/semgrep config —
    instructions guide, enforcement guarantees.
