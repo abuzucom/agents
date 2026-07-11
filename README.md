@@ -14,7 +14,7 @@ compatibility and Banned agents below. Copy into a repository and adapt.
 - **Correctness & safety** - divisors, regex backtracking, collection
   mutation, unbounded recursion, log sanitization, idempotency.
 - **Concurrency & shared state** - locks, task joining, lock ordering.
-- **Code quality and style** - limits and conventions (magic numbers, change size, duplication, TODO/FIXME ban, comments, commit messages) applicable without judgment calls.
+- **Code quality and style** - limits and conventions (magic numbers, change size, duplication, TODO/FIXME ban, comments, commit messages, extended ASCII ban) applicable without judgment calls.
 - **Orientation template** (commented out, end of file) - Commands, Do not
   touch, Architecture, Gotchas, doc pointers. Per-repo; fill on adoption.
 - **`.claudeignore`** - excludes noisy/generated paths (`node_modules/`,

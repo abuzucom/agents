@@ -288,6 +288,8 @@ documentation.
 
 **No em or en dashes.** Use hyphens (`-`) for ranges and compounds. Semicolons or separate sentences for clause breaks; do not create run-ons by replacing em dashes with hyphens.
 
+**No extended ASCII.** Use 7-bit ASCII (0-127) for code and comments. Limit Unicode to domain/framework requirements.
+
 **Comment the why.** Explain reasoning and business logic; the code shows the "what".
 
 **Commit messages.** Use `type: description` (feat, fix, chore, docs, test). Imperative, under 50 characters, no period.
