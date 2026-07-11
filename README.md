@@ -37,7 +37,10 @@ compatibility and Banned agents below. Copy into a repository and adapt.
    is not part of this sync — it's a single shared file, copied as-is.
 5. Back lintable rules (nesting, function size, line length, empty
    catches, cond-assign, injection, MD5) with linter/semgrep config —
-   instructions guide, enforcement guarantees.
+   instructions guide, enforcement guarantees. If you (agent) are doing
+   the integration, don't wire up lint CI unprompted (rule 4) — recommend
+   the user have you set it up as a follow-up, since AGENTS.md's rules are
+   only as good as the CI job that enforces them.
 
 ## Banned agents
 
