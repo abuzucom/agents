@@ -1,44 +1,45 @@
 # AGENTS.md template
 
-A generic, terse instruction file for AI coding agents — see Tool
+A generic, terse instruction file for AI coding agents - see Tool
 compatibility and Banned agents below. Copy into a repository and adapt.
 
 ## What's in it
 
-- **Non-negotiable summary** — every critical rule in one line, at the
+- **Non-negotiable summary** - every critical rule in one line, at the
   top, where model attention is strongest.
-- **Seven critical rules** — injection, destructive commands, test
-  integrity, scope, draft-PR workflow, API contracts, hashing.
-- **Workflow** — test-first, lint-clean, safe editing, retry discipline.
-- **Correctness & safety** — divisors, regex backtracking, collection
-  mutation, unbounded recursion.
-- **Code quality and style** — limits and conventions applicable without
-  judgment calls.
-- **Orientation template** (commented out, end of file) — Commands, Do not
+- **Nine critical rules** - injection, destructive commands, test
+  integrity, scope, draft-PR workflow, API contracts, hashing, secrets, dependencies.
+- **Branch naming** - clean conventions for branch names.
+- **Workflow** - test-first, lint-clean, safe editing, retry discipline.
+- **Correctness & safety** - divisors, regex backtracking, collection
+  mutation, unbounded recursion, log sanitization, idempotency.
+- **Concurrency & shared state** - locks, task joining, lock ordering.
+- **Code quality and style** - limits and conventions (magic numbers, change size, duplication, TODO/FIXME ban, comments, commit messages) applicable without judgment calls.
+- **Orientation template** (commented out, end of file) - Commands, Do not
   touch, Architecture, Gotchas, doc pointers. Per-repo; fill on adoption.
-- **`.claudeignore`** — excludes noisy/generated paths (`node_modules/`,
+- **`.claudeignore`** - excludes noisy/generated paths (`node_modules/`,
   build output, lockfiles, `.env*`, etc.) from Claude Code's context. Part
-  of the template, not optional tooling — see Adopting step 1.
+  of the template, not optional tooling - see Adopting step 1.
 
 ## Adopting
 
-1. Copy `AGENTS.md` **and** `.claudeignore` to your repo root — both are
+1. Copy `AGENTS.md`, `.claudeignore`, `.gitattributes`, and `.editorconfig` to your repo root - all are
    part of this template. If you (human or agent) are asked to add this
-   AGENTS.md setup to another repository, `.claudeignore` is in scope by
-   default; do not drop it just because it wasn't named explicitly.
-   Adjust its patterns to the target repo's stack (build output dirs,
+   AGENTS.md setup to another repository, those files are in scope by
+   default; do not drop them just because they were not named explicitly.
+   Adjust `.claudeignore` patterns to the target repo's stack (build output dirs,
    dependency dirs, secrets globs).
 2. Uncomment the orientation block; fill Commands and Do not touch first;
    delete unused sections. Move filled sections up, after "Non-negotiable".
-3. Swap code examples to your dominant language if it isn't Python.
+3. Swap code examples to your dominant language if it is not Python.
 4. Tool files (`CLAUDE.md`, `GEMINI.md`, etc.) are real copies of
    AGENTS.md (Windows compatibility). After editing AGENTS.md, run
-   `python scripts/sync.py`; `--check` in CI catches drift. `.claudeignore`
-   is not part of this sync — it's a single shared file, copied as-is.
+   `python scripts/sync.py`; `--check` in CI catches drift. `.claudeignore`,
+   `.gitattributes`, and `.editorconfig` are not part of this sync - they are single shared files, copied as-is.
 5. Back lintable rules (nesting, function size, line length, empty
-   catches, cond-assign, injection, MD5) with linter/semgrep config —
+   catches, cond-assign, injection, MD5) with linter/semgrep config -
    instructions guide, enforcement guarantees. If you (agent) are doing
-   the integration, don't wire up lint CI unprompted (rule 4) — recommend
+   the integration, don't wire up lint CI unprompted (rule 4) - recommend
    the user have you set it up as a follow-up, since AGENTS.md's rules are
    only as good as the CI job that enforces them.
 
@@ -66,9 +67,9 @@ Do not create pointer or copy files for banned tools; do not add them to
 | Windsurf | `.windsurfrules` | Synced copy |
 | Aider (local) | `CONVENTIONS.md` | Synced copy; load via `--read CONVENTIONS.md` |
 | Other local agents (Zed, Continue, etc.) | `AGENTS.md` or config | Native or point config at it |
-| GitHub Copilot | `AGENTS.md`, `.github/copilot-instructions.md` | Native (verify version) or pointer file |
-| Mistral, Perplexity, DeepSeek, Lovable | — | No repo-file convention: paste AGENTS.md into system prompt / custom instructions / project knowledge |
-| xAI/Grok | — | Banned — see Banned agents; no pointer files |
+| GitHub Copilot | `.github/copilot-instructions.md` | Synced copy |
+| Mistral, Perplexity, DeepSeek, Lovable | N/A | No repo-file convention: paste AGENTS.md into system prompt / custom instructions / project knowledge |
+| xAI/Grok | N/A | Banned - see Banned agents; no pointer files |
 
 Verify against each tool's current docs; conventions shift.
 

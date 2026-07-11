@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 """Sync AGENTS.md to tool-specific copies. --check verifies without writing."""
-import filecmp
 import shutil
 import sys
 from pathlib import Path
@@ -13,7 +12,21 @@ COPIES = [
     ".cursorrules",
     ".clinerules",
     ".windsurfrules",
+    ".github/copilot-instructions.md",
 ]
+
+
+def files_match(source: Path, target: Path) -> bool:
+    """Compare file contents, normalizing line endings."""
+    try:
+        if not target.is_file():
+            return False
+        return (
+            source.read_text(encoding="utf-8").replace("\r\n", "\n")
+            == target.read_text(encoding="utf-8").replace("\r\n", "\n")
+        )
+    except (OSError, UnicodeDecodeError):
+        return False
 
 
 def sync_copies(check_only: bool) -> int:
@@ -30,8 +43,7 @@ def sync_copies(check_only: bool) -> int:
     stale = [
         name
         for name in COPIES
-        if not (root / name).is_file()
-        or not filecmp.cmp(source, root / name, shallow=False)
+        if not files_match(source, root / name)
     ]
 
     if check_only:
@@ -43,7 +55,9 @@ def sync_copies(check_only: bool) -> int:
         return 0
 
     for name in stale:
-        shutil.copyfile(source, root / name)
+        target = root / name
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(source, target)
         print(f"synced {name}")
     if not stale:
         print("all copies already in sync")
