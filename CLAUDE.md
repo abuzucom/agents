@@ -1,10 +1,10 @@
 # AGENTS.md
 
-## Non-negotiable - read first
+## Non-negotiable: read first
 
-1. Never build SQL, shell commands, or code from untrusted input - parameterize.
-2. Never drop tables, delete user data, or blindly purge directories - ask for explicit authorization first.
-3. Never edit, weaken, skip, or delete a test to make code pass - report instead.
+1. Never build SQL, shell commands, or code from untrusted input; parameterize.
+2. Never drop tables, delete user data, or blindly purge directories; ask for explicit authorization first.
+3. Never edit, weaken, skip, or delete a test to make code pass; report instead.
 4. Do only what was asked; flag improvements and bugs, ask before acting.
 5. Always draft PRs/MRs, no exception; never push to protected branches, mark ready, or merge without consent.
 6. Never break public API contracts; evolve backwards-compatibly or stop and ask.
@@ -29,7 +29,7 @@ generated, vendored, frozen paths; files needing explicit user request
 stack; layer map with paths; entry points; public API surface (rules 5-6)
 
 ## Gotchas
-env quirks, version pins, required services - add as earned
+env quirks, version pins, required services; add as earned
 
 ## Read before touching
 area: docs path
@@ -51,10 +51,10 @@ Never concatenate or interpolate untrusted input into SQL, shell, or evaluated c
 - Shell: use array-based execution without shell interpretation (`subprocess.run([...])`, never `shell=True`).
 - Escaping: use vetted libraries only as a last resort.
 
-❌ `cursor.execute(f"SELECT * FROM users WHERE name = '{name}'")`  
-✅ `cursor.execute("SELECT * FROM users WHERE name = %s", (name,))`  
-❌ `subprocess.run(f"convert {filename} out.png", shell=True)`  
-✅ `subprocess.run(["convert", filename, "out.png"])`  
+Bad: `cursor.execute(f"SELECT * FROM users WHERE name = '{name}'")`  
+Good: `cursor.execute("SELECT * FROM users WHERE name = %s", (name,))`  
+Bad: `subprocess.run(f"convert {filename} out.png", shell=True)`  
+Good: `subprocess.run(["convert", filename, "out.png"])`  
 
 Applies to all injection sinks: SQL/NoSQL, shell, eval/exec, LDAP, XPath, and file paths.
 
@@ -85,8 +85,8 @@ Keep all public APIs (exported functions/classes, endpoints, CLI flags, response
 - Responses: retain all existing fields; add new fields alongside.
 - Parameters: never rename, remove, or reorder public positional parameters.
 
-✅ `def search(query, limit=20, max_results=None):  # new name; limit still works`  
-❌ `def search(query, max_results=20):  # renamed 'limit' - breaks callers`  
+Good: `def search(query, limit=20, max_results=None):  # new name; limit still works`  
+Bad: `def search(query, max_results=20):  # renamed 'limit', breaks callers`  
 
 If a task requires a breaking change: stop, report it, and propose a compatible transition (e.g., deprecation shim).
 
@@ -96,13 +96,13 @@ Never use MD5 or SHA-1 for passwords, tokens, signatures, untrusted integrity ch
 - General hashing: use SHA-256 or SHA-3.
 - Passwords: use bcrypt, scrypt, or Argon2 with salt and work factor. Never use fast hashes like SHA-256.
 
-❌ `hashlib.md5(password.encode()).hexdigest()`  
-❌ `hashlib.sha256(password.encode()).hexdigest()`  # fast hash for a password  
-✅ `bcrypt.hashpw(password.encode(), bcrypt.gensalt(rounds=12))`  
-✅ `hashlib.sha256(file_bytes).hexdigest()`  # integrity/general hashing  
+Bad: `hashlib.md5(password.encode()).hexdigest()`  
+Bad: `hashlib.sha256(password.encode()).hexdigest()`  # fast hash for a password  
+Good: `bcrypt.hashpw(password.encode(), bcrypt.gensalt(rounds=12))`  
+Good: `hashlib.sha256(file_bytes).hexdigest()`  # integrity/general hashing  
 
 **Exception:** Use MD5/SHA-1 for genuinely non-security tasks (e.g., cache keys) only with a comment naming the specific use. The comment does not make a use non-security: any hash feeding authentication, integrity of untrusted data, signatures, session IDs, tokens, or key derivation is security-sensitive regardless of what the comment claims.
-✅ `hashlib.md5(payload).hexdigest()  # MD5: non-cryptographic cache key only`
+Good: `hashlib.md5(payload).hexdigest()  # MD5: non-cryptographic cache key only`
 
 Upgrade or document any unjustified MD5/SHA-1 use encountered. Report MD5/SHA-1 in security paths.
 
@@ -138,7 +138,7 @@ Match the prefix to the task type. Never create `release/` or `hotfix/` branches
 
 **Test-first.** Write a failing test first, run it to verify failure, then implement the fix. The test must exercise the real code path under test; do not mock the unit under test, and do not assert only on trivial values or on mock interactions. A task is complete only when all tests pass.
 
-**Lint clean.** Adhere strictly to the linter configuration. Run the project lint command (see Commands) and fix all errors.
+**Lint clean.** Adhere strictly to the linter configuration. Run the project lint command, if the repo defines one, and fix all errors.
 
 **Edit safely.** Do not use loose regex or `sed` edits. Rewrites or literal search-and-replace only.
 
@@ -158,7 +158,7 @@ Match the prefix to the task type. Never create `release/` or `hotfix/` branches
 **Trace execution paths.** Check preconditions before use. Validate ranges first. Do not re-test states already ruled out.
 
 **Check divisors.** Test for zero before division.
-❌ `avg = total / count` → ✅ `avg = total / count if count else 0` (or raise)
+Bad: `avg = total / count`  Good: `avg = total / count if count else 0` (or raise)
 
 **Avoid regex backtracking.** Do not use nested quantifiers (`(x+)+`) or overlapping patterns. Use atomic groups, possessive quantifiers, or simpler expressions.
 
@@ -188,7 +188,7 @@ Match the prefix to the task type. Never create `release/` or `hotfix/` branches
 
 **Exit nested loops.** Extract nested loops into a helper function and use `return` rather than `break`.
 
-✅
+Good:
 ```python
 def find_user(groups, target_id) -> User | None:
     for group in groups:
@@ -204,20 +204,20 @@ def find_user(groups, target_id) -> User | None:
 
 **Composition.** Avoid deep inheritance hierarchies. Use composition, dependency injection, or interfaces.
 
-❌ `Exporter -> CsvExporter -> ZippedCsvExporter`  
-✅ `Exporter` with injected `formatter` and `compressor`.  
+Bad: `Exporter -> CsvExporter -> ZippedCsvExporter`  
+Good: `Exporter` with injected `formatter` and `compressor`.  
 
 **Line length.** Keep lines between 80 and 120 characters. Break after commas or before operators.
 
 **Catch blocks.** Never leave catch blocks empty. Log context, show feedback, or rethrow. Error messages must state the failure and recovery action. Comment rare suppressions and catch the narrowest type.
 
-❌ `except Exception: pass`  
-✅ `except SyncError as e: logger.warning("Sync failed, retrying: %s", e)`  
+Bad: `except Exception: pass`  
+Good: `except SyncError as e: logger.warning("Sync failed, retrying: %s", e)`  
 
 **No conditional assignments.** Do not assign variables inside conditional statements. Assign first, then test the variable.
 
-❌ `if (user = fetch_user(id)):`  
-✅ `user = fetch_user(id)` then `if user:`  
+Bad: `if (user = fetch_user(id)):`  
+Good: `user = fetch_user(id)` then `if user:`  
 
 **Change size.** Split changes exceeding 10 files or 400 lines. Explain the split.
 
@@ -231,13 +231,13 @@ def find_user(groups, target_id) -> User | None:
 
 **Omit needless words.** No unnecessary words in a sentence, no unnecessary sentences in a paragraph. Applies to comments, docstrings, commit messages, documentation.
 
-❌ `# This function is responsible for handling the parsing of the config`  
-✅ `# Parse the config`  
+Bad: `# This function is responsible for handling the parsing of the config`  
+Good: `# Parse the config`  
 
 **No run-on sentences; no em or en dashes.** Do not splice independent clauses into one sentence. Never use the em/en dash character, and never substitute `--`, `---`, or a spaced hyphen (` - `) for one. To attach an aside or second clause, end the sentence and start a new one, or join with a comma, colon, or semicolon. Hyphens stay allowed only for compound words, ranges, CLI flags, and negative numbers.
 
-❌ `The build failed -- the cache was stale.`  
-✅ `The build failed. The cache was stale.`
+Bad: `The build failed -- the cache was stale.`  
+Good: `The build failed. The cache was stale.`
 
 **No extended ASCII.** Use 7-bit ASCII (0-127) for code and comments. Limit Unicode to domain/framework requirements.
 
@@ -253,9 +253,9 @@ def find_user(groups, target_id) -> User | None:
 
 **Functions.** Use verb-noun names indicating action (`normalize_user_emails`, not `process`). Provide docstrings, return type hints, or both.
 
-❌ `def calc(a, b): return a * b * 0.0825`
+Bad: `def calc(a, b): return a * b * 0.0825`
 
-✅
+Good:
 ```python
 def calculate_sales_tax(subtotal: float, quantity: int) -> float:
     """Return the Texas sales tax (8.25%) for a line item."""
