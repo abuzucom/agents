@@ -6,7 +6,7 @@
 2. Never drop tables, delete user data, or blindly purge directories - ask for explicit authorization first.
 3. Never edit, weaken, skip, or delete a test to make code pass - report instead.
 4. Do only what was asked; flag improvements and bugs, ask before acting.
-5. Draft PRs/MRs only; never push to protected branches, mark ready, or merge without consent.
+5. Always draft PRs/MRs, no exception; never push to protected branches, mark ready, or merge without consent.
 6. Never break public API contracts; evolve backwards-compatibly or stop and ask.
 7. No MD5/SHA-1 in security-sensitive contexts; elsewhere only with a justifying comment.
 8. Never commit secrets, API keys, or credentials to version control.
@@ -74,7 +74,7 @@ Report any bugs or alternative approaches to the user. Do not act unprompted. He
 
 ### 5. Draft PRs only; never push or merge without consent
 
-Submit work as draft PRs/MRs unless equipped with a native integration tool.
+Always submit work as draft PRs/MRs. There is no exception; open every PR/MR as a draft regardless of available integration tools.
 Never push to protected branches, mark PRs ready, or merge without explicit human consent.
 
 ### 6. Do not break public API contracts
@@ -101,7 +101,7 @@ Never use MD5 or SHA-1 for passwords, tokens, signatures, untrusted integrity ch
 ✅ `bcrypt.hashpw(password.encode(), bcrypt.gensalt(rounds=12))`  
 ✅ `hashlib.sha256(file_bytes).hexdigest()`  # integrity/general hashing  
 
-**Exception:** Use MD5/SHA-1 for non-security tasks (e.g., cache keys) only with a comment explaining the purpose.
+**Exception:** Use MD5/SHA-1 for genuinely non-security tasks (e.g., cache keys) only with a comment naming the specific use. The comment does not make a use non-security: any hash feeding authentication, integrity of untrusted data, signatures, session IDs, tokens, or key derivation is security-sensitive regardless of what the comment claims.
 ✅ `hashlib.md5(payload).hexdigest()  # MD5: non-cryptographic cache key only`
 
 Upgrade or document any unjustified MD5/SHA-1 use encountered. Report MD5/SHA-1 in security paths.
@@ -136,13 +136,13 @@ Match the prefix to the task type. Never create `release/` or `hotfix/` branches
 
 ## Workflow
 
-**Test-first.** Write a failing test first, run it to verify failure, then implement the fix. The test must verify real behavior without trivial or fully mocked assertions. A task is complete only when all tests pass.
+**Test-first.** Write a failing test first, run it to verify failure, then implement the fix. The test must exercise the real code path under test; do not mock the unit under test, and do not assert only on trivial values or on mock interactions. A task is complete only when all tests pass.
 
 **Lint clean.** Adhere strictly to the linter configuration. Run the project lint command (see Commands) and fix all errors.
 
 **Edit safely.** Do not use loose regex or `sed` edits. Rewrites or literal search-and-replace only.
 
-**Retry discipline.** Do not run a failing command more than twice. Stop, analyze the error, and change strategy.
+**Retry discipline.** Do not run a failing command more than twice for the same goal. Trivial variations (a changed flag, cwd, or reordering) still count as the same command. Stop, analyze the error, and change strategy.
 
 **Documentation and versioning.** Update README (for substantial changes) and CHANGELOG (for all changes) if present. If no CHANGELOG exists, ask the user once if they want it created. Adhere to SemVer (X.Y.Z):
 - Use non-negative integers without leading zeros (X.Y.Z).
@@ -221,11 +221,11 @@ def find_user(groups, target_id) -> User | None:
 
 **Change size.** Split changes exceeding 10 files or 400 lines. Explain the split.
 
-**No magic numbers.** Extract named constants. Use inline literals only for 0, 1, -1, empty strings, or values clear from context.
+**No magic numbers.** Extract named constants whose name states the value's meaning (`TAX_RATE`, not `X1` or `CONST_1`); see Variables. Use inline literals only for 0, 1, -1, empty strings, or values clear from context.
 
 **No duplication.** Extract repeated code sequences into helper functions, loops, or data structures.
 
-**No TODO or FIXME.** Present all incomplete work directly to the user. Do not leave unresolved placeholders.
+**No incomplete work left in code.** Do not leave deferred or placeholder work behind any marker (`TODO`, `FIXME`, `XXX`, `HACK`, "later"), or as a stubbed body, bare `pass`, `...`, or unexplained `NotImplementedError`. Present all incomplete work directly to the user instead.
 
 ## Style
 
@@ -247,7 +247,7 @@ def find_user(groups, target_id) -> User | None:
 
 **Comment the why.** Document the reasoning and business logic. The code shows the execution.
 
-**Commit messages.** Format as `type: description` (feat, fix, chore, docs, test). Use imperative mood, limit to 50 characters, no trailing period.
+**Commit messages.** Format the subject as `type: description` (feat, fix, chore, docs, test). Use imperative mood, limit the subject to 50 characters, no trailing period. Put any additional detail in the body rather than truncating it.
 
 **Variables.** Use names that state the variable's role (`active_user_records`, not `d`). Loop counters (`i, j, k`) and math variables (`x, y`) are exempt.
 
