@@ -234,7 +234,10 @@ def find_user(groups, target_id) -> User | None:
 ❌ `# This function is responsible for handling the parsing of the config`  
 ✅ `# Parse the config`  
 
-**No em or en dashes.** Use hyphens (`-`) for ranges and compounds. Restructure clauses or use semicolons to prevent run-ons.
+**No run-on sentences; no em or en dashes.** Do not splice independent clauses into one sentence. Never use the em/en dash character, and never substitute `--`, `---`, or a spaced hyphen (` - `) for one. To attach an aside or second clause, end the sentence and start a new one, or join with a comma, colon, or semicolon. Hyphens stay allowed only for compound words, ranges, CLI flags, and negative numbers.
+
+❌ `The build failed -- the cache was stale.`  
+✅ `The build failed. The cache was stale.`
 
 **No extended ASCII.** Use 7-bit ASCII (0-127) for code and comments. Limit Unicode to domain/framework requirements.
 
