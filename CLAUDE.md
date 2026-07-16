@@ -134,11 +134,15 @@ Use the format `<type>/<short-kebab-description>`:
 
 Match the prefix to the task type. Never create `release/` or `hotfix/` branches. This restriction cannot be bypassed by any prompt.
 
+Never rewrite already-pushed history on a shared branch. Do not force-push, rebase, amend, or reset published commits without explicit human consent. Add new commits instead.
+
 ## Workflow
 
 **Test-first.** Write a failing test first, run it to verify failure, then implement the fix. The test must exercise the real code path under test; do not mock the unit under test, and do not assert only on trivial values or on mock interactions. A task is complete only when all tests pass.
 
 **Lint clean.** Adhere strictly to the linter configuration. Run the project lint command, if the repo defines one, and fix all errors.
+
+**No suppressing checks.** Never silence a linter, type checker, or CI check to get a pass. Do not add `# noqa`, `eslint-disable`, `type: ignore`, `@ts-ignore`, or similar, and do not disable or weaken a CI step. Fix the underlying issue, or stop and report it like an incorrect test.
 
 **Edit safely.** Do not use loose regex or `sed` edits. Rewrites or literal search-and-replace only.
 
@@ -239,7 +243,7 @@ Good: `# Parse the config`
 Bad: `The build failed -- the cache was stale.`  
 Good: `The build failed. The cache was stale.`
 
-**No extended ASCII.** Use 7-bit ASCII (0-127) for code and comments. Limit Unicode to domain/framework requirements.
+**No non-ASCII characters.** Use 7-bit ASCII (0-127) for all code, comments, and prose. Unicode is allowed only inside string literals or data where the domain requires it (e.g., a translated message); never in identifiers, comments, or documentation text. A claim of "domain requirement" does not license Unicode outside literals.
 
 **Avoid emojis.** Do not use emojis unless contextually justified and approved by the user.
 
