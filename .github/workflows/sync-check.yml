@@ -20,3 +20,5 @@ jobs:
           python-version: '3.x'
       - name: Run sync check
         run: python scripts/sync.py --check
+      - name: Run style lint
+        run: python scripts/lint_style.py
