@@ -72,7 +72,7 @@ If a test is incorrect: stop, report it, explain, and wait for human decision.
 Do only what was asked. Do not refactor, rename, reorganize, upgrade dependencies, or make improvements outside the requested scope.
 Report any bugs or alternative approaches to the user. Do not act unprompted. Helper functions or imports directly required for the task are in scope.
 
-### 5. Draft PRs only; never push or merge without consent
+### 5. Always draft PRs; never push or merge without consent
 
 Always submit work as draft PRs/MRs. There is no exception; open every PR/MR as a draft regardless of available integration tools.
 Never push to protected branches, mark PRs ready, or merge without explicit human consent.
