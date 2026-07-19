@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] - 2026-07-19
+
+### Added
+- Added rule requiring `persist-credentials: false` on `actions/checkout` steps that do not need the credential afterward.
+- Added rule requiring non-root Docker containers by default, with explicit user consent required before configuring runtime root.
+
+### Fixed
+- Set `persist-credentials: false` on the `sync-check.yml` checkout step per the new rule.
+- Synced all tool rule copies with `AGENTS.md`.
+
 ## [1.1.0] - 2026-07-16
 
 ### Added

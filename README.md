@@ -7,8 +7,10 @@ compatibility and Banned agents below. Copy into a repository and adapt.
 
 - **Non-negotiable summary** - every critical rule in one line, at the
   top, where model attention is strongest.
-- **Nine critical rules** - injection, destructive commands, test
-  integrity, scope, draft-PR workflow, API contracts, hashing, secrets, dependencies.
+- **Twelve critical rules** - injection, destructive commands, test
+  integrity, scope, draft-PR workflow, API contracts, hashing, secrets,
+  dependencies, workflow-state verification, CI credential hygiene,
+  container privilege.
 - **Branch naming** - clean conventions for branch names.
 - **Workflow** - test-first, lint-clean, safe editing, retry discipline.
 - **Correctness & safety** - divisors, regex backtracking, collection
