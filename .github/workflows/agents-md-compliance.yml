@@ -28,6 +28,38 @@ jobs:
             --base "origin/${{ github.event.pull_request.base.ref }}" \
             --head "${{ github.event.pull_request.head.sha }}"
 
+  branch-name:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Check branch name
+        run: python scripts/check_branch_name.py
+
+  commit-message:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Check commit messages
+        run: |
+          python scripts/check_commit_message.py \
+            --base "origin/${{ github.event.pull_request.base.ref }}" \
+            --head "${{ github.event.pull_request.head.sha }}"
+
   static-checks:
     runs-on: ubuntu-latest
     steps:

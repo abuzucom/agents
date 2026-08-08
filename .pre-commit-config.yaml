@@ -27,3 +27,9 @@ repos:
         entry: python scripts/check_secrets_heuristic.py
         language: python
         files: ^(scripts/.*\.py|\.github/workflows/.*\.ya?ml|\.pre-commit-config\.yaml|Makefile)$
+      - id: check-branch-name
+        name: Check branch name (Branch naming conventions)
+        entry: python scripts/check_branch_name.py
+        language: python
+        pass_filenames: false
+        stages: [pre-push]

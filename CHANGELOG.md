@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.0] - 2026-08-08
+
+### Added
+- Added `scripts/check_branch_name.py`, backing Branch naming by validating `<type>/<kebab-description>` against the documented prefixes, exempting `main`, `master`, and detached HEAD.
+- Added `scripts/check_commit_message.py`, backing the commit-message style bullet by validating `type: description` shape, 50-character length, and no trailing period, stripping a trailing GitHub squash-merge suffix first.
+- Added `branch-name` and `commit-message` jobs to `agents-md-compliance.yml`, running on every pull request.
+- Added a `check-branch-name` pre-commit hook at the `pre-push` stage.
+- Added inline `scripts/` references to Branch naming and the commit-message style bullet.
+
+### Fixed
+- Synced all tool rule copies with `AGENTS.md`.
+
 ## [1.5.0] - 2026-08-08
 
 ### Added
