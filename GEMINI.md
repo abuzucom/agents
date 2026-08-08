@@ -108,13 +108,13 @@ Good: `hashlib.sha256(file_bytes).hexdigest()`  # integrity/general hashing
 **Exception:** Use MD5/SHA-1 for genuinely non-security tasks (e.g., cache keys) with a comment naming the use. The comment does not make a use non-security: any hash feeding authentication, integrity of untrusted data, signatures, session IDs, tokens, or key derivation is security-sensitive regardless.
 Good: `hashlib.md5(payload).hexdigest()  # MD5: non-cryptographic cache key only`
 
-Upgrade or document any unjustified MD5/SHA-1 encountered. Report it in security paths.
+Upgrade or document any unjustified MD5/SHA-1 encountered. Report it in security paths. Backed by `scripts/check_weak_hashing.py`.
 
 ### 8. No secrets in version control
 
 Never commit keys, tokens, passwords, private keys, or `.env` files.
 Get user authorization before committing `.env.example`. Use environment variables or secret managers.
-If a secret is exposed, flag it, stop committing, and recommend rotation.
+If a secret is exposed, flag it, stop committing, and recommend rotation. Backed by `scripts/check_secrets_heuristic.py` (heuristic only, not entropy-based).
 
 ### 9. No unauthorized dependencies
 
@@ -160,7 +160,8 @@ If the reason is not one of the four listed, stop and get the user's
 explicit sign-off before writing `persist-credentials: true`.
 
 If unrelated work turns up a workflow missing `persist-credentials: false`,
-flag it to the user instead of fixing it silently (Rule 4).
+flag it to the user instead of fixing it silently (Rule 4). Backed by
+`scripts/check_persist_credentials.py`.
 
 ### 12. No root containers without explicit consent
 
@@ -200,8 +201,12 @@ Compose: set `user:` on the service. Kubernetes: set
 `securityContext.runAsNonRoot: true` and `runAsUser` on the pod or
 container spec.
 
+Once approved, add a comment in this exact form:
+`# runtime-root: this container <reason> (Rule 12 exception).`
+
 If unrelated work turns up a config running as root, flag it to the user
-instead of fixing it silently (Rule 4).
+instead of fixing it silently (Rule 4). Backed by
+`scripts/check_dockerfile_root.py`.
 
 ### 13. Back enforcement claims with real checks
 
