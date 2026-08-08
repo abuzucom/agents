@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.7.0] - 2026-08-08
+
+### Added
+- Added `scripts/` references to the dash/ASCII rule (`lint_style.py`/`check_ascii.py`) and the American spelling/English-only rules (`check_us_spelling.py`/`check_english_only.py`, marked warning only), completing the enforcement markers across every rule with a shipped checker.
+- Added a Checker reference table to README, replacing the prose paragraphs Adopting step 5 had accumulated across three prior releases.
+- Added `hooks/block_destructive_bash.py`, an opt-in Claude Code `PreToolUse` hook example blocking `rm -rf /`/`~`/`$HOME`, bare `git push --force`/`-f`, and `git reset --hard`.
+- Added `hooks/claude-code-settings.example.json`, the wiring example for the hook above.
+- Added a README "Claude Code hook example" section documenting both files; not referenced from AGENTS.md, which stays tool-agnostic.
+
+### Changed
+- Consolidated the per-PR checker bullets in README's "What's in it" into a single entry pointing at the Checker reference table.
+
+### Fixed
+- Synced all tool rule copies with `AGENTS.md`.
+
 ## [1.6.0] - 2026-08-08
 
 ### Added

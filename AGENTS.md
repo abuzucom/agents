@@ -337,19 +337,19 @@ Good: `user = fetch_user(id)` then `if user:`
 Bad: `# This function is responsible for handling the parsing of the config`  
 Good: `# Parse the config`  
 
-**No run-on sentences; no em or en dashes.** Do not splice independent clauses into one sentence. Never use the em/en dash character, and never substitute `--`, `---`, or a spaced hyphen (` - `) for one. To add an aside or second clause, start a new sentence, or join with a comma, colon, or semicolon. Hyphens are for compound words, ranges, CLI flags, and negative numbers only.
+**No run-on sentences; no em or en dashes.** Do not splice independent clauses into one sentence. Never use the em/en dash character, and never substitute `--`, `---`, or a spaced hyphen (` - `) for one. To add an aside or second clause, start a new sentence, or join with a comma, colon, or semicolon. Hyphens are for compound words, ranges, CLI flags, and negative numbers only. Backed by `scripts/lint_style.py` (this file) or `scripts/check_ascii.py` (portable, blocking).
 
 Bad: `The build failed -- the cache was stale.`  
 Good: `The build failed. The cache was stale.`
 
-**No non-ASCII characters.** Use 7-bit ASCII (0-127) for all code, comments, and prose. Unicode is allowed only inside string literals or data where the domain requires it (e.g., a translated message), never in identifiers, comments, or documentation. A "domain requirement" claim does not license Unicode outside literals.
+**No non-ASCII characters.** Use 7-bit ASCII (0-127) for all code, comments, and prose. Unicode is allowed only inside string literals or data where the domain requires it (e.g., a translated message), never in identifiers, comments, or documentation. A "domain requirement" claim does not license Unicode outside literals. Backed by the same `lint_style.py`/`check_ascii.py` pair as above.
 
-**American English spelling.** Use American spelling in code, comments, commit messages, and documentation. British variants (`-our`, `-ise`/`-isation`, `-re`, doubled consonants before a suffix, etc.) are non-conforming even though they are valid ASCII.
+**American English spelling.** Use American spelling in code, comments, commit messages, and documentation. British variants (`-our`, `-ise`/`-isation`, `-re`, doubled consonants before a suffix, etc.) are non-conforming even though they are valid ASCII. Backed by `scripts/check_us_spelling.py` (warning only, always exits 0).
 
 Bad: `# Initialise the colour palette and serialise the behaviour config`  
 Good: `# Initialize the color palette and serialize the behavior config`  
 
-**English only.** Write code, comments, commit messages, and documentation in English. Comments are always English, with no exception, including Chinese, Japanese, and Korean, even in a codebase whose product domain targets Chinese, Japanese, or Korean users. Non-English text is allowed only inside string literals or data where the domain genuinely requires it, for example localized user-facing strings in a Chinese, Japanese, or Korean product; it never appears in identifiers, comments, or documentation. A domain-requirement claim does not license non-English text outside those literals or data.
+**English only.** Write code, comments, commit messages, and documentation in English. Comments are always English, with no exception, including Chinese, Japanese, and Korean, even in a codebase whose product domain targets Chinese, Japanese, or Korean users. Non-English text is allowed only inside string literals or data where the domain genuinely requires it, for example localized user-facing strings in a Chinese, Japanese, or Korean product; it never appears in identifiers, comments, or documentation. A domain-requirement claim does not license non-English text outside those literals or data. Backed by `scripts/check_english_only.py` (warning only, always exits 0).
 
 Bad: `# Verificar que el usuario este autenticado antes de continuar`  
 Good: `# Verify the user is authenticated before continuing`  

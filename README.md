@@ -22,19 +22,14 @@ compatibility and Banned agents below. Copy into a repository and adapt.
 - **`.claudeignore`** - excludes noisy/generated paths (`node_modules/`,
   build output, lockfiles, `.env*`, etc.) from Claude Code's context. Part
   of the template, not optional tooling - see Adopting step 1.
-- **`scripts/check_banned_agents.py`** and
-  **`.github/workflows/agents-md-compliance.yml`** - this template's own
-  enforcement of Banned agents, dogfooded in its own CI; see Banned agents
-  below for propagating it.
-- **`scripts/check_persist_credentials.py`**, **`check_weak_hashing.py`**,
-  **`check_dockerfile_root.py`**, and **`check_secrets_heuristic.py`** -
-  portable checkers backing rules 11, 7, 12, and 8; dogfooded in
-  `agents-md-compliance.yml` and `.pre-commit-config.yaml`; see Adopting
-  step 5 for propagating them.
-- **`scripts/check_branch_name.py`** and **`check_commit_message.py`** -
-  portable checkers backing Branch naming and the commit-message style
-  bullet; dogfooded in `agents-md-compliance.yml` on pull requests; see
-  Adopting step 5 for propagating them.
+- **`scripts/check_*.py`** and **`.github/workflows/agents-md-compliance.yml`** -
+  this template's own mechanical enforcement of its rules, dogfooded in its
+  own CI and `.pre-commit-config.yaml`; see the Checker reference table under
+  Adopting for what each script backs, and Banned agents below for
+  `check_banned_agents.py` specifically.
+- **`hooks/`** - an opt-in, Claude-Code-specific `PreToolUse` hook example
+  blocking obviously destructive Bash commands; see Claude Code hook example
+  below.
 
 ## Adopting
 
@@ -54,36 +49,15 @@ compatibility and Banned agents below. Copy into a repository and adapt.
    `make sync` (or manually run `python scripts/sync.py`); `--check` in CI or
    `make check` catches drift. `.claudeignore`, `.gitattributes`, and `.editorconfig`
    are not part of this sync - they are single shared files, copied as-is.
-5. Back lintable rules (nesting, function size, line length, empty
-   catches, cond-assign, injection, MD5, American spelling, English only,
-   non-ASCII characters including CJK script) with linter/semgrep config. If you (agent)
-   are doing the integration, do not wire up lint CI, add files, or dependencies unprompted (Rule 4).
-   Propose linter configuration and CI setup as a separate proposal for user approval.
-   For American spelling, English only, and non-ASCII characters, this template ships
-   ready-made, portable checkers instead of a linter config: `scripts/check_us_spelling.py`,
-   `scripts/check_english_only.py`, and `scripts/check_ascii.py`. Copy the relevant one(s)
-   into the target repo and point them at that repo's own source globs and CI rather than
-   reimplementing from scratch. Their exit-code contracts differ: `check_us_spelling.py`
-   and `check_english_only.py` always exit 0 (warning only, matching this repo's own
-   `make lint`); `check_ascii.py` exits 1 on any violation (blocking), matching the severity
-   of the "No non-ASCII characters" rule it propagates. A repo that wants a harder line on
-   the two warning-only checks needs to change a script's exit behavior itself; that is not
-   the default. `check_english_only.py` is a stopword-ratio heuristic, not language detection;
-   it will miss short lines, heavily technical lines, and foreign text that avoids common
-   stopwords, and it can in principle false-positive on an English sentence built entirely
-   from proper nouns and jargon. A repo that wants real language detection needs a dependency
-   (e.g. `langdetect` or `pycld3`), which is a separate proposal requiring its own user
-   authorization (Rule 9). This template also ships `scripts/check_persist_credentials.py`,
-   `scripts/check_weak_hashing.py`, `scripts/check_dockerfile_root.py`, and
-   `scripts/check_secrets_heuristic.py`, backing rules 11, 7, 12, and 8. All four exit 1 on
-   any violation (blocking). `check_secrets_heuristic.py` is a heuristic, not entropy-based
-   scanning; propose gitleaks or detect-secrets (Rule 9) for that. Copy the relevant ones
-   into the target repo and point them at that repo's own globs and CI, same as above.
-   It also ships `scripts/check_branch_name.py`, usable as a `pre-push` hook or a
-   `pull_request` CI step with no arguments (it reads the current branch), and
-   `scripts/check_commit_message.py`, which takes a `--base`/`--head` commit range and is
-   CI-only; it is not a drop-in `commit-msg` hook, since that hook receives a message-file
-   path, not two refs. Both exit 1 on any violation.
+5. Back lintable rules with no shipped checker (nesting, function size, line
+   length, empty catches, cond-assign, injection) with linter/semgrep config. If
+   you (agent) are doing the integration, do not wire up lint CI, add files, or
+   dependencies unprompted (Rule 4); propose linter configuration and CI setup
+   for approval first. Every other lintable rule ships a ready-made, portable
+   checker instead (see the Checker reference table below): copy the relevant
+   one(s) into the target repo and point them at that repo's own globs and CI
+   rather than reimplementing from scratch. Propagating each checker, like
+   wiring any new CI job, is its own proposal under Rule 9.
 6. Prune rules, and their scripts or CI jobs, that do not apply to the target
    repo, with the user's approval. Example: a static site with no authentication
    or database has no use for the weak-hashing rule or `check_weak_hashing.py`.
@@ -94,6 +68,22 @@ compatibility and Banned agents below. Copy into a repository and adapt.
    both cleanly. Neither workflow copies into a target repo by default;
    propagating one, like any other checker in this section, is its own
    proposal under Rule 9.
+
+### Checker reference
+
+`scripts/check_banned_agents.py` backs Banned agents below, not this table.
+
+| Script | Backs | Exit code | Notes |
+|---|---|---|---|
+| `check_us_spelling.py` | American spelling | 0, warning only | |
+| `check_english_only.py` | English only | 0, warning only | stopword-ratio heuristic, not language detection; real detection needs a dependency (e.g. `langdetect`), a separate Rule 9 proposal |
+| `check_ascii.py` | No run-on sentences/dashes; No non-ASCII characters | 1, blocking | |
+| `check_persist_credentials.py` | Rule 11 | 1, blocking | |
+| `check_weak_hashing.py` | Rule 7 | 1, blocking | |
+| `check_dockerfile_root.py` | Rule 12 | 1, blocking | |
+| `check_secrets_heuristic.py` | Rule 8 | 1, blocking | heuristic, not entropy-based; propose gitleaks or detect-secrets (Rule 9) for that |
+| `check_branch_name.py` | Branch naming | 1, blocking | usable as a `pre-push` hook or `pull_request` CI step, no arguments needed |
+| `check_commit_message.py` | Commit-message style | 1, blocking | CI-only, takes `--base`/`--head`; not a drop-in `commit-msg` hook, which receives a message-file path instead |
 
 ## Banned agents
 
@@ -129,6 +119,23 @@ Do not create pointer or copy files for banned tools; do not add them to
 | xAI/Grok | N/A | Banned - see Banned agents; no pointer files |
 
 Verify against each tool's current docs; conventions shift.
+
+## Claude Code hook example
+
+`hooks/block_destructive_bash.py` and `hooks/claude-code-settings.example.json`
+are a Claude-Code-specific defense-in-depth example, not part of the
+AGENTS.md rules themselves (AGENTS.md stays tool-agnostic; it is synced
+byte-identical to non-Claude tools). Nothing in this repo loads the hook
+automatically: there is no `.claude/` directory here. A `PreToolUse` hook
+on the `Bash` matcher blocks `rm -rf /`, `~`, or `$HOME`, a bare
+`git push --force`/`-f`, and `git reset --hard`, mirroring rule 2 and the
+history-safety rule in Workflow as a mechanical backstop for a single tool,
+independent of whether the model remembers the rule. It is a heuristic, not
+a sandbox: it does not parse the shell, so a command hidden behind a
+variable, alias, or wrapper script is invisible to it. To use it, copy both
+files into a target repo and merge `claude-code-settings.example.json`'s
+`hooks` key into that repo's own `.claude/settings.json`; propose this to
+the user first, like any other new tooling (Rule 9).
 
 ## Maintaining
 
