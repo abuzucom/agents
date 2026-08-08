@@ -31,6 +31,10 @@ compatibility and Banned agents below. Copy into a repository and adapt.
   portable checkers backing rules 11, 7, 12, and 8; dogfooded in
   `agents-md-compliance.yml` and `.pre-commit-config.yaml`; see Adopting
   step 5 for propagating them.
+- **`scripts/check_branch_name.py`** and **`check_commit_message.py`** -
+  portable checkers backing Branch naming and the commit-message style
+  bullet; dogfooded in `agents-md-compliance.yml` on pull requests; see
+  Adopting step 5 for propagating them.
 
 ## Adopting
 
@@ -75,6 +79,11 @@ compatibility and Banned agents below. Copy into a repository and adapt.
    any violation (blocking). `check_secrets_heuristic.py` is a heuristic, not entropy-based
    scanning; propose gitleaks or detect-secrets (Rule 9) for that. Copy the relevant ones
    into the target repo and point them at that repo's own globs and CI, same as above.
+   It also ships `scripts/check_branch_name.py`, usable as a `pre-push` hook or a
+   `pull_request` CI step with no arguments (it reads the current branch), and
+   `scripts/check_commit_message.py`, which takes a `--base`/`--head` commit range and is
+   CI-only; it is not a drop-in `commit-msg` hook, since that hook receives a message-file
+   path, not two refs. Both exit 1 on any violation.
 6. Prune rules, and their scripts or CI jobs, that do not apply to the target
    repo, with the user's approval. Example: a static site with no authentication
    or database has no use for the weak-hashing rule or `check_weak_hashing.py`.
