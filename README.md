@@ -42,9 +42,25 @@ compatibility and Banned agents below. Copy into a repository and adapt.
    `make check` catches drift. `.claudeignore`, `.gitattributes`, and `.editorconfig`
    are not part of this sync - they are single shared files, copied as-is.
 5. Back lintable rules (nesting, function size, line length, empty
-   catches, cond-assign, injection, MD5) with linter/semgrep config. If you (agent)
+   catches, cond-assign, injection, MD5, American spelling, English only,
+   non-ASCII characters including CJK script) with linter/semgrep config. If you (agent)
    are doing the integration, do not wire up lint CI, add files, or dependencies unprompted (Rule 4).
    Propose linter configuration and CI setup as a separate proposal for user approval.
+   For American spelling, English only, and non-ASCII characters, this template ships
+   ready-made, portable checkers instead of a linter config: `scripts/check_us_spelling.py`,
+   `scripts/check_english_only.py`, and `scripts/check_ascii.py`. Copy the relevant one(s)
+   into the target repo and point them at that repo's own source globs and CI rather than
+   reimplementing from scratch. Their exit-code contracts differ: `check_us_spelling.py`
+   and `check_english_only.py` always exit 0 (warning only, matching this repo's own
+   `make lint`); `check_ascii.py` exits 1 on any violation (blocking), matching the severity
+   of the "No non-ASCII characters" rule it propagates. A repo that wants a harder line on
+   the two warning-only checks needs to change a script's exit behavior itself; that is not
+   the default. `check_english_only.py` is a stopword-ratio heuristic, not language detection;
+   it will miss short lines, heavily technical lines, and foreign text that avoids common
+   stopwords, and it can in principle false-positive on an English sentence built entirely
+   from proper nouns and jargon. A repo that wants real language detection needs a dependency
+   (e.g. `langdetect` or `pycld3`), which is a separate proposal requiring its own user
+   authorization (Rule 9).
 
 ## Banned agents
 

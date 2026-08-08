@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.0] - 2026-08-08
+
+### Added
+- Added `**American English spelling**` rule banning British spelling variants (`-our`, `-ise`/`-isation`, `-re`, etc.) even though they are valid ASCII.
+- Added `**English only**` rule requiring English in code, comments, commit messages, and documentation, with comments always English and no exception for Chinese, Japanese, or Korean, even in a codebase targeting those markets.
+- Added `scripts/check_us_spelling.py`, a portable, warning-only checker for the American spelling rule, usable in any repo.
+- Added `scripts/check_english_only.py`, a portable, warning-only stopword heuristic for the English-only rule, usable in any repo.
+- Added `scripts/check_ascii.py`, a portable, blocking checker mirroring `lint_style.py`'s existing dash and ASCII checks for use outside this repo.
+- Added the two new warning-only checks to `make lint` and to the CI style-lint step.
+- Added `README.md` guidance for propagating all three new checkers into adopting repos, including each script's exit-code contract.
+
+### Fixed
+- Synced all tool rule copies with `AGENTS.md`.
+
 ## [1.2.0] - 2026-07-19
 
 ### Added

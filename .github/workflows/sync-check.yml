@@ -24,3 +24,7 @@ jobs:
         run: python scripts/sync.py --check
       - name: Run style lint
         run: python scripts/lint_style.py
+      - name: Check American spelling (warning only)
+        run: python scripts/check_us_spelling.py AGENTS.md
+      - name: Check English only (warning only)
+        run: python scripts/check_english_only.py AGENTS.md
