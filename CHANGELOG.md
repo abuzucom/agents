@@ -8,10 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.4.0] - 2026-08-08
 
 ### Added
-- Added rule 13, **Back enforcement claims with real checks**: a rule must not claim or imply CI/tooling enforcement unless that enforcement exists; propose the check in the same change that adds an enforceable rule.
+- Added rule 13, **Back enforcement claims with real checks**: no rule may claim CI or tooling enforcement it lacks; propose the check in the same change that adds an enforceable rule.
 - Added `scripts/check_banned_agents.py`, matching commit author, committer, and `Co-authored-by` trailer fields, plus the PR author, against a banned-agent denylist.
-- Added `.github/workflows/agents-md-compliance.yml`, running `check_banned_agents.py` on every pull request, closing the previously false "Enforced by CI" claim in the Banned agents section.
-- Added `README.md` guidance (Adopting step 6) confirming that adopting repos may prune rules and their checks that do not apply, with user approval, without violating rule 13.
+- Added `.github/workflows/agents-md-compliance.yml`, running the check on every pull request.
+- Added `README.md` Adopting step 6: adopting repos may prune rules and their checks that do not apply, with user approval, without violating rule 13.
 
 ### Changed
 - Rewrote the Banned agents section's enforcement claim to name the real script and its limitation (cannot catch a banned agent committing under a human's own identity with no trailer).

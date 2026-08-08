@@ -6,9 +6,9 @@ plus the PR author's GitHub login, against a denylist. Never scans
 free-form commit-message body or PR description text: "grok" is an
 ordinary English verb and would false-positive constantly there.
 
-Limitation: a banned agent that commits under a human's own git identity,
-with no Co-authored-by trailer naming the tool, is invisible to this
-check. That gap is a trust boundary a mechanical check cannot close.
+Limitation: a banned agent committing under a human's own git identity,
+with no Co-authored-by trailer, is invisible to this check. No mechanical
+check can close that gap.
 """
 import argparse
 import json

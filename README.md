@@ -24,8 +24,8 @@ compatibility and Banned agents below. Copy into a repository and adapt.
   of the template, not optional tooling - see Adopting step 1.
 - **`scripts/check_banned_agents.py`** and
   **`.github/workflows/agents-md-compliance.yml`** - this template's own
-  enforcement of the Banned agents section, dogfooded in its own CI; see
-  Banned agents below and Adopting step 5 for propagating it.
+  enforcement of Banned agents, dogfooded in its own CI; see Banned agents
+  below for propagating it.
 
 ## Adopting
 
@@ -65,30 +65,26 @@ compatibility and Banned agents below. Copy into a repository and adapt.
    from proper nouns and jargon. A repo that wants real language detection needs a dependency
    (e.g. `langdetect` or `pycld3`), which is a separate proposal requiring its own user
    authorization (Rule 9).
-6. Prune rules, and any script or CI job enforcing them, that do not apply to the
-   target repo, with the user's approval. Example: a static site with no
-   authentication and no database has no use for the weak-hashing or SQL-injection
-   guidance, or for `check_weak_hashing.py`. A pruned rule carries no enforcement
-   obligation. Rule 13 binds only the rules and enforcement claims that remain in
-   the file; it does not require every rule or every checker to exist in every
-   adopting repo. This template's own CI (`sync-check.yml`,
-   `agents-md-compliance.yml`) checks two things only: that the tool-specific
-   copies stay byte-identical to AGENTS.md, and that commits are not authored by
-   a banned agent. Neither examines which rules AGENTS.md contains, so pruning a
-   rule and re-running `make sync` passes both checks cleanly. Both workflows
-   are also this repository's own CI, not something step 1 copies into a target
-   repo automatically; propagating either into an adopting repo, like propagating
-   any other checker in this section, is its own proposal under Rule 9.
+6. Prune rules, and their scripts or CI jobs, that do not apply to the target
+   repo, with the user's approval. Example: a static site with no authentication
+   or database has no use for the weak-hashing rule or `check_weak_hashing.py`.
+   A pruned rule carries no enforcement obligation; rule 13 binds only rules and
+   claims that remain in the file. This template's own CI (`sync-check.yml`,
+   `agents-md-compliance.yml`) checks copy drift and banned-agent authorship
+   only, never rule content, so pruning a rule and rerunning `make sync` passes
+   both cleanly. Neither workflow copies into a target repo by default;
+   propagating one, like any other checker in this section, is its own
+   proposal under Rule 9.
 
 ## Banned agents
 
 AGENTS.md contains a banned-agents section (currently xAI/Grok). Instructions
 bind only compliant agents; this template's own CI runs
-`scripts/check_banned_agents.py` (see `.github/workflows/agents-md-compliance.yml`)
-against commit author, committer, and `Co-authored-by` trailer fields, plus the
-PR author, on every pull request. It cannot catch a banned agent committing
-under a human's own identity with no trailer naming the tool; pair it with
-platform-level bot blocks, which apply separately. Adopting repos must copy
+`scripts/check_banned_agents.py` (`.github/workflows/agents-md-compliance.yml`)
+on every pull request, matching commit author, committer, and
+`Co-authored-by` trailer fields, plus the PR author, against a denylist. It
+cannot catch an agent committing under a human's own identity with no
+trailer; pair it with platform-level bot blocks. Adopting repos must copy
 the script and wire it into their own CI; it is not part of the sync step.
 
 Do not create pointer or copy files for banned tools; do not add them to
