@@ -7,10 +7,10 @@ compatibility and Banned agents below. Copy into a repository and adapt.
 
 - **Non-negotiable summary** - every critical rule in one line, at the
   top, where model attention is strongest.
-- **Twelve critical rules** - injection, destructive commands, test
+- **Thirteen critical rules** - injection, destructive commands, test
   integrity, scope, draft-PR workflow, API contracts, hashing, secrets,
   dependencies, workflow-state verification, CI credential hygiene,
-  container privilege.
+  container privilege, honest enforcement claims.
 - **Branch naming** - clean conventions for branch names.
 - **Workflow** - test-first, lint-clean, safe editing, retry discipline.
 - **Correctness & safety** - divisors, regex backtracking, collection
@@ -22,6 +22,10 @@ compatibility and Banned agents below. Copy into a repository and adapt.
 - **`.claudeignore`** - excludes noisy/generated paths (`node_modules/`,
   build output, lockfiles, `.env*`, etc.) from Claude Code's context. Part
   of the template, not optional tooling - see Adopting step 1.
+- **`scripts/check_banned_agents.py`** and
+  **`.github/workflows/agents-md-compliance.yml`** - this template's own
+  enforcement of the Banned agents section, dogfooded in its own CI; see
+  Banned agents below and Adopting step 5 for propagating it.
 
 ## Adopting
 
@@ -61,12 +65,25 @@ compatibility and Banned agents below. Copy into a repository and adapt.
    from proper nouns and jargon. A repo that wants real language detection needs a dependency
    (e.g. `langdetect` or `pycld3`), which is a separate proposal requiring its own user
    authorization (Rule 9).
+6. Prune rules, and any script or CI job enforcing them, that do not apply to the
+   target repo, with the user's approval. Example: a static site with no
+   authentication and no database has no use for the weak-hashing or SQL-injection
+   guidance, or for `check_weak_hashing.py`. A pruned rule carries no enforcement
+   obligation. Rule 13 binds only the rules and enforcement claims that remain in
+   the file; it does not require every rule or every checker to exist in every
+   adopting repo, and pruning must never be blocked by, or made to wait on, this
+   template's own CI or checkers.
 
 ## Banned agents
 
 AGENTS.md contains a banned-agents section (currently xAI/Grok). Instructions
-bind only compliant agents; pair with CI rejecting banned-agent fingerprints
-(bot authors, `Co-authored-by` trailers) and platform-level bot blocks.
+bind only compliant agents; this template's own CI runs
+`scripts/check_banned_agents.py` (see `.github/workflows/agents-md-compliance.yml`)
+against commit author, committer, and `Co-authored-by` trailer fields, plus the
+PR author, on every pull request. It cannot catch a banned agent committing
+under a human's own identity with no trailer naming the tool; pair it with
+platform-level bot blocks, which apply separately. Adopting repos must copy
+the script and wire it into their own CI; it is not part of the sync step.
 
 Do not create pointer or copy files for banned tools; do not add them to
 `scripts/sync.py`.
