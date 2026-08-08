@@ -71,8 +71,14 @@ compatibility and Banned agents below. Copy into a repository and adapt.
    guidance, or for `check_weak_hashing.py`. A pruned rule carries no enforcement
    obligation. Rule 13 binds only the rules and enforcement claims that remain in
    the file; it does not require every rule or every checker to exist in every
-   adopting repo, and pruning must never be blocked by, or made to wait on, this
-   template's own CI or checkers.
+   adopting repo. This template's own CI (`sync-check.yml`,
+   `agents-md-compliance.yml`) checks two things only: that the tool-specific
+   copies stay byte-identical to AGENTS.md, and that commits are not authored by
+   a banned agent. Neither examines which rules AGENTS.md contains, so pruning a
+   rule and re-running `make sync` passes both checks cleanly. Both workflows
+   are also this repository's own CI, not something step 1 copies into a target
+   repo automatically; propagating either into an adopting repo, like propagating
+   any other checker in this section, is its own proposal under Rule 9.
 
 ## Banned agents
 
