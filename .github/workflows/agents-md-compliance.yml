@@ -1,6 +1,8 @@
 name: AGENTS.md Compliance
 
 on:
+  push:
+    branches: [ main ]
   pull_request:
     branches: [ main ]
 
@@ -9,6 +11,7 @@ permissions:
 
 jobs:
   banned-agents:
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -24,3 +27,37 @@ jobs:
           python scripts/check_banned_agents.py \
             --base "origin/${{ github.event.pull_request.base.ref }}" \
             --head "${{ github.event.pull_request.head.sha }}"
+
+  static-checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Check persist-credentials on checkout steps
+        run: python scripts/check_persist_credentials.py .github/workflows/*.yml
+      - name: Check for unjustified MD5/SHA-1
+        run: |
+          shopt -s nullglob
+          files=(scripts/*.py)
+          if [ ${#files[@]} -gt 0 ]; then
+            python scripts/check_weak_hashing.py "${files[@]}"
+          fi
+      - name: Check for non-root containers
+        run: |
+          shopt -s nullglob
+          files=(Dockerfile* docker-compose*.yml docker-compose*.yaml compose*.yml compose*.yaml)
+          if [ ${#files[@]} -gt 0 ]; then
+            python scripts/check_dockerfile_root.py "${files[@]}"
+          fi
+      - name: Check for likely secrets
+        run: |
+          shopt -s nullglob
+          files=(scripts/*.py .github/workflows/*.yml .pre-commit-config.yaml Makefile)
+          if [ ${#files[@]} -gt 0 ]; then
+            python scripts/check_secrets_heuristic.py "${files[@]}"
+          fi

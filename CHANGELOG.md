@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.0] - 2026-08-08
+
+### Added
+- Added `scripts/check_persist_credentials.py`, backing rule 11 by scanning workflow files for `actions/checkout` steps missing `persist-credentials: false`.
+- Added `scripts/check_weak_hashing.py`, backing rule 7 by flagging MD5/SHA-1 calls with no same-line justification comment.
+- Added `scripts/check_dockerfile_root.py`, backing rule 12 by flagging Dockerfiles, compose files, and Kubernetes manifests with no non-root user configured.
+- Added `scripts/check_secrets_heuristic.py`, backing rule 8 with a heuristic match on structured secret-token prefixes and a `.env`/`.env.local` filename block.
+- Added a Rule 12 exception comment, `# runtime-root: this container <reason> (Rule 12 exception).`, mirroring rule 11's escape hatch.
+- Added a `static-checks` job to `agents-md-compliance.yml`, running all four new checkers on every push and pull request to `main`.
+- Added local pre-commit hooks for all four checkers, scoped to their relevant file globs.
+- Added inline `scripts/` references to rules 7, 8, 11, and 12, and Adopting-step guidance for propagating them.
+
+### Fixed
+- Synced all tool rule copies with `AGENTS.md`.
+
 ## [1.4.0] - 2026-08-08
 
 ### Added

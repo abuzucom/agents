@@ -26,6 +26,11 @@ compatibility and Banned agents below. Copy into a repository and adapt.
   **`.github/workflows/agents-md-compliance.yml`** - this template's own
   enforcement of Banned agents, dogfooded in its own CI; see Banned agents
   below for propagating it.
+- **`scripts/check_persist_credentials.py`**, **`check_weak_hashing.py`**,
+  **`check_dockerfile_root.py`**, and **`check_secrets_heuristic.py`** -
+  portable checkers backing rules 11, 7, 12, and 8; dogfooded in
+  `agents-md-compliance.yml` and `.pre-commit-config.yaml`; see Adopting
+  step 5 for propagating them.
 
 ## Adopting
 
@@ -64,7 +69,12 @@ compatibility and Banned agents below. Copy into a repository and adapt.
    stopwords, and it can in principle false-positive on an English sentence built entirely
    from proper nouns and jargon. A repo that wants real language detection needs a dependency
    (e.g. `langdetect` or `pycld3`), which is a separate proposal requiring its own user
-   authorization (Rule 9).
+   authorization (Rule 9). This template also ships `scripts/check_persist_credentials.py`,
+   `scripts/check_weak_hashing.py`, `scripts/check_dockerfile_root.py`, and
+   `scripts/check_secrets_heuristic.py`, backing rules 11, 7, 12, and 8. All four exit 1 on
+   any violation (blocking). `check_secrets_heuristic.py` is a heuristic, not entropy-based
+   scanning; propose gitleaks or detect-secrets (Rule 9) for that. Copy the relevant ones
+   into the target repo and point them at that repo's own globs and CI, same as above.
 6. Prune rules, and their scripts or CI jobs, that do not apply to the target
    repo, with the user's approval. Example: a static site with no authentication
    or database has no use for the weak-hashing rule or `check_weak_hashing.py`.
