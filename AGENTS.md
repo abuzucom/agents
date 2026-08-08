@@ -329,6 +329,16 @@ Good: `The build failed. The cache was stale.`
 
 **No non-ASCII characters.** Use 7-bit ASCII (0-127) for all code, comments, and prose. Unicode is allowed only inside string literals or data where the domain requires it (e.g., a translated message), never in identifiers, comments, or documentation. A "domain requirement" claim does not license Unicode outside literals.
 
+**American English spelling.** Use American spelling in code, comments, commit messages, and documentation. British variants (`-our`, `-ise`/`-isation`, `-re`, doubled consonants before a suffix, etc.) are non-conforming even though they are valid ASCII.
+
+Bad: `# Initialise the colour palette and serialise the behaviour config`  
+Good: `# Initialize the color palette and serialize the behavior config`  
+
+**English only.** Write code, comments, commit messages, and documentation in English. Comments are always English, with no exception, including Chinese, Japanese, and Korean, even in a codebase whose product domain targets Chinese, Japanese, or Korean users. Non-English text is allowed only inside string literals or data where the domain genuinely requires it, for example localized user-facing strings in a Chinese, Japanese, or Korean product; it never appears in identifiers, comments, or documentation. A domain-requirement claim does not license non-English text outside those literals or data.
+
+Bad: `# Verificar que el usuario este autenticado antes de continuar`  
+Good: `# Verify the user is authenticated before continuing`  
+
 **Avoid emojis.** No emojis unless contextually justified and user-approved.
 
 **Imperative tone.** Instruct, teach, and direct. Do not override or badger the user.
