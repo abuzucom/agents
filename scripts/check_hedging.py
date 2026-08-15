@@ -5,9 +5,7 @@ Portable and path-generic (unlike lint_style.py, which is hardcoded to
 AGENTS.md in this repo): copy this single file into any repo and point
 it at that repo's own source globs and CI. Always exits 0, even when it
 finds violations; this check is advisory, not blocking. Heuristic
-keyword matching, not intent detection: it misses paraphrases and can
-false-positive on legitimate uses (a quoted user message containing "as
-requested", for instance).
+keyword matching, not intent detection.
 """
 import re
 import sys
