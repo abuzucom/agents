@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.10.0] - 2026-08-15
+
+### Added
+- Added `CONTRIBUTING.md.example`, an opt-in, self-contained contribution guide for human contributors, covering setup, naming/comment conventions, security and review practices, code quality, and workflow, each item drawn from an explicit item-by-item review of AGENTS.md's rules.
+- Added `.github/PULL_REQUEST_TEMPLATE.md` (live), formalizing the Summary/Test plan PR shape used throughout this project's history.
+- Added `.github/ISSUE_TEMPLATE.md` (live), a single legacy-format template covering both bug reports and rule/template proposals.
+- Added a README "Contributing guide example" section and Adopting step 9 documenting the new template.
+- Extended `check_us_spelling.py`, `check_english_only.py`, `check_hedging.py`, and `check_ascii.py` in `sync-check.yml` to also scan all three new files.
+
 ## [1.9.0] - 2026-08-15
 
 ### Added
