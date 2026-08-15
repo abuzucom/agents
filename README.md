@@ -1,8 +1,8 @@
 # AGENTS.md template
 
-A generic, terse instruction file for AI coding agents and their human
-collaborators. See Tool compatibility and Banned agents below. Copy into
-a repository and adapt.
+Bootstrap instruction conventions for AI coding agents and their human
+collaborators across ABUZUCOM projects. See Tool compatibility and
+Banned agents below. Copy into a repository and adapt.
 
 ## What's in it
 
