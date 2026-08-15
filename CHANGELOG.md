@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.7.1] - 2026-08-15
+
+### Added
+- Added a Style rule banning hedging qualifiers, self-justification, self-narration, prompt/task/plan references, tutorial-mode narration, and justification theater in prose, documentation, CHANGELOG entries, and code comments.
+- Extended the "Comment the why" rule to ban historical narration in comments (referencing removed code or prior implementations); git history covers that.
+- Added `scripts/check_hedging.py`, a portable, warning-only heuristic checker backing both rules above, matching phrase lists plus generic filler comment openers (`# Note:`, `# This function`, `# Handle errors`, etc.).
+- Added a `check_hedging.py` step to `sync-check.yml`'s existing `check-sync` job, with no new job or checkout/setup-python cost.
+- Added a `check_hedging.py` row to the README Checker reference table.
+
+### Fixed
+- Synced all tool rule copies with `AGENTS.md`.
+
 ## [1.7.0] - 2026-08-08
 
 ### Added
