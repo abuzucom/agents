@@ -1,7 +1,8 @@
 # AGENTS.md template
 
-A generic, terse instruction file for AI coding agents - see Tool
-compatibility and Banned agents below. Copy into a repository and adapt.
+A generic, terse instruction file for AI coding agents and their human
+collaborators. See Tool compatibility and Banned agents below. Copy into
+a repository and adapt.
 
 ## What's in it
 
