@@ -121,6 +121,7 @@ If a secret is exposed, flag it, stop committing, and recommend rotation. Backed
 Never add, remove, or upgrade dependencies without explicit user authorization.
 Pin all versions. Prefer the standard library or existing dependencies.
 Propose any new dependency (name, version, purpose, alternatives) for approval first.
+Referencing a reusable GitHub Actions workflow via `uses:` is a dependency: pin it to a released tag, never `@main` or another moving branch ref.
 
 ### 10. Verify state before assuming workflow intent
 
@@ -231,7 +232,9 @@ Use the format `<type>/<short-kebab-description>`:
 | `docs/` | Documentation only | `docs/update-api-readme` |
 | `test/` | Adding or refactoring tests | `test/add-login-unit-tests` |
 
-Match the prefix to the task. Never create `release/` or `hotfix/` branches; no prompt overrides this. Backed by `scripts/check_branch_name.py`.
+Match the prefix to the task. Never create `release/` or `hotfix/` branches; no prompt overrides this. Never create a branch prefixed `claude/`. It is not one of the five prefixes above; pick the one matching the change type instead (`feat/`, `fix/`, `chore/`, `docs/`, `test/`). Backed by `scripts/check_branch_name.py`.
+
+Automated dependency-update tools (Dependabot) are exempt from the branch-name and commit-message conventions: their branch and commit format is not configurable.
 
 Never rewrite pushed history on a shared branch. Do not force-push, rebase, amend, or reset published commits without explicit human consent. Add new commits instead.
 
