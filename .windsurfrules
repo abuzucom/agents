@@ -37,6 +37,9 @@ env quirks, version pins, required services; add as earned
 
 ## Read before touching
 area: docs path
+
+## Handoff
+current status and next steps, each paired with a verify command; see plan/HANDOFF.md.example
 -->
 
 ## Banned agents
