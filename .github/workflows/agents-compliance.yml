@@ -1,0 +1,70 @@
+name: AGENTS.md Compliance (reusable)
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  pr-checks:
+    if: github.event_name == 'pull_request' && github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Check banned-agent authorship
+        run: |
+          python scripts/check_banned_agents.py \
+            --base "origin/${{ github.event.pull_request.base.ref }}" \
+            --head "${{ github.event.pull_request.head.sha }}"
+      - name: Check commit messages
+        if: github.event.pull_request.user.login != 'dependabot[bot]'
+        run: |
+          python scripts/check_commit_message.py \
+            --base "origin/${{ github.event.pull_request.base.ref }}" \
+            --head "${{ github.event.pull_request.head.sha }}"
+
+  static-checks:
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Check branch name
+        if: github.event_name == 'pull_request' && github.event.pull_request.user.login != 'dependabot[bot]'
+        run: python scripts/check_branch_name.py
+      - name: Check persist-credentials on checkout steps
+        run: python scripts/check_persist_credentials.py .github/workflows/*.yml
+      - name: Check for unjustified MD5/SHA-1
+        run: |
+          shopt -s nullglob
+          files=(scripts/*.py)
+          if [ ${#files[@]} -gt 0 ]; then
+            python scripts/check_weak_hashing.py "${files[@]}"
+          fi
+      - name: Check for non-root containers
+        run: |
+          shopt -s nullglob
+          files=(Dockerfile* docker-compose*.yml docker-compose*.yaml compose*.yml compose*.yaml)
+          if [ ${#files[@]} -gt 0 ]; then
+            python scripts/check_dockerfile_root.py "${files[@]}"
+          fi
+      - name: Check for likely secrets
+        run: |
+          shopt -s nullglob
+          files=(scripts/*.py .github/workflows/*.yml .pre-commit-config.yaml Makefile)
+          if [ ${#files[@]} -gt 0 ]; then
+            python scripts/check_secrets_heuristic.py "${files[@]}"
+          fi
