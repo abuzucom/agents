@@ -32,3 +32,5 @@ jobs:
         run: python scripts/check_us_spelling.py AGENTS.md
       - name: Check English only (warning only)
         run: python scripts/check_english_only.py AGENTS.md
+      - name: Check for hedging and fluff (warning only)
+        run: python scripts/check_hedging.py AGENTS.md

@@ -85,6 +85,7 @@ compatibility and Banned agents below. Copy into a repository and adapt.
 |---|---|---|---|
 | `check_us_spelling.py` | American spelling | 0, warning only | |
 | `check_english_only.py` | English only | 0, warning only | stopword-ratio heuristic, not language detection; real detection needs a dependency (e.g. `langdetect`), a separate Rule 9 proposal |
+| `check_hedging.py` | No hedging/fluff/self-justification/self-narration; historical narration in comments | 0, warning only | heuristic keyword match, not NLP; false positives/negatives expected |
 | `check_ascii.py` | No run-on sentences/dashes; No non-ASCII characters | 1, blocking | |
 | `check_persist_credentials.py` | Rule 11 | 1, blocking | |
 | `check_weak_hashing.py` | Rule 7 | 1, blocking | |

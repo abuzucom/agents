@@ -361,7 +361,15 @@ Good: `# Verify the user is authenticated before continuing`
 
 **Imperative tone.** Instruct, teach, and direct. Do not override or badger the user.
 
-**Comment the why.** Document the reasoning; the code shows the execution.
+**No hedging, fluff, self-justification, or self-narration.** State facts and instructions directly. Drop softening qualifiers (`might`, `could potentially`, `it's worth noting`, `worth checking`), self-justifying asides (`since this is safer`, `to make it more robust`), self-narration (`Let me...`, `I'll now...`), references to the prompt, task, or plan that produced the text (`as requested`, `per the plan`), tutorial-mode narration (`First, ... Next, ... Finally, ...`), and justification theater: confident-sounding claims that name no actual mechanism (`use a robust approach`, `this improves maintainability`, `this follows best practices`). State the specific effect instead. Applies to prose, documentation, CHANGELOG entries, and code comments. Backed by `scripts/check_hedging.py` (warning only, always exits 0).
+
+Bad: `This should probably fix the bug, though further testing may help.`  
+Good: `This fixes the bug.`  
+
+**Comment the why.** Document the reasoning; the code shows the execution. Do not reference removed code, prior implementations, or what changed. Git history covers that, not the comment. Backed by `scripts/check_hedging.py` (warning only, always exits 0).
+
+Bad: `# Used to use a for loop here, now uses a dict lookup for speed`  
+Good: `# Dict lookup avoids an O(n) scan on the hot path`  
 
 **Commit messages.** Subject as `type: description` (feat, fix, chore, docs, test), imperative mood, 50 characters max, no trailing period. Wrap the body at 72 characters; put extra detail there rather than truncating the subject. Shape backed by `scripts/check_commit_message.py`; it cannot verify imperative mood or body wrapping.
 
