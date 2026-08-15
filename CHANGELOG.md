@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.7.1] - 2026-08-15
+## [1.7.2] - 2026-08-15
 
 ### Added
 - Added a Style rule banning hedging qualifiers, self-justification, self-narration, prompt/task/plan references, tutorial-mode narration, and justification theater in prose, documentation, CHANGELOG entries, and code comments.
@@ -13,6 +13,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added `scripts/check_hedging.py`, a portable, warning-only heuristic checker backing both rules above, matching phrase lists plus generic filler comment openers (`# Note:`, `# This function`, `# Handle errors`, etc.).
 - Added a `check_hedging.py` step to `sync-check.yml`'s existing `check-sync` job, with no new job or checkout/setup-python cost.
 - Added a `check_hedging.py` row to the README Checker reference table.
+
+### Fixed
+- Synced all tool rule copies with `AGENTS.md`.
+
+## [1.7.1] - 2026-08-15
+
+### Added
+- Added a Branch naming rule banning `claude/`-prefixed branches by name, so a model cannot rationalize past an implicit "match one of these five prefixes" statement.
+- Added a Branch naming exemption for automated dependency-update tools (Dependabot): their branch and commit format is not configurable.
+- Added `.github/workflows/agents-compliance.yml`, a reusable `workflow_call` workflow holding the `pr-checks` and `static-checks` jobs, as an opt-in path for downstream repos that want the compliance checks unmodified, alongside the existing copy-and-tailor adoption path.
+- Added a Rule 9 note: pin any `uses:` reference to this repo's reusable workflow to a released tag, never `@main`.
+- Added `concurrency: cancel-in-progress` groups to `sync-check.yml` and `agents-md-compliance.yml`, cancelling superseded runs on the same branch or PR.
+- Added `ready_for_review` to `agents-md-compliance.yml`'s `pull_request` trigger types, so a PR leaving draft status re-runs its draft-skipped jobs instead of staying stuck at "skipped".
+
+### Changed
+- Consolidated `agents-md-compliance.yml` from 4 jobs to a thin caller of `agents-compliance.yml`'s 2 jobs, halving redundant checkout/setup-python overhead per PR run.
+- Made `scripts/check_commit_message.py` warning-only (always exits 0), matching `check_us_spelling.py`/`check_english_only.py`, instead of blocking on subject-format violations.
+- Exempted Dependabot PRs from the `branch-name` and `commit-message` checks, keyed on PR author (`github.event.pull_request.user.login`) rather than `github.actor`, since a human pushing to or rebasing a Dependabot branch changes the triggering actor but not the PR's author.
+- Updated README's "Adopting"/"Banned agents" sections with the reusable-workflow option, a CI efficiency pattern for repos writing custom checker CI, and a new Versioning section.
 
 ### Fixed
 - Synced all tool rule copies with `AGENTS.md`.
