@@ -363,7 +363,7 @@ Good: `# Verify the user is authenticated before continuing`
 
 **Comment the why.** Document the reasoning; the code shows the execution.
 
-**Commit messages.** Subject as `type: description` (feat, fix, chore, docs, test), imperative mood, 50 characters max, no trailing period. Put extra detail in the body rather than truncating it. Shape backed by `scripts/check_commit_message.py`; it cannot verify imperative mood.
+**Commit messages.** Subject as `type: description` (feat, fix, chore, docs, test), imperative mood, 50 characters max, no trailing period. Wrap the body at 72 characters; put extra detail there rather than truncating the subject. Shape backed by `scripts/check_commit_message.py`; it cannot verify imperative mood or body wrapping.
 
 **Variables.** Name for role (`active_user_records`, not `d`). Loop counters (`i, j, k`) and math variables (`x, y`) are exempt.
 
