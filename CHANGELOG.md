@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added AgentLint (`0xmariowu/AgentLint@v1.1.13`) to `sync-check.yml`'s `check-sync` job, an advisory, third-party AI-agent-harness audit, pinned to an exact tag with `fail-below: '0'` so it never fails the job.
 - Added a `pull-requests: write` permission and an `actions/github-script@v9.0.0` step posting AgentLint's score as an upserted PR comment (find-and-update via a marker HTML comment, not a new comment per push).
 - Added a README bullet documenting AgentLint's integration, separate from the Checker reference table since it is a third-party action, not a portable `scripts/check_*.py` checker.
+- Added `format: md`/`output-dir` to the AgentLint step and a report-reading step, embedding the full generated report in a collapsible section of the PR comment below the score table.
 
 ## [1.7.2] - 2026-08-15
 
