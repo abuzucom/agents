@@ -1,7 +1,8 @@
 # AGENTS.md template
 
-A generic, terse instruction file for AI coding agents - see Tool
-compatibility and Banned agents below. Copy into a repository and adapt.
+Bootstrap instruction conventions for AI coding agents and their human
+collaborators across ABUZUCOM projects. See Tool compatibility and
+Banned agents below. Copy into a repository and adapt.
 
 ## What's in it
 
@@ -35,6 +36,13 @@ compatibility and Banned agents below. Copy into a repository and adapt.
   template; see Handoff file example below.
 - **`SECURITY.md.example`** - an opt-in vulnerability-reporting policy
   template; see Security policy example below.
+- **`CONTRIBUTING.md.example`** - an opt-in contribution-guide template;
+  see Contributing guide example below.
+- **`.github/PULL_REQUEST_TEMPLATE.md`** and
+  **`.github/ISSUE_TEMPLATE.md`** - live for this repo, formalizing the
+  Summary/Test plan PR shape and a single issue template covering bugs
+  and proposals; adopting repos can copy them too, like any other new
+  tooling (Rule 9).
 - **AgentLint** - `sync-check.yml` also runs
   [AgentLint](https://github.com/0xmariowu/AgentLint), a third-party
   GitHub Action that audits AI-agent-harness setup and scores it across
@@ -97,6 +105,10 @@ compatibility and Banned agents below. Copy into a repository and adapt.
    vulnerability reporting (Settings, Security), then rename to
    `SECURITY.md`. Propose adopting it to the user first, like any other
    new tooling (Rule 9).
+9. Copy `CONTRIBUTING.md.example` if you want a contribution guide; fill
+   in the install/test/lint commands, then rename to `CONTRIBUTING.md`.
+   Propose adopting it to the user first, like any other new tooling
+   (Rule 9).
 
 ### Checker reference
 
@@ -207,6 +219,19 @@ use it, copy it into a target repo, fill in supported versions, rename
 it to `SECURITY.md` so GitHub's UI picks it up, and delete the
 instructional comment; propose adopting it to the user first, like any
 other new tooling (Rule 9).
+
+## Contributing guide example
+
+`CONTRIBUTING.md.example` is a per-repo contribution-guide template for
+human contributors, not part of the AGENTS.md rules themselves. AGENTS.md
+governs AI agent behavior in this repo; it is not the right document to
+hand a human contributor. `CONTRIBUTING.md.example` is self-contained:
+it states the shared conventions (branch naming, commit format, code
+quality, security review) directly, rather than pointing back into
+AGENTS.md. Nothing in this repo loads it automatically. To use it, copy
+it into a target repo, fill in the install/test/lint commands, rename it
+to `CONTRIBUTING.md`, and delete the instructional comment; propose
+adopting it to the user first, like any other new tooling (Rule 9).
 
 ## Maintaining
 
