@@ -31,6 +31,14 @@ compatibility and Banned agents below. Copy into a repository and adapt.
 - **`hooks/`** - an opt-in, Claude-Code-specific `PreToolUse` hook example
   blocking obviously destructive Bash commands; see Claude Code hook example
   below.
+- **AgentLint** - `sync-check.yml` also runs
+  [AgentLint](https://github.com/0xmariowu/AgentLint), a third-party
+  GitHub Action that audits AI-agent-harness setup and scores it across
+  6 dimensions. Advisory only (`fail-below: '0'`, never fails the job);
+  posts its score as an upserted PR comment. Not one of this repo's own
+  `scripts/check_*.py` checkers and not listed in the Checker reference
+  table below, since it is not a portable script meant for copying into
+  adopting repos.
 
 ## Adopting
 
