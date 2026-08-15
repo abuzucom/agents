@@ -91,7 +91,7 @@ compatibility and Banned agents below. Copy into a repository and adapt.
 | `check_dockerfile_root.py` | Rule 12 | 1, blocking | |
 | `check_secrets_heuristic.py` | Rule 8 | 1, blocking | heuristic, not entropy-based; propose gitleaks or detect-secrets (Rule 9) for that |
 | `check_branch_name.py` | Branch naming | 1, blocking | usable as a `pre-push` hook or `pull_request` CI step, no arguments needed |
-| `check_commit_message.py` | Commit-message style | 1, blocking | CI-only, takes `--base`/`--head`; not a drop-in `commit-msg` hook, which receives a message-file path instead |
+| `check_commit_message.py` | Commit-message style | 0, warning only | CI-only, takes `--base`/`--head`; not a drop-in `commit-msg` hook, which receives a message-file path instead |
 
 ## Banned agents
 

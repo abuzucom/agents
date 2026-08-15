@@ -24,7 +24,7 @@ jobs:
           python scripts/check_banned_agents.py \
             --base "origin/${{ github.event.pull_request.base.ref }}" \
             --head "${{ github.event.pull_request.head.sha }}"
-      - name: Check commit messages
+      - name: Check commit messages (warning only)
         if: github.event.pull_request.user.login != 'dependabot[bot]'
         run: |
           python scripts/check_commit_message.py \
