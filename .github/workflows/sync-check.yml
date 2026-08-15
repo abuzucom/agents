@@ -30,13 +30,13 @@ jobs:
       - name: Run style lint
         run: python scripts/lint_style.py
       - name: Check American spelling (warning only)
-        run: python scripts/check_us_spelling.py AGENTS.md plan/HANDOFF.md.example
+        run: python scripts/check_us_spelling.py AGENTS.md plan/HANDOFF.md.example SECURITY.md.example
       - name: Check English only (warning only)
-        run: python scripts/check_english_only.py AGENTS.md plan/HANDOFF.md.example
+        run: python scripts/check_english_only.py AGENTS.md plan/HANDOFF.md.example SECURITY.md.example
       - name: Check for hedging and fluff (warning only)
-        run: python scripts/check_hedging.py AGENTS.md plan/HANDOFF.md.example
-      - name: Check dashes and ASCII in plan/HANDOFF.md.example
-        run: python scripts/check_ascii.py plan/HANDOFF.md.example
+        run: python scripts/check_hedging.py AGENTS.md plan/HANDOFF.md.example SECURITY.md.example
+      - name: Check dashes and ASCII in template files
+        run: python scripts/check_ascii.py plan/HANDOFF.md.example SECURITY.md.example
       - name: AgentLint (advisory)
         id: agentlint
         uses: 0xmariowu/AgentLint@v1.1.13
