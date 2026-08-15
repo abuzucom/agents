@@ -22,7 +22,8 @@ compatibility and Banned agents below. Copy into a repository and adapt.
 - **`.claudeignore`** - excludes noisy/generated paths (`node_modules/`,
   build output, lockfiles, `.env*`, etc.) from Claude Code's context. Part
   of the template, not optional tooling - see Adopting step 1.
-- **`scripts/check_*.py`** and **`.github/workflows/agents-md-compliance.yml`** -
+- **`scripts/check_*.py`** and **`.github/workflows/agents-md-compliance.yml`**
+  (which calls the reusable `.github/workflows/agents-compliance.yml`) -
   this template's own mechanical enforcement of its rules, dogfooded in its
   own CI and `.pre-commit-config.yaml`; see the Checker reference table under
   Adopting for what each script backs, and Banned agents below for
@@ -57,7 +58,14 @@ compatibility and Banned agents below. Copy into a repository and adapt.
    checker instead (see the Checker reference table below): copy the relevant
    one(s) into the target repo and point them at that repo's own globs and CI
    rather than reimplementing from scratch. Propagating each checker, like
-   wiring any new CI job, is its own proposal under Rule 9.
+   wiring any new CI job, is its own proposal under Rule 9. When writing custom
+   CI for these checkers, default to an efficient shape: one job with
+   sequential steps per checker group rather than one job per checker, a
+   `concurrency: cancel-in-progress` group, and dependency caching once the
+   job installs anything beyond stdlib. A repo that wants the checks
+   unmodified, with no per-repo CI file to maintain, can instead call this
+   repo's reusable workflow directly (see Banned agents and Versioning
+   below) rather than copying scripts.
 6. Prune rules, and their scripts or CI jobs, that do not apply to the target
    repo, with the user's approval. Example: a static site with no authentication
    or database has no use for the weak-hashing rule or `check_weak_hashing.py`.
@@ -89,15 +97,26 @@ compatibility and Banned agents below. Copy into a repository and adapt.
 
 AGENTS.md contains a banned-agents section (currently xAI/Grok). Instructions
 bind only compliant agents; this template's own CI runs
-`scripts/check_banned_agents.py` (`.github/workflows/agents-md-compliance.yml`)
+`scripts/check_banned_agents.py` (`.github/workflows/agents-md-compliance.yml`,
+via the reusable `.github/workflows/agents-compliance.yml`)
 on every pull request, matching commit author, committer, and
 `Co-authored-by` trailer fields, plus the PR author, against a denylist. It
 cannot catch an agent committing under a human's own identity with no
 trailer; pair it with platform-level bot blocks. Adopting repos must copy
 the script and wire it into their own CI; it is not part of the sync step.
+A repo that wants this check (and the other compliance checks) unmodified
+can instead call `uses: abuzucom/agents/.github/workflows/agents-compliance.yml@<tag>`
+as a `workflow_call` job - see Versioning below for the `@<tag>` pin.
 
 Do not create pointer or copy files for banned tools; do not add them to
 `scripts/sync.py`.
+
+## Versioning
+
+Anything referencing this repo's reusable workflow via `uses:` must pin a
+released tag, never `@main` or another moving ref, per Rule 9. No tag has
+been cut yet; do not reference `agents-compliance.yml` from another repo
+until one exists.
 
 ## Tool compatibility
 
