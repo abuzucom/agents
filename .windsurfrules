@@ -40,6 +40,9 @@ area: docs path
 
 ## Handoff
 current status and next steps, each paired with a verify command; see plan/HANDOFF.md.example
+
+## Security
+vulnerability reporting contact and process; see SECURITY.md.example
 -->
 
 ## Banned agents

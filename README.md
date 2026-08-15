@@ -33,6 +33,8 @@ compatibility and Banned agents below. Copy into a repository and adapt.
   below.
 - **`plan/HANDOFF.md.example`** - an opt-in per-repo handoff/progress
   template; see Handoff file example below.
+- **`SECURITY.md.example`** - an opt-in vulnerability-reporting policy
+  template; see Security policy example below.
 - **AgentLint** - `sync-check.yml` also runs
   [AgentLint](https://github.com/0xmariowu/AgentLint), a third-party
   GitHub Action that audits AI-agent-harness setup and scores it across
@@ -90,6 +92,11 @@ compatibility and Banned agents below. Copy into a repository and adapt.
    convention; fill Status/Next/Blocked per session, delete the
    instructional comment. Propose adopting it to the user first, like
    any other new tooling (Rule 9).
+8. Copy `SECURITY.md.example` if you want a vulnerability-reporting
+   policy; fill in supported versions, enable GitHub private
+   vulnerability reporting (Settings, Security), then rename to
+   `SECURITY.md`. Propose adopting it to the user first, like any other
+   new tooling (Rule 9).
 
 ### Checker reference
 
@@ -188,6 +195,18 @@ Bad: `I think I've mostly finished the config parser, though there
 might be some edge cases left to check.`
 Good: `Config parser: done. Edge cases: 3/5 covered. Verify: pytest
 tests/test_config.py -k edge`
+
+## Security policy example
+
+`SECURITY.md.example` is a per-repo vulnerability-reporting policy
+template, not part of the AGENTS.md rules themselves. Nothing in this
+repo loads it automatically. It routes reports through GitHub's private
+vulnerability reporting (Security tab), which the target repo must
+enable first (Settings, Security, Private vulnerability reporting). To
+use it, copy it into a target repo, fill in supported versions, rename
+it to `SECURITY.md` so GitHub's UI picks it up, and delete the
+instructional comment; propose adopting it to the user first, like any
+other new tooling (Rule 9).
 
 ## Maintaining
 
