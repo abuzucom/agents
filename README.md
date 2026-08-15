@@ -31,6 +31,8 @@ compatibility and Banned agents below. Copy into a repository and adapt.
 - **`hooks/`** - an opt-in, Claude-Code-specific `PreToolUse` hook example
   blocking obviously destructive Bash commands; see Claude Code hook example
   below.
+- **`plan/HANDOFF.md.example`** - an opt-in per-repo handoff/progress
+  template; see Handoff file example below.
 - **AgentLint** - `sync-check.yml` also runs
   [AgentLint](https://github.com/0xmariowu/AgentLint), a third-party
   GitHub Action that audits AI-agent-harness setup and scores it across
@@ -84,6 +86,10 @@ compatibility and Banned agents below. Copy into a repository and adapt.
    both cleanly. Neither workflow copies into a target repo by default;
    propagating one, like any other checker in this section, is its own
    proposal under Rule 9.
+7. Copy `plan/HANDOFF.md.example` if you want a handoff/progress
+   convention; fill Status/Next/Blocked per session, delete the
+   instructional comment. Propose adopting it to the user first, like
+   any other new tooling (Rule 9).
 
 ### Checker reference
 
@@ -164,6 +170,24 @@ variable, alias, or wrapper script is invisible to it. To use it, copy both
 files into a target repo and merge `claude-code-settings.example.json`'s
 `hooks` key into that repo's own `.claude/settings.json`; propose this to
 the user first, like any other new tooling (Rule 9).
+
+## Handoff file example
+
+`plan/HANDOFF.md.example` is a per-repo handoff/progress template, not
+part of the AGENTS.md rules themselves. Nothing in this repo loads it
+automatically. It states current status and next steps, each paired
+with a command that verifies the claim, instead of narrated prose. Every
+line in it follows AGENTS.md's Style section: no hedging, fluff,
+self-justification, self-narration, or historical narration (that is
+CHANGELOG.md and git log's job, not a handoff file's). To use it, copy
+it into a target repo, fill in Status/Next/Blocked, and delete the
+instructional comment; propose adopting it to the user first, like any
+other new tooling (Rule 9).
+
+Bad: `I think I've mostly finished the config parser, though there
+might be some edge cases left to check.`
+Good: `Config parser: done. Edge cases: 3/5 covered. Verify: pytest
+tests/test_config.py -k edge`
 
 ## Maintaining
 

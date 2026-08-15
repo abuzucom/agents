@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.8.0] - 2026-08-15
+
+### Added
+- Added `plan/HANDOFF.md.example`, an opt-in per-repo handoff/progress template pairing every status claim with a command that verifies it, conforming to AGENTS.md's Style section throughout.
+- Added a `## Handoff` line to AGENTS.md's commented-out orientation template, pointing at `plan/HANDOFF.md.example`.
+- Added a README "Handoff file example" section and Adopting step 7 documenting the new template.
+- Extended `check_us_spelling.py`, `check_english_only.py`, and `check_hedging.py` in `sync-check.yml` to also scan `plan/HANDOFF.md.example`.
+- Added a `check_ascii.py` step to `sync-check.yml`'s `check-sync` job, covering `plan/HANDOFF.md.example`'s dash/ASCII conformance.
+
 ## [1.7.3] - 2026-08-15
 
 ### Added
