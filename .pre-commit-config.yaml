@@ -27,6 +27,12 @@ repos:
         entry: python scripts/check_secrets_heuristic.py
         language: python
         files: ^(scripts/.*\.py|\.github/workflows/.*\.ya?ml|\.pre-commit-config\.yaml|Makefile)$
+      - id: hook-tests
+        name: Branch-name hook tests
+        entry: python -m unittest discover -s tests
+        language: python
+        files: ^(hooks/.*\.py|tests/.*\.py|\.claude/settings\.json|scripts/check_branch_name\.py)$
+        pass_filenames: false
       - id: check-branch-name
         name: Check branch name (Branch naming conventions)
         entry: python scripts/check_branch_name.py
