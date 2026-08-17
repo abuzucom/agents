@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.11.0] - 2026-08-17
+
+### Added
+- Added `hooks/enforce_branch_name.py`, a Claude Code hook backing the Branch naming conventions section from the harness instead of the model's memory. On `SessionStart` it runs `scripts/check_branch_name.py` before the session does any git work and injects a stop-and-rename instruction into the session context; on `PreToolUse` (`Bash` matcher) it exits 2 on a `git commit` or `git push` while the branch name is non-conforming.
+- Added `.claude/settings.json`, wiring `enforce_branch_name.py` into both events for this repo. `block_destructive_bash.py` stays opt-in and is not wired up.
+- Added both `enforce_branch_name.py` hook entries to `hooks/claude-code-settings.example.json`, alongside the existing `block_destructive_bash.py` entry.
+- Added a README "Branch-name enforcement (live)" subsection under a renamed "Claude Code hooks" section, splitting the live branch hook from the opt-in destructive-Bash example.
+
+### Changed
+- Updated the README `hooks/` bullet and `check_branch_name.py` Checker reference row for the new hook, and corrected the claim that this repo has no `.claude/` directory.
+
 ## [1.10.0] - 2026-08-15
 
 ### Added

@@ -29,9 +29,11 @@ Banned agents below. Copy into a repository and adapt.
   own CI and `.pre-commit-config.yaml`; see the Checker reference table under
   Adopting for what each script backs, and Banned agents below for
   `check_banned_agents.py` specifically.
-- **`hooks/`** - an opt-in, Claude-Code-specific `PreToolUse` hook example
-  blocking obviously destructive Bash commands; see Claude Code hook example
-  below.
+- **`hooks/`** - Claude-Code-specific hooks: an opt-in `PreToolUse` example
+  blocking obviously destructive Bash commands, and `enforce_branch_name.py`,
+  which is live in this repo through `.claude/settings.json` and refuses
+  commits and pushes from a branch that breaks the naming convention; see
+  Claude Code hooks below.
 - **`plan/HANDOFF.md.example`** - an opt-in per-repo handoff/progress
   template; see Handoff file example below.
 - **`SECURITY.md.example`** - an opt-in vulnerability-reporting policy
@@ -124,7 +126,7 @@ Banned agents below. Copy into a repository and adapt.
 | `check_weak_hashing.py` | Rule 7 | 1, blocking | |
 | `check_dockerfile_root.py` | Rule 12 | 1, blocking | |
 | `check_secrets_heuristic.py` | Rule 8 | 1, blocking | heuristic, not entropy-based; propose gitleaks or detect-secrets (Rule 9) for that |
-| `check_branch_name.py` | Branch naming | 1, blocking | usable as a `pre-push` hook or `pull_request` CI step, no arguments needed |
+| `check_branch_name.py` | Branch naming | 1, blocking | usable as a `pre-push` hook, a `pull_request` CI step, or a Claude Code hook through `hooks/enforce_branch_name.py`; no arguments needed |
 | `check_commit_message.py` | Commit-message style | 0, warning only | CI-only, takes `--base`/`--head`; not a drop-in `commit-msg` hook, which receives a message-file path instead |
 
 ## Banned agents
@@ -173,22 +175,53 @@ until one exists.
 
 Verify against each tool's current docs; conventions shift.
 
-## Claude Code hook example
+## Claude Code hooks
 
-`hooks/block_destructive_bash.py` and `hooks/claude-code-settings.example.json`
-are a Claude-Code-specific defense-in-depth example, not part of the
-AGENTS.md rules themselves (AGENTS.md stays tool-agnostic; it is synced
-byte-identical to non-Claude tools). Nothing in this repo loads the hook
-automatically: there is no `.claude/` directory here. A `PreToolUse` hook
+`hooks/` holds Claude-Code-specific scripts, not part of the AGENTS.md rules
+themselves (AGENTS.md stays tool-agnostic; it is synced byte-identical to
+non-Claude tools). Each one is a mechanical backstop for a single tool,
+independent of whether the model remembers the rule.
+
+### Destructive Bash example (opt-in)
+
+`hooks/block_destructive_bash.py` is an opt-in defense-in-depth example.
+This repo's `.claude/settings.json` does not wire it up. A `PreToolUse` hook
 on the `Bash` matcher blocks `rm -rf /`, `~`, or `$HOME`, a bare
 `git push --force`/`-f`, and `git reset --hard`, mirroring rule 2 and the
-history-safety rule in Workflow as a mechanical backstop for a single tool,
-independent of whether the model remembers the rule. It is a heuristic, not
-a sandbox: it does not parse the shell, so a command hidden behind a
-variable, alias, or wrapper script is invisible to it. To use it, copy both
-files into a target repo and merge `claude-code-settings.example.json`'s
-`hooks` key into that repo's own `.claude/settings.json`; propose this to
-the user first, like any other new tooling (Rule 9).
+history-safety rule in Workflow. It is a heuristic, not a sandbox: it does
+not parse the shell, so a command hidden behind a variable, alias, or
+wrapper script is invisible to it. To use it, copy the script and
+`hooks/claude-code-settings.example.json` into a target repo and merge the
+example's `hooks` key into that repo's own `.claude/settings.json`; propose
+this to the user first, like any other new tooling (Rule 9).
+
+### Branch-name enforcement (live)
+
+`hooks/enforce_branch_name.py` is live in this repo, wired through
+`.claude/settings.json`. It backs the Branch naming conventions section, and
+targets a failure mode that no instruction can fix: an agent session handed a
+branch name it did not choose (a harness-assigned `claude/<slug>-<id>`, for
+example) reads the rule, works on the branch anyway, and finds the conflict
+only when `check_branch_name.py` fails CI on an already-open PR. A stateless
+session cannot remember that the last one did the same thing, so the check
+has to run in the harness rather than in the model's memory.
+
+One script serves two hook events, dispatched on `hook_event_name`:
+
+| Event | Behavior |
+|---|---|
+| `SessionStart` | Runs `scripts/check_branch_name.py` before the session does any git work; on a violation, injects a stop-and-rename instruction into the session context via `additionalContext` and `systemMessage`. |
+| `PreToolUse` (`Bash`) | Exits 2 on a `git commit` or `git push` while the branch name is non-conforming, so a session that ignores the warning still cannot land the branch. |
+
+The split exists because Claude Code ignores a non-zero exit from a
+`SessionStart` hook: that event can inform, only `PreToolUse` can refuse.
+Renaming the branch (`git branch -m <type>/<kebab-description>`) clears
+both, and the rename command itself is never blocked. A repo without
+`scripts/check_branch_name.py` has no convention to enforce, so the hook
+exits 0 there. Adopting repos copy `hooks/enforce_branch_name.py`,
+`scripts/check_branch_name.py`, and the matching `hooks` keys from
+`hooks/claude-code-settings.example.json`; propose it to the user first,
+like any other new tooling (Rule 9).
 
 ## Handoff file example
 
