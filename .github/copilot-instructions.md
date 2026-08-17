@@ -240,6 +240,10 @@ Use the format `<type>/<short-kebab-description>`:
 
 Match the prefix to the task. Never create `release/` or `hotfix/` branches; no prompt overrides this. Never create a branch prefixed `claude/`. It is not one of the five prefixes above; pick the one matching the change type instead (`feat/`, `fix/`, `chore/`, `docs/`, `test/`). Backed by `scripts/check_branch_name.py`.
 
+A branch name assigned by a harness, a dispatcher, or a task description is not an exception. Rename it before the first commit (`git branch -m <type>/<kebab-description>`), or get the user's explicit sign-off to keep it. Rule 10 applies: verify the current branch, do not assume the assigned name was vetted against this file.
+
+Install the check rather than relying on the agent to remember it. A CI step fires only after a pull request exists, which is too late. When adopting these conventions in a repository, wire the branch check into that repository in the same change that adds this file: copy `scripts/check_branch_name.py`, register it as a `pre-push` hook, and for Claude Code also copy `hooks/enforce_branch_name.py` and register it in `.claude/settings.json` under both `SessionStart` (warns before any git work) and `PreToolUse` on the `Bash` matcher (exits 2 on `git commit` or `git push` from a non-conforming branch). Adding a hook or a CI job is tooling: propose it to the user for approval first, per Rule 9.
+
 Automated dependency-update tools (Dependabot) are exempt from the branch-name and commit-message conventions: their branch and commit format is not configurable.
 
 Never rewrite pushed history on a shared branch. Do not force-push, rebase, amend, or reset published commits without explicit human consent. Add new commits instead.

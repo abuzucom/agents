@@ -111,6 +111,17 @@ Banned agents below. Copy into a repository and adapt.
    in the install/test/lint commands, then rename to `CONTRIBUTING.md`.
    Propose adopting it to the user first, like any other new tooling
    (Rule 9).
+10. Wire the branch-name check into the target repo in this same change,
+    not as a follow-up. Copy `scripts/check_branch_name.py` and register
+    it as a `pre-push` hook (see `.pre-commit-config.yaml` here for the
+    `stages: [pre-push]` shape). For Claude Code, also copy
+    `hooks/enforce_branch_name.py` and merge the `SessionStart` and
+    `PreToolUse` keys from `hooks/claude-code-settings.example.json` into
+    the target repo's `.claude/settings.json`. CI alone catches a bad
+    branch name only after a pull request exists, and a session handed a
+    branch name it did not choose cannot fix that from instructions
+    alone; see Branch-name enforcement below. Propose the hook and any CI
+    job to the user first, like any other new tooling (Rule 9).
 
 ### Checker reference
 

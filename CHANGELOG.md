@@ -12,9 +12,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added `.claude/settings.json`, wiring `enforce_branch_name.py` into both events for this repo. `block_destructive_bash.py` stays opt-in and is not wired up.
 - Added both `enforce_branch_name.py` hook entries to `hooks/claude-code-settings.example.json`, alongside the existing `block_destructive_bash.py` entry.
 - Added a README "Branch-name enforcement (live)" subsection under a renamed "Claude Code hooks" section, splitting the live branch hook from the opt-in destructive-Bash example.
+- Added two paragraphs to AGENTS.md's Branch naming conventions section: a harness-assigned or dispatcher-assigned branch name is not an exception and gets renamed before the first commit, and adopting repos wire the branch check in (pre-push hook, plus the two Claude Code hook events) in the same change that adds AGENTS.md.
+- Added README Adopting step 10 covering that wiring.
 
 ### Changed
 - Updated the README `hooks/` bullet and `check_branch_name.py` Checker reference row for the new hook, and corrected the claim that this repo has no `.claude/` directory.
+- Synced the AGENTS.md branch-naming additions into all eight tool copies.
 
 ## [1.10.0] - 2026-08-15
 
