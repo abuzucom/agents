@@ -14,6 +14,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added a README "Branch-name enforcement (live)" subsection under a renamed "Claude Code hooks" section, splitting the live branch hook from the opt-in destructive-Bash example.
 - Added two paragraphs to AGENTS.md's Branch naming conventions section: a harness-assigned or dispatcher-assigned branch name is not an exception and gets renamed before the first commit, and adopting repos wire the branch check in (pre-push hook, plus the two Claude Code hook events) in the same change that adds AGENTS.md.
 - Added README Adopting step 10 covering that wiring.
+- Added `tests/test_enforce_branch_name.py`, 22 stdlib `unittest` tests covering both hook events, the `git branch -m` escape hatch, read-only git commands, non-Bash tools, empty and malformed stdin, an absent checker, and whether `.claude/settings.json` and `hooks/claude-code-settings.example.json` still register the hook for each event. No new dependency.
+- Added a `test` target to the Makefile, a "Run tests" step to `sync-check.yml`, and a `hook-tests` pre-commit hook scoped to `hooks/`, `tests/`, `.claude/settings.json`, and `scripts/check_branch_name.py`.
+- Added a README "Local checks" section listing the four make targets, a `tests/` bullet under "What's in it", and test coverage detail under Branch-name enforcement.
+- Added an AGENTS.md paragraph requiring adopting repos to copy the hook's test suite and run it in CI and pre-commit.
 
 ### Changed
 - Updated the README `hooks/` bullet and `check_branch_name.py` Checker reference row for the new hook, and corrected the claim that this repo has no `.claude/` directory.

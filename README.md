@@ -34,6 +34,12 @@ Banned agents below. Copy into a repository and adapt.
   which is live in this repo through `.claude/settings.json` and refuses
   commits and pushes from a branch that breaks the naming convention; see
   Claude Code hooks below.
+- **`tests/`** - the stdlib `unittest` suite covering
+  `hooks/enforce_branch_name.py` and its settings wiring. Run it with
+  `make test` (or `python -m unittest discover -s tests`); `sync-check.yml`
+  runs it on every pull request, and `.pre-commit-config.yaml` runs it when
+  a hook, test, settings, or `check_branch_name.py` file changes. No test
+  dependencies: `unittest` ships with Python.
 - **`plan/HANDOFF.md.example`** - an opt-in per-repo handoff/progress
   template; see Handoff file example below.
 - **`SECURITY.md.example`** - an opt-in vulnerability-reporting policy
@@ -53,6 +59,21 @@ Banned agents below. Copy into a repository and adapt.
   `scripts/check_*.py` checkers and not listed in the Checker reference
   table below, since it is not a portable script meant for copying into
   adopting repos.
+
+## Local checks
+
+Run before pushing. Python 3 standard library only, no install step.
+
+| Command | Runs |
+|---|---|
+| `make test` | `unittest` suite in `tests/` |
+| `make check` | `scripts/sync.py --check`, the tool-copy drift check |
+| `make lint` | style, American spelling, and English-only checks on AGENTS.md |
+| `make sync` | regenerates the tool copies after editing AGENTS.md |
+
+`.pre-commit-config.yaml` runs the same checks on the files each one owns.
+CI runs `make test`, `make check`, and the checker scripts on every pull
+request through `.github/workflows/sync-check.yml`.
 
 ## Adopting
 
@@ -120,8 +141,12 @@ Banned agents below. Copy into a repository and adapt.
     the target repo's `.claude/settings.json`. CI alone catches a bad
     branch name only after a pull request exists, and a session handed a
     branch name it did not choose cannot fix that from instructions
-    alone; see Branch-name enforcement below. Propose the hook and any CI
-    job to the user first, like any other new tooling (Rule 9).
+    alone; see Branch-name enforcement below. Copy
+    `tests/test_enforce_branch_name.py` with the hook and run it in the
+    target repo's CI, so a later edit that unregisters the hook fails
+    rather than silently disabling enforcement. Propose the hook, the
+    test step, and any CI job to the user first, like any other new
+    tooling (Rule 9).
 
 ### Checker reference
 
@@ -230,9 +255,20 @@ Renaming the branch (`git branch -m <type>/<kebab-description>`) clears
 both, and the rename command itself is never blocked. A repo without
 `scripts/check_branch_name.py` has no convention to enforce, so the hook
 exits 0 there. Adopting repos copy `hooks/enforce_branch_name.py`,
-`scripts/check_branch_name.py`, and the matching `hooks` keys from
-`hooks/claude-code-settings.example.json`; propose it to the user first,
-like any other new tooling (Rule 9).
+`scripts/check_branch_name.py`, `tests/test_enforce_branch_name.py`, and
+the matching `hooks` keys from `hooks/claude-code-settings.example.json`;
+propose it to the user first, like any other new tooling (Rule 9).
+
+`tests/test_enforce_branch_name.py` runs the hook as a subprocess against
+synthetic Claude Code payloads, the same path the harness uses. Branch names
+come from `GITHUB_HEAD_REF`, which `check_branch_name.py` reads before
+falling back to `git rev-parse`, so the results do not depend on which
+branch the test run happens to be on. 22 tests cover both events, the
+`git branch -m` escape hatch, read-only git commands, non-Bash tools,
+empty and malformed stdin, a missing checker, and whether both settings
+files still register the hook for each event. That last group is the one
+that matters most over time: an unregistered hook enforces nothing while
+every behavioral test still passes. Run it with `make test`.
 
 ## Handoff file example
 
