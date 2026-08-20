@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.12.0] - 2026-08-20
+
+### Added
+- Added AGENTS.md Rule 14, "Verify the git identity before the first commit", and a matching item 14 in the Non-negotiable summary. The rule requires checking `git config user.name` and `user.email` before the first commit of a session, states that git does not inherit the `gh` identity, restricts commit emails to GitHub noreply addresses, and refers a wrong identity already in history to the existing pushed-history consent rule instead of a rewrite.
+- Added `scripts/check_git_identity.py`, a portable blocking checker with three modes: no arguments checks the identity the next commit would use, reading the environment variables git treats as explicit before `user.name` and `user.email`; `--unpushed` checks commits absent from every remote-tracking ref; `--base`/`--head` checks a pull request range. `--allow` takes a regex for repos on another convention, and `--advise` adds `gh` and `user.useConfigOnly` notes that never change the exit code.
+- Added `hooks/enforce_git_identity.py`, a Claude Code hook backing Rule 14 from the harness. On `SessionStart` it runs the checker with `--advise` and injects a stop-and-ask instruction into the session context; on `PreToolUse` (`Bash` matcher) it exits 2 on a `git commit` under an unset or disallowed identity, and on a `git push` when either the current config or any commit that push would publish fails. `git config` is never blocked.
+- Added `tests/test_enforce_git_identity.py`, 42 stdlib `unittest` tests running the hook and the checker against a throwaway git repo, so results do not depend on the identity configured on the machine running them. Covers both events, unset and disallowed identities, environment-supplied identities, the `git config` escape hatch, the `--unpushed` path, GitHub's squash-merge committer, `[bot]` addresses, and whether both settings files still register the hook for each event.
+- Added both `enforce_git_identity.py` entries to `.claude/settings.json` and `hooks/claude-code-settings.example.json`, inside the existing `Bash` matcher.
+- Added a `check-git-identity` pre-commit hook and a `check-unpushed-identity` pre-push hook to `.pre-commit-config.yaml`, a "Check commit identities" step to the `pr-checks` job in `agents-compliance.yml`, and an `identity` target to the Makefile.
+- Added a README "Git identity enforcement (live)" subsection under Claude Code hooks, a "Git identity outside this repository" section covering the machine, account, and organization settings a repository file cannot reach, and Adopting step 11.
+
+### Changed
+- Widened the `hook-tests` pre-commit `files` pattern to cover `scripts/check_git_identity.py`.
+- Updated the README critical-rule count to fourteen, the `hooks/` and `tests/` bullets, the Local checks table, and the Checker reference table.
+- Synced the AGENTS.md Rule 14 addition into all eight tool copies.
+
 ## [1.11.0] - 2026-08-17
 
 ### Added
