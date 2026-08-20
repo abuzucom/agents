@@ -31,11 +31,24 @@ repos:
         name: Branch-name hook tests
         entry: python -m unittest discover -s tests
         language: python
-        files: ^(hooks/.*\.py|tests/.*\.py|\.claude/settings\.json|scripts/check_branch_name\.py)$
+        files: ^(hooks/.*\.py|tests/.*\.py|\.claude/settings\.json|scripts/check_(branch_name|git_identity)\.py)$
         pass_filenames: false
+      - id: check-git-identity
+        name: Check git identity (Rule 14)
+        entry: python scripts/check_git_identity.py
+        language: python
+        pass_filenames: false
+        always_run: true
       - id: check-branch-name
         name: Check branch name (Branch naming conventions)
         entry: python scripts/check_branch_name.py
         language: python
         pass_filenames: false
+        stages: [pre-push]
+      - id: check-unpushed-identity
+        name: Check unpushed commit identities (Rule 14)
+        entry: python scripts/check_git_identity.py --unpushed
+        language: python
+        pass_filenames: false
+        always_run: true
         stages: [pre-push]

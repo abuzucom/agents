@@ -8,10 +8,10 @@ Banned agents below. Copy into a repository and adapt.
 
 - **Non-negotiable summary** - every critical rule in one line, at the
   top, where model attention is strongest.
-- **Thirteen critical rules** - injection, destructive commands, test
+- **Fourteen critical rules** - injection, destructive commands, test
   integrity, scope, draft-PR workflow, API contracts, hashing, secrets,
   dependencies, workflow-state verification, CI credential hygiene,
-  container privilege, honest enforcement claims.
+  container privilege, honest enforcement claims, git identity.
 - **Branch naming** - clean conventions for branch names.
 - **Workflow** - test-first, lint-clean, safe editing, retry discipline.
 - **Correctness & safety** - divisors, regex backtracking, collection
@@ -30,12 +30,14 @@ Banned agents below. Copy into a repository and adapt.
   Adopting for what each script backs, and Banned agents below for
   `check_banned_agents.py` specifically.
 - **`hooks/`** - Claude-Code-specific hooks: an opt-in `PreToolUse` example
-  blocking obviously destructive Bash commands, and `enforce_branch_name.py`,
-  which is live in this repo through `.claude/settings.json` and refuses
-  commits and pushes from a branch that breaks the naming convention; see
-  Claude Code hooks below.
+  blocking obviously destructive Bash commands, plus two live hooks wired
+  through `.claude/settings.json`: `enforce_branch_name.py`, which refuses
+  commits and pushes from a branch that breaks the naming convention, and
+  `enforce_git_identity.py`, which refuses them under an unset or
+  disallowed git identity; see Claude Code hooks below.
 - **`tests/`** - the stdlib `unittest` suite covering
-  `hooks/enforce_branch_name.py` and its settings wiring. Run it with
+  `hooks/enforce_branch_name.py`, `hooks/enforce_git_identity.py`, and
+  their settings wiring. Run it with
   `make test` (or `python -m unittest discover -s tests`); `sync-check.yml`
   runs it on every pull request, and `.pre-commit-config.yaml` runs it when
   a hook, test, settings, or `check_branch_name.py` file changes. No test
@@ -70,6 +72,7 @@ Run before pushing. Python 3 standard library only, no install step.
 | `make check` | `scripts/sync.py --check`, the tool-copy drift check |
 | `make lint` | style, American spelling, and English-only checks on AGENTS.md |
 | `make sync` | regenerates the tool copies after editing AGENTS.md |
+| `make identity` | reports the git identity, `gh` account, and `user.useConfigOnly` |
 
 `.pre-commit-config.yaml` runs the same checks on the files each one owns.
 CI runs `make test`, `make check`, and the checker scripts on every pull
@@ -147,6 +150,19 @@ request through `.github/workflows/sync-check.yml`.
     rather than silently disabling enforcement. Propose the hook, the
     test step, and any CI job to the user first, like any other new
     tooling (Rule 9).
+11. Wire the git-identity check in the same change, for the same reason.
+    Copy `scripts/check_git_identity.py` and register it at the
+    `pre-commit` stage, not `pre-push`: a branch name stays fixable until
+    the push, but a guessed author address is written into the commit
+    object the moment it is created. Add the `--unpushed` variant at
+    `pre-push` to catch commits authored before the identity was fixed,
+    and the `--base`/`--head` variant to CI. For Claude Code, copy
+    `hooks/enforce_git_identity.py` and merge its two entries from
+    `hooks/claude-code-settings.example.json`, then copy
+    `tests/test_enforce_git_identity.py`. Decide the allowlist: the
+    default accepts GitHub noreply addresses only, and `--allow` takes a
+    regex for a repo that commits under another convention. Propose it to
+    the user first, like any other new tooling (Rule 9).
 
 ### Checker reference
 
@@ -163,6 +179,7 @@ request through `.github/workflows/sync-check.yml`.
 | `check_dockerfile_root.py` | Rule 12 | 1, blocking | |
 | `check_secrets_heuristic.py` | Rule 8 | 1, blocking | heuristic, not entropy-based; propose gitleaks or detect-secrets (Rule 9) for that |
 | `check_branch_name.py` | Branch naming | 1, blocking | usable as a `pre-push` hook, a `pull_request` CI step, or a Claude Code hook through `hooks/enforce_branch_name.py`; no arguments needed |
+| `check_git_identity.py` | Rule 14 | 1, blocking | no arguments checks the configured identity before a commit; `--unpushed` and `--base`/`--head` apply the allowlist to commit objects; `--advise` adds `gh` and `user.useConfigOnly` notes that never change the exit code |
 | `check_commit_message.py` | Commit-message style | 0, warning only | CI-only, takes `--base`/`--head`; not a drop-in `commit-msg` hook, which receives a message-file path instead |
 
 ## Banned agents
@@ -269,6 +286,116 @@ empty and malformed stdin, a missing checker, and whether both settings
 files still register the hook for each event. That last group is the one
 that matters most over time: an unregistered hook enforces nothing while
 every behavioral test still passes. Run it with `make test`.
+
+### Git identity enforcement (live)
+
+`hooks/enforce_git_identity.py` is live in this repo, wired through
+`.claude/settings.json`. It backs Rule 14, and targets the failure that rule
+describes: with `user.name` or `user.email` unset, git builds an identity
+from the account name and hostname, prints a warning, and commits anyway. A
+session only sees that warning in the output of the command that already
+made the commit, and a commit object records no mark saying its author field
+was built rather than configured. The check has to run before the commit,
+which means in the harness rather than in the model's memory.
+
+One script serves two hook events, dispatched on `hook_event_name`:
+
+| Event | Behavior |
+|---|---|
+| `SessionStart` | Runs `scripts/check_git_identity.py --advise` before the session does any git work; on a violation, injects a stop-and-ask instruction into the session context via `additionalContext` and `systemMessage`. |
+| `PreToolUse` (`Bash`) | Exits 2 on a `git commit` under an unset or disallowed identity, and on a `git push` when either the current config or any commit that push would publish fails the same check. |
+
+`git config` is never matched, so the fix stays reachable. Run it as its own
+tool call: the hook reads config state before the shell runs, so a chained
+`git config ... && git commit ...` is evaluated before the config lands, and
+is blocked. The block message says so.
+
+The `git push` case runs the checker twice, current config then `--unpushed`,
+so a commit authored under a guess is still caught after the config has been
+corrected. `--advise` runs only at `SessionStart`: it shells out to `gh`, and
+a network call on every Bash tool call is not worth the latency.
+
+Known gap: `git merge`, `git revert`, `git cherry-pick`, `git rebase`, and
+`git am` also write commits and are not matched. Matching them would block
+`git merge --ff-only` and most rebases, which create no commit.
+
+`pre-commit` catches the same thing for humans and non-Claude tools, and
+`git commit --no-verify` skips it. The `PreToolUse` hook inspects the command
+string before the shell runs, so it catches what `--no-verify` skips. Neither
+layer subsumes the other.
+
+`tests/test_enforce_git_identity.py` runs the hook and the checker as
+subprocesses against a throwaway git repo, so results do not depend on the
+identity configured on the machine running the tests. 42 tests cover both
+events, unset and disallowed identities, the `git config` escape hatch, the
+`--unpushed` path, GitHub's squash-merge committer, and whether both settings
+files still register the hook for each event.
+
+## Git identity outside this repository
+
+Nothing in this repo enforces or verifies anything in this section. These are
+settings on a developer machine, a GitHub account, and an organization, and a
+repository file cannot reach any of them. `make identity` reports the first
+one read-only; the rest is for a human to set.
+
+**On each developer machine.** The root cause of a guessed identity is that
+git guesses at all:
+
+```
+git config --global user.name  "<your-github-login>"
+git config --global user.email "<id>+<login>@users.noreply.github.com"
+git config --global user.useConfigOnly true
+```
+
+The third line is the one that matters. With it set, git stops guessing and
+fails with `fatal: no email was given and auto-detection is disabled` instead
+of committing under an address nobody chose. Get your own `<id>+<login>`
+address from GitHub Settings, Emails, "Keep my email addresses private".
+
+For more than one identity on a machine, scope them by directory:
+
+```
+[includeIf "gitdir:~/work/example-org/"]
+    path = ~/.gitconfig-example-org
+```
+
+**On each GitHub account.** In Settings, Emails, enable "Keep my email
+addresses private" and "Block command line pushes that expose my email". The
+second one rejects a push whose commits carry the account's own verified
+private address. It does not reject an arbitrary address, so it catches the
+common case and not every case.
+
+**On the organization.** A ruleset is the only layer no agent, tool, or
+machine can bypass. Under organization Settings, Repository rulesets, create
+a ruleset targeting all repositories, and under Restrictions choose "Restrict
+commit metadata":
+
+| Metadata | Operator | Pattern |
+|---|---|---|
+| Author email | matches regex | `^[0-9]+\+[A-Za-z0-9-]+(\[bot\])?@users\.noreply\.github\.com$` |
+| Committer email | matches regex | `^([0-9]+\+[A-Za-z0-9-]+(\[bot\])?@users\.noreply\.github\.com|noreply@github\.com)$` |
+
+The committer pattern must permit `noreply@github.com`. GitHub itself is the
+committer on squash merges, rebase merges, and web-UI commits, so a pattern
+that omits it blocks the organization's own merge button. Both patterns must
+permit `[bot]` accounts or they block Dependabot.
+
+Metadata restrictions vary by GitHub plan. Verify the option appears in your
+own organization settings before relying on it.
+
+**When commits already carry the wrong identity.** List them first:
+
+```
+git log --all --format='%h %an <%ae> | %cn <%ce>' \
+  | grep -v 'users.noreply.github.com'
+```
+
+Then fix the configuration, so nothing further is affected, and report the
+affected refs. Correcting the existing commits rewrites history and needs
+explicit human consent, per Rule 14 and the pushed-history rule under Branch
+naming conventions. Prefer leaving merged history alone. Rewriting a shared
+branch to tidy an author field breaks every checkout of it, which is a larger
+harm than the wrong field.
 
 ## Handoff file example
 

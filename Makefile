@@ -1,4 +1,4 @@
-.PHONY: sync check lint test
+.PHONY: sync check lint test identity
 
 sync:
 	python scripts/sync.py
@@ -13,3 +13,6 @@ lint:
 
 test:
 	python -m unittest discover -s tests -v
+
+identity:
+	python scripts/check_git_identity.py --advise
