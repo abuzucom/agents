@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.13.0] - 2026-08-25
+
+### Added
+- Added `hooks/require_consent.py`, a Claude Code hook backing Rule 3 from the harness. On `PreToolUse` (`Edit|Write|MultiEdit|NotebookEdit` matcher) it routes an edit that removes or rewrites existing test content, drops an assertion, or introduces a skip marker to the user as a permission prompt. A new test file passes, and so does an append to an existing one, detected by the old string surviving verbatim inside the new one, so the mandated test-first workflow stays unprompted. On `PreToolUse` (`AskUserQuestion` matcher) it injects a checklist requiring an option with a rule-governed cost to name the artifact and the rule and to carry the sign-off it needs. On `SessionStart` it states which gates are live.
+- Added an `AGENTS_CONSENT_GRANTED` environment variable for headless runs, releasing only the paths a human names at launch. A Bash tool call cannot set it, since shell state does not persist between calls and the hook inherits Claude Code's environment.
+- Added `tests/test_require_consent.py`, 19 stdlib `unittest` tests running the hook against synthetic payloads and real files on disk. Covers the additive cases, the gated cases, notebook paths, the fail-closed behavior under an unattended `permission_mode`, the override variable, the question checklist, and whether both settings files register the hook for each event.
+- Added `tests/test_block_destructive_bash.py`, pinning every deny, ask, and allow outcome of the Bash gate.
+- Added a per-act consent line to the Non-negotiable preamble: approving a plan, a design document, or a task description is not authorization for the individual acts inside it.
+- Added a Rule 3 paragraph stating that disclosure is not a substitute for stopping, that a comment recording why a test asserts what it asserts is a person's decision written down, and that a deliberate specification change is still the human's call.
+- Added a Rule 2 line stating the rule carries no scope qualifier, so a scratch directory the session created itself is gated like any other target.
+- Added a pushed-history line stating that `--force-with-lease` is not an exception and neither is a branch you created minutes ago.
+
+### Changed
+- Extended `hooks/block_destructive_bash.py` from a single deny outcome to deny plus ask. The four previously denied commands still deny and still exit 2. Newly routed to the user: `rm -rf` against any target other than `/`, `~`, or `$HOME`; the `--force-with-lease` and `--force-if-includes` family, which the old `--force` pattern never matched; `git push --delete`; `git commit --amend`; `git rebase`; and `git filter-branch`. An unrecognized or unattended `permission_mode` turns an ask into a deny.
+- Wired `block_destructive_bash.py` into `.claude/settings.json`. It had been example-only since 1.11.0, so nothing in this repo ran it.
+- Replaced `test_pre_tool_use_entries_target_bash` in `tests/test_enforce_branch_name.py` with a per-hook wiring table asserting that each hook is registered under exactly the matchers it needs, plus a check that every registered hook appears in the table. The blanket assertion that every `PreToolUse` matcher equals `Bash` could not survive a hook that gates `Edit` and `AskUserQuestion`. Replaced on the user's explicit sign-off, per Rule 3.
+- Synced the AGENTS.md additions into all eight tool copies.
+
 ## [1.12.0] - 2026-08-20
 
 ### Added

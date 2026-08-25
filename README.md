@@ -235,18 +235,76 @@ themselves (AGENTS.md stays tool-agnostic; it is synced byte-identical to
 non-Claude tools). Each one is a mechanical backstop for a single tool,
 independent of whether the model remembers the rule.
 
-### Destructive Bash example (opt-in)
+### Destructive Bash gate (live)
 
-`hooks/block_destructive_bash.py` is an opt-in defense-in-depth example.
-This repo's `.claude/settings.json` does not wire it up. A `PreToolUse` hook
-on the `Bash` matcher blocks `rm -rf /`, `~`, or `$HOME`, a bare
-`git push --force`/`-f`, and `git reset --hard`, mirroring rule 2 and the
-history-safety rule in Workflow. It is a heuristic, not a sandbox: it does
-not parse the shell, so a command hidden behind a variable, alias, or
-wrapper script is invisible to it. To use it, copy the script and
-`hooks/claude-code-settings.example.json` into a target repo and merge the
-example's `hooks` key into that repo's own `.claude/settings.json`; propose
-this to the user first, like any other new tooling (Rule 9).
+`hooks/block_destructive_bash.py` is live in this repo, wired through
+`.claude/settings.json`. A `PreToolUse` hook on the `Bash` matcher backs
+rule 2 and the history-safety rule in Workflow, with two outcomes:
+
+| Outcome | Commands |
+|---|---|
+| `deny`, exit 2 | `rm -rf` aimed at `/`, `~`, or `$HOME`; a bare `git push --force`/`-f`; `git reset --hard` |
+| `ask` | `rm -rf` against any other target; `--force-with-lease` and `--force-if-includes`; `git push --delete`; `git commit --amend`; `git rebase`; `git filter-branch` |
+
+The `ask` set exists because each of those is legitimate with the user's
+consent and forbidden without it, so the decision belongs on a permission
+prompt rather than in the model's judgment. Rule 2 carries no scope
+qualifier, which is why a scratch directory the session created itself is
+gated like any other target, and a lease is not the human consent the
+history rule requires. An `ask` needs someone to answer it: when
+`permission_mode` reports an unattended session, or a mode the hook does not
+recognize, the ask becomes a deny.
+
+It is a heuristic, not a sandbox: it does not parse the shell, so a command
+hidden behind a variable, alias, or wrapper script is invisible to it.
+`tests/test_block_destructive_bash.py` pins every deny, ask, and allow
+outcome. Adopting repos copy the script, the test, and the matching `hooks`
+key from `hooks/claude-code-settings.example.json`; propose it to the user
+first, like any other new tooling (Rule 9).
+
+### Consent gate (live)
+
+`hooks/require_consent.py` is live in this repo, wired through
+`.claude/settings.json`. It backs Rule 3, and targets a failure that
+instructions do not reach: an agent that reads the rule, agrees it applies,
+and then converts "stop and wait for a human decision" into "disclose it in
+the PR body and proceed". Writing the violation down feels like compliance
+and satisfies nothing. A model can talk itself out of a rule; it cannot talk
+itself past a permission prompt.
+
+One script serves three registrations, dispatched on `hook_event_name` and
+`tool_name`:
+
+| Event | Behavior |
+|---|---|
+| `PreToolUse` (`Edit\|Write\|MultiEdit\|NotebookEdit`) | Returns `ask` when a write removes or rewrites existing test content, drops an assertion, or introduces a skip marker. A new test file passes, and so does an append to an existing one. |
+| `PreToolUse` (`AskUserQuestion`) | Injects a checklist and never a decision: an option carrying a rule-governed cost must name the artifact and the rule, and must not be labeled Recommended. |
+| `SessionStart` | States which gates are live, including that approving a plan is not authorization for the acts inside it. |
+
+The additive carve-out is what keeps the gate installed. AGENTS.md mandates
+a test-first workflow, so a gate that prompted on every append to a test
+file would be switched off within a day and would enforce nothing. An append
+is detected by the old string surviving verbatim inside the new one.
+
+The `AskUserQuestion` checklist is a reminder, not enforcement, and the
+table above is the honest description of it (Rule 13). A question that hides
+an option's rule-governed cost takes the choice away from the user before
+any gate can fire. What makes that omission survivable is the edit gate,
+which fires at the act regardless of what the approved plan said.
+
+For headless runs a human sets `AGENTS_CONSENT_GRANTED` at launch to a
+comma-separated list of paths the gate may release. A Bash tool call cannot
+forge it: shell state does not persist between calls, and the hook inherits
+Claude Code's environment rather than the model's shell. Known gap: a Bash
+call can still write a test file through a redirect or here-document, which
+no `Edit` or `Write` matcher sees, so a repo that wants that covered needs a
+CI backstop requiring owner approval on test changes.
+
+`tests/test_require_consent.py` runs the hook as a subprocess against
+synthetic payloads and real files on disk. 19 tests cover the additive
+cases, the gated cases, notebook paths, fail-closed behavior under an
+unattended `permission_mode`, the override variable, the question checklist,
+and whether both settings files register the hook for each event.
 
 ### Branch-name enforcement (live)
 
@@ -280,7 +338,7 @@ propose it to the user first, like any other new tooling (Rule 9).
 synthetic Claude Code payloads, the same path the harness uses. Branch names
 come from `GITHUB_HEAD_REF`, which `check_branch_name.py` reads before
 falling back to `git rev-parse`, so the results do not depend on which
-branch the test run happens to be on. 22 tests cover both events, the
+branch the test run happens to be on. 23 tests cover both events, the
 `git branch -m` escape hatch, read-only git commands, non-Bash tools,
 empty and malformed stdin, a missing checker, and whether both settings
 files still register the hook for each event. That last group is the one
