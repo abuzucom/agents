@@ -180,7 +180,7 @@ request through `.github/workflows/sync-check.yml`.
 | `check_secrets_heuristic.py` | Rule 8 | 1, blocking | heuristic, not entropy-based; propose gitleaks or detect-secrets (Rule 9) for that |
 | `check_branch_name.py` | Branch naming | 1, blocking | usable as a `pre-push` hook, a `pull_request` CI step, or a Claude Code hook through `hooks/enforce_branch_name.py`; no arguments needed |
 | `check_git_identity.py` | Rule 14 | 1, blocking | no arguments checks the configured identity before a commit; `--unpushed` and `--base`/`--head` apply the allowlist to commit objects; `--advise` adds `gh` and `user.useConfigOnly` notes that never change the exit code |
-| `check_commit_message.py` | Commit-message style | 0, warning only | CI-only, takes `--base`/`--head`; not a drop-in `commit-msg` hook, which receives a message-file path instead |
+| `check_commit_message.py` | Commit-message style | 0, warning only | CI-only, takes `--base`/`--head`; skips merge commits, whose subject git writes; not a drop-in `commit-msg` hook, which receives a message-file path instead |
 
 ## Banned agents
 

@@ -439,7 +439,7 @@ Good: `This fixes the bug.`
 Bad: `# Used to use a for loop here, now uses a dict lookup for speed`  
 Good: `# Dict lookup avoids an O(n) scan on the hot path`  
 
-**Commit messages.** Subject as `type: description` (feat, fix, chore, docs, test), imperative mood, 50 characters max, no trailing period. Wrap the body at 72 characters; put extra detail there rather than truncating the subject. Shape backed by `scripts/check_commit_message.py`; it cannot verify imperative mood or body wrapping.
+**Commit messages.** Subject as `type: description` (feat, fix, chore, docs, test), imperative mood, 50 characters max, no trailing period. Wrap the body at 72 characters; put extra detail there rather than truncating the subject. Shape backed by `scripts/check_commit_message.py`; it cannot verify imperative mood or body wrapping. Merge commits are exempt, because `git merge` writes their subject and no `type: description` form can express it.
 
 **Variables.** Name for role (`active_user_records`, not `d`). Loop counters (`i, j, k`) and math variables (`x, y`) are exempt.
 
