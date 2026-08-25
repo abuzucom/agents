@@ -8,9 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- Added instruction-only handoff planning trigger to `AGENTS.md` (and synced copies) at `plan/HANDOFF.md`, firing whenever the content digest differs from the session's acknowledged digest, and limiting pre-consent verification strictly to safe git metadata commands.
+- Added instruction-only handoff planning trigger to `AGENTS.md` (and synced copies) at `plan/HANDOFF.md`, firing whenever the content digest differs from the session's acknowledged digest, and restricting pre-consent verification strictly to safe git metadata commands run with pagers, fsmonitors, external diffs, and textconv disabled.
 - Added permanent security header, active work structure, command-execution prohibition, and sensitive data protections to `plan/HANDOFF.md.example`.
-- Added `scripts/check_conflict_markers.py`, backing merge conflict detection across all tracked files in CI and `make lint`, with `tests/test_check_conflict_markers.py` testing detection across arbitrary marker sizes, diff3 blocks, and Setext markdown headings.
+- Added `scripts/check_conflict_markers.py`, backing merge conflict detection across all tracked regular files in CI and `make lint` while skipping symlinks, handling UTF-16/32 encodings and BOMs, enforcing read bounds, and validating Markdown Setext heading context.
+- Added `tests/test_check_conflict_markers.py`, 25 tests covering 2-way and diff3 conflict blocks, custom marker sizes, UTF-16 BOMs, symlinks, Setext headings, CLI subprocess execution, and exact wiring across CI, Makefile, and pre-commit.
 
 ### Changed
 - Cleaned up redundant conditions in `scripts/check_dockerfile_root.py` (`if` to `elif` on service-indent comparison) and `scripts/check_commit_message.py` (removed unreachable empty-sha guard).

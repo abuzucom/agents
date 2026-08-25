@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
-"""Tests for scripts/check_conflict_markers.py and its CI/Makefile wiring."""
+"""Tests for scripts/check_conflict_markers.py and its CI/Makefile/pre-commit wiring."""
 import importlib.util
+import os
 import subprocess
 import sys
 import tempfile
@@ -11,6 +12,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 CHECKER_PATH = REPO_ROOT / "scripts" / "check_conflict_markers.py"
 WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "sync-check.yml"
 MAKEFILE_PATH = REPO_ROOT / "Makefile"
+PRE_COMMIT_CONFIG_PATH = REPO_ROOT / ".pre-commit-config.yaml"
 
 
 def _load_checker_module():
@@ -43,9 +45,15 @@ class ConflictMarkerDetectionTest(unittest.TestCase):
         self.assertEqual(len(violations), 1)
         self.assertIn("foo.py:1-7: unresolved conflict block", violations[0])
 
-    def test_configurable_marker_size_detected(self):
+    def test_configurable_marker_size_detected_exact(self):
+        content = "<<< HEAD\nleft\n===\nright\n>>> branch\n"
+        violations = checker.check_content(content, "custom.py", configured_marker_size=3)
+        self.assertEqual(len(violations), 1)
+        self.assertIn("custom.py:1-5: unresolved conflict block", violations[0])
+
+    def test_configurable_large_marker_size_detected(self):
         content = "<<<<<<<<<< HEAD\nleft\n==========\nright\n>>>>>>>>>> branch\n"
-        violations = checker.check_content(content, "large_marker.py")
+        violations = checker.check_content(content, "large_marker.py", configured_marker_size=10)
         self.assertEqual(len(violations), 1)
         self.assertIn("large_marker.py:1-5: unresolved conflict block", violations[0])
 
@@ -67,10 +75,28 @@ class ConflictMarkerDetectionTest(unittest.TestCase):
         self.assertEqual(len(violations), 1)
         self.assertIn("orphan_diff3.py:2: orphan conflict marker separator", violations[0])
 
+    def test_orphan_separator_in_python_is_flagged(self):
+        content = "def foo():\n    x = 1\n=======\n    return x\n"
+        violations = checker.check_content(content, "script.py")
+        self.assertEqual(len(violations), 1)
+        self.assertIn("script.py:3: orphan conflict marker separator", violations[0])
+
+    def test_orphan_separator_in_yaml_is_flagged(self):
+        content = "key: value\n=======\nother: value\n"
+        violations = checker.check_content(content, "config.yml")
+        self.assertEqual(len(violations), 1)
+        self.assertIn("config.yml:2: orphan conflict marker separator", violations[0])
+
     def test_setext_markdown_heading_is_not_flagged(self):
         content = "# Markdown Doc\n\nSection Title\n=============\n\nBody text.\n"
         violations = checker.check_content(content, "doc.md")
         self.assertEqual(violations, [])
+
+    def test_orphan_separator_in_markdown_without_heading_is_flagged(self):
+        content = "\n=======\nSome text\n"
+        violations = checker.check_content(content, "doc.md")
+        self.assertEqual(len(violations), 1)
+        self.assertIn("doc.md:2: orphan conflict marker separator", violations[0])
 
     def test_consecutive_openers_flag_previous(self):
         content = "<<<<<<< HEAD\nleft\n<<<<<<< OTHER\nother\n=======\nright\n>>>>>>> branch\n"
@@ -81,7 +107,7 @@ class ConflictMarkerDetectionTest(unittest.TestCase):
 
 
 class FileCheckingTest(unittest.TestCase):
-    """Test filesystem interactions and fail-closed error handling."""
+    """Test filesystem interactions, encodings, and fail-closed error handling."""
 
     def test_nonexistent_file_fails_closed(self):
         violations = checker.check_file("nonexistent_file_path_12345.txt")
@@ -98,22 +124,61 @@ class FileCheckingTest(unittest.TestCase):
         finally:
             temp_path.unlink()
 
-    def test_temp_file_with_conflict_is_detected(self):
-        with tempfile.NamedTemporaryFile(mode="w", delete=False, encoding="utf-8") as temp:
-            temp.write("<<<<<<< HEAD\na\n=======\nb\n>>>>>>> branch\n")
+    def test_utf16le_file_with_bom_detected(self):
+        text = "<<<<<<< HEAD\nleft\n=======\nright\n>>>>>>> branch\n"
+        with tempfile.NamedTemporaryFile(delete=False) as temp:
+            temp.write(b"\xff\xfe" + text.encode("utf-16-le"))
             temp_path = Path(temp.name)
         try:
             violations = checker.check_file(str(temp_path))
             self.assertEqual(len(violations), 1)
+            self.assertIn("unresolved conflict block", violations[0])
         finally:
             temp_path.unlink()
 
+    def test_utf16be_file_with_bom_detected(self):
+        text = "<<<<<<< HEAD\nleft\n=======\nright\n>>>>>>> branch\n"
+        with tempfile.NamedTemporaryFile(delete=False) as temp:
+            temp.write(b"\xfe\xff" + text.encode("utf-16-be"))
+            temp_path = Path(temp.name)
+        try:
+            violations = checker.check_file(str(temp_path))
+            self.assertEqual(len(violations), 1)
+            self.assertIn("unresolved conflict block", violations[0])
+        finally:
+            temp_path.unlink()
+
+    def test_utf16_working_tree_encoding_without_bom_detected(self):
+        text = "<<<<<<< HEAD\nleft\n=======\nright\n>>>>>>> branch\n"
+        with tempfile.NamedTemporaryFile(delete=False) as temp:
+            temp.write(text.encode("utf-16-le"))
+            temp_path = Path(temp.name)
+        try:
+            violations = checker.check_file(str(temp_path), encoding_hint="UTF-16LE")
+            self.assertEqual(len(violations), 1)
+            self.assertIn("unresolved conflict block", violations[0])
+        finally:
+            temp_path.unlink()
+
+    def test_symlink_is_ignored(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            target_path = Path(temp_dir) / "target.txt"
+            target_path.write_text("<<<<<<< HEAD\na\n=======\nb\n>>>>>>> main\n", encoding="utf-8")
+            link_path = Path(temp_dir) / "link.txt"
+            try:
+                os.symlink(target_path, link_path)
+                violations = checker.check_file(str(link_path))
+                self.assertEqual(violations, [])
+            except (OSError, NotImplementedError):
+                # Symlinks may not be permitted on unprivileged Windows environments
+                pass
+
 
 class GitTrackedFilesTest(unittest.TestCase):
-    """Test git-tracked files enumeration."""
+    """Test git-tracked regular files enumeration."""
 
-    def test_get_tracked_files_includes_repo_files(self):
-        files = checker.get_tracked_files()
+    def test_get_tracked_regular_files_includes_repo_files(self):
+        files = checker.get_tracked_regular_files()
         self.assertIn("AGENTS.md", files)
         self.assertIn("README.md", files)
         self.assertIn("scripts/check_conflict_markers.py", files)
@@ -150,23 +215,27 @@ class CliExecutionTest(unittest.TestCase):
             temp_path.unlink()
 
 
-PRE_COMMIT_CONFIG_PATH = REPO_ROOT / ".pre-commit-config.yaml"
-
-
 class WiringTest(unittest.TestCase):
-    """Test that CI workflow, Makefile, and pre-commit invoke check_conflict_markers.py."""
+    """Test exact wiring across CI workflows, Makefile, and pre-commit config."""
 
-    def test_sync_check_workflow_wires_conflict_checker(self):
+    def test_sync_check_workflow_wires_exact_command(self):
         content = WORKFLOW_PATH.read_text(encoding="utf-8")
-        self.assertIn("check_conflict_markers.py", content)
+        expected_step = (
+            "- name: Check for unresolved conflict markers\n"
+            "        run: python scripts/check_conflict_markers.py"
+        )
+        self.assertIn(expected_step, content)
 
-    def test_makefile_wires_conflict_checker(self):
+    def test_makefile_wires_exact_lint_recipe(self):
         content = MAKEFILE_PATH.read_text(encoding="utf-8")
-        self.assertIn("check_conflict_markers.py", content)
+        self.assertIn("\tpython scripts/check_conflict_markers.py", content)
 
-    def test_pre_commit_config_wires_conflict_checker(self):
+    def test_pre_commit_config_wires_exact_hook(self):
         content = PRE_COMMIT_CONFIG_PATH.read_text(encoding="utf-8")
-        self.assertIn("check_conflict_markers.py", content)
+        self.assertIn("- id: check-conflict-markers", content)
+        self.assertIn("entry: python scripts/check_conflict_markers.py", content)
+        self.assertIn("always_run: true", content)
+        self.assertIn("pass_filenames: false", content)
 
 
 if __name__ == "__main__":
