@@ -416,7 +416,7 @@ class SettingsWiringTest(unittest.TestCase):
     def _commands(settings: dict, event: str) -> list:
         """Return every hook command registered for `event`."""
         return [
-            entry.get("command", "")
+            " ".join([entry.get("command", "")] + list(entry.get("args", [])))
             for matcher in settings.get("hooks", {}).get(event, [])
             for entry in matcher.get("hooks", [])
         ]
@@ -451,7 +451,8 @@ class SettingsWiringTest(unittest.TestCase):
                     matcher.get("matcher", "")
                     for matcher in settings["hooks"]["PreToolUse"]
                     for entry in matcher.get("hooks", [])
-                    if "enforce_git_identity.py" in entry.get("command", "")
+                    if any("enforce_git_identity.py" in part
+                           for part in [entry.get("command", "")] + list(entry.get("args", [])))
                 }
                 self.assertEqual(matchers, {"Bash"})
 

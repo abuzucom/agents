@@ -291,8 +291,7 @@ One script serves three registrations, dispatched on `hook_event_name` and
 | Event | Behavior |
 |---|---|
 | `PreToolUse` (`Edit\|Write\|MultiEdit\|NotebookEdit`) | Returns `ask` for any write to an existing test file except an append at the end of it. A new test file passes. |
-| `PreToolUse` (`AskUserQuestion`) | Injects a checklist and never a decision: an option carrying a rule-governed cost must name the artifact and the rule, and must not be labeled Recommended. |
-| `SessionStart` | States which gates are live, including that approving a plan is not authorization for the acts inside it. |
+| `SessionStart` | States which gates are live, that approving a plan is not authorization for the acts inside it, and the checklist a question must satisfy before it is written. |
 
 The append carve-out is what keeps the gate installed. AGENTS.md mandates a
 test-first workflow, so a gate that prompted on every added test would be
@@ -308,11 +307,24 @@ its effect. Separating those from a real addition needs to parse the language
 under test, so the gate does not try. Refusing to guess costs a prompt;
 guessing wrong costs the assertion.
 
-The `AskUserQuestion` checklist is a reminder, not enforcement, and the
-table above is the honest description of it (Rule 13). A question that hides
-an option's rule-governed cost takes the choice away from the user before
-any gate can fire. What makes that omission survivable is the edit gate,
-which fires at the act regardless of what the approved plan said.
+The question checklist is a reminder, not enforcement, and the table above is
+the honest description of it (Rule 13). It rides on `SessionStart` rather
+than on `AskUserQuestion`, because a `PreToolUse` hook sees a question whose
+options the model has already written, and `additionalContext` cannot rewrite
+them. Guidance that arrives after the decision it is meant to shape is
+decoration. What makes a hidden cost survivable is not the checklist but the
+edit gate, which fires at the act regardless of what any question said.
+
+Both hooks fail closed on their own inputs. A payload that will not parse, or
+a tool input that is not an object, is denied rather than waved through, and a
+test file that cannot be decoded as text is gated rather than read as empty.
+Claude Code treats any non-zero exit other than 2 as a non-blocking error, so
+a hook that crashes on malformed input is a hook that is not there.
+
+Registrations use the exec form (`command` plus `args`) rather than a shell
+string. In shell form a project path containing a space splits into two
+arguments and the hook silently never runs, which removes the gate without
+removing the appearance of one.
 
 Paths are resolved before anything is decided about them. A path is only as
 trustworthy as the file it reaches, so classification runs on both the name

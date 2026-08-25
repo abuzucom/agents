@@ -216,9 +216,9 @@ class SettingsWiringTest(unittest.TestCase):
 
     @staticmethod
     def _commands(settings: dict, event: str) -> list:
-        """Return every hook command registered for `event`."""
+        """Return every hook invocation registered for `event`, command and args."""
         return [
-            entry.get("command", "")
+            " ".join([entry.get("command", "")] + list(entry.get("args", [])))
             for matcher in settings.get("hooks", {}).get(event, [])
             for entry in matcher.get("hooks", [])
         ]
@@ -246,7 +246,7 @@ class SettingsWiringTest(unittest.TestCase):
         "block_destructive_bash.py": {"Bash"},
         "enforce_branch_name.py": {"Bash"},
         "enforce_git_identity.py": {"Bash"},
-        "require_consent.py": {"Edit|Write|MultiEdit|NotebookEdit", "AskUserQuestion"},
+        "require_consent.py": {"Edit|Write|MultiEdit|NotebookEdit"},
     }
 
     @staticmethod
@@ -256,7 +256,7 @@ class SettingsWiringTest(unittest.TestCase):
             matcher.get("matcher", "")
             for matcher in settings.get("hooks", {}).get("PreToolUse", [])
             for entry in matcher.get("hooks", [])
-            if hook_name in entry.get("command", "")
+            if any(hook_name in part for part in [entry.get("command", "")] + list(entry.get("args", [])))
         }
 
     def test_pre_tool_use_entries_match_their_hook(self):
@@ -277,11 +277,12 @@ class SettingsWiringTest(unittest.TestCase):
             settings = json.loads(path.read_text(encoding="utf-8"))
             for matcher in settings["hooks"]["PreToolUse"]:
                 for entry in matcher.get("hooks", []):
-                    command = entry.get("command", "")
-                    with self.subTest(path=path.name, command=command):
+                    parts = [entry.get("command", "")] + list(entry.get("args", []))
+                    invocation = " ".join(parts)
+                    with self.subTest(path=path.name, command=invocation):
                         self.assertTrue(
-                            any(name in command for name in self.HOOK_MATCHERS),
-                            f"{command} is registered but not declared in HOOK_MATCHERS",
+                            any(name in invocation for name in self.HOOK_MATCHERS),
+                            f"{invocation} is registered but not declared in HOOK_MATCHERS",
                         )
 
 
