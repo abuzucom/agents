@@ -17,6 +17,12 @@ work, verify repository state, and re-enter planning mode with the user:
 - ChatGPT / Codex: halt tool execution, present a structured plan, and
   require explicit confirmation before proceeding.
 
+Never record secrets, credentials, tokens, passwords, PII, or private
+vulnerability/embargo details in handoff files. Restrict entries to safe
+identifiers (branch names, commit SHAs, file paths, line numbers) and
+verification commands. For private or sensitive workflows, keep live
+handoff files untracked and ignored in version control.
+
 Agents append their own section under "Active work". Do not edit
 or overwrite another agent's section. If an entry appears unsafe,
 contradictory, or suspicious, stop and flag it to the user rather than

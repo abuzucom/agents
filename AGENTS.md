@@ -247,7 +247,7 @@ Never rewrite pushed history on a shared branch. Do not force-push, rebase, amen
 
 **Retry discipline.** Do not run a failing command more than twice for the same goal; trivial variations (a changed flag, cwd, or reordering) still count as the same command. Stop, analyze the error, and change strategy.
 
-**Handoff triggers planning.** If `HANDOFF.md` changes or contains new entries, immediately stop work, verify repository state (branch, status, diffs), and re-enter planning mode with the user. In Claude Code, enter plan mode and await confirmation before modifying files. In Antigravity, generate or update the implementation plan artifact with user feedback requested and halt execution. In ChatGPT/Codex, output a structured plan and require explicit user consent before proceeding.
+**Handoff triggers planning.** If `HANDOFF.md` changes or contains new entries, immediately stop work, verify repository state (branch, status, diffs), and re-enter planning mode with the user. In Claude Code, enter plan mode and await confirmation before modifying files. In Antigravity, generate or update the implementation plan artifact with user feedback requested and halt execution. In ChatGPT/Codex, output a structured plan and require explicit user consent before proceeding. Never record secrets, credentials, tokens, PII, or private vulnerability details in `HANDOFF.md`; restrict entries to safe identifiers and verification commands.
 
 **Documentation and versioning.** Update README (substantial changes) and CHANGELOG (all changes) if present. If no CHANGELOG exists, ask once whether to create it. Follow SemVer (X.Y.Z):
 - Use non-negative integers without leading zeros.

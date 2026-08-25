@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Added `HANDOFF.md` and `HANDOFF.example.md`, defining untrusted status files for agent session continuity, with strict state-verification and active-user authorization requirements, separate from the permanent CHANGELOG.
 - Added handoff planning trigger to `AGENTS.md` (and synced copies) requiring agents to enter planning mode (Claude Code: plan mode; Antigravity: implementation plan artifact; ChatGPT/Codex: plan proposal) upon detecting handoff changes.
+- Added sensitive data disclosure protections to handoffs, prohibiting secrets, PII, and private vulnerability details, and guiding untracked/gitignored live handoffs for sensitive repos.
 
 ### Fixed
 - Fixed redundant condition in `scripts/check_dockerfile_root.py`: `if` to `elif` on the service-indent comparison so the first iteration skips the guaranteed-false `indent != indent` check.
