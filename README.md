@@ -243,8 +243,21 @@ rule 2 and the history-safety rule in Workflow, with two outcomes:
 
 | Outcome | Commands |
 |---|---|
-| `deny`, exit 2 | `rm -rf` aimed at `/`, `~`, or `$HOME`; a bare `git push --force`/`-f`; `git reset --hard` |
-| `ask` | `rm -rf` against any other target; `--force-with-lease` and `--force-if-includes`; `git push --delete`; `git commit --amend`; `git rebase`; `git filter-branch` |
+| `deny`, exit 2 | a recursive `rm` aimed at `/`, `~`, or `$HOME`; a bare `git push --force`/`-f`; `git reset --hard` |
+| `ask` | a recursive `rm` against any other target; the `--force-with-lease` and `--force-if-includes` family; `git push --mirror`; `git push --delete`; a forced (`+`) refspec; `git commit --amend`; `git rebase`; `git filter-branch` |
+
+The command is tokenized and normalized before any decision. Matching the raw
+string matches spelling rather than meaning, and every destructive command has
+many spellings: `rm -Rf` for `rm -rf`, `git -C dir push --force` for
+`git push --force`, `--force-with-lease=main:<oid>` for the bare flag, and
+`git push origin +HEAD:main` for a forced push carrying no flag at all. A
+string matcher lets each of those through while appearing to work. Tokenizing
+also removes a false positive: `echo 'rm -rf / is a string'` is a quoted
+argument, not a command.
+
+Ambiguity fails closed. A command that will not tokenize, or a `git` whose
+subcommand sits behind a variable, is gated rather than waved through, because
+the gate cannot clear what it cannot read.
 
 The `ask` set exists because each of those is legitimate with the user's
 consent and forbidden without it, so the decision belongs on a permission
