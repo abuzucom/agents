@@ -11,9 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added handoff planning trigger to `AGENTS.md` (and synced copies) requiring agents to enter planning mode (Claude Code: plan mode; Antigravity: implementation plan artifact; ChatGPT/Codex: plan proposal) upon detecting handoff changes.
 - Added security guardrails and sensitive data protections to `plan/HANDOFF.md.example`, defining untrusted status data, prohibiting secrets, PII, and private vulnerability details, and guiding untracked/gitignored live handoffs for sensitive repos.
 
-### Fixed
-- Fixed redundant condition in `scripts/check_dockerfile_root.py`: `if` to `elif` on the service-indent comparison so the first iteration skips the guaranteed-false `indent != indent` check.
-- Removed dead `if sha else ""` guard in `scripts/check_commit_message.py`: sha from `git log --format=%H` is always 40 characters; the fallback was unreachable.
+### Changed
+- Cleaned up redundant conditions in `scripts/check_dockerfile_root.py` (`if` to `elif` on service-indent comparison) and `scripts/check_commit_message.py` (removed unreachable empty-sha guard).
 
 ## [1.12.0] - 2026-08-20
 
