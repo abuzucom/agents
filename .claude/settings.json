@@ -12,6 +12,11 @@
             "type": "command",
             "command": "python3 ${CLAUDE_PROJECT_DIR}/hooks/enforce_git_identity.py",
             "timeout": 30
+          },
+          {
+            "type": "command",
+            "command": "python3 ${CLAUDE_PROJECT_DIR}/hooks/require_consent.py",
+            "timeout": 30
           }
         ]
       }
@@ -22,12 +27,37 @@
         "hooks": [
           {
             "type": "command",
+            "command": "python3 ${CLAUDE_PROJECT_DIR}/hooks/block_destructive_bash.py",
+            "timeout": 30
+          },
+          {
+            "type": "command",
             "command": "python3 ${CLAUDE_PROJECT_DIR}/hooks/enforce_branch_name.py",
             "timeout": 30
           },
           {
             "type": "command",
             "command": "python3 ${CLAUDE_PROJECT_DIR}/hooks/enforce_git_identity.py",
+            "timeout": 30
+          }
+        ]
+      },
+      {
+        "matcher": "Edit|Write|MultiEdit|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 ${CLAUDE_PROJECT_DIR}/hooks/require_consent.py",
+            "timeout": 30
+          }
+        ]
+      },
+      {
+        "matcher": "AskUserQuestion",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 ${CLAUDE_PROJECT_DIR}/hooks/require_consent.py",
             "timeout": 30
           }
         ]

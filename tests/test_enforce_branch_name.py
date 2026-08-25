@@ -242,12 +242,47 @@ class SettingsWiringTest(unittest.TestCase):
     def test_example_settings_register_both_events(self):
         self._assert_registers_both_events(EXAMPLE_SETTINGS)
 
-    def test_pre_tool_use_entries_target_bash(self):
+    HOOK_MATCHERS = {
+        "block_destructive_bash.py": {"Bash"},
+        "enforce_branch_name.py": {"Bash"},
+        "enforce_git_identity.py": {"Bash"},
+        "require_consent.py": {"Edit|Write|MultiEdit|NotebookEdit", "AskUserQuestion"},
+    }
+
+    @staticmethod
+    def _matchers_for(settings: dict, hook_name: str) -> set:
+        """Return every PreToolUse matcher that registers `hook_name`."""
+        return {
+            matcher.get("matcher", "")
+            for matcher in settings.get("hooks", {}).get("PreToolUse", [])
+            for entry in matcher.get("hooks", [])
+            if hook_name in entry.get("command", "")
+        }
+
+    def test_pre_tool_use_entries_match_their_hook(self):
+        """Each hook is registered under exactly the matchers it needs.
+
+        A hook wired to the wrong matcher never sees the tool call it exists
+        to gate, and every behavioral test still passes.
+        """
         for path in (LIVE_SETTINGS, EXAMPLE_SETTINGS):
-            with self.subTest(path=path.name):
-                settings = json.loads(path.read_text(encoding="utf-8"))
-                for matcher in settings["hooks"]["PreToolUse"]:
-                    self.assertEqual(matcher.get("matcher"), "Bash")
+            settings = json.loads(path.read_text(encoding="utf-8"))
+            for hook_name, expected in self.HOOK_MATCHERS.items():
+                with self.subTest(path=path.name, hook=hook_name):
+                    self.assertEqual(self._matchers_for(settings, hook_name), expected)
+
+    def test_every_registered_hook_declares_its_matchers(self):
+        """A PreToolUse hook absent from the table above is unreviewed wiring."""
+        for path in (LIVE_SETTINGS, EXAMPLE_SETTINGS):
+            settings = json.loads(path.read_text(encoding="utf-8"))
+            for matcher in settings["hooks"]["PreToolUse"]:
+                for entry in matcher.get("hooks", []):
+                    command = entry.get("command", "")
+                    with self.subTest(path=path.name, command=command):
+                        self.assertTrue(
+                            any(name in command for name in self.HOOK_MATCHERS),
+                            f"{command} is registered but not declared in HOOK_MATCHERS",
+                        )
 
 
 if __name__ == "__main__":

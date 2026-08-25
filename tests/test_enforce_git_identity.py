@@ -437,11 +437,23 @@ class SettingsWiringTest(unittest.TestCase):
         self._assert_registers_both_events(EXAMPLE_SETTINGS)
 
     def test_pre_tool_use_entries_target_bash(self):
+        """This hook gates git commands, so Bash is the only matcher it needs.
+
+        The settings files also register hooks that gate other tools. The
+        exhaustive hook-to-matcher table lives once, in
+        tests/test_enforce_branch_name.py; this asserts only the entry this
+        file owns.
+        """
         for path in (LIVE_SETTINGS, EXAMPLE_SETTINGS):
             with self.subTest(path=path.name):
                 settings = json.loads(path.read_text(encoding="utf-8"))
-                for matcher in settings["hooks"]["PreToolUse"]:
-                    self.assertEqual(matcher.get("matcher"), "Bash")
+                matchers = {
+                    matcher.get("matcher", "")
+                    for matcher in settings["hooks"]["PreToolUse"]
+                    for entry in matcher.get("hooks", [])
+                    if "enforce_git_identity.py" in entry.get("command", "")
+                }
+                self.assertEqual(matchers, {"Bash"})
 
 
 if __name__ == "__main__":
