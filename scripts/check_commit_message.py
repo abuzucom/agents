@@ -30,7 +30,7 @@ def find_violations(subjects: list[tuple[str, str]]) -> list[str]:
     """
     violations = []
     for sha, raw_subject in subjects:
-        short_sha = sha[:12] if sha else ""
+        short_sha = sha[:12]
         prefix = f"{short_sha}: " if short_sha else ""
         subject = _strip_squash_suffix(raw_subject)
         if not SUBJECT_PATTERN.match(subject):

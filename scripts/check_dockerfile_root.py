@@ -87,7 +87,7 @@ def _compose_violations(text: str, path: str) -> list[str]:
                 break
             if service_indent is None:
                 service_indent = indent
-            if indent != service_indent:
+            elif indent != service_indent:
                 continue
             block_lines = _leading_comments(lines, index) + _block(lines, index)
             block = "\n".join(block_lines)
