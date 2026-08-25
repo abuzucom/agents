@@ -314,10 +314,17 @@ an option's rule-governed cost takes the choice away from the user before
 any gate can fire. What makes that omission survivable is the edit gate,
 which fires at the act regardless of what the approved plan said.
 
+Paths are resolved before anything is decided about them. A path is only as
+trustworthy as the file it reaches, so classification runs on both the name
+given and its canonical target: a symlink called `notes.txt` still reaches a
+test, and a test-named symlink pointing outside the project root is gated
+rather than followed.
+
 For headless runs a human sets `AGENTS_CONSENT_GRANTED` at launch to a
-comma-separated list of paths the gate may release. A Bash tool call cannot
-forge it: shell state does not persist between calls, and the hook inherits
-Claude Code's environment rather than the model's shell. Known gap: a Bash
+comma-separated list of paths the gate may release, compared on the canonical
+path so one grant releases one file. A Bash tool call cannot forge it: shell
+state does not persist between calls, and the hook inherits Claude Code's
+environment rather than the model's shell. Known gap: a Bash
 call can still write a test file through a redirect or here-document, which
 no `Edit` or `Write` matcher sees, so a repo that wants that covered needs a
 CI backstop requiring owner approval on test changes.
