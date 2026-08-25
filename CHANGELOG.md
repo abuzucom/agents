@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- Added `HANDOFF.md`, an ephemeral working-state file for agent session continuity, separate from the permanent CHANGELOG.
+
+### Fixed
+- Fixed redundant condition in `scripts/check_dockerfile_root.py`: `if` to `elif` on the service-indent comparison so the first iteration skips the guaranteed-false `indent != indent` check.
+- Removed dead `if sha else ""` guard in `scripts/check_commit_message.py`: sha from `git log --format=%H` is always 40 characters; the fallback was unreachable.
+
 ## [1.6.0] - 2026-08-08
 
 ### Added

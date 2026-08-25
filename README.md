@@ -22,6 +22,11 @@ compatibility and Banned agents below. Copy into a repository and adapt.
 - **`.claudeignore`** - excludes noisy/generated paths (`node_modules/`,
   build output, lockfiles, `.env*`, etc.) from Claude Code's context. Part
   of the template, not optional tooling - see Adopting step 1.
+- **`HANDOFF.md`** - live working-state file for this repo's agent session
+  continuity. Each agent appends its own section; cleared only when the
+  user says so. Not a replacement for `CHANGELOG.md`. Adopting repos
+  should use `HANDOFF.example.md` as their starting template, not copy
+  this file.
 - **`scripts/check_banned_agents.py`** and
   **`.github/workflows/agents-md-compliance.yml`** - this template's own
   enforcement of Banned agents, dogfooded in its own CI; see Banned agents
@@ -94,6 +99,15 @@ compatibility and Banned agents below. Copy into a repository and adapt.
    both cleanly. Neither workflow copies into a target repo by default;
    propagating one, like any other checker in this section, is its own
    proposal under Rule 9.
+7. Copy `HANDOFF.example.md` to the target repo as `HANDOFF.md` and
+   tailor the "Repo orientation" table to that repo's layout (entry
+   points, key directories, build system, test commands). Clear the
+   example session under "Active work." `HANDOFF.md` is an ephemeral
+   working-state file for agent session continuity, not a changelog;
+   each agent appends its own section, and the file is cleared only
+   when the user says so. Do not copy the working `HANDOFF.md` from
+   this repo; it contains this repo's live state. Do not add
+   `HANDOFF.md` to `scripts/sync.py`.
 
 ## Banned agents
 
