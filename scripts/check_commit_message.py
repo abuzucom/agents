@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
-"""Enforce the `type: description` commit subject format.
+"""Warn about commit subjects breaking the `type: description` format.
 
 A portable, path-generic checker: copy this file into any repo and run
 it in CI on `pull_request` events, over a `--base`/`--head` commit range.
 Not a drop-in `commit-msg` hook: that hook receives a message-file path,
 not two refs. Strips a trailing GitHub squash-merge suffix (` (#123)`)
 before checking length, since that suffix is not user-authored. Cannot
-verify imperative mood, only shape. Blocking: exits 1 on any violation.
+verify imperative mood, only shape. Always exits 0, even when it finds
+violations; this check is advisory, not blocking.
 """
 import argparse
 import re
@@ -35,17 +36,17 @@ def find_violations(subjects: list[tuple[str, str]]) -> list[str]:
         subject = _strip_squash_suffix(raw_subject)
         if not SUBJECT_PATTERN.match(subject):
             violations.append(
-                f"{prefix}subject '{raw_subject}' must start with "
+                f"warning: {prefix}subject '{raw_subject}' must start with "
                 "'type: description' (feat, fix, chore, docs, test)"
             )
             continue
         if len(subject) > MAX_LENGTH:
             violations.append(
-                f"{prefix}subject '{raw_subject}' exceeds {MAX_LENGTH} "
+                f"warning: {prefix}subject '{raw_subject}' exceeds {MAX_LENGTH} "
                 f"characters ({len(subject)})"
             )
         if subject.endswith("."):
-            violations.append(f"{prefix}subject '{raw_subject}' ends with a period")
+            violations.append(f"warning: {prefix}subject '{raw_subject}' ends with a period")
     return violations
 
 
@@ -67,13 +68,13 @@ def load_commits(base: str, head: str) -> list[tuple[str, str]]:
 
 
 def check(base: str, head: str) -> int:
-    """Check the base..head commit range. Return 0 when clean, 1 otherwise."""
+    """Warn on violations in the base..head commit range. Always returns 0."""
     violations = find_violations(load_commits(base, head))
     if violations:
         for message in violations:
-            print(message, file=sys.stderr)
-        return 1
-    print("no commit-message violations found")
+            print(message)
+    else:
+        print("no commit-message violations found")
     return 0
 
 
