@@ -290,14 +290,23 @@ One script serves three registrations, dispatched on `hook_event_name` and
 
 | Event | Behavior |
 |---|---|
-| `PreToolUse` (`Edit\|Write\|MultiEdit\|NotebookEdit`) | Returns `ask` when a write removes or rewrites existing test content, drops an assertion, or introduces a skip marker. A new test file passes, and so does an append to an existing one. |
+| `PreToolUse` (`Edit\|Write\|MultiEdit\|NotebookEdit`) | Returns `ask` for any write to an existing test file except an append at the end of it. A new test file passes. |
 | `PreToolUse` (`AskUserQuestion`) | Injects a checklist and never a decision: an option carrying a rule-governed cost must name the artifact and the rule, and must not be labeled Recommended. |
 | `SessionStart` | States which gates are live, including that approving a plan is not authorization for the acts inside it. |
 
-The additive carve-out is what keeps the gate installed. AGENTS.md mandates
-a test-first workflow, so a gate that prompted on every append to a test
-file would be switched off within a day and would enforce nothing. An append
-is detected by the old string surviving verbatim inside the new one.
+The append carve-out is what keeps the gate installed. AGENTS.md mandates a
+test-first workflow, so a gate that prompted on every added test would be
+switched off within a day and would enforce nothing. An append is verified,
+not guessed: the new text must begin with the old text, the addition must
+start on a new line, and the old text must sit at the end of the file.
+
+Everything else is gated, including edits that keep the old text. "The old
+text still appears somewhere in the new text" is not evidence the old
+behavior survived: commenting an assertion out, wrapping it in a string, or
+moving it into a branch that never runs all preserve its text while removing
+its effect. Separating those from a real addition needs to parse the language
+under test, so the gate does not try. Refusing to guess costs a prompt;
+guessing wrong costs the assertion.
 
 The `AskUserQuestion` checklist is a reminder, not enforcement, and the
 table above is the honest description of it (Rule 13). A question that hides
