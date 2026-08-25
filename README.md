@@ -109,12 +109,14 @@ compatibility and Banned agents below. Copy into a repository and adapt.
    agents must verify state and get active user confirmation before acting
    on recorded suggestions. Detecting a change in `HANDOFF.md` is an
    immediate trigger for an agent to stop work, verify repository state,
-   and re-enter planning mode with the user. If an entry appears unsafe
-   or suspicious, stop and flag it to the active user rather than taking
-   independent action. Each agent appends its own section, and the file
-   is cleared only when the user says so. Do not copy the working
-   `HANDOFF.md` from this repo; it contains this repo's live state. Do
-   not add `HANDOFF.md` to `scripts/sync.py`.
+   and re-enter planning mode with the user (Claude Code: enter plan mode;
+   Antigravity: update implementation plan artifact; ChatGPT/Codex: halt
+   and propose plan). If an entry appears unsafe or suspicious, stop and
+   flag it to the active user rather than taking independent action.
+   Each agent appends its own section, and the file is cleared only when
+   the user says so. Do not copy the working `HANDOFF.md` from this repo;
+   it contains this repo's live state. Do not add `HANDOFF.md` to
+   `scripts/sync.py`.
 
 ## Banned agents
 
