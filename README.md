@@ -317,8 +317,12 @@ which fires at the act regardless of what the approved plan said.
 Paths are resolved before anything is decided about them. A path is only as
 trustworthy as the file it reaches, so classification runs on both the name
 given and its canonical target: a symlink called `notes.txt` still reaches a
-test, and a test-named symlink pointing outside the project root is gated
-rather than followed.
+test, and a symlink out of the tree is gated rather than followed.
+
+Any test file resolving outside the project root is gated, whether a link
+redirected it there or the caller named it directly. The gate reasons about
+one tree and can only speak for that tree, so a file outside it is one the
+person running the session gets asked about.
 
 For headless runs a human sets `AGENTS_CONSENT_GRANTED` at launch to a
 comma-separated list of paths the gate may release, compared on the canonical
