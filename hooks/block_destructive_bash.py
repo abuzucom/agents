@@ -48,23 +48,28 @@ import os
 import shlex
 import sys
 
-INTERACTIVE_MODES = frozenset({"default", "plan", "acceptEdits", "auto"})
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+try:
+    import _gate_core as core
+except ImportError as error:  # pragma: no cover - exercised by the adoption test
+    # Fail closed. Claude Code treats any non-zero exit other than 2 as a
+    # non-blocking error, so an unhandled ImportError would wave the command
+    # through in exactly the repos that installed this gate.
+    _REASON = f"hooks/_gate_core.py could not be imported ({error}), so the gate cannot clear this command"
+    print(json.dumps({"hookSpecificOutput": {
+        "hookEventName": "PreToolUse",
+        "permissionDecision": "deny",
+        "permissionDecisionReason": _REASON,
+    }}))
+    print(_REASON, file=sys.stderr)
+    sys.exit(2)
+
+GATE = "block_destructive_bash.py"
+GATED_KEYWORDS = ("rm", "git")
 OPERATOR_CHARS = frozenset("&|;")
 GROUPING = frozenset({"(", ")", "\n"})
 WRAPPERS = frozenset({"sudo", "doas", "env", "time", "nohup", "nice", "command", "xargs"})
-AMBIGUOUS_MARKERS = ("$", "`")
-FILESYSTEM_ROOTS = frozenset({"/", "//", "/*"})
-HOME_PREFIXES = ("~", "$HOME", "${HOME}")
-GIT_VALUE_OPTIONS = frozenset({
-    "-C", "-c", "--exec-path", "--git-dir", "--work-tree", "--namespace",
-    "--config-env", "--super-prefix",
-})
-HISTORY_SUBCOMMANDS = {
-    "rebase": "git rebase: this rewrites history",
-    "filter-branch": "git filter-branch: this rewrites history",
-    "filter-repo": "git filter-repo: this rewrites history",
-}
-STRENGTH = {"": 0, "ask": 1, "deny": 2}
 
 
 def _tokenize(command: str):
@@ -112,21 +117,6 @@ def _strip_prefixes(tokens: list) -> list:
     return tokens[index:]
 
 
-def _is_ambiguous(token: str) -> bool:
-    """Return True if the token hides its value behind shell expansion."""
-    return any(marker in token for marker in AMBIGUOUS_MARKERS)
-
-
-def _is_short_group(token: str) -> bool:
-    """Return True if the token is a bundle of short flags such as -Rf."""
-    return token.startswith("-") and not token.startswith("--") and len(token) > 1
-
-
-def _is_root_target(token: str) -> bool:
-    """Return True if the token names the filesystem root or the home directory."""
-    return token in FILESYSTEM_ROOTS or token.startswith(HOME_PREFIXES)
-
-
 def _rm_targets(args: list) -> tuple:
     """Return (recursive, operands) for an rm argument list."""
     recursive = False
@@ -137,7 +127,7 @@ def _rm_targets(args: list) -> tuple:
             parsing = False
         elif parsing and token.startswith("--"):
             recursive = recursive or token == "--recursive"
-        elif parsing and _is_short_group(token):
+        elif parsing and core.is_short_group(token):
             recursive = recursive or "r" in token or "R" in token
         else:
             operands.append(token)
@@ -147,65 +137,7 @@ def _rm_targets(args: list) -> tuple:
 def _rm_verdict(args: list) -> tuple:
     """Return (decision, reason) for an rm argument list."""
     recursive, operands = _rm_targets(args)
-    if not recursive:
-        return "", ""
-    if any(_is_root_target(operand) for operand in operands):
-        return "deny", "recursive rm targeting / or the home directory"
-    return "ask", "recursive rm: Rule 2 gates every target, including one this session created"
-
-
-def _git_subcommand(args: list) -> tuple:
-    """Return (subcommand, remaining args) after skipping git's global options."""
-    index = 0
-    while index < len(args):
-        token = args[index]
-        if not token.startswith("-"):
-            return token, args[index + 1:]
-        if token.split("=", 1)[0] in GIT_VALUE_OPTIONS and "=" not in token:
-            index += 2
-        else:
-            index += 1
-    return "", []
-
-
-def _push_ask_reason(token: str, name: str) -> str:
-    """Return why a single git push argument needs consent, or an empty string."""
-    if name.startswith("--force"):
-        return "git push with a --force variant: a lease is not consent to rewrite pushed history"
-    if name == "--mirror":
-        return "git push --mirror: this overwrites and deletes published refs"
-    if name == "--delete" or (_is_short_group(token) and "d" in token):
-        return "git push --delete: this removes a published ref"
-    if not token.startswith("-") and token.startswith("+"):
-        return "git push with a forced refspec: this rewrites pushed history"
-    return ""
-
-
-def _push_verdict(args: list) -> tuple:
-    """Return (decision, reason) for a git push argument list."""
-    ask = ""
-    for token in args:
-        name = token.split("=", 1)[0]
-        if name == "--force" or (_is_short_group(token) and "f" in token):
-            return "deny", "git push --force"
-        ask = ask or _push_ask_reason(token, name)
-    return ("ask", ask) if ask else ("", "")
-
-
-def _git_verdict(args: list) -> tuple:
-    """Return (decision, reason) for a git argument list."""
-    subcommand, rest = _git_subcommand(args)
-    if not subcommand or _is_ambiguous(subcommand):
-        return "ask", "git with an unresolved subcommand: the gate cannot tell what this runs"
-    if subcommand == "push":
-        return _push_verdict(rest)
-    if subcommand == "reset" and "--hard" in rest:
-        return "deny", "git reset --hard"
-    if subcommand == "commit" and "--amend" in rest:
-        return "ask", "git commit --amend: this rewrites a commit"
-    if subcommand in HISTORY_SUBCOMMANDS:
-        return "ask", HISTORY_SUBCOMMANDS[subcommand]
-    return "", ""
+    return core.delete_verdict(recursive, operands, "recursive rm")
 
 
 def _segment_verdict(tokens: list) -> tuple:
@@ -217,14 +149,7 @@ def _segment_verdict(tokens: list) -> tuple:
     if program == "rm":
         return _rm_verdict(tokens[1:])
     if program == "git":
-        return _git_verdict(tokens[1:])
-    return "", ""
-
-
-def _unparseable_verdict(command: str) -> tuple:
-    """Fail closed when a destructive-looking command will not tokenize."""
-    if "rm" in command or "git" in command:
-        return "ask", "this command could not be parsed, so the gate cannot clear it"
+        return core.git_verdict(tokens[1:])
     return "", ""
 
 
@@ -232,13 +157,11 @@ def classify(command: str) -> tuple:
     """Return the strongest (decision, reason) across the command's segments."""
     tokens = _tokenize(command)
     if tokens is None:
-        return _unparseable_verdict(command)
-    strongest = ("", "")
+        return core.unparseable_verdict(command, GATED_KEYWORDS)
+    verdict = ("", "")
     for segment in _segments(tokens):
-        verdict = _segment_verdict(segment)
-        if STRENGTH[verdict[0]] > STRENGTH[strongest[0]]:
-            strongest = verdict
-    return strongest
+        verdict = core.strongest(verdict, _segment_verdict(segment))
+    return verdict
 
 
 def find_reason(command: str) -> str:
@@ -254,47 +177,12 @@ def find_consent_reason(command: str) -> str:
 
 
 def emit(decision: str, reason: str) -> int:
-    """Print the hook's decision and return the exit code it needs."""
-    message = f"blocked by hooks/block_destructive_bash.py: {reason}"
-    output = {
-        "hookSpecificOutput": {
-            "hookEventName": "PreToolUse",
-            "permissionDecision": decision,
-            "permissionDecisionReason": message,
-        }
-    }
-    print(json.dumps(output))
-    if decision == "deny":
-        print(message, file=sys.stderr)
-        return 2
-    return 0
-
-
-def _read_payload():
-    """Return the stdin payload, or None when it cannot be parsed.
-
-    A gate that crashes on its input is a gate that is not there: Claude Code
-    treats a hook that exits non-zero for any reason other than 2 as a
-    non-blocking error, so an unhandled exception waves the command through.
-    """
-    try:
-        parsed = json.loads(sys.stdin.read())
-    except (OSError, ValueError):
-        return None
-    return parsed if isinstance(parsed, dict) else None
-
-
-def _decide(payload: dict, decision: str, reason: str) -> int:
-    """Emit the decision, turning an ask nobody can answer into a deny."""
-    if decision == "deny":
-        return emit("deny", reason)
-    if payload.get("permission_mode") in INTERACTIVE_MODES:
-        return emit("ask", reason)
-    return emit("deny", f"{reason}. No interactive session is available to consent.")
+    """Print the gate's decision and return the exit code it needs."""
+    return core.emit(GATE, decision, reason)
 
 
 def main() -> int:
-    payload = _read_payload()
+    payload = core.read_payload()
     if payload is None:
         return emit("deny", "the hook payload could not be parsed, so the gate cannot clear this command")
     if payload.get("tool_name") != "Bash":
@@ -305,7 +193,7 @@ def main() -> int:
     decision, reason = classify(tool_input.get("command", ""))
     if not decision:
         return 0
-    return _decide(payload, decision, reason)
+    return core.decide(GATE, payload, decision, reason)
 
 
 if __name__ == "__main__":
