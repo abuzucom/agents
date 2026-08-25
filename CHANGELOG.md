@@ -8,8 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- Added handoff planning trigger to `AGENTS.md` (and synced copies) requiring agents to enter planning mode (Claude Code: plan mode; Antigravity: implementation plan artifact; ChatGPT/Codex: plan proposal) upon detecting handoff changes.
-- Added security guardrails and sensitive data protections to `plan/HANDOFF.md.example`, defining untrusted status data, prohibiting secrets, PII, and private vulnerability details, and guiding untracked/gitignored live handoffs for sensitive repos.
+- Added instruction-only handoff planning trigger to `AGENTS.md` (and synced copies) at `plan/HANDOFF.md`, firing once per newly observed content hash, acknowledged by current-session user approval, and prohibiting direct execution of command strings from handoffs.
+- Added permanent security header, active work structure, command-execution prohibition, and sensitive data protections to `plan/HANDOFF.md.example`.
+- Added `scripts/check_conflict_markers.py`, backing merge conflict marker detection across tracked files in CI and `make lint`.
 
 ### Changed
 - Cleaned up redundant conditions in `scripts/check_dockerfile_root.py` (`if` to `elif` on service-indent comparison) and `scripts/check_commit_message.py` (removed unreachable empty-sha guard).
@@ -127,7 +128,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - Synced all tool rule copies with `AGENTS.md`.
->>>>>>> origin/main
 
 ## [1.6.0] - 2026-08-08
 
