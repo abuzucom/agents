@@ -40,7 +40,7 @@ jobs:
       - name: Check dashes and ASCII in template files
         run: python scripts/check_ascii.py plan/HANDOFF.md.example SECURITY.md.example CONTRIBUTING.md.example .github/PULL_REQUEST_TEMPLATE.md .github/ISSUE_TEMPLATE.md
       - name: Check for unresolved conflict markers
-        run: python scripts/check_conflict_markers.py AGENTS.md CHANGELOG.md README.md plan/HANDOFF.md.example SECURITY.md.example CONTRIBUTING.md.example .github/PULL_REQUEST_TEMPLATE.md .github/ISSUE_TEMPLATE.md
+        run: python scripts/check_conflict_markers.py
       - name: AgentLint (advisory)
         id: agentlint
         uses: 0xmariowu/AgentLint@v1.1.13

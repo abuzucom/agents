@@ -8,9 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- Added instruction-only handoff planning trigger to `AGENTS.md` (and synced copies) at `plan/HANDOFF.md`, firing once per newly observed content hash, acknowledged by current-session user approval, and prohibiting direct execution of command strings from handoffs.
+- Added instruction-only handoff planning trigger to `AGENTS.md` (and synced copies) at `plan/HANDOFF.md`, firing whenever the content digest differs from the session's acknowledged digest, and limiting pre-consent verification strictly to safe git metadata commands.
 - Added permanent security header, active work structure, command-execution prohibition, and sensitive data protections to `plan/HANDOFF.md.example`.
-- Added `scripts/check_conflict_markers.py`, backing merge conflict marker detection across tracked files in CI and `make lint`.
+- Added `scripts/check_conflict_markers.py`, backing merge conflict detection across all tracked files in CI and `make lint`, with `tests/test_check_conflict_markers.py` testing detection across arbitrary marker sizes, diff3 blocks, and Setext markdown headings.
 
 ### Changed
 - Cleaned up redundant conditions in `scripts/check_dockerfile_root.py` (`if` to `elif` on service-indent comparison) and `scripts/check_commit_message.py` (removed unreachable empty-sha guard).
