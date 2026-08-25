@@ -94,17 +94,37 @@ def git_subcommand(args: list) -> tuple:
     return "", []
 
 
-def push_ask_reason(token: str, name: str) -> str:
-    """Return why a single git push argument needs consent, or an empty string."""
+def _push_flag_reason(token: str, name: str) -> str:
+    """Return why a git push flag needs consent, or an empty string."""
     if name.startswith("--force"):
         return "git push with a --force variant: a lease is not consent to rewrite pushed history"
     if name == "--mirror":
         return "git push --mirror: this overwrites and deletes published refs"
     if name == "--delete" or (is_short_group(token) and "d" in token):
         return "git push --delete: this removes a published ref"
-    if not token.startswith("-") and token.startswith("+"):
-        return "git push with a forced refspec: this rewrites pushed history"
+    if name == "--prune":
+        return "git push --prune: this deletes every remote ref with no local counterpart"
     return ""
+
+
+def _push_operand_reason(token: str) -> str:
+    """Return why a git push refspec needs consent, or an empty string.
+
+    A refspec deletes or rewrites without carrying any flag: `+HEAD:main`
+    forces, and `:main` pushes an empty source, which deletes the remote ref.
+    """
+    if token.startswith("+"):
+        return "git push with a forced refspec: this rewrites pushed history"
+    if token.startswith(":"):
+        return "git push with an empty-source refspec: this deletes the remote ref"
+    return ""
+
+
+def push_ask_reason(token: str, name: str) -> str:
+    """Return why a single git push argument needs consent, or an empty string."""
+    if token.startswith("-"):
+        return _push_flag_reason(token, name)
+    return _push_operand_reason(token)
 
 
 def push_verdict(args: list) -> tuple:

@@ -69,7 +69,21 @@ GATE = "block_destructive_bash.py"
 GATED_KEYWORDS = ("rm", "git")
 OPERATOR_CHARS = frozenset("&|;")
 GROUPING = frozenset({"(", ")", "\n"})
-WRAPPERS = frozenset({"sudo", "doas", "env", "time", "nohup", "nice", "command", "xargs"})
+WRAPPERS = frozenset({"sudo", "doas", "env", "time", "nohup", "nice", "command", "xargs", "timeout"})
+# Wrapper options that consume the token after them. Without these,
+# `sudo -u root rm -rf /` leaves `root` as the apparent program.
+WRAPPER_VALUE_OPTIONS = {
+    "sudo": frozenset({"-u", "-g", "-p", "-C", "-h", "-U", "-r", "-t",
+                       "--user", "--group", "--prompt", "--close-from", "--host", "--role", "--type"}),
+    "doas": frozenset({"-u", "-C"}),
+    "env": frozenset({"-u", "--unset", "-C", "--chdir", "-S", "--split-string"}),
+    "xargs": frozenset({"-n", "-I", "-L", "-P", "-s", "-d", "-E", "-a",
+                        "--max-args", "--replace", "--max-procs", "--delimiter", "--arg-file"}),
+    "nice": frozenset({"-n", "--adjustment"}),
+    "timeout": frozenset({"-k", "-s", "--kill-after", "--signal"}),
+}
+REDIRECTION_CHARS = frozenset("<>&0123456789")
+IMPLAUSIBLE_PROGRAM_CHARS = frozenset("<>&|;")
 
 
 def _tokenize(command: str):
@@ -105,13 +119,54 @@ def _is_env_assignment(token: str) -> bool:
     return token.split("=", 1)[0].isidentifier()
 
 
+def _is_redirection(token: str) -> bool:
+    """Return True if the token is a redirection operator such as > or 2>&1."""
+    return bool(token) and ("<" in token or ">" in token) and set(token) <= REDIRECTION_CHARS
+
+
+def _is_plausible_program(token: str) -> bool:
+    """Return True if the token could name a command.
+
+    A leading flag, a bare file descriptor, or a stray operator means the
+    prefix strip did not reach the real program, so the caller fails closed
+    rather than reporting that nothing gated was found.
+    """
+    if not token or token.startswith("-") or token.isdigit():
+        return False
+    return not (set(token) & IMPLAUSIBLE_PROGRAM_CHARS)
+
+
+def _consumes_value(wrapper: str, token: str) -> bool:
+    """Return True if this wrapper option takes the following token as its value."""
+    if "=" in token:
+        return False
+    return token in WRAPPER_VALUE_OPTIONS.get(wrapper, frozenset())
+
+
 def _strip_prefixes(tokens: list) -> list:
-    """Drop leading environment assignments and command wrappers."""
+    """Drop leading redirections, environment assignments, and wrappers.
+
+    A wrapper's own options are consumed too. Stopping at the first token
+    that begins with a dash left `-n` as the program of `sudo -n rm -rf /`,
+    which is how an unguarded root delete read as an unknown command.
+    """
     index = 0
+    wrapper = ""
     while index < len(tokens):
         token = tokens[index]
-        if _is_env_assignment(token) or os.path.basename(token) in WRAPPERS:
+        if _is_redirection(token):
+            index += 2
+            continue
+        if _is_env_assignment(token):
             index += 1
+            continue
+        name = os.path.basename(token)
+        if name in WRAPPERS:
+            wrapper = name
+            index += 1
+            continue
+        if wrapper and token.startswith("-"):
+            index += 2 if _consumes_value(wrapper, token) else 1
             continue
         break
     return tokens[index:]
@@ -150,17 +205,27 @@ def _segment_verdict(tokens: list) -> tuple:
         return _rm_verdict(tokens[1:])
     if program == "git":
         return core.git_verdict(tokens[1:])
+    if not _is_plausible_program(program) and _mentions_gated_command(tokens):
+        return "ask", "the command boundaries could not be interpreted, so the gate cannot clear it"
     return "", ""
+
+
+def _mentions_gated_command(tokens: list) -> bool:
+    """Return True if any token in the segment names a command this gate covers."""
+    return any(os.path.basename(token) in GATED_KEYWORDS for token in tokens)
 
 
 def classify(command: str) -> tuple:
     """Return the strongest (decision, reason) across the command's segments."""
-    tokens = _tokenize(command)
-    if tokens is None:
-        return core.unparseable_verdict(command, GATED_KEYWORDS)
+    if not isinstance(command, str):
+        return "ask", "the command is not a string, so the gate cannot read it"
     verdict = ("", "")
-    for segment in _segments(tokens):
-        verdict = core.strongest(verdict, _segment_verdict(segment))
+    for line in command.splitlines():
+        tokens = _tokenize(line)
+        if tokens is None:
+            return core.unparseable_verdict(command, GATED_KEYWORDS)
+        for segment in _segments(tokens):
+            verdict = core.strongest(verdict, _segment_verdict(segment))
     return verdict
 
 
@@ -190,7 +255,10 @@ def main() -> int:
     tool_input = payload.get("tool_input")
     if not isinstance(tool_input, dict):
         return emit("deny", "the tool input is malformed, so the gate cannot read this command")
-    decision, reason = classify(tool_input.get("command", ""))
+    command = core.require_str(tool_input.get("command", ""))
+    if command is None:
+        return emit("deny", "the command field is not a string, so the gate cannot read it")
+    decision, reason = classify(command)
     if not decision:
         return 0
     return core.decide(GATE, payload, decision, reason)

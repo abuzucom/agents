@@ -172,6 +172,101 @@ class EvasionTest(unittest.TestCase):
         self.assertIn(decision, ("ask", "deny"))
 
 
+class CommandBoundaryTest(unittest.TestCase):
+    """A command hidden by shell syntax is still that command.
+
+    Every form here was ALLOWED while the gate looked at one flat token
+    list: a newline read as ordinary whitespace, a wrapper option that
+    stopped the prefix strip, and a redirection that became the program.
+    """
+
+    DENIED = (
+        "sudo -n rm -rf /",
+        "sudo -u root rm -rf /",
+        "sudo --user root rm -rf ~",
+    )
+
+    ASKED = (
+        "true\nrm -rf /tmp/x",
+        "true\n\nrm -rf /tmp/x",
+        ">log rm -rf /tmp/x",
+        ">>log rm -rf /tmp/x",
+        "env -i rm -rf /tmp/x",
+        "xargs -0 rm -rf /tmp/x",
+        "nice -n 10 rm -rf /tmp/x",
+        "2>&1 rm -rf /tmp/x",
+        "echo one\ngit push --force-with-lease origin main",
+    )
+
+    def test_hidden_denials_are_denied(self):
+        for command in self.DENIED:
+            with self.subTest(command=command):
+                code, decision = run_hook(command)
+                self.assertEqual(code, BLOCKING_EXIT_CODE)
+                self.assertEqual(decision, "deny")
+
+    def test_hidden_gated_commands_reach_the_human(self):
+        for command in self.ASKED:
+            with self.subTest(command=command):
+                code, decision = run_hook(command)
+                self.assertEqual(code, 0)
+                self.assertEqual(decision, "ask")
+
+
+class PushRefspecTest(unittest.TestCase):
+    """An empty-source refspec deletes a remote branch with no flag at all."""
+
+    ASKED = (
+        "git push origin :main",
+        "git push origin :refs/heads/main",
+        "git push --prune origin",
+        "git push origin --prune",
+    )
+
+    def test_ref_deleting_forms_ask(self):
+        for command in self.ASKED:
+            with self.subTest(command=command):
+                code, decision = run_hook(command)
+                self.assertEqual(code, 0)
+                self.assertEqual(decision, "ask")
+
+    def test_an_ordinary_refspec_still_passes(self):
+        _, decision = run_hook("git push origin main:main")
+        self.assertEqual(decision, "")
+
+
+class FieldTypeTest(unittest.TestCase):
+    """A field of the wrong type must deny, not crash or pass."""
+
+    def _run(self, tool_input, mode="default"):
+        payload = {
+            "hook_event_name": "PreToolUse",
+            "tool_name": "Bash",
+            "permission_mode": mode,
+            "tool_input": tool_input,
+        }
+        result = subprocess.run(
+            [sys.executable, str(HOOK_PATH)],
+            input=json.dumps(payload), capture_output=True, text=True, check=False,
+        )
+        decision = ""
+        if result.stdout.strip():
+            decision = json.loads(result.stdout)["hookSpecificOutput"]["permissionDecision"]
+        return result.returncode, decision
+
+    def test_non_string_commands_deny(self):
+        for value in (None, 5, ["rm", "-rf", "/"], {"cmd": "rm -rf /"}, True):
+            with self.subTest(value=value):
+                code, decision = self._run({"command": value})
+                self.assertEqual(code, BLOCKING_EXIT_CODE)
+                self.assertEqual(decision, "deny")
+
+    def test_unhashable_permission_mode_does_not_crash(self):
+        code, decision = self._run({"command": "rm -rf /tmp/x"}, mode=["default"])
+        self.assertEqual(code, BLOCKING_EXIT_CODE)
+        self.assertEqual(decision, "deny")
+
+
 class AllowTest(unittest.TestCase):
     """Ordinary commands pass without a prompt."""
 
