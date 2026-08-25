@@ -8,7 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- Added `HANDOFF.md`, an ephemeral working-state file for agent session continuity, separate from the permanent CHANGELOG.
+- Added `HANDOFF.md` and `HANDOFF.example.md`, defining untrusted status files for agent session continuity, with strict state-verification and active-user authorization requirements, separate from the permanent CHANGELOG.
 
 ### Fixed
 - Fixed redundant condition in `scripts/check_dockerfile_root.py`: `if` to `elif` on the service-indent comparison so the first iteration skips the guaranteed-false `indent != indent` check.
