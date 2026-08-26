@@ -20,6 +20,7 @@ through.
 """
 import json
 import os
+import posixpath
 import re
 import sys
 
@@ -94,9 +95,10 @@ def _is_system_root(token: str) -> bool:
     candidate = token.strip().strip('"').strip("'").replace("\\", "/")
     if not candidate:
         return False
-    # normpath collapses . and .. and duplicate separators, so /usr/. and
-    # /home/.. reach the same verdict as /usr and /.
-    normalized = os.path.normpath(candidate).lower()
+    # posixpath, not os.path: on Windows os.path.normpath("/etc") returns
+    # "\\etc", so a check anchored on a leading slash rejects every POSIX
+    # system root on the platform where a Windows agent runs.
+    normalized = posixpath.normpath(candidate).lower()
     if not normalized.startswith("/"):
         return False
     return normalized in SYSTEM_ROOTS
@@ -726,7 +728,7 @@ def volume_verdict(recursive: bool, operands: list) -> tuple:
         return "", ""
     for token in operands:
         candidate = token.strip().strip('"').strip("'").replace("\\", "/")
-        lowered = os.path.normpath(candidate).lower() + "/"
+        lowered = posixpath.normpath(candidate).lower() + "/"
         if any(lowered.startswith(prefix) for prefix in VOLUME_PREFIXES):
             return "ask", ("a recursive act under a mount point or shared "
                            "temp directory, which is not this project's data")

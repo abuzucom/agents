@@ -11,6 +11,7 @@ which is the only consent AGENTS.md recognizes for Rule 2 and for rewriting
 pushed history.
 """
 import json
+import ntpath
 import subprocess
 import sys
 import tempfile
@@ -784,3 +785,35 @@ class PrivilegeEscalationTest(unittest.TestCase):
             with self.subTest(command=command):
                 _, decision = run_hook(command)
                 self.assertEqual(decision, "")
+
+
+class WindowsPathModuleTest(unittest.TestCase):
+    """Root detection must hold when os.path is the Windows flavor.
+
+    ntpath.normpath("/etc") returns "\\etc", so a check anchored on a
+    leading slash rejects every POSIX system root on the platform a
+    Windows agent runs on. Substituting the module tests the logic here
+    rather than waiting for the windows-latest job to say so.
+    """
+
+    ROOTS = ("/", "/etc", "/usr/.", "/etc//", "/home/..", "/Applications",
+             "C:\\", "//server/share")
+    NOT_ROOTS = ("/tmp/scratch", "/etc/nginx", "build/", "./node_modules")
+
+    def setUp(self):
+        sys.path.insert(0, str(REPO_ROOT / "hooks"))
+        import _gate_core
+        self.core = _gate_core
+        self.real = _gate_core.os.path
+        _gate_core.os.path = ntpath
+        self.addCleanup(setattr, _gate_core.os, "path", self.real)
+
+    def test_system_roots_hold_under_ntpath(self):
+        for target in self.ROOTS:
+            with self.subTest(target=target):
+                self.assertTrue(self.core.is_root_target(target))
+
+    def test_ordinary_paths_hold_under_ntpath(self):
+        for target in self.NOT_ROOTS:
+            with self.subTest(target=target):
+                self.assertFalse(self.core.is_root_target(target))
