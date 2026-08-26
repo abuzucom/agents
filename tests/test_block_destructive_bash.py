@@ -13,6 +13,7 @@ pushed history.
 import json
 import subprocess
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -409,3 +410,152 @@ class BashWriteToTestTest(unittest.TestCase):
             with self.subTest(command=command):
                 _, decision = run_hook(command)
                 self.assertEqual(decision, expected)
+
+
+def _repo_with_config(directory: str, body: str) -> None:
+    """Write a .git/config carrying `body` under a fresh repo directory."""
+    git_dir = Path(directory) / ".git"
+    git_dir.mkdir(parents=True, exist_ok=True)
+    (git_dir / "config").write_text(body, encoding="utf-8")
+
+
+def run_hook_in(command: str, cwd: str) -> tuple:
+    """Return the hook's (exit code, decision) for `command` run in `cwd`."""
+    payload = {
+        "hook_event_name": "PreToolUse",
+        "tool_name": "Bash",
+        "permission_mode": "default",
+        "cwd": cwd,
+        "tool_input": {"command": command},
+    }
+    result = subprocess.run(
+        [sys.executable, str(HOOK_PATH)],
+        input=json.dumps(payload), capture_output=True, text=True, check=False)
+    try:
+        decision = json.loads(result.stdout)["hookSpecificOutput"]["permissionDecision"]
+    except (ValueError, KeyError):
+        decision = ""
+    return result.returncode, decision
+
+
+class RepoExecutesOnReadTest(unittest.TestCase):
+    """A repository's own config makes a read command run a program."""
+
+    EXEC_CONFIGS = (
+        ('[diff]\n\texternal = /tmp/evil\n', "git diff"),
+        ('[filter "lfs"]\n\tclean = /tmp/evil\n', "git status"),
+        ('[log]\n\tshowSignature = true\n', "git log"),
+        ('[core]\n\tfsmonitor = /tmp/evil\n', "git status"),
+        ('[core]\n\tsshCommand = /tmp/evil\n', "git log"),
+        ('[diff "x"]\n\ttextconv = /tmp/evil\n', "git show HEAD"),
+        ('[core]\n\thooksPath = /tmp/evil\n', "git blame f"),
+    )
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+
+    def test_exec_capable_config_gates_a_read(self):
+        for body, command in self.EXEC_CONFIGS:
+            with self.subTest(config=body.strip(), command=command):
+                _repo_with_config(self.tmp.name, body)
+                _, decision = run_hook_in(command, self.tmp.name)
+                self.assertEqual(decision, "ask")
+
+    def test_reason_names_the_key(self):
+        _repo_with_config(self.tmp.name, '[diff]\n\texternal = /tmp/evil\n')
+        payload = {
+            "hook_event_name": "PreToolUse",
+            "tool_name": "Bash",
+            "permission_mode": "default",
+            "cwd": self.tmp.name,
+            "tool_input": {"command": "git diff"},
+        }
+        result = subprocess.run(
+            [sys.executable, str(HOOK_PATH)],
+            input=json.dumps(payload), capture_output=True, text=True,
+            check=False)
+        reason = json.loads(result.stdout)["hookSpecificOutput"]["permissionDecisionReason"]
+        self.assertIn("diff.external", reason)
+
+    def test_clean_repo_prompts_on_nothing(self):
+        _repo_with_config(self.tmp.name, '[core]\n\tbare = false\n')
+        for command in ("git status", "git diff", "git log", "git show HEAD"):
+            with self.subTest(command=command):
+                _, decision = run_hook_in(command, self.tmp.name)
+                self.assertEqual(decision, "")
+
+    def test_neutralizing_the_key_on_the_command_line_passes(self):
+        _repo_with_config(self.tmp.name, '[diff]\n\texternal = /tmp/evil\n')
+        _, decision = run_hook_in("git -c diff.external= diff", self.tmp.name)
+        self.assertEqual(decision, "")
+
+    def test_unreadable_config_fails_closed(self):
+        git_dir = Path(self.tmp.name) / ".git"
+        git_dir.mkdir(parents=True, exist_ok=True)
+        (git_dir / "config").write_bytes(b"\xff\xfe[diff]\nexternal=x\n")
+        _, decision = run_hook_in("git diff", self.tmp.name)
+        self.assertEqual(decision, "ask")
+
+    def test_write_commands_are_unaffected(self):
+        _repo_with_config(self.tmp.name, '[diff]\n\texternal = /tmp/evil\n')
+        _, decision = run_hook_in("git push origin feat/x", self.tmp.name)
+        self.assertEqual(decision, "")
+
+
+class GitAliasTest(unittest.TestCase):
+    """An alias hides the subcommand the gate needs to read."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+
+    def test_alias_expanding_to_a_gated_command_is_classified(self):
+        _repo_with_config(self.tmp.name, '[alias]\n\tnuke = push --force\n')
+        _, decision = run_hook_in("git nuke", self.tmp.name)
+        self.assertEqual(decision, "deny")
+
+    def test_alias_expanding_to_a_safe_command_passes(self):
+        _repo_with_config(self.tmp.name, '[alias]\n\tst = status\n')
+        _, decision = run_hook_in("git st", self.tmp.name)
+        self.assertEqual(decision, "")
+
+    def test_shell_alias_is_classified_never_executed(self):
+        _repo_with_config(
+            self.tmp.name, '[alias]\n\tboom = !rm -rf /tmp/x\n')
+        _, decision = run_hook_in("git boom", self.tmp.name)
+        self.assertEqual(decision, "ask")
+
+    def test_unknown_subcommand_without_an_alias_asks(self):
+        _repo_with_config(self.tmp.name, '[core]\n\tbare = false\n')
+        _, decision = run_hook_in("git mysterious-thing", self.tmp.name)
+        self.assertEqual(decision, "ask")
+
+
+class SystemRootTest(unittest.TestCase):
+    """Deleting a system directory is not a decision to put to a person."""
+
+    ROOTS = ("/", "/bin", "/sbin", "/boot", "/lib", "/lib64", "/etc", "/home",
+             "/root", "/usr", "/var", "/opt", "/dev", "/proc", "/sys",
+             "/run", "/media", "/mnt", "/srv", "/Library", "/Applications",
+             "C:\\", "D:/", "//server/share")
+
+    def test_every_system_root_denies(self):
+        for target in self.ROOTS:
+            with self.subTest(target=target):
+                code, decision = run_hook(f"rm -rf {target}")
+                self.assertEqual(decision, "deny", f"{target} was not denied")
+                self.assertEqual(code, BLOCKING_EXIT_CODE)
+
+    def test_a_path_inside_a_system_root_still_asks(self):
+        for target in ("/etc/nginx", "/var/log/app", "/home/dev/project",
+                       "/usr/local/share/thing", "/opt/tool/build"):
+            with self.subTest(target=target):
+                _, decision = run_hook(f"rm -rf {target}")
+                self.assertEqual(decision, "ask")
+
+    def test_trailing_separators_do_not_evade(self):
+        for target in ("/etc/", "/etc//", "/usr/.", "C:\\\\"):
+            with self.subTest(target=target):
+                _, decision = run_hook(f"rm -rf {target}")
+                self.assertEqual(decision, "deny")

@@ -26,6 +26,17 @@ import sys
 INTERACTIVE_MODES = frozenset({"default", "plan", "acceptEdits", "auto"})
 AMBIGUOUS_MARKERS = ("$", "`")
 FILESYSTEM_ROOTS = frozenset({"/", "//", "/*"})
+# Directories whose removal takes the machine with them. These deny rather
+# than ask: putting "delete /etc?" in front of a person is not consent, it
+# is an invitation to a mistake nobody can undo.
+SYSTEM_ROOTS = frozenset({
+    "/", "/bin", "/boot", "/dev", "/etc", "/home", "/lib", "/lib32",
+    "/lib64", "/libx32", "/media", "/mnt", "/opt", "/proc", "/root",
+    "/run", "/sbin", "/srv", "/sys", "/temp", "/tmp", "/usr", "/var",
+    "/system", "/library", "/applications", "/volumes", "/users",
+    "/private", "/cores",
+})
+
 HOME_PREFIXES = ("~", "$HOME", "${HOME}", "$env:USERPROFILE",
                  "$Env:USERPROFILE", "%USERPROFILE%", "%HOMEPATH%")
 GIT_VALUE_OPTIONS = frozenset({
@@ -60,15 +71,40 @@ def is_short_group(token: str) -> bool:
 
 
 def _is_drive_root(token: str) -> bool:
-    """Return True for a Windows drive root such as C:\\ or C:/."""
-    stripped = token.rstrip("\\/")
-    return len(stripped) == 2 and stripped[1] == ":" and stripped[0].isalpha() \
-        and token != stripped
+    """Return True for the root of any drive or share.
+
+    C:\\, D:/, \\\\server\\share, and the bare drive letter C: all name a
+    whole volume. No workflow deletes one, so these deny rather than ask:
+    an agent has no business putting that choice in front of a person.
+    """
+    candidate = token.strip().strip('"').strip("'")
+    if candidate.startswith("\\\\") or candidate.startswith("//"):
+        parts = [part for part in candidate.replace("\\", "/").split("/") if part]
+        return len(parts) <= 2
+    stripped = candidate.rstrip("\\/")
+    return len(stripped) == 2 and stripped[1] == ":" and stripped[0].isalpha()
+
+
+def _is_system_root(token: str) -> bool:
+    """Return True if the token names a system directory itself.
+
+    A path inside one is an ordinary recursive delete and still asks. The
+    directory itself is not a target any workflow has.
+    """
+    candidate = token.strip().strip('"').strip("'").replace("\\", "/")
+    if not candidate:
+        return False
+    # normpath collapses . and .. and duplicate separators, so /usr/. and
+    # /home/.. reach the same verdict as /usr and /.
+    normalized = os.path.normpath(candidate).lower()
+    if not normalized.startswith("/"):
+        return False
+    return normalized in SYSTEM_ROOTS
 
 
 def is_root_target(token: str) -> bool:
     """Return True if the token names the filesystem root or a home directory."""
-    if _is_drive_root(token):
+    if _is_system_root(token) or _is_drive_root(token):
         return True
     return token in FILESYSTEM_ROOTS or token.startswith(HOME_PREFIXES)
 
@@ -150,11 +186,54 @@ def push_verdict(args: list) -> tuple:
     return ("ask", ask) if ask else ("", "")
 
 
-def git_verdict(args: list) -> tuple:
+READ_SUBCOMMANDS = frozenset({"status", "diff", "log", "show", "blame",
+                              "grep", "shortlog", "whatchanged"})
+
+
+KNOWN_SUBCOMMANDS = frozenset({
+    "push", "reset", "commit", "rebase", "filter-branch", "add", "checkout",
+    "switch", "restore", "merge", "fetch", "pull", "clone", "branch", "tag",
+    "remote", "stash", "config", "init", "rm", "mv", "cherry-pick", "revert",
+    "bisect", "worktree", "submodule", "describe", "rev-parse", "ls-files",
+    "cat-file", "hash-object", "check-attr", "replace", "update-index",
+    "apply", "am", "format-patch", "archive", "gc", "reflog", "notes",
+}) | READ_SUBCOMMANDS
+
+
+def cleared_config_keys(args: list) -> set:
+    """Return the config keys this invocation neutralizes with -c key=."""
+    cleared = set()
+    for index, token in enumerate(args):
+        if token == "-c" and index + 1 < len(args):
+            setting = args[index + 1]
+        elif token.startswith("-c") and len(token) > 2:
+            setting = token[2:]
+        else:
+            continue
+        key, separator, value = setting.partition("=")
+        if separator and not value:
+            cleared.add(key.strip().lower())
+    return cleared
+
+
+def git_verdict(args: list, cwd: str = "") -> tuple:
     """Return (decision, reason) for a git argument list."""
     subcommand, rest = git_subcommand(args)
     if not subcommand or is_ambiguous(subcommand):
         return "ask", "git with an unresolved subcommand: the gate cannot tell what this runs"
+    if subcommand in READ_SUBCOMMANDS:
+        return repo_executes_on_read(cwd, cleared_config_keys(args))
+    if subcommand not in KNOWN_SUBCOMMANDS:
+        expansion = resolve_alias(cwd, subcommand)
+        if not expansion:
+            return "ask", (f"git {sanitize(subcommand)}: not a git subcommand "
+                           "and not a declared alias, so the gate cannot tell "
+                           "what this runs")
+        if expansion.startswith("!"):
+            # A shell alias. Classify the text; never expand or run it.
+            return "ask", (f"git {sanitize(subcommand)} is a shell alias, "
+                           "which the gate cannot read as a git command")
+        return git_verdict(expansion.split() + rest, cwd)
     if subcommand == "push":
         return push_verdict(rest)
     if subcommand == "reset" and "--hard" in rest:
@@ -167,10 +246,19 @@ def git_verdict(args: list) -> tuple:
 
 
 def unparseable_verdict(command: str, keywords: tuple) -> tuple:
-    """Fail closed when a command naming one of `keywords` will not tokenize."""
-    if any(keyword in command for keyword in keywords):
-        return "ask", "this command could not be parsed, so the gate cannot clear it"
-    return "", ""
+    """Fail closed when a command naming one of `keywords` will not tokenize.
+
+    A command the gate cannot parse but which names a drive root or a
+    system directory denies rather than asks. `rm -rf C:\\` ends in an
+    unterminated escape, and no reading of it is one to put to a person.
+    """
+    if not any(keyword in command for keyword in keywords):
+        return "", ""
+    for word in command.replace("\\", "/").split():
+        if is_root_target(word) or is_root_target(word.rstrip("/") + "/"):
+            return "deny", ("this command could not be parsed and names a "
+                            "root or system directory")
+    return "ask", "this command could not be parsed, so the gate cannot clear it"
 
 
 def read_payload(empty_is_session_start: bool = False):
@@ -340,3 +428,95 @@ def test_write_verdict(program: str, args: list, redirect_targets: list) -> tupl
             return "ask", ("writes to an existing test file, which Rule 3 "
                            "puts in front of the user at the act")
     return "", ""
+
+
+MAX_CONFIG_BYTES = 256 * 1024
+# Keys whose value names a program git runs during an ordinary read.
+EXEC_CAPABLE_KEYS = frozenset({
+    "core.fsmonitor", "core.pager", "core.editor", "core.sshcommand",
+    "core.hookspath", "core.alternaterefscommand", "core.askpass",
+    "diff.external", "log.showsignature", "gpg.program",
+    "uploadpack.packobjectshook", "sequence.editor", "pager.diff",
+})
+# Sections where any driver name carries an exec-capable key.
+EXEC_CAPABLE_SUBSECTIONS = {
+    "filter": ("clean", "smudge", "process"),
+    "diff": ("textconv", "command"),
+    "gpg": ("program",),
+    "merge": ("driver",),
+}
+
+
+def parse_git_config(cwd: str):
+    """Return {"section.key": value} from .git/config, or None on failure.
+
+    The file is read, never queried through `git config`: running git to
+    decide whether running git is safe is the bug this exists to close.
+    Format is git's own, which configparser does not implement, so it is
+    parsed here. None means the caller must fail closed.
+    """
+    path = os.path.join(cwd or ".", ".git", "config")
+    try:
+        if os.path.getsize(path) > MAX_CONFIG_BYTES:
+            return None
+        with open(path, encoding="utf-8") as handle:
+            raw = handle.read()
+    except FileNotFoundError:
+        return {}
+    except (OSError, UnicodeDecodeError):
+        return None
+
+    entries = {}
+    section = ""
+    for line in raw.splitlines():
+        stripped = line.strip()
+        if not stripped or stripped[0] in "#;":
+            continue
+        if stripped.startswith("[") and stripped.endswith("]"):
+            head = stripped[1:-1].strip()
+            name, _, subsection = head.partition(" ")
+            section = f"{name.lower()}.{subsection.strip(chr(34))}" if subsection else name.lower()
+            continue
+        key, separator, value = stripped.partition("=")
+        if not separator:
+            continue
+        entries[f"{section}.{key.strip().lower()}"] = value.strip()
+    return entries
+
+
+def _exec_capable_key(entries: dict) -> str:
+    """Return the first exec-capable key present, or an empty string."""
+    for name, value in entries.items():
+        if name in EXEC_CAPABLE_KEYS and value.lower() not in ("", "false", "0"):
+            return name
+        parts = name.split(".")
+        if len(parts) == 3 and parts[2] in EXEC_CAPABLE_SUBSECTIONS.get(parts[0], ()):
+            return name
+    return ""
+
+
+def repo_executes_on_read(cwd: str, cleared: set) -> tuple:
+    """Return (decision, reason) for a git read in a repo that runs programs.
+
+    `cleared` holds keys the command already neutralized with -c key=, which
+    is the escape hatch: a caller who disables the knob is not gated on it.
+    """
+    entries = parse_git_config(cwd)
+    if entries is None:
+        return "ask", (".git/config could not be read, so the gate cannot "
+                       "tell whether this command runs a program")
+    remaining = {name: value for name, value in entries.items()
+                 if name not in cleared}
+    found = _exec_capable_key(remaining)
+    if not found:
+        return "", ""
+    return "ask", (f"a git read in a repository whose config sets {found}, "
+                   f"which names a program git runs")
+
+
+def resolve_alias(cwd: str, subcommand: str) -> str:
+    """Return what `subcommand` expands to, or an empty string."""
+    entries = parse_git_config(cwd)
+    if not entries:
+        return ""
+    return entries.get(f"alias.{subcommand.lower()}", "")

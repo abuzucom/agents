@@ -65,6 +65,7 @@ except ImportError as error:  # pragma: no cover - exercised by the adoption tes
     print(_REASON, file=sys.stderr)
     sys.exit(2)
 
+_CWD = [""]
 GATE = "block_destructive_bash.py"
 GATED_KEYWORDS = ("rm", "git")
 OPERATOR_CHARS = frozenset("&|;")
@@ -257,7 +258,7 @@ def _segment_verdict(tokens: list) -> tuple:
     if program == "rm":
         return _rm_verdict(tokens[1:])
     if program == "git":
-        return core.git_verdict(tokens[1:])
+        return core.git_verdict(tokens[1:], _CWD[0])
     cmd_decision = core.cmd_delete_verdict(program, tokens[1:])
     if cmd_decision[0]:
         return cmd_decision
@@ -314,6 +315,7 @@ def main() -> int:
     tool_input = payload.get("tool_input")
     if not isinstance(tool_input, dict):
         return emit("deny", "the tool input is malformed, so the gate cannot read this command")
+    _CWD[0] = core.project_dir(payload)
     command = core.require_str(tool_input.get("command", ""))
     if command is None:
         return emit("deny", "the command field is not a string, so the gate cannot read it")

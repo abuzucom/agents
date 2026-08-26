@@ -33,6 +33,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+_CWD = [""]
 GATE = "block_destructive_powershell.py"
 
 try:
@@ -170,7 +171,7 @@ def _statement_verdict(tokens: list) -> tuple:
         return core.strongest(_remove_verdict(tokens[1:]),
                               core.cmd_delete_verdict(program, tokens[1:]))
     if program == "git":
-        return core.git_verdict(tokens[1:])
+        return core.git_verdict(tokens[1:], _CWD[0])
     cmd_decision = core.cmd_delete_verdict(program, tokens[1:])
     if cmd_decision[0]:
         return cmd_decision
@@ -202,10 +203,12 @@ def main() -> int:
     if not isinstance(tool_input, dict):
         return core.emit(GATE, "deny", "the tool input is malformed, so the "
                                        "gate cannot read this command")
+    _CWD[0] = core.project_dir(payload)
     command = core.require_str(tool_input.get("command", ""))
     if command is None:
         return core.emit(GATE, "deny", "the command field is not a string, so "
                                        "the gate cannot read it")
+    _CWD[0] = core.project_dir(payload)
     decision, reason = classify(command)
     if not decision:
         return 0
