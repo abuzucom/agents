@@ -392,6 +392,11 @@ def get_git_attributes(
             try:
                 if os.path.commonpath([norm_root, abs_p]) == norm_root:
                     rel_p = os.path.relpath(abs_p, norm_root)
+                    # git addresses paths with forward slashes on every
+                    # platform, so a Windows relpath loses every lookup.
+                    rel_p = rel_p.replace(os.sep, "/")
+                    if os.altsep:
+                        rel_p = rel_p.replace(os.altsep, "/")
                     repo_paths.append((p, rel_p))
             except ValueError:
                 pass
@@ -520,7 +525,43 @@ def get_tracked_regular_files(
         except ValueError:
             continue
 
-    return regular_files
+    skipped = _skip_worktree_paths(repo_root)
+    return [f for f in regular_files if f not in skipped]
+
+
+def _skip_worktree_paths(repo_root: str) -> set:
+    """Return index paths marked skip-worktree, which have no local file.
+
+    A sparse checkout omits them deliberately, so reporting them as
+    missing fails a valid working tree.
+    """
+    result = subprocess.run(
+        [
+            "git", "--no-pager",
+            "-c", "core.fsmonitor=",
+            "ls-files", "-v", "-z", "--full-name",
+        ],
+        capture_output=True,
+        check=False,
+        cwd=repo_root,
+    )
+    if result.returncode != 0:
+        error_msg = result.stderr.decode("utf-8", errors="replace").strip()
+        raise RuntimeError(
+            f"git ls-files -v failed (exit {result.returncode}): "
+            f"{_sanitize(error_msg)}"
+        )
+    skipped = set()
+    for part in result.stdout.split(b"\x00"):
+        if not part:
+            continue
+        entry = part.decode("utf-8", errors="replace")
+        # git ls-files -v tags skip-worktree entries "S", then one space,
+        # then the path. A lowercase tag is assume-unchanged, which still
+        # has a working-tree file and stays in scope.
+        if len(entry) > 2 and entry[0] == "S" and entry[1] == " ":
+            skipped.add(entry[2:])
+    return skipped
 
 
 def _get_index_entries(

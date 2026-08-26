@@ -632,3 +632,61 @@ class SecurityHardeningTest(unittest.TestCase):
             self.assertNotIn("\n", line, "diagnostic spans several lines")
             self.assertNotIn("\x1b", line, "an ANSI escape reached output")
             self.assertNotIn("\u202e", line, "a bidi override reached output")
+
+
+class WindowsPathHandlingTest(unittest.TestCase):
+    """Git speaks forward slashes whatever the platform separator is."""
+
+    def test_attribute_lookup_survives_a_backslash_relpath(self):
+        """os.path.relpath returns backslashes on Windows, check-attr does not.
+
+        Keying the result on the backslash spelling loses every attribute
+        for a nested path, so conflict-marker-size is silently dropped.
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            nested = Path(tmp) / "nested"
+            nested.mkdir()
+            target = nested / "file.txt"
+            target.write_text("x\n", encoding="utf-8")
+
+            with patch.object(checker.os, "sep", "\\"), \
+                 patch.object(checker.os, "altsep", None), \
+                 patch.object(checker.os.path, "relpath",
+                              return_value="nested\\file.txt"), \
+                 patch("subprocess.run") as run:
+                run.return_value = MagicMock(
+                    returncode=0,
+                    stdout=b"nested/file.txt\x00conflict-marker-size\x001\x00",
+                    stderr=b"")
+                attributes = checker.get_git_attributes([str(target)], tmp)
+
+        found = [value for value in attributes.values() if value]
+        self.assertTrue(
+            found, "the attribute was dropped by the separator spelling")
+        self.assertEqual(found[0].get("conflict-marker-size"), "1")
+
+
+class SparseCheckoutTest(unittest.TestCase):
+    """A skip-worktree entry has no working-tree file and is not an error."""
+
+    def test_skip_worktree_entry_does_not_fail_the_check(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            _init_repo(tmp)
+            target = Path(tmp) / "sparse.txt"
+            target.write_text("clean content\n", encoding="utf-8")
+            subprocess.run(["git", "add", "sparse.txt"], cwd=tmp, check=True,
+                           capture_output=True)
+            subprocess.run(["git", "commit", "-qm", "chore: add"], cwd=tmp,
+                           check=True, capture_output=True)
+            subprocess.run(["git", "update-index", "--skip-worktree",
+                            "sparse.txt"], cwd=tmp, check=True,
+                           capture_output=True)
+            target.unlink()
+
+            result = subprocess.run(
+                [sys.executable, str(CHECKER_PATH), "--all"],
+                cwd=tmp, capture_output=True, text=True, check=False)
+
+        self.assertEqual(
+            result.returncode, 0,
+            f"a valid sparse checkout failed: {result.stderr}")
