@@ -72,6 +72,19 @@
             "timeout": 30
           }
         ]
+      },
+      {
+        "matcher": "PowerShell",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python",
+            "args": [
+              "${CLAUDE_PROJECT_DIR}/hooks/block_destructive_powershell.py"
+            ],
+            "timeout": 30
+          }
+        ]
       }
     ]
   }

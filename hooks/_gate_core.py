@@ -59,8 +59,17 @@ def is_short_group(token: str) -> bool:
     return token.startswith("-") and not token.startswith("--") and len(token) > 1
 
 
+def _is_drive_root(token: str) -> bool:
+    """Return True for a Windows drive root such as C:\\ or C:/."""
+    stripped = token.rstrip("\\/")
+    return len(stripped) == 2 and stripped[1] == ":" and stripped[0].isalpha() \
+        and token != stripped
+
+
 def is_root_target(token: str) -> bool:
     """Return True if the token names the filesystem root or a home directory."""
+    if _is_drive_root(token):
+        return True
     return token in FILESYSTEM_ROOTS or token.startswith(HOME_PREFIXES)
 
 

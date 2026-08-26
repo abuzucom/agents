@@ -245,6 +245,7 @@ class SettingsWiringTest(unittest.TestCase):
 
     HOOK_MATCHERS = {
         "block_destructive_bash.py": {"Bash"},
+        "block_destructive_powershell.py": {"PowerShell"},
         "enforce_branch_name.py": {"Bash"},
         "enforce_git_identity.py": {"Bash"},
         "require_consent.py": {"Edit|Write|MultiEdit|NotebookEdit"},
