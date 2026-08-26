@@ -148,6 +148,23 @@ def _consumes_value(wrapper: str, token: str) -> bool:
     return token in WRAPPER_VALUE_OPTIONS.get(wrapper, frozenset())
 
 
+def _redirect_targets(tokens: list) -> list:
+    """Return the files this segment redirects into.
+
+    Both spellings matter: `> path` arrives as two tokens under
+    punctuation_chars, and `>path` as one.
+    """
+    targets = []
+    for index, token in enumerate(tokens):
+        if _is_redirection(token) and index + 1 < len(tokens):
+            targets.append(tokens[index + 1])
+        elif ">" in token and not _is_redirection(token):
+            _, _, tail = token.partition(">")
+            if tail:
+                targets.append(tail)
+    return targets
+
+
 def _strip_prefixes(tokens: list) -> list:
     """Drop leading redirections, environment assignments, and wrappers.
 
@@ -230,9 +247,10 @@ def _interpreter_verdict(program: str, args: list) -> tuple:
 
 def _segment_verdict(tokens: list) -> tuple:
     """Return (decision, reason) for one command segment."""
+    redirects = _redirect_targets(tokens)
     tokens = _strip_prefixes(tokens)
     if not tokens:
-        return "", ""
+        return core.test_write_verdict("", [], redirects)
     program = os.path.basename(tokens[0])
     if program.lower() in INTERPRETERS:
         return _interpreter_verdict(program, tokens[1:])
@@ -243,6 +261,9 @@ def _segment_verdict(tokens: list) -> tuple:
     cmd_decision = core.cmd_delete_verdict(program, tokens[1:])
     if cmd_decision[0]:
         return cmd_decision
+    write_decision = core.test_write_verdict(program, tokens[1:], redirects)
+    if write_decision[0]:
+        return write_decision
     if not _is_plausible_program(program) and _mentions_gated_command(tokens):
         return "ask", "the command boundaries could not be interpreted, so the gate cannot clear it"
     return "", ""

@@ -385,3 +385,27 @@ class CmdVerbTest(unittest.TestCase):
             with self.subTest(command=command):
                 _, decision = run_hook(command)
                 self.assertEqual(decision, expected)
+
+
+class BashWriteToTestTest(unittest.TestCase):
+    """No Edit matcher sees a redirect, so this gate has to."""
+
+    CASES = (
+        ("echo x > tests/test_auth.py", "ask"),
+        ("echo x >> tests/test_auth.py", "ask"),
+        ("cat <<'EOF' > tests/test_auth.py", "ask"),
+        ("echo x | tee tests/test_auth.py", "ask"),
+        ("sed -i 's/a/b/' tests/test_auth.py", "ask"),
+        ("cp /tmp/x tests/test_auth.py", "ask"),
+        ("mv /tmp/x tests/test_auth.py", "ask"),
+        ("echo x > src/app.js", ""),
+        ("cat tests/test_auth.py", ""),
+        ("grep -r assert tests/", ""),
+        ("python -m pytest tests/test_auth.py", ""),
+    )
+
+    def test_writes_reaching_a_test_path_are_gated(self):
+        for command, expected in self.CASES:
+            with self.subTest(command=command):
+                _, decision = run_hook(command)
+                self.assertEqual(decision, expected)

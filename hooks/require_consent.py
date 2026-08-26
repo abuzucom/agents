@@ -50,13 +50,15 @@ decides what it does. This gate raises the cost of the casual path. Closing
 it needs a server-side check on those paths, which an adopting repo supplies
 and this template does not.
 
-Known gap: a Bash call can write a test file through a redirect or a
-here-document, which no Edit or Write matcher sees.
+A Bash call can also write a test file, through a redirect, a
+here-document, `tee`, `sed -i`, `cp`, or `mv`, where no Edit or Write
+matcher sees it. hooks/block_destructive_bash.py routes those to the same
+decision, using the classifier both gates share in _gate_core.py. A write
+through a program neither gate knows still passes.
 """
 import hashlib
 import json
 import os
-import re
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -80,13 +82,6 @@ except ImportError as error:  # pragma: no cover - exercised by the adoption tes
     sys.exit(2)
 
 GATED_TOOLS = frozenset({"Edit", "Write", "MultiEdit", "NotebookEdit"})
-TEST_DIR_PARTS = frozenset({"tests", "test", "__tests__", "spec"})
-TEST_NAME = re.compile(
-    r"^test_.+\.(py|js|mjs|cjs|ts|jsx|tsx|ipynb)$"
-    r"|_test\.(py|js|mjs|cjs|ts|go|rb)$"
-    r"|\.(test|spec)\.(js|mjs|cjs|jsx|ts|tsx)$",
-    re.IGNORECASE,
-)
 PATH_KEYS = ("file_path", "notebook_path")
 PROTECTED_PARTS = ("hooks", ".claude")
 OVERRIDE_ENV = "AGENTS_CONSENT_GRANTED"
@@ -119,24 +114,9 @@ This arrives now rather than when a question is asked, because by the time a
 question reaches a hook its options are already written."""
 
 
-def strip_windows_decorations(name: str) -> str:
-    """Return the filename Windows opens for `name`.
-
-    An NTFS alternate data stream (`test_x.py:evil`) writes into the same
-    file, and Windows discards a trailing dot or space. Each spelling reaches
-    a test while failing a pattern anchored on the extension.
-    """
-    base = name.split(":", 1)[0] if ":" in name[2:] else name
-    return base.rstrip(". ")
-
-
 def is_test_path(path: str) -> bool:
-    """Return True if `path` names a test file by directory or by filename."""
-    normalized = os.path.normpath(path).replace("\\", "/").replace(os.sep, "/")
-    parts = [part.lower() for part in normalized.split("/")]
-    if TEST_DIR_PARTS.intersection(parts[:-1]):
-        return True
-    return bool(TEST_NAME.search(strip_windows_decorations(parts[-1])))
+    """Return True if `path` names a test file, per the shared classifier."""
+    return core.is_test_path(path)
 
 
 def is_protected_path(target: str, project_dir: str) -> bool:

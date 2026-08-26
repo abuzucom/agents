@@ -20,6 +20,7 @@ through.
 """
 import json
 import os
+import re
 import sys
 
 INTERACTIVE_MODES = frozenset({"default", "plan", "acceptEdits", "auto"})
@@ -280,3 +281,53 @@ def cmd_delete_verdict(program: str, args: list) -> tuple:
         else:
             operands.append(token)
     return delete_verdict(recursive, operands, f"recursive {program.lower()}")
+
+
+TEST_DIR_PARTS = frozenset({"tests", "test", "__tests__", "spec"})
+TEST_NAME = re.compile(
+    r"^test_.+\.(py|js|mjs|cjs|ts|jsx|tsx|ipynb)$"
+    r"|_test\.(py|js|mjs|cjs|ts|go|rb)$"
+    r"|\.(test|spec)\.(js|mjs|cjs|jsx|ts|tsx)$",
+    re.IGNORECASE,
+)
+# Commands whose named operand is a file they overwrite in place.
+WRITE_PROGRAMS = {"tee": 0, "sed": -1, "cp": -1, "mv": -1}
+
+
+def strip_windows_decorations(name: str) -> str:
+    """Return the filename Windows opens for `name`.
+
+    An NTFS alternate data stream (`test_x.py:evil`) writes into the same
+    file, and Windows discards a trailing dot or space.
+    """
+    base = name.split(":", 1)[0] if ":" in name[2:] else name
+    return base.rstrip(". ")
+
+
+def is_test_path(path: str) -> bool:
+    """Return True if `path` names a test file by directory or filename."""
+    normalized = os.path.normpath(path).replace("\\", "/").replace(os.sep, "/")
+    parts = [part.lower() for part in normalized.split("/")]
+    if TEST_DIR_PARTS.intersection(parts[:-1]):
+        return True
+    return bool(TEST_NAME.search(strip_windows_decorations(parts[-1])))
+
+
+def test_write_verdict(program: str, args: list, redirect_targets: list) -> tuple:
+    """Return (decision, reason) for a command that writes to a test file.
+
+    A redirect or an in-place edit reaches a test file where no Edit or
+    Write matcher can see it, so Rule 3 would apply to the same act
+    through one tool and not the other.
+    """
+    targets = list(redirect_targets)
+    position = WRITE_PROGRAMS.get(os.path.basename(program).lower())
+    if position is not None:
+        operands = [token for token in args if not token.startswith("-")]
+        if operands:
+            targets.append(operands[position])
+    for target in targets:
+        if is_test_path(target):
+            return "ask", ("writes to an existing test file, which Rule 3 "
+                           "puts in front of the user at the act")
+    return "", ""
