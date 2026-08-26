@@ -15,6 +15,23 @@ permissions:
   pull-requests: write
 
 jobs:
+  tests-windows:
+    # The gates run as the launcher named in .claude/settings.json, which
+    # only this job can prove resolves on Windows. A hook that fails to
+    # start exits non-zero but not 2, which Claude Code treats as a
+    # non-blocking error, so every gate would fail open there in silence.
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Run tests
+        run: python -m unittest discover -s tests -v
+
   check-sync:
     runs-on: ubuntu-latest
     steps:

@@ -375,6 +375,127 @@ class OverrideScopeTest(unittest.TestCase):
         self.assertEqual(self._edit(self.other), "ask")
 
 
+TWO_TESTS = """test('a', function () {
+  assert.ok(1);
+});
+
+test('b', function () {
+  assert.ok(2);
+});
+"""
+
+
+class OccurrenceCountTest(unittest.TestCase):
+    """An append is verifiable only when the old text occurs once, at the end.
+
+    The hook ignored `replace_all`, so it validated one replacement at the
+    end of the file while the tool rewrote every occurrence. The same hole
+    exists without the flag: when the old text appears twice, a plain Edit
+    replaces the first, which is mid-file, while `content.endswith(old)`
+    still reported an append.
+    """
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.root = os.path.realpath(self.tmp.name)
+        os.makedirs(os.path.join(self.root, "tests"))
+        self.target = Path(self.root) / "tests" / "test_two.js"
+        self.target.write_text(TWO_TESTS, encoding="utf-8")
+
+    def _edit(self, old, new, replace_all=None):
+        payload = edit_payload(str(self.target), old, new)
+        payload["cwd"] = self.root
+        if replace_all is not None:
+            payload["tool_input"]["replace_all"] = replace_all
+        _, parsed = run_hook(payload)
+        return decision_of(parsed)
+
+    APPEND = "});\n\ntest('c', function () {\n  assert.ok(3);\n});\n"
+
+    def test_repeated_old_text_gates_with_replace_all(self):
+        self.assertEqual(self._edit("});\n", self.APPEND, replace_all=True), "ask")
+
+    def test_repeated_old_text_gates_without_replace_all(self):
+        """A plain Edit replaces the first occurrence, which is not the end."""
+        self.assertEqual(self._edit("});\n", self.APPEND), "ask")
+
+    def test_single_occurrence_at_the_end_still_appends(self):
+        tail = "  assert.ok(2);\n});\n"
+        self.assertEqual(self._edit(tail, tail + "\ntest('c', function () {});\n"), "")
+
+    def test_single_occurrence_appends_under_replace_all(self):
+        tail = "  assert.ok(2);\n});\n"
+        new = tail + "\ntest('c', function () {});\n"
+        self.assertEqual(self._edit(tail, new, replace_all=True), "")
+
+    def test_multiedit_simulates_replace_all_for_later_entries(self):
+        """Later entries are judged against the file the earlier ones left."""
+        payload = {
+            "hook_event_name": "PreToolUse",
+            "tool_name": "MultiEdit",
+            "permission_mode": "default",
+            "cwd": self.root,
+            "tool_input": {
+                "file_path": str(self.target),
+                "edits": [
+                    {"old_string": "assert.ok(1)", "new_string": "assert.ok(11)", "replace_all": True},
+                    {"old_string": "});\n", "new_string": self.APPEND},
+                ],
+            },
+        }
+        _, parsed = run_hook(payload)
+        self.assertEqual(decision_of(parsed), "ask")
+
+
+class HardLinkTest(unittest.TestCase):
+    """realpath resolves a symlink. A hard link has no target to resolve."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.root = os.path.realpath(self.tmp.name)
+        os.makedirs(os.path.join(self.root, "tests"))
+        self.test_file = Path(self.root) / "tests" / "test_auth.js"
+        self.test_file.write_text(EXISTING_TEST, encoding="utf-8")
+
+    def _edit(self, target):
+        payload = edit_payload(str(target), "  assert.equal(deviceBCalls, 1, 'no retry attempted');", "")
+        payload["cwd"] = self.root
+        _, parsed = run_hook(payload)
+        return decision_of(parsed)
+
+    def test_hard_link_under_an_innocuous_name_is_gated(self):
+        alias = Path(self.root) / "notes.txt"
+        os.link(self.test_file, alias)
+        self.assertEqual(self._edit(alias), "ask")
+
+    def test_unrelated_multiply_linked_file_is_not_gated(self):
+        source = Path(self.root) / "src.js"
+        source.write_text("export function create() {}\n", encoding="utf-8")
+        os.link(source, Path(self.root) / "src-alias.js")
+        payload = edit_payload(str(source), "create() {}", "create() { return 1; }")
+        payload["cwd"] = self.root
+        _, parsed = run_hook(payload)
+        self.assertEqual(decision_of(parsed), "")
+
+
+class PathFieldTypeTest(unittest.TestCase):
+    """A path that is not a string must deny rather than crash."""
+
+    def test_non_string_path_denies(self):
+        for value in (5, ["tests/test_x.js"], {"path": "x"}):
+            with self.subTest(value=value):
+                code, parsed = run_hook({
+                    "hook_event_name": "PreToolUse",
+                    "tool_name": "Edit",
+                    "permission_mode": "default",
+                    "tool_input": {"file_path": value, "old_string": "a", "new_string": "b"},
+                })
+                self.assertEqual(code, BLOCKING_EXIT_CODE)
+                self.assertEqual(decision_of(parsed), "deny")
+
+
 class FailClosedInputTest(unittest.TestCase):
     """A gate that cannot read its input must not answer 'fine'."""
 
@@ -538,9 +659,19 @@ class SettingsWiringTest(unittest.TestCase):
             for event in ("SessionStart", "PreToolUse"):
                 for matcher in settings["hooks"][event]:
                     for entry in matcher.get("hooks", []):
-                        with self.subTest(path=path.name, command=entry.get("command")):
-                            self.assertEqual(entry.get("command"), "python3")
+                        command = entry.get("command", "")
+                        with self.subTest(path=path.name, command=command):
                             self.assertTrue(entry.get("args"), "exec form requires args")
+                            self.assertTrue(command, "no launcher configured")
+                            # A launcher carrying a space or a shell
+                            # metacharacter is shell form wearing exec
+                            # form's shape. Which program it names is
+                            # asserted by the launcher-resolution test,
+                            # which requires it to exist on PATH.
+                            self.assertNotIn(" ", command)
+                            self.assertFalse(
+                                set(command) & set("$\"'|&;<>()"),
+                                "launcher carries shell syntax")
 
     def test_destructive_bash_hook_is_registered(self):
         """The incident's rm -rf and force-push ran because nothing wired this."""

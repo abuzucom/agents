@@ -14,6 +14,7 @@ otherwise pass every behavioral test in this file.
 import importlib.util
 import json
 import os
+import shutil
 import subprocess
 import sys
 import unittest
@@ -270,6 +271,40 @@ class SettingsWiringTest(unittest.TestCase):
             for hook_name, expected in self.HOOK_MATCHERS.items():
                 with self.subTest(path=path.name, hook=hook_name):
                     self.assertEqual(self._matchers_for(settings, hook_name), expected)
+
+    @staticmethod
+    def _launchers(settings: dict) -> set:
+        """Return every program a registered hook would be spawned as."""
+        return {
+            entry.get("command", "")
+            for event in settings.get("hooks", {}).values()
+            for matcher in event
+            for entry in matcher.get("hooks", [])
+        }
+
+    def test_configured_launcher_resolves_on_this_platform(self):
+        """A launcher that does not resolve makes every gate fail open.
+
+        Claude Code spawns the exec form directly, with no shell, so
+        `command` must name a real executable on PATH. A startup failure
+        exits non-zero but not 2, which Claude Code treats as a
+        non-blocking error, and the gate waves the call through.
+
+        Asserting on the configured string is the point. Running the
+        hooks through `sys.executable`, as the behavioral tests do, keeps
+        passing against a configuration that never starts.
+        """
+        for path in (LIVE_SETTINGS, EXAMPLE_SETTINGS):
+            settings = json.loads(path.read_text(encoding="utf-8"))
+            for launcher in self._launchers(settings):
+                with self.subTest(path=path.name, launcher=launcher):
+                    self.assertIsNotNone(
+                        shutil.which(launcher),
+                        f"{path.name} launches hooks as {launcher!r}, which "
+                        f"does not resolve on this platform. Windows has no "
+                        f"python3.exe; use 'python' or 'py'. Debian without "
+                        f"python-is-python3 has no 'python'; use 'python3'.",
+                    )
 
     def test_every_registered_hook_declares_its_matchers(self):
         """A PreToolUse hook absent from the table above is unreviewed wiring."""
