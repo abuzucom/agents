@@ -27,6 +27,9 @@ from pathlib import Path
 MAX_FILE_SIZE = 50 * 1024 * 1024  # 50 MB
 MAX_LINE_LENGTH = 65536  # 64 KB
 MAX_VIOLATIONS = 100
+# git check-attr reads paths from stdin; chunk them so one
+# invocation stays a reasonable size on a large repository.
+CHECK_ATTR_CHUNK = 500
 MAX_DIAGNOSTIC_LENGTH = 200
 
 
@@ -115,17 +118,155 @@ def decode_content(
             )
             return decoded.lstrip("\ufeff"), None
         except (LookupError, UnicodeDecodeError):
+            # The declared working-tree-encoding did not apply. Fall
+            # through to UTF-8 rather than reporting, since the attribute
+            # can name an encoding this build of Python does not carry.
             pass
 
     try:
         return raw_bytes.decode("utf-8").lstrip("\ufeff"), None
     except UnicodeDecodeError:
+        # Not UTF-8 either, so treat the file as binary below. A file the
+        # decoder cannot read carries no conflict markers to find.
         pass
 
     if b"\x00" in raw_bytes[:4096]:
         return None, None
 
     return raw_bytes.decode("latin-1"), None
+
+
+class _BlockScan:
+    """The conflict block currently open, carried across lines."""
+
+    def __init__(self, configured_marker_size: int | None):
+        self.configured = configured_marker_size
+        self.opener_line: int | None = None
+        self.opener_len = 0
+        self.has_separator = False
+
+    def reportable(self, marker_len: int) -> bool:
+        """Return True when a marker of this width is worth reporting.
+
+        Width 3 and up is a real git marker. A narrower one counts only
+        where .gitattributes asked for it, since a lone "=" or ">" is
+        ordinary text in most files.
+        """
+        return marker_len >= 3 or (
+            self.configured is not None and marker_len == self.configured
+        )
+
+    def close(self) -> None:
+        """Forget the open block after it is resolved or reported."""
+        self.opener_line = None
+        self.opener_len = 0
+        self.has_separator = False
+
+
+def _scan_opener(scan: _BlockScan, marker_len: int, number: int,
+                 safe_path: str) -> list:
+    """Open a block, reporting any previous one this line abandons."""
+    violations = []
+    if scan.opener_line is not None and scan.reportable(scan.opener_len):
+        violations.append(
+            f"{safe_path}:{scan.opener_line}: "
+            "unclosed conflict marker opener"
+        )
+    scan.opener_line = number
+    scan.opener_len = marker_len
+    scan.has_separator = False
+    return violations
+
+
+def _scan_closer(scan: _BlockScan, marker_len: int, number: int,
+                 line: str, safe_path: str) -> list:
+    """Close a balanced block, or report a mismatched or orphan closer."""
+    if (scan.opener_line is not None
+            and marker_len == scan.opener_len
+            and scan.has_separator):
+        violations = [
+            f"{safe_path}:{scan.opener_line}-{number}: "
+            "unresolved conflict block"
+        ]
+        scan.close()
+        return violations
+
+    if scan.opener_line is None:
+        if scan.reportable(marker_len):
+            return [
+                f"{safe_path}:{number}: "
+                f"orphan conflict marker closer '{_sanitize(line)}'"
+            ]
+        return []
+
+    violations = []
+    if scan.reportable(scan.opener_len):
+        violations.append(
+            f"{safe_path}:{scan.opener_line}: "
+            "unclosed conflict marker opener"
+        )
+    if scan.reportable(marker_len):
+        violations.append(
+            f"{safe_path}:{number}: "
+            f"mismatched conflict marker closer '{_sanitize(line)}'"
+        )
+    scan.close()
+    return violations
+
+
+def _scan_diff3(scan: _BlockScan, marker_len: int, number: int,
+                line: str, safe_path: str) -> list:
+    """Record the diff3 base separator, or report it as an orphan."""
+    if scan.opener_line is None:
+        if scan.reportable(marker_len):
+            return [
+                f"{safe_path}:{number}: "
+                f"orphan conflict marker separator '{_sanitize(line)}'"
+            ]
+        return []
+    if marker_len == scan.opener_len:
+        scan.has_separator = True
+    return []
+
+
+def _scan_separator(scan: _BlockScan, marker_len: int, number: int,
+                    line: str, safe_path: str, markdown: bool,
+                    lines: list) -> list:
+    """Record the block separator, allowing a Setext heading underline."""
+    if scan.opener_line is not None:
+        if marker_len == scan.opener_len:
+            scan.has_separator = True
+        return []
+    if markdown and is_valid_setext_heading(lines, number - 1):
+        return []
+    if scan.reportable(marker_len):
+        return [
+            f"{safe_path}:{number}: "
+            f"orphan conflict marker separator '{_sanitize(line)}'"
+        ]
+    return []
+
+
+def _scan_line(scan: _BlockScan, lines: list, number: int, line: str,
+               safe_path: str, markdown: bool) -> list:
+    """Dispatch one line to the handler for the marker it carries."""
+    opener = OPENER_PATTERN.match(line)
+    if opener:
+        return _scan_opener(scan, len(opener.group(1)), number, safe_path)
+    closer = CLOSER_PATTERN.match(line)
+    if closer:
+        return _scan_closer(
+            scan, len(closer.group(1)), number, line, safe_path)
+    diff3 = DIFF3_PATTERN.match(line)
+    if diff3:
+        return _scan_diff3(
+            scan, len(diff3.group(1)), number, line, safe_path)
+    separator = SEPARATOR_PATTERN.match(line)
+    if separator:
+        return _scan_separator(
+            scan, len(separator.group(1)), number, line, safe_path,
+            markdown, lines)
+    return []
 
 
 def check_content(
@@ -141,12 +282,10 @@ def check_content(
     in Markdown only when preceded by valid heading text.
     """
     safe_path = _sanitize(path)
-    violations: list[str] = []
     lines = text.splitlines()
-    open_marker_line: int | None = None
-    open_marker_len = 0
-    has_separator = False
     markdown = is_markdown_file(path)
+    scan = _BlockScan(configured_marker_size)
+    violations: list[str] = []
 
     for number, line in enumerate(lines, 1):
         if len(violations) >= MAX_VIOLATIONS:
@@ -155,127 +294,16 @@ def check_content(
                 f"({MAX_VIOLATIONS}), stopping"
             )
             break
-
         if len(line) > MAX_LINE_LENGTH:
             line = line[:MAX_LINE_LENGTH]
+        violations.extend(
+            _scan_line(scan, lines, number, line, safe_path, markdown))
 
-        opener_match = OPENER_PATTERN.match(line)
-        closer_match = CLOSER_PATTERN.match(line)
-        diff3_match = DIFF3_PATTERN.match(line)
-        separator_match = SEPARATOR_PATTERN.match(line)
-
-        if opener_match:
-            marker_len = len(opener_match.group(1))
-            if open_marker_line is not None:
-                if (
-                    open_marker_len >= 3
-                    or (
-                        configured_marker_size is not None
-                        and open_marker_len == configured_marker_size
-                    )
-                ):
-                    violations.append(
-                        f"{safe_path}:{open_marker_line}: "
-                        "unclosed conflict marker opener"
-                    )
-            open_marker_line = number
-            open_marker_len = marker_len
-            has_separator = False
-        elif closer_match:
-            marker_len = len(closer_match.group(1))
-            if open_marker_line is not None and marker_len == open_marker_len and has_separator:
-                violations.append(
-                    f"{safe_path}:{open_marker_line}-{number}: "
-                    "unresolved conflict block"
-                )
-                open_marker_line = None
-                open_marker_len = 0
-                has_separator = False
-            elif open_marker_line is not None:
-                if (
-                    open_marker_len >= 3
-                    or (
-                        configured_marker_size is not None
-                        and open_marker_len == configured_marker_size
-                    )
-                ):
-                    violations.append(
-                        f"{safe_path}:{open_marker_line}: "
-                        "unclosed conflict marker opener"
-                    )
-                if (
-                    marker_len >= 3
-                    or (
-                        configured_marker_size is not None
-                        and marker_len == configured_marker_size
-                    )
-                ):
-                    violations.append(
-                        f"{safe_path}:{number}: "
-                        f"mismatched conflict marker closer '{_sanitize(line)}'"
-                    )
-                open_marker_line = None
-                open_marker_len = 0
-                has_separator = False
-            else:
-                if (
-                    marker_len >= 3
-                    or (
-                        configured_marker_size is not None
-                        and marker_len == configured_marker_size
-                    )
-                ):
-                    violations.append(
-                        f"{safe_path}:{number}: "
-                        f"orphan conflict marker closer '{_sanitize(line)}'"
-                    )
-        elif diff3_match:
-            marker_len = len(diff3_match.group(1))
-            if open_marker_line is None:
-                if (
-                    marker_len >= 3
-                    or (
-                        configured_marker_size is not None
-                        and marker_len == configured_marker_size
-                    )
-                ):
-                    violations.append(
-                        f"{safe_path}:{number}: "
-                        f"orphan conflict marker separator '{_sanitize(line)}'"
-                    )
-            elif marker_len == open_marker_len:
-                has_separator = True
-        elif separator_match:
-            marker_len = len(separator_match.group(1))
-            if open_marker_line is not None:
-                if marker_len == open_marker_len:
-                    has_separator = True
-            elif markdown and is_valid_setext_heading(lines, number - 1):
-                pass  # valid Setext heading underline
-            elif (
-                marker_len >= 3
-                or (
-                    configured_marker_size is not None
-                    and marker_len == configured_marker_size
-                )
-            ):
-                violations.append(
-                    f"{safe_path}:{number}: "
-                    f"orphan conflict marker separator '{_sanitize(line)}'"
-                )
-
-    if open_marker_line is not None:
-        if (
-            open_marker_len >= 3
-            or (
-                configured_marker_size is not None
-                and open_marker_len == configured_marker_size
-            )
-        ):
-            violations.append(
-                f"{safe_path}:{open_marker_line}: "
-                "unclosed conflict marker opener"
-            )
+    if scan.opener_line is not None and scan.reportable(scan.opener_len):
+        violations.append(
+            f"{safe_path}:{scan.opener_line}: "
+            "unclosed conflict marker opener"
+        )
 
     return violations
 
@@ -378,6 +406,76 @@ def _parse_marker_size(
         return None
 
 
+def _repo_relative_pairs(paths: list, repo_root: str | None) -> list:
+    """Pair each given path with the spelling git addresses it by.
+
+    git answers check-attr with forward slashes on every platform, so a
+    Windows separator from relpath would lose the lookup.
+    """
+    if not repo_root:
+        return [(p, p) for p in paths]
+    norm_root = os.path.abspath(repo_root)
+    pairs = []
+    for given in paths:
+        absolute = (given if os.path.isabs(given)
+                    else os.path.join(norm_root, given))
+        absolute = os.path.abspath(absolute)
+        try:
+            inside = os.path.commonpath([norm_root, absolute]) == norm_root
+        except ValueError:
+            # Different drives on Windows, so the path is not in the repo.
+            continue
+        if not inside:
+            continue
+        relative = os.path.relpath(absolute, norm_root).replace(os.sep, "/")
+        if os.altsep:
+            relative = relative.replace(os.altsep, "/")
+        pairs.append((given, relative))
+    return pairs
+
+
+def _run_check_attr(rel_paths: list, repo_root: str | None,
+                    cached: bool) -> bytes:
+    """Return raw check-attr output for one chunk of repo-relative paths."""
+    cmd = [
+        "git", "--no-pager",
+        "-c", "core.fsmonitor=",
+        "check-attr",
+        "conflict-marker-size",
+        "working-tree-encoding",
+        "-z", "--stdin",
+    ]
+    if cached:
+        cmd.append("--cached")
+    kwargs: dict = {
+        "capture_output": True,
+        "check": False,
+        "input": b"\x00".join(p.encode("utf-8") for p in rel_paths) + b"\x00",
+    }
+    if repo_root:
+        kwargs["cwd"] = repo_root
+    proc = subprocess.run(cmd, **kwargs)
+    if proc.returncode != 0:
+        error_msg = proc.stderr.decode("utf-8", errors="replace").strip()
+        raise RuntimeError(
+            f"git check-attr failed (exit {proc.returncode}): "
+            f"{_sanitize(error_msg)}"
+        )
+    return proc.stdout
+
+
+def _parse_check_attr(raw: bytes) -> dict:
+    """Return {path: {attribute: value}} from -z check-attr output."""
+    parsed: dict = {}
+    parts = raw.split(b"\x00")
+    for index in range(0, len(parts) - 2, 3):
+        file_path = parts[index].decode("utf-8", errors="replace")
+        attribute = parts[index + 1].decode("utf-8", errors="replace")
+        value = parts[index + 2].decode("utf-8", errors="replace")
+        parsed.setdefault(file_path, {})[attribute] = value
+    return parsed
+
+
 def get_git_attributes(
     paths: list[str],
     repo_root: str | None = None,
@@ -386,79 +484,19 @@ def get_git_attributes(
     """Query git attributes for marker size and encoding."""
     if not paths:
         return {}
+    repo_paths = _repo_relative_pairs(paths, repo_root)
+    if not repo_paths:
+        return {}
 
     attributes: dict[str, dict[str, str]] = {}
-    repo_paths: list[tuple[str, str]] = []
-
-    if repo_root:
-        norm_root = os.path.abspath(repo_root)
-        for p in paths:
-            abs_p = os.path.abspath(p) if os.path.isabs(p) else os.path.abspath(os.path.join(norm_root, p))
-            try:
-                if os.path.commonpath([norm_root, abs_p]) == norm_root:
-                    rel_p = os.path.relpath(abs_p, norm_root)
-                    # git addresses paths with forward slashes on every
-                    # platform, so a Windows relpath loses every lookup.
-                    rel_p = rel_p.replace(os.sep, "/")
-                    if os.altsep:
-                        rel_p = rel_p.replace(os.altsep, "/")
-                    repo_paths.append((p, rel_p))
-            except ValueError:
-                pass
-    else:
-        repo_paths = [(p, p) for p in paths]
-
-    if not repo_paths:
-        return attributes
-
-    chunk_size = 500
-    for i in range(0, len(repo_paths), chunk_size):
-        chunk = repo_paths[i : i + chunk_size]
-        rel_chunk = [rel for _, rel in chunk]
-        cmd = [
-            "git", "--no-pager",
-            "-c", "core.fsmonitor=",
-            "check-attr",
-            "conflict-marker-size",
-            "working-tree-encoding",
-            "-z", "--stdin",
-        ]
-        if cached:
-            cmd.append("--cached")
-        kwargs: dict = {
-            "capture_output": True,
-            "check": False,
-            "input": b"\x00".join(p.encode("utf-8") for p in rel_chunk) + b"\x00"
-        }
-        if repo_root:
-            kwargs["cwd"] = repo_root
-        proc = subprocess.run(cmd, **kwargs)
-        if proc.returncode != 0:
-            error_msg = proc.stderr.decode(
-                "utf-8", errors="replace"
-            ).strip()
-            raise RuntimeError(
-                f"git check-attr failed (exit {proc.returncode}): "
-                f"{error_msg}"
-            )
-        raw = proc.stdout
-        parts = raw.split(b"\x00")
-        raw_attrs: dict[str, dict[str, str]] = {}
-        for j in range(0, len(parts) - 2, 3):
-            fp = parts[j].decode("utf-8", errors="replace")
-            attr = parts[j + 1].decode("utf-8", errors="replace")
-            val = parts[j + 2].decode("utf-8", errors="replace")
-            if fp not in raw_attrs:
-                raw_attrs[fp] = {}
-            raw_attrs[fp][attr] = val
-
-        for orig_p, rel_p in chunk:
-            attrs = raw_attrs.get(
-                rel_p, raw_attrs.get(orig_p, {})
-            )
-            attributes[orig_p] = attrs
-            attributes[rel_p] = attrs
-
+    for start in range(0, len(repo_paths), CHECK_ATTR_CHUNK):
+        chunk = repo_paths[start:start + CHECK_ATTR_CHUNK]
+        raw_attrs = _parse_check_attr(
+            _run_check_attr([rel for _, rel in chunk], repo_root, cached))
+        for given, relative in chunk:
+            found = raw_attrs.get(relative, raw_attrs.get(given, {}))
+            attributes[given] = found
+            attributes[relative] = found
     return attributes
 
 
@@ -489,49 +527,26 @@ def check_file(
 def get_tracked_regular_files(
     repo_root: str | None = None,
 ) -> list[str]:
-    """Return git-tracked regular files from the index.
+    """Return git-tracked regular files that exist in the working tree.
 
-    Excludes symlinks (120000) and submodules (160000). Uses
-    --full-name so paths are always relative to the repo root.
+    Excludes symlinks (120000) and submodules (160000), and skip-worktree
+    entries, which a sparse checkout deliberately omits from disk.
     """
     if repo_root is None:
         repo_root = _get_repo_root()
-    cmd = [
-        "git", "--no-pager",
-        "-c", "core.fsmonitor=",
-        "ls-files", "-s", "-z", "--full-name",
-    ]
-    result = subprocess.run(
-        cmd, capture_output=True, check=False, cwd=repo_root
-    )
-    if result.returncode != 0:
-        error_msg = result.stderr.decode(
-            "utf-8", errors="replace"
-        ).strip()
-        raise RuntimeError(
-            f"git ls-files failed (exit {result.returncode}): "
-            f"{error_msg}"
-        )
-
-    raw = result.stdout
-    if not raw:
-        return []
-
-    regular_files: list[str] = []
-    for part in raw.split(b"\x00"):
+    regular: list[str] = []
+    for part in _run_ls_files(repo_root, ["-s"]).split(b"\x00"):
         if not part:
             continue
         try:
-            entry = part.decode("utf-8", errors="replace")
-            meta, file_path = entry.split("\t", 1)
-            mode = meta.split(" ", 1)[0]
-            if mode in ("100644", "100755"):
-                regular_files.append(file_path)
-        except ValueError:
+            file_path, _, _, mode = _parse_index_entry(
+                part.decode("utf-8", errors="replace"))
+        except (ValueError, IndexError):
             continue
-
+        if mode in ("100644", "100755"):
+            regular.append(file_path)
     skipped = _skip_worktree_paths(repo_root)
-    return [f for f in regular_files if f not in skipped]
+    return [path for path in regular if path not in skipped]
 
 
 def _skip_worktree_paths(repo_root: str) -> set:
@@ -540,24 +555,8 @@ def _skip_worktree_paths(repo_root: str) -> set:
     A sparse checkout omits them deliberately, so reporting them as
     missing fails a valid working tree.
     """
-    result = subprocess.run(
-        [
-            "git", "--no-pager",
-            "-c", "core.fsmonitor=",
-            "ls-files", "-v", "-z", "--full-name",
-        ],
-        capture_output=True,
-        check=False,
-        cwd=repo_root,
-    )
-    if result.returncode != 0:
-        error_msg = result.stderr.decode("utf-8", errors="replace").strip()
-        raise RuntimeError(
-            f"git ls-files -v failed (exit {result.returncode}): "
-            f"{_sanitize(error_msg)}"
-        )
     skipped = set()
-    for part in result.stdout.split(b"\x00"):
+    for part in _run_ls_files(repo_root, ["-v"]).split(b"\x00"):
         if not part:
             continue
         entry = part.decode("utf-8", errors="replace")
@@ -569,48 +568,47 @@ def _skip_worktree_paths(repo_root: str) -> set:
     return skipped
 
 
-def _get_index_entries(
-    repo_root: str,
-) -> list[tuple[str, str, str, str]]:
-    """Return (path, sha, stage, mode) for all index entries."""
+def _run_ls_files(repo_root: str, extra: list) -> bytes:
+    """Return raw ls-files output, raising with git's own message."""
     result = subprocess.run(
-        [
-            "git", "--no-pager",
-            "-c", "core.fsmonitor=",
-            "ls-files", "-s", "-z", "--full-name",
-        ],
+        ["git", "--no-pager", "-c", "core.fsmonitor=", "ls-files",
+         *extra, "-z", "--full-name"],
         capture_output=True,
         check=False,
         cwd=repo_root,
     )
     if result.returncode != 0:
-        error_msg = result.stderr.decode(
-            "utf-8", errors="replace"
-        ).strip()
+        error_msg = result.stderr.decode("utf-8", errors="replace").strip()
         raise RuntimeError(
             f"git ls-files failed (exit {result.returncode}): "
-            f"{error_msg}"
+            f"{_sanitize(error_msg)}"
         )
+    return result.stdout
 
+
+def _parse_index_entry(entry: str):
+    """Return (path, sha, stage, mode) for one ls-files -s record."""
+    meta, file_path = entry.split("\t", 1)
+    fields = meta.split()
+    stage = fields[2] if len(fields) > 2 else "0"
+    return (file_path, fields[1], stage, fields[0])
+
+
+def _get_index_entries(
+    repo_root: str,
+) -> list[tuple[str, str, str, str]]:
+    """Return (path, sha, stage, mode) for all index entries."""
     entries: list[tuple[str, str, str, str]] = []
-    raw = result.stdout
-    if not raw:
-        return entries
-
-    for part in raw.split(b"\x00"):
+    for part in _run_ls_files(repo_root, ["-s"]).split(b"\x00"):
         if not part:
             continue
         try:
-            entry = part.decode("utf-8", errors="replace")
-            meta, file_path = entry.split("\t", 1)
-            fields = meta.split()
-            mode = fields[0]
-            sha = fields[1]
-            stage = fields[2] if len(fields) > 2 else "0"
-            entries.append((file_path, sha, stage, mode))
+            entries.append(_parse_index_entry(
+                part.decode("utf-8", errors="replace")))
         except (ValueError, IndexError):
+            # A record git wrote in a shape this parser does not know is
+            # not an entry we can speak for; the tracked listing covers it.
             continue
-
     return entries
 
 
@@ -666,83 +664,114 @@ def _read_blob(
     return data
 
 
-def _check_staged(repo_root: str) -> list[str]:
-    """Check staged index blobs for conflict markers.
-
-    Reads from the object store, not the worktree. Flags unmerged
-    entries (stage > 0) as violations. Index blobs are stored in
-    canonical format (UTF-8 or BOM) so working-tree-encoding is not
-    applied when decoding staged blobs.
-    """
-    entries = _get_index_entries(repo_root)
-
+def _partition_index_entries(entries: list) -> tuple:
+    """Split index entries into unmerged violations and readable blobs."""
     violations: list[str] = []
-    stage0_regular: list[tuple[str, str]] = []
-
+    readable: list = []
     for file_path, sha, stage, mode in entries:
         if stage != "0":
             violations.append(
                 f"{_sanitize(file_path)}: unmerged index entry "
                 f"(stage {stage})"
             )
-            continue
-        if mode not in ("100644", "100755"):
-            continue
-        stage0_regular.append((file_path, sha))
+        elif mode in ("100644", "100755"):
+            readable.append((file_path, sha))
+    return violations, readable
 
-    paths = [os.path.join(repo_root, p) for p, _ in stage0_regular]
+
+def _check_staged_blob(file_path: str, sha: str, repo_root: str,
+                       marker_size: int | None) -> list:
+    """Check one index blob, returning its violations or a read error."""
     try:
-        attributes = get_git_attributes(
-            paths, repo_root=repo_root, cached=True
-        )
+        blob_size = _get_blob_size(sha, repo_root)
+    except (RuntimeError, ValueError) as err:
+        return [f"error: {_sanitize(file_path)}: {_sanitize(err)}"]
+    if blob_size > MAX_FILE_SIZE:
+        return [
+            f"error: {_sanitize(file_path)}: blob size "
+            f"({blob_size} bytes) exceeds limit "
+            f"({MAX_FILE_SIZE} bytes)"
+        ]
+    try:
+        raw_bytes = _read_blob(sha, repo_root, MAX_FILE_SIZE)
     except RuntimeError as err:
         return [f"error: {_sanitize(err)}"]
 
-    for file_path, sha in stage0_regular:
+    # Index blobs are stored canonically, so working-tree-encoding does
+    # not apply when decoding them.
+    text, decode_err = decode_content(raw_bytes, None)
+    if decode_err:
+        return [f"error: {_sanitize(file_path)}: {_sanitize(decode_err)}"]
+    if text is None:
+        return []
+    return check_content(text, file_path, marker_size)
+
+
+def _check_staged(repo_root: str) -> list[str]:
+    """Check staged index blobs for conflict markers.
+
+    Reads from the object store, not the worktree, and flags unmerged
+    entries (stage > 0) as violations.
+    """
+    violations, readable = _partition_index_entries(
+        _get_index_entries(repo_root))
+
+    paths = [os.path.join(repo_root, path) for path, _ in readable]
+    try:
+        attributes = get_git_attributes(
+            paths, repo_root=repo_root, cached=True)
+    except RuntimeError as err:
+        return [f"error: {_sanitize(err)}"]
+
+    for file_path, sha in readable:
         if len(violations) >= MAX_VIOLATIONS:
             violations.append(
-                f"reached violation limit ({MAX_VIOLATIONS}), "
-                "stopping"
-            )
+                f"reached violation limit ({MAX_VIOLATIONS}), stopping")
             break
-
-        file_attrs = attributes.get(file_path, {})
-        conf_size = _parse_marker_size(
-            file_attrs.get("conflict-marker-size")
-        )
-
-        try:
-            blob_size = _get_blob_size(sha, repo_root)
-        except (RuntimeError, ValueError) as err:
-            violations.append(f"error: {_sanitize(file_path)}: {_sanitize(err)}")
-            continue
-
-        if blob_size > MAX_FILE_SIZE:
-            violations.append(
-                f"error: {_sanitize(file_path)}: blob size "
-                f"({blob_size} bytes) exceeds limit "
-                f"({MAX_FILE_SIZE} bytes)"
-            )
-            continue
-
-        try:
-            raw_bytes = _read_blob(sha, repo_root, MAX_FILE_SIZE)
-        except RuntimeError as err:
-            violations.append(f"error: {_sanitize(err)}")
-            continue
-
-        # Do not apply working-tree-encoding to staged index blobs
-        text, decode_err = decode_content(raw_bytes, None)
-        if decode_err:
-            violations.append(f"error: {_sanitize(file_path)}: {_sanitize(decode_err)}")
-            continue
-        if text is None:
-            continue
-
+        marker_size = _parse_marker_size(
+            attributes.get(file_path, {}).get("conflict-marker-size"))
         violations.extend(
-            check_content(text, file_path, conf_size)
-        )
+            _check_staged_blob(file_path, sha, repo_root, marker_size))
 
+    return violations
+
+
+def _collect_files(resolved: list, repo_root: str) -> list:
+    """Return the files to check, expanding --all against the index."""
+    if not resolved or resolved == ["--all"]:
+        return get_tracked_regular_files(repo_root)
+    files: list[str] = []
+    for arg in resolved:
+        if arg == "--all":
+            files.extend(get_tracked_regular_files(repo_root))
+        else:
+            files.append(arg)
+    return files
+
+
+def _report(violations: list) -> int:
+    """Print violations and return the exit code they imply."""
+    for violation in violations:
+        print(violation, file=sys.stderr)
+    return 1 if violations else 0
+
+
+def _check_worktree(args: list, repo_root: str) -> list:
+    """Check working-tree files, resolving paths before the chdir."""
+    resolved = [arg if arg == "--all" else os.path.abspath(arg)
+                for arg in args]
+    os.chdir(repo_root)
+    files = _collect_files(resolved, repo_root)
+    attributes = get_git_attributes(files, repo_root=repo_root)
+
+    violations: list[str] = []
+    for path in files:
+        file_attrs = attributes.get(path, {})
+        violations.extend(check_file(
+            path,
+            _parse_marker_size(file_attrs.get("conflict-marker-size")),
+            file_attrs.get("working-tree-encoding"),
+        ))
     return violations
 
 
@@ -750,69 +779,16 @@ def main() -> int:
     """Entry point for CLI execution."""
     raw_args = sys.argv[1:]
     staged = "--staged" in raw_args
-    args = [a for a in raw_args if a != "--staged"]
+    args = [arg for arg in raw_args if arg != "--staged"]
 
     try:
         repo_root = _get_repo_root()
+        if staged:
+            return _report(_check_staged(repo_root))
+        return _report(_check_worktree(args, repo_root))
     except RuntimeError as err:
         print(f"error: {_sanitize(err)}", file=sys.stderr)
         return 1
-
-    if staged:
-        violations = _check_staged(repo_root)
-        for v in violations:
-            print(v, file=sys.stderr)
-        return 1 if violations else 0
-
-    # Resolve explicit file paths to absolute before chdir
-    resolved: list[str] = []
-    for arg in args:
-        if arg == "--all":
-            resolved.append(arg)
-        else:
-            resolved.append(os.path.abspath(arg))
-
-    os.chdir(repo_root)
-
-    files: list[str] = []
-    if not resolved or resolved == ["--all"]:
-        try:
-            files = get_tracked_regular_files(repo_root)
-        except RuntimeError as err:
-            print(f"error: {_sanitize(err)}", file=sys.stderr)
-            return 1
-    else:
-        for arg in resolved:
-            if arg == "--all":
-                try:
-                    files.extend(
-                        get_tracked_regular_files(repo_root)
-                    )
-                except RuntimeError as err:
-                    print(f"error: {_sanitize(err)}", file=sys.stderr)
-                    return 1
-            else:
-                files.append(arg)
-
-    try:
-        attributes = get_git_attributes(files, repo_root=repo_root)
-    except RuntimeError as err:
-        print(f"error: {_sanitize(err)}", file=sys.stderr)
-        return 1
-
-    violations: list[str] = []
-    for path in files:
-        file_attrs = attributes.get(path, {})
-        conf_size = _parse_marker_size(
-            file_attrs.get("conflict-marker-size")
-        )
-        encoding = file_attrs.get("working-tree-encoding")
-
-        violations.extend(check_file(path, conf_size, encoding))
-
-    for v in violations:
-        print(v, file=sys.stderr)
-    return 1 if violations else 0
 
 
 if __name__ == "__main__":
