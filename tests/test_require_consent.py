@@ -109,13 +109,19 @@ class AllowTest(TestFileFixture):
         self.assertEqual(code, 0)
         self.assertEqual(decision_of(parsed), "")
 
-    def test_appending_a_test_passes(self):
-        """The test-first workflow must stay frictionless."""
+    def test_appending_a_test_asks(self):
+        """Appending to a file that exists is still an edit to it.
+
+        The carve-out this replaces cleared an append textually, which
+        cannot tell a new test from a statement that neutralizes every
+        test above it. Creating a new file stays unprompted, so the
+        test-first workflow keeps its exemption where it is verifiable.
+        """
         old = "});\n"
         new = "});\n\ntest('a new case', function () {\n  assert.equal(1, 1);\n});\n"
         code, parsed = run_hook(edit_payload(str(self.test_file), old, new))
         self.assertEqual(code, 0)
-        self.assertEqual(decision_of(parsed), "")
+        self.assertEqual(decision_of(parsed), "ask")
 
 
 class GateTest(TestFileFixture):
@@ -238,13 +244,13 @@ class PreservedTextEvasionTest(TestFileFixture):
         new = old + "\n  assert.equal(2, 2);"
         self.assertEqual(self._decision_for(old, new), "ask")
 
-    def test_end_of_file_append_still_passes(self):
-        """The test-first workflow must stay unprompted for the normal case."""
+    def test_end_of_file_append_asks(self):
+        """An end-of-file append can still disable the tests above it."""
         old = "});\n"
         new = "});\n\ntest('a new case', function () {\n  assert.equal(1, 1);\n});\n"
-        self.assertEqual(self._decision_for(old, new), "")
+        self.assertEqual(self._decision_for(old, new), "ask")
 
-    def test_whole_file_append_via_write_passes(self):
+    def test_whole_file_append_via_write_asks(self):
         payload = {
             "hook_event_name": "PreToolUse",
             "tool_name": "Write",
@@ -255,7 +261,7 @@ class PreservedTextEvasionTest(TestFileFixture):
             },
         }
         _, parsed = run_hook(payload)
-        self.assertEqual(decision_of(parsed), "")
+        self.assertEqual(decision_of(parsed), "ask")
 
 
 class FailClosedTest(TestFileFixture):
@@ -420,17 +426,19 @@ class OccurrenceCountTest(unittest.TestCase):
         """A plain Edit replaces the first occurrence, which is not the end."""
         self.assertEqual(self._edit("});\n", self.APPEND), "ask")
 
-    def test_single_occurrence_at_the_end_still_appends(self):
+    def test_single_occurrence_at_the_end_now_gates(self):
+        """The append carve-out is gone: an existing test file always asks."""
         tail = "  assert.ok(2);\n});\n"
-        self.assertEqual(self._edit(tail, tail + "\ntest('c', function () {});\n"), "")
+        self.assertEqual(
+            self._edit(tail, tail + "\ntest('c', function () {});\n"), "ask")
 
-    def test_single_occurrence_appends_under_replace_all(self):
+    def test_single_occurrence_gates_under_replace_all(self):
         tail = "  assert.ok(2);\n});\n"
         new = tail + "\ntest('c', function () {});\n"
-        self.assertEqual(self._edit(tail, new, replace_all=True), "")
+        self.assertEqual(self._edit(tail, new, replace_all=True), "ask")
 
-    def test_multiedit_simulates_replace_all_for_later_entries(self):
-        """Later entries are judged against the file the earlier ones left."""
+    def test_multiedit_on_an_existing_test_gates(self):
+        """Every edit to an existing test file asks, MultiEdit included."""
         payload = {
             "hook_event_name": "PreToolUse",
             "tool_name": "MultiEdit",

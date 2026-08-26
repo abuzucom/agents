@@ -19,6 +19,7 @@ non-zero exit other than 2 as a non-blocking error, which waves the command
 through.
 """
 import json
+import os
 import sys
 
 INTERACTIVE_MODES = frozenset({"default", "plan", "acceptEdits", "auto"})
@@ -161,11 +162,24 @@ def unparseable_verdict(command: str, keywords: tuple) -> tuple:
     return "", ""
 
 
-def read_payload():
-    """Return the stdin payload, or None when it cannot be parsed."""
+def read_payload(empty_is_session_start: bool = False):
+    """Return the stdin payload, or None when it cannot be parsed.
+
+    `empty_is_session_start` yields an empty dict for empty stdin, which
+    is how a SessionStart invocation arrives. Without it that hook would
+    deny every session start. A gate that answers "fine" to input it
+    could not read is worse than no gate, so anything else that will not
+    parse is still None.
+    """
     try:
-        parsed = json.loads(sys.stdin.read())
+        raw = sys.stdin.read()
     except (OSError, ValueError):
+        return None
+    if empty_is_session_start and not raw.strip():
+        return {}
+    try:
+        parsed = json.loads(raw)
+    except ValueError:
         return None
     return parsed if isinstance(parsed, dict) else None
 
@@ -194,3 +208,51 @@ def decide(gate: str, payload: dict, decision: str, reason: str) -> int:
     if require_str(payload.get("permission_mode")) in INTERACTIVE_MODES:
         return emit(gate, "ask", reason)
     return emit(gate, "deny", f"{reason}. No interactive session is available to consent.")
+
+
+MAX_REASON_VALUE = 160
+
+
+def sanitize(value) -> str:
+    """Render untrusted text as printable ASCII on a single line.
+
+    An allowlist, not a strip. Zero-width characters, bidi overrides, and
+    Unicode tag characters are not control characters, and they render
+    invisibly or reverse the text around them, so a denylist of known-bad
+    codepoints misses the cases that matter most. These values reach two
+    readers who cannot afford to be misled: the human deciding on the
+    permission prompt, and the model reading stderr as tool output.
+    """
+    rendered = []
+    for character in str(value):
+        if " " <= character <= "~":
+            rendered.append(character)
+        elif ord(character) <= 0xFF:
+            rendered.append(f"\\x{ord(character):02x}")
+        else:
+            rendered.append(f"\\u{ord(character):04x}")
+    text = "".join(rendered)
+    if len(text) > MAX_REASON_VALUE:
+        return text[:MAX_REASON_VALUE] + "...[truncated]"
+    return text
+
+
+def project_dir(payload: dict) -> str:
+    """Return the repository root, preferring Claude Code's own variable."""
+    return (os.environ.get("CLAUDE_PROJECT_DIR")
+            or payload.get("cwd")
+            or os.getcwd())
+
+
+def resolved_under(root: str, *parts: str):
+    """Return the joined path when it stays under `root`, else None.
+
+    Joining a payload-supplied directory with a fixed relative path and
+    running the result executes whatever sits at that path. Canonicalize
+    first and require the result to stay inside the tree.
+    """
+    base = os.path.realpath(root)
+    candidate = os.path.realpath(os.path.join(base, *parts))
+    if candidate == base or candidate.startswith(base + os.sep):
+        return candidate
+    return None

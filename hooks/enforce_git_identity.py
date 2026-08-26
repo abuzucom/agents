@@ -36,6 +36,14 @@ import re
 import subprocess
 import sys
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+try:
+    import _gate_core as core
+except ImportError as error:  # pragma: no cover - exercised by the adoption test
+    print(f"hooks/_gate_core.py could not be imported ({error})", file=sys.stderr)
+    sys.exit(2)
+
 CHECKER_PATH = os.path.join("scripts", "check_git_identity.py")
 BLOCKED_COMMANDS = (
     (r"\bgit\s+commit\b", "git commit"),
@@ -45,26 +53,20 @@ PUSH_LABEL = "git push"
 
 
 def _read_payload() -> dict:
-    """Return the hook's stdin JSON, or an empty dict when stdin carries none."""
-    try:
-        raw = sys.stdin.read()
-    except (OSError, ValueError):
-        return {}
-    try:
-        return json.loads(raw)
-    except ValueError:
-        return {}
+    """Return the hook's stdin JSON, or an empty dict when it carries none.
 
-
-def _project_dir(payload: dict) -> str:
-    """Return the repository root, preferring Claude Code's own variable."""
-    return os.environ.get("CLAUDE_PROJECT_DIR") or payload.get("cwd") or os.getcwd()
+    A SessionStart invocation arrives with empty stdin, and this hook
+    informs rather than blocks, so an unreadable payload is an empty dict
+    rather than a refusal.
+    """
+    payload = core.read_payload(empty_is_session_start=True)
+    return payload if payload is not None else {}
 
 
 def run_checker(project_dir: str, extra_args: list):
     """Run scripts/check_git_identity.py, or return None when the repo has no copy."""
-    checker = os.path.join(project_dir, CHECKER_PATH)
-    if not os.path.isfile(checker):
+    checker = core.resolved_under(project_dir, CHECKER_PATH)
+    if checker is None or not os.path.isfile(checker):
         return None
     return subprocess.run(
         [sys.executable, checker, *extra_args],
@@ -175,7 +177,7 @@ def _handle_pre_tool_use(payload: dict, project_dir: str) -> int:
 
 def main() -> int:
     payload = _read_payload()
-    project_dir = _project_dir(payload)
+    project_dir = core.project_dir(payload)
     event = payload.get("hook_event_name", "SessionStart")
     if event == "PreToolUse":
         return _handle_pre_tool_use(payload, project_dir)
