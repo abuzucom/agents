@@ -119,6 +119,7 @@ def check_content(
     lines = text.splitlines()
     open_marker_line: int | None = None
     open_marker_len = 0
+    has_separator = False
     markdown = is_markdown_file(path)
 
     for number, line in enumerate(lines, 1):
@@ -153,15 +154,17 @@ def check_content(
                     )
             open_marker_line = number
             open_marker_len = marker_len
+            has_separator = False
         elif closer_match:
             marker_len = len(closer_match.group(1))
-            if open_marker_line is not None and marker_len == open_marker_len:
+            if open_marker_line is not None and marker_len == open_marker_len and has_separator:
                 violations.append(
                     f"{path}:{open_marker_line}-{number}: "
                     "unresolved conflict block"
                 )
                 open_marker_line = None
                 open_marker_len = 0
+                has_separator = False
             elif open_marker_line is not None:
                 if (
                     open_marker_len >= 3
@@ -187,6 +190,7 @@ def check_content(
                     )
                 open_marker_line = None
                 open_marker_len = 0
+                has_separator = False
             else:
                 if (
                     marker_len >= 3
@@ -200,8 +204,8 @@ def check_content(
                         f"orphan conflict marker closer '{line}'"
                     )
         elif diff3_match:
+            marker_len = len(diff3_match.group(1))
             if open_marker_line is None:
-                marker_len = len(diff3_match.group(1))
                 if (
                     marker_len >= 3
                     or (
@@ -213,10 +217,13 @@ def check_content(
                         f"{path}:{number}: "
                         f"orphan conflict marker separator '{line}'"
                     )
+            elif marker_len == open_marker_len:
+                has_separator = True
         elif separator_match:
             marker_len = len(separator_match.group(1))
             if open_marker_line is not None:
-                pass  # inside open conflict block
+                if marker_len == open_marker_len:
+                    has_separator = True
             elif markdown and is_valid_setext_heading(lines, number - 1):
                 pass  # valid Setext heading underline
             elif (
@@ -277,7 +284,8 @@ def _safe_read(
     if nofollow:
         flags |= os.O_NOFOLLOW
     else:
-        # Best-effort symlink check where O_NOFOLLOW unavailable
+        # Best-effort symlink check where O_NOFOLLOW unavailable (Windows).
+        # Weaken TOCTOU guarantee on platforms lacking O_NOFOLLOW.
         try:
             if os.path.islink(path):
                 return None, None
@@ -303,12 +311,17 @@ def _safe_read(
                 f"{path}: file size ({st.st_size} bytes) "
                 f"exceeds limit ({max_size} bytes)"
             )
-        data = os.read(fd, max_size + 1)
-        if len(data) > max_size:
-            return None, (
-                f"{path}: read exceeded limit ({max_size} bytes)"
-            )
-        return data, None
+        data = bytearray()
+        while True:
+            chunk = os.read(fd, max_size + 1 - len(data))
+            if not chunk:
+                break
+            data.extend(chunk)
+            if len(data) > max_size:
+                return None, (
+                    f"{path}: read exceeded limit ({max_size} bytes)"
+                )
+        return bytes(data), None
     finally:
         os.close(fd)
 
@@ -340,13 +353,10 @@ def get_git_attributes(
     if repo_root:
         norm_root = os.path.abspath(repo_root)
         for p in paths:
-            abs_p = os.path.abspath(p)
+            abs_p = os.path.abspath(p) if os.path.isabs(p) else os.path.abspath(os.path.join(norm_root, p))
             try:
-                rel_p = os.path.relpath(abs_p, norm_root)
-                if (
-                    not rel_p.startswith("..")
-                    and not os.path.isabs(rel_p)
-                ):
+                if os.path.commonpath([norm_root, abs_p]) == norm_root:
+                    rel_p = os.path.relpath(abs_p, norm_root)
                     repo_paths.append((p, rel_p))
             except ValueError:
                 pass
@@ -366,13 +376,15 @@ def get_git_attributes(
             "check-attr",
             "conflict-marker-size",
             "working-tree-encoding",
-            "-z",
+            "-z", "--stdin",
         ]
         if cached:
             cmd.append("--cached")
-        cmd.append("--")
-        cmd.extend(rel_chunk)
-        kwargs: dict = {"capture_output": True, "check": False}
+        kwargs: dict = {
+            "capture_output": True,
+            "check": False,
+            "input": b"\x00".join(p.encode("utf-8") for p in rel_chunk) + b"\x00"
+        }
         if repo_root:
             kwargs["cwd"] = repo_root
         proc = subprocess.run(cmd, **kwargs)
@@ -595,7 +607,7 @@ def _check_staged(repo_root: str) -> list[str]:
             continue
         stage0_regular.append((file_path, sha))
 
-    paths = [p for p, _ in stage0_regular]
+    paths = [os.path.join(repo_root, p) for p, _ in stage0_regular]
     try:
         attributes = get_git_attributes(
             paths, repo_root=repo_root, cached=True
