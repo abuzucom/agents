@@ -540,3 +540,95 @@ class WiringTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def _init_repo(path: str) -> None:
+    """Create a git repo with an identity, for object-store tests."""
+    for args in (
+        ["init", "-q", "-b", "main"],
+        ["config", "user.name", "test"],
+        ["config", "user.email", "test@example.invalid"],
+    ):
+        subprocess.run(["git", *args], cwd=path, check=True,
+                       capture_output=True)
+
+
+class SecurityHardeningTest(unittest.TestCase):
+    """Inputs an attacker controls must not steer git or the terminal."""
+
+    def test_replacement_ref_does_not_hide_a_staged_conflict(self):
+        """git honors refs/replace by default, so cat-file can return a lie.
+
+        The indexed blob carries markers. A replacement points it at a clean
+        blob, so without --no-replace-objects the checker reads the
+        replacement and reports the tree as clean.
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            _init_repo(tmp)
+            target = Path(tmp) / "merged.txt"
+            target.write_text(
+                "<<<<<<< HEAD\nleft\n=======\nright\n>>>>>>> branch\n",
+                encoding="utf-8",
+            )
+            subprocess.run(["git", "add", "merged.txt"], cwd=tmp, check=True,
+                           capture_output=True)
+            dirty = subprocess.run(
+                ["git", "rev-parse", ":merged.txt"], cwd=tmp, check=True,
+                capture_output=True, text=True).stdout.strip()
+            clean = subprocess.run(
+                ["git", "hash-object", "-w", "--stdin"], cwd=tmp, check=True,
+                input="left\n", capture_output=True, text=True).stdout.strip()
+            subprocess.run(["git", "replace", "--force", dirty, clean],
+                           cwd=tmp, check=True, capture_output=True)
+
+            violations = checker._check_staged(tmp)
+
+        self.assertTrue(
+            violations, "a replacement ref hid conflict markers in the index")
+
+    def test_blob_size_separates_the_object_name(self):
+        """A sha beginning with a dash is read as an option without --."""
+        with patch("subprocess.run") as run:
+            run.return_value = MagicMock(returncode=0, stdout=b"4")
+            checker._get_blob_size("deadbeef", "/repo")
+        self._assert_separated(run.call_args[0][0])
+
+    def test_read_blob_separates_the_object_name(self):
+        with patch("subprocess.Popen") as popen:
+            popen.return_value = MagicMock(
+                returncode=0,
+                communicate=MagicMock(return_value=(b"data", b"")))
+            checker._read_blob("deadbeef", "/repo")
+        self._assert_separated(popen.call_args[0][0])
+
+    def _assert_separated(self, argv: list) -> None:
+        """Assert argv disables replacements and ends options before the sha."""
+        self.assertIn("--no-replace-objects", argv)
+        self.assertIn("--", argv)
+        self.assertLess(argv.index("--"), argv.index("deadbeef"),
+                        "the object name is not separated from options")
+
+    def test_symlink_probe_reports_a_failed_check(self):
+        """Swallowing the probe error opens the path without knowing."""
+        with tempfile.TemporaryDirectory() as tmp:
+            plain = Path(tmp) / "plain.txt"
+            plain.write_text("clean\n", encoding="utf-8")
+            link = Path(tmp) / "link.txt"
+            link.symlink_to(plain)
+
+            self.assertIs(checker._probe_is_symlink(str(plain)), False)
+            self.assertIs(checker._probe_is_symlink(str(link)), True)
+            with patch.object(checker.os.path, "islink",
+                              side_effect=OSError("probe failed")):
+                self.assertIsNone(checker._probe_is_symlink(str(plain)))
+
+    def test_diagnostics_escape_control_characters(self):
+        """A newline in a path would otherwise forge a diagnostic line."""
+        hostile = "tests/evil\n[ok] nothing to see\u202e\x1b[31m.py"
+        violations = checker.check_content(
+            "<<<<<<< HEAD\nl\n=======\nr\n>>>>>>> b\n", hostile)
+        self.assertTrue(violations)
+        for line in violations:
+            self.assertNotIn("\n", line, "diagnostic spans several lines")
+            self.assertNotIn("\x1b", line, "an ANSI escape reached output")
+            self.assertNotIn("\u202e", line, "a bidi override reached output")

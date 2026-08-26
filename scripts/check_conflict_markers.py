@@ -27,6 +27,31 @@ from pathlib import Path
 MAX_FILE_SIZE = 50 * 1024 * 1024  # 50 MB
 MAX_LINE_LENGTH = 65536  # 64 KB
 MAX_VIOLATIONS = 100
+MAX_DIAGNOSTIC_LENGTH = 200
+
+
+def _sanitize(value: object) -> str:
+    """Render untrusted text as printable ASCII on one line.
+
+    An allowlist, not a strip. Zero-width characters, bidi overrides, and
+    Unicode tag characters are not control characters, and they render
+    invisibly or reverse the text around them, so a denylist of known-bad
+    codepoints misses the cases that matter. Paths and file content reach
+    CI logs and terminals, where a newline forges a log line and an escape
+    sequence rewrites the screen.
+    """
+    rendered = []
+    for character in str(value):
+        if " " <= character <= "~":
+            rendered.append(character)
+        elif ord(character) <= 0xFF:
+            rendered.append(f"\\x{ord(character):02x}")
+        else:
+            rendered.append(f"\\u{ord(character):04x}")
+    text = "".join(rendered)
+    if len(text) > MAX_DIAGNOSTIC_LENGTH:
+        return text[:MAX_DIAGNOSTIC_LENGTH] + "...[truncated]"
+    return text
 
 MARKDOWN_EXTENSIONS = {".md", ".markdown", ".mdown", ".mkdn", ".mdx"}
 CODE_FENCE_PATTERN = re.compile(r"^(`{3,}|~{3,})")
@@ -115,6 +140,7 @@ def check_content(
     width >= 3 or matching configured_marker_size. Allows Setext headings
     in Markdown only when preceded by valid heading text.
     """
+    safe_path = _sanitize(path)
     violations: list[str] = []
     lines = text.splitlines()
     open_marker_line: int | None = None
@@ -125,7 +151,7 @@ def check_content(
     for number, line in enumerate(lines, 1):
         if len(violations) >= MAX_VIOLATIONS:
             violations.append(
-                f"{path}: reached violation limit "
+                f"{safe_path}: reached violation limit "
                 f"({MAX_VIOLATIONS}), stopping"
             )
             break
@@ -149,7 +175,7 @@ def check_content(
                     )
                 ):
                     violations.append(
-                        f"{path}:{open_marker_line}: "
+                        f"{safe_path}:{open_marker_line}: "
                         "unclosed conflict marker opener"
                     )
             open_marker_line = number
@@ -159,7 +185,7 @@ def check_content(
             marker_len = len(closer_match.group(1))
             if open_marker_line is not None and marker_len == open_marker_len and has_separator:
                 violations.append(
-                    f"{path}:{open_marker_line}-{number}: "
+                    f"{safe_path}:{open_marker_line}-{number}: "
                     "unresolved conflict block"
                 )
                 open_marker_line = None
@@ -174,7 +200,7 @@ def check_content(
                     )
                 ):
                     violations.append(
-                        f"{path}:{open_marker_line}: "
+                        f"{safe_path}:{open_marker_line}: "
                         "unclosed conflict marker opener"
                     )
                 if (
@@ -185,8 +211,8 @@ def check_content(
                     )
                 ):
                     violations.append(
-                        f"{path}:{number}: "
-                        f"mismatched conflict marker closer '{line}'"
+                        f"{safe_path}:{number}: "
+                        f"mismatched conflict marker closer '{_sanitize(line)}'"
                     )
                 open_marker_line = None
                 open_marker_len = 0
@@ -200,8 +226,8 @@ def check_content(
                     )
                 ):
                     violations.append(
-                        f"{path}:{number}: "
-                        f"orphan conflict marker closer '{line}'"
+                        f"{safe_path}:{number}: "
+                        f"orphan conflict marker closer '{_sanitize(line)}'"
                     )
         elif diff3_match:
             marker_len = len(diff3_match.group(1))
@@ -214,8 +240,8 @@ def check_content(
                     )
                 ):
                     violations.append(
-                        f"{path}:{number}: "
-                        f"orphan conflict marker separator '{line}'"
+                        f"{safe_path}:{number}: "
+                        f"orphan conflict marker separator '{_sanitize(line)}'"
                     )
             elif marker_len == open_marker_len:
                 has_separator = True
@@ -234,8 +260,8 @@ def check_content(
                 )
             ):
                 violations.append(
-                    f"{path}:{number}: "
-                    f"orphan conflict marker separator '{line}'"
+                    f"{safe_path}:{number}: "
+                    f"orphan conflict marker separator '{_sanitize(line)}'"
                 )
 
     if open_marker_line is not None:
@@ -247,7 +273,7 @@ def check_content(
             )
         ):
             violations.append(
-                f"{path}:{open_marker_line}: "
+                f"{safe_path}:{open_marker_line}: "
                 "unclosed conflict marker opener"
             )
 
@@ -271,6 +297,14 @@ def _get_repo_root() -> str:
     return result.stdout.decode("utf-8", errors="replace").strip()
 
 
+def _probe_is_symlink(path: str):
+    """Return True, False, or None when the check itself failed."""
+    try:
+        return os.path.islink(path)
+    except OSError:
+        return None
+
+
 def _safe_read(
     path: str, max_size: int
 ) -> tuple[bytes | None, str | None]:
@@ -284,13 +318,14 @@ def _safe_read(
     if nofollow:
         flags |= os.O_NOFOLLOW
     else:
-        # Best-effort symlink check where O_NOFOLLOW unavailable (Windows).
-        # Weaken TOCTOU guarantee on platforms lacking O_NOFOLLOW.
-        try:
-            if os.path.islink(path):
-                return None, None
-        except OSError:
-            pass
+        # Without O_NOFOLLOW the check and the open are separate calls, so
+        # this narrows the window rather than closing it. A probe that
+        # fails tells us nothing about the path, so refuse it.
+        is_link = _probe_is_symlink(path)
+        if is_link is None:
+            return None, f"could not determine whether {_sanitize(path)} is a link"
+        if is_link:
+            return None, None
 
     try:
         fd = os.open(path, flags)
@@ -428,7 +463,7 @@ def check_file(
     """
     raw_bytes, err = _safe_read(path, MAX_FILE_SIZE)
     if err:
-        return [f"error: {err}"]
+        return [f"error: {_sanitize(err)}"]
     if raw_bytes is None:
         return []
 
@@ -539,7 +574,8 @@ def _get_blob_size(sha: str, repo_root: str) -> int:
         [
             "git", "--no-pager",
             "-c", "core.fsmonitor=",
-            "cat-file", "-s", sha,
+            "--no-replace-objects",
+            "cat-file", "-s", "--", sha,
         ],
         capture_output=True,
         check=False,
@@ -563,7 +599,8 @@ def _read_blob(
         [
             "git", "--no-pager",
             "-c", "core.fsmonitor=",
-            "cat-file", "blob", sha,
+            "--no-replace-objects",
+            "cat-file", "blob", "--", sha,
         ],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
@@ -599,7 +636,7 @@ def _check_staged(repo_root: str) -> list[str]:
     for file_path, sha, stage, mode in entries:
         if stage != "0":
             violations.append(
-                f"{file_path}: unmerged index entry "
+                f"{_sanitize(file_path)}: unmerged index entry "
                 f"(stage {stage})"
             )
             continue
@@ -613,7 +650,7 @@ def _check_staged(repo_root: str) -> list[str]:
             paths, repo_root=repo_root, cached=True
         )
     except RuntimeError as err:
-        return [f"error: {err}"]
+        return [f"error: {_sanitize(err)}"]
 
     for file_path, sha in stage0_regular:
         if len(violations) >= MAX_VIOLATIONS:
@@ -631,12 +668,12 @@ def _check_staged(repo_root: str) -> list[str]:
         try:
             blob_size = _get_blob_size(sha, repo_root)
         except (RuntimeError, ValueError) as err:
-            violations.append(f"error: {file_path}: {err}")
+            violations.append(f"error: {_sanitize(file_path)}: {_sanitize(err)}")
             continue
 
         if blob_size > MAX_FILE_SIZE:
             violations.append(
-                f"error: {file_path}: blob size "
+                f"error: {_sanitize(file_path)}: blob size "
                 f"({blob_size} bytes) exceeds limit "
                 f"({MAX_FILE_SIZE} bytes)"
             )
@@ -645,13 +682,13 @@ def _check_staged(repo_root: str) -> list[str]:
         try:
             raw_bytes = _read_blob(sha, repo_root, MAX_FILE_SIZE)
         except RuntimeError as err:
-            violations.append(f"error: {err}")
+            violations.append(f"error: {_sanitize(err)}")
             continue
 
         # Do not apply working-tree-encoding to staged index blobs
         text, decode_err = decode_content(raw_bytes, None)
         if decode_err:
-            violations.append(f"error: {file_path}: {decode_err}")
+            violations.append(f"error: {_sanitize(file_path)}: {_sanitize(decode_err)}")
             continue
         if text is None:
             continue
@@ -672,7 +709,7 @@ def main() -> int:
     try:
         repo_root = _get_repo_root()
     except RuntimeError as err:
-        print(f"error: {err}", file=sys.stderr)
+        print(f"error: {_sanitize(err)}", file=sys.stderr)
         return 1
 
     if staged:
@@ -696,7 +733,7 @@ def main() -> int:
         try:
             files = get_tracked_regular_files(repo_root)
         except RuntimeError as err:
-            print(f"error: {err}", file=sys.stderr)
+            print(f"error: {_sanitize(err)}", file=sys.stderr)
             return 1
     else:
         for arg in resolved:
@@ -706,7 +743,7 @@ def main() -> int:
                         get_tracked_regular_files(repo_root)
                     )
                 except RuntimeError as err:
-                    print(f"error: {err}", file=sys.stderr)
+                    print(f"error: {_sanitize(err)}", file=sys.stderr)
                     return 1
             else:
                 files.append(arg)
@@ -714,7 +751,7 @@ def main() -> int:
     try:
         attributes = get_git_attributes(files, repo_root=repo_root)
     except RuntimeError as err:
-        print(f"error: {err}", file=sys.stderr)
+        print(f"error: {_sanitize(err)}", file=sys.stderr)
         return 1
 
     violations: list[str] = []
