@@ -518,7 +518,7 @@ class WiringTest(unittest.TestCase):
     def test_makefile_wires_exact_lint_recipe(self):
         content = MAKEFILE_PATH.read_text(encoding="utf-8")
         self.assertIn(
-            "\tpython scripts/check_conflict_markers.py",
+            "\t$(PYTHON) scripts/check_conflict_markers.py",
             content,
         )
 
