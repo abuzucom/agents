@@ -107,7 +107,7 @@ class GitDelegationTest(unittest.TestCase):
     """git decisions come from the shared core, so both shells agree."""
 
     CASES = (
-        ("git push --force", "deny"),
+        ("git push --force", "ask"),
         ("git reset --hard", "deny"),
         ("git push --force-with-lease", "ask"),
         ("git push origin :main", "ask"),

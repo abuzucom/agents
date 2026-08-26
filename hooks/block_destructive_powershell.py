@@ -184,6 +184,9 @@ def _program_verdict(tokens: list, redirects: list) -> tuple:
                     core.mode_change_verdict(program, args),
                     core.truncation_verdict(program, args, redirects),
                     core.process_verdict(program, args),
+                    core.schedule_verdict(program, args),
+                    core.forge_verdict(program, args),
+                    core.filesystem_repair_verdict(program, args),
                     core.profile_verdict(program, args, redirects),
                     core.cmd_delete_verdict(program, args),
                     core.test_write_verdict(program, args, redirects)):

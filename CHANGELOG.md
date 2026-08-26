@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.13.0] - 2026-08-25
 
 ### Added
+- Denied anything piped into an interpreter, not only a download. `history | sh` hands the choice of what runs to whatever the shell happens to remember, and `cat script.sh | bash` runs a file nobody read. Piping into a reader such as `grep`, `jq`, `less`, or `tee` is untouched.
+- Denied `crontab -r`, which removes every scheduled job at once with no copy kept and no prompt from crontab itself, and `schtasks /delete`. Denied the filesystem repair tools (`fsck`, `e2fsck`, `xfs_repair`, `chkdsk`, `ntfsfix`), which rewrite metadata in place and can discard what they cannot reconcile.
+- Denied `gh repo delete` and its equivalents for releases, gists, and organizations, across `gh`, `glab`, `hub`, and `tea`. These remove work no local clone holds, and no local action undoes them. Read-only forge commands are untouched.
+- Routed `git branch -D` to the user: it discards a branch whose commits may not be merged anywhere else. `git branch -d`, which refuses an unmerged branch, is untouched. Case carries the meaning here, so the check does not lowercase before reading it.
 - Denied defining a command alias (`alias`, `Set-Alias`, `doskey`, `git config alias.x`). An alias makes one name run another command, which defeats reading a command to know what it does. Listing aliases is untouched.
 - Denied `hdparm` and the other drive-firmware tools, a bare redirect (`> file`), a redirect from an empty device (`cat /dev/null > file`), and any redirect onto a device (`> /dev/sda`). Each empties or overwrites its target without a delete appearing anywhere in the line.
 - Denied a recursive `chmod`, `chown`, or `chgrp` across a root or system directory, which breaks every program depending on those permissions. The same command inside a project is untouched.
@@ -30,6 +34,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added a pushed-history line stating that `--force-with-lease` is not an exception and neither is a branch you created minutes ago.
 
 ### Changed
+- Changed `git push --force` and `-f` from a refusal to a permission prompt, at the user's direction. A refusal offers no way to consent, and the pushed-history rule is about requiring consent rather than making the act impossible. An unattended session still denies, since consent cannot be given there.
+- Denied a `chmod`, `chown`, or `chgrp` targeting a root or system directory whether or not it recurses. `chown nobody /etc` breaks the machine with no `-R` anywhere in the line.
 - Normalized POSIX root paths with `posixpath` rather than `os.path`. On Windows `os.path.normpath("/etc")` returns `\\etc`, so the check anchored on a leading slash rejected every POSIX system root on the one platform where it mattered: `/etc`, `/usr`, and `/Applications` asked instead of denying. The `windows-latest` job caught it, and a regression test now substitutes `ntpath` so the same class is covered from Linux.
 - Denied rather than asked for the deletion of a drive root, a UNC share root, or a system directory: `/`, `/bin`, `/boot`, `/dev`, `/etc`, `/home`, `/lib*`, `/media`, `/mnt`, `/opt`, `/proc`, `/root`, `/run`, `/sbin`, `/srv`, `/sys`, `/tmp`, `/usr`, `/var`, and the macOS equivalents. Offering that choice is not consent, it is an invitation to a mistake nobody can undo. A path inside one is an ordinary recursive delete and still asks. Paths normalize first, so `/usr/.`, `/etc//`, and `/home/..` reach the same verdict as the directory they name.
 - Denied an unparseable command that names a root. `rm -rf C:\\` ends in an unterminated escape and previously asked; no reading of it is a decision to put to a person.

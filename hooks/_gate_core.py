@@ -183,7 +183,12 @@ def push_verdict(args: list) -> tuple:
     for token in args:
         name = token.split("=", 1)[0]
         if name == "--force" or (is_short_group(token) and "f" in token):
-            return "deny", "git push --force"
+            # Asked rather than refused, at the user's direction. A refusal
+            # offers no way to consent, and the pushed-history rule is about
+            # consent rather than impossibility.
+            return "ask", ("git push --force rewrites published history, so "
+                           "anyone who has fetched this branch keeps commits "
+                           "that no longer exist upstream")
         ask = ask or push_ask_reason(token, name)
     return ("ask", ask) if ask else ("", "")
 
@@ -242,6 +247,17 @@ def git_verdict(args: list, cwd: str = "") -> tuple:
     alias_decision = alias_verdict("git", [subcommand] + rest)
     if alias_decision[0]:
         return alias_decision
+    if subcommand == "branch":
+        # Case carries the meaning here: -d refuses an unmerged branch,
+        # -D discards it. Lowercasing first would gate the safe one.
+        lowered = [token.lower() for token in rest]
+        forced = (("--delete" in lowered and "--force" in lowered)
+                  or any(token.startswith("-") and not token.startswith("--")
+                         and "D" in token for token in rest))
+        if forced:
+            return "ask", ("git branch -D discards a branch whose commits "
+                           "may not be merged anywhere else")
+        return "", ""
     if subcommand == "clean":
         lowered = [token.lower() for token in rest]
         if any(flag in lowered for flag in ("-n", "--dry-run")):
@@ -753,37 +769,42 @@ def gated_keywords() -> tuple:
     names.update(LOGGING_DISABLERS)
     names.update(UNBOUNDED_OPERATIONS)
     names.update(CMD_DELETE_VERBS)
+    names.update(FORGE_PROGRAMS)
     names.update({"mv", "move", "chmod", "chown", "chgrp", "cat", "tee",
                   "alias", "kill", "killall", "pkill", "hdparm", "install"})
     names.update({"mkfs.ext4", "mkfs.xfs", "mkfs.btrfs", "mkfs.vfat"})
     return tuple(sorted(names))
 
 
-def remote_execution_verdict(segments: list) -> tuple:
-    """Return (decision, reason) for a download piped into an interpreter.
+def _segment_program(segment: list) -> str:
+    """Return the real program a segment runs, past any wrapper."""
+    for token in segment:
+        name = os.path.basename(token).lower().removesuffix(".exe")
+        if name not in ("sudo", "doas", "env", "command", "nohup", "time"):
+            return name
+    return ""
 
-    Fetching code and running it in one step means nothing reads it first,
-    so the remote host chooses what executes. Prohibited outright rather
-    than asked about: consent to `curl | bash` is consent to whatever the
-    URL serves at the moment it is fetched, which nobody can give.
+
+def remote_execution_verdict(segments: list) -> tuple:
+    """Return (decision, reason) for anything piped into an interpreter.
+
+    Whatever arrives on standard input is executed without being read, so
+    the producer of that stream decides what runs. `curl | bash` hands the
+    choice to a remote host; `history | sh` hands it to whatever the shell
+    happens to remember. Neither is a decision anyone can give consent to
+    in advance, so both are prohibited rather than asked about.
     """
-    downloads = False
+    previous = ""
     for segment in segments:
         if not segment:
             continue
-        names = [os.path.basename(token).lower().removesuffix(".exe")
-                 for token in segment]
-        program = names[0]
-        # A wrapper such as sudo delegates to the next real program.
-        for name in names:
-            if name not in ("sudo", "doas", "env", "command", "nohup"):
-                program = name
-                break
-        if downloads and program in INPUT_EXECUTORS:
-            return "deny", ("a download piped into an interpreter: the remote "
-                            "host chooses what runs, and nothing reads it "
-                            "first")
-        downloads = program in DOWNLOADERS
+        program = _segment_program(segment)
+        if previous and program in INPUT_EXECUTORS:
+            source = ("the remote host" if previous in DOWNLOADERS
+                      else f"whatever {sanitize(previous)} produces")
+            return "deny", (f"a pipe into {sanitize(program)}: {source} "
+                            "chooses what runs, and nothing reads it first")
+        previous = program
     return "", ""
 
 
@@ -840,6 +861,9 @@ SHELL_PROFILES = ("/.bashrc", "/.bash_profile", "/.bash_login",
                   "/.zshrc", "/.zshenv", "/.zprofile", "/.zlogin",
                   "/.zlogout", "/.cshrc", "/.kshrc", "/.inputrc",
                   "/.config/fish/config.fish")
+SCHEDULE_PROGRAMS = frozenset({"crontab", "schtasks", "at"})
+FILESYSTEM_REPAIR = frozenset({"fsck", "e2fsck", "xfs_repair", "ntfsfix",
+                               "chkdsk", "resize2fs", "tune2fs"})
 PROCESS_PROGRAMS = frozenset({"kill", "killall", "pkill", "skill",
                               "taskkill", "stop-process"})
 ALIAS_PROGRAMS = frozenset({"alias", "set-alias", "new-alias", "doskey"})
@@ -926,13 +950,8 @@ def mode_change_verdict(program: str, args: list) -> tuple:
     name = os.path.basename(program).lower().removesuffix(".exe")
     if name not in MODE_PROGRAMS:
         return "", ""
-    recursive = any(token.lower() in ("-r", "-recurse", "/t")
-                    or token.lower().startswith("--recursive")
-                    or (token.startswith("-") and not token.startswith("--")
-                        and "R" in token)
-                    for token in args)
-    if not recursive:
-        return "", ""
+    # Recursion is not what makes this dangerous. chown nobody /etc breaks
+    # the machine with no -R anywhere in the line.
     for token in args:
         if token.startswith("-"):
             continue
@@ -941,3 +960,49 @@ def mode_change_verdict(program: str, args: list) -> tuple:
                             "directory, which breaks every program that "
                             "depends on those permissions")
     return "", ""
+
+
+def schedule_verdict(program: str, args: list) -> tuple:
+    """Return (decision, reason) for removing scheduled work."""
+    name = os.path.basename(program).lower().removesuffix(".exe")
+    if name not in SCHEDULE_PROGRAMS:
+        return "", ""
+    lowered = [token.lower() for token in args]
+    if name == "crontab" and ("-r" in lowered or "--remove" in lowered):
+        return "deny", ("crontab -r removes every scheduled job at once, "
+                        "with no copy kept and no prompt from crontab itself")
+    if name == "schtasks" and "/delete" in lowered:
+        return "deny", "schtasks deleting a scheduled task"
+    return "", ""
+
+
+def filesystem_repair_verdict(program: str, args: list) -> tuple:
+    """Return (decision, reason) for a filesystem repair tool."""
+    name = os.path.basename(program).lower().removesuffix(".exe")
+    if name not in FILESYSTEM_REPAIR:
+        return "", ""
+    return "deny", (f"{name} rewrites filesystem metadata in place and can "
+                    "discard data it cannot reconcile")
+
+
+# Deleting a repository, a release, or a tag on the forge destroys work
+# that is not in any local clone.
+FORGE_PROGRAMS = frozenset({"gh", "glab", "hub", "tea"})
+FORGE_DELETE_NOUNS = frozenset({"repo", "repository", "release", "project",
+                                "org", "organization", "gist", "secret",
+                                "environment", "cache", "run"})
+
+
+def forge_verdict(program: str, args: list) -> tuple:
+    """Return (decision, reason) for a destructive forge command."""
+    name = os.path.basename(program).lower().removesuffix(".exe")
+    if name not in FORGE_PROGRAMS:
+        return "", ""
+    words = [token.lower() for token in args if not token.startswith("-")]
+    if len(words) < 2 or "delete" not in words[:3]:
+        return "", ""
+    noun = words[0]
+    if noun not in FORGE_DELETE_NOUNS:
+        return "", ""
+    return "deny", (f"{name} {sanitize(noun)} delete removes work that no "
+                    "local clone holds, and no local action undoes it")
