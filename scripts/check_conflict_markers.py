@@ -308,7 +308,12 @@ def _probe_is_symlink(path: str):
 def _safe_read(
     path: str, max_size: int
 ) -> tuple[bytes | None, str | None]:
-    """Open once without following links, verify regular, read bounded.
+    """Open, verify the target is regular, and read a bounded amount.
+
+    Where O_NOFOLLOW exists the open refuses a link itself, so the check
+    and the open are one operation. Where it does not, a separate probe
+    runs first and the window between probe and open stays open. Call
+    that narrowed, not closed.
 
     Returns (data, error_message). data is None on skip or error.
     error_message is None when the file is silently skipped.
