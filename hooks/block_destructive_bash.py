@@ -67,7 +67,7 @@ except ImportError as error:  # pragma: no cover - exercised by the adoption tes
 
 _CWD = [""]
 GATE = "block_destructive_bash.py"
-GATED_KEYWORDS = ("rm", "git")
+GATED_KEYWORDS = core.gated_keywords()
 OPERATOR_CHARS = frozenset("&|;")
 GROUPING = frozenset({"(", ")", "\n"})
 WRAPPERS = frozenset({"sudo", "doas", "env", "time", "nohup", "nice", "command", "xargs", "timeout"})
@@ -247,9 +247,19 @@ def _interpreter_verdict(program: str, args: list) -> tuple:
 
 
 def _segment_verdict(tokens: list) -> tuple:
-    """Return (decision, reason) for one command segment."""
+    """Return (decision, reason) for one command segment.
+
+    The privilege verdict is folded into whatever the wrapped command
+    yields, so `sudo ls` asks and `sudo rm -rf /` still denies.
+    """
+    privileged = core.privilege_verdict(tokens)
     redirects = _redirect_targets(tokens)
     tokens = _strip_prefixes(tokens)
+    return core.strongest(privileged, _program_verdict(tokens, redirects))
+
+
+def _program_verdict(tokens: list, redirects: list) -> tuple:
+    """Return (decision, reason) for the program this segment runs."""
     if not tokens:
         return core.test_write_verdict("", [], redirects)
     program = os.path.basename(tokens[0])
@@ -259,14 +269,14 @@ def _segment_verdict(tokens: list) -> tuple:
         return _rm_verdict(tokens[1:])
     if program == "git":
         return core.git_verdict(tokens[1:], _CWD[0])
-    cmd_decision = core.cmd_delete_verdict(program, tokens[1:])
-    if cmd_decision[0]:
-        return cmd_decision
-    write_decision = core.test_write_verdict(program, tokens[1:], redirects)
-    if write_decision[0]:
-        return write_decision
+    for verdict in (core.destruction_verdict(program, tokens[1:]),
+                    core.cmd_delete_verdict(program, tokens[1:]),
+                    core.test_write_verdict(program, tokens[1:], redirects)):
+        if verdict[0]:
+            return verdict
     if not _is_plausible_program(program) and _mentions_gated_command(tokens):
-        return "ask", "the command boundaries could not be interpreted, so the gate cannot clear it"
+        return "ask", ("the command boundaries could not be interpreted, so "
+                       "the gate cannot clear it")
     return "", ""
 
 
@@ -284,7 +294,10 @@ def classify(command: str) -> tuple:
         tokens = _tokenize(line)
         if tokens is None:
             return core.unparseable_verdict(command, GATED_KEYWORDS)
-        for segment in _segments(tokens):
+        segments = _segments(tokens)
+        verdict = core.strongest(
+            verdict, core.remote_execution_verdict(segments))
+        for segment in segments:
             verdict = core.strongest(verdict, _segment_verdict(segment))
     return verdict
 

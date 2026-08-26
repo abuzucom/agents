@@ -195,6 +195,7 @@ KNOWN_SUBCOMMANDS = frozenset({
     "switch", "restore", "merge", "fetch", "pull", "clone", "branch", "tag",
     "remote", "stash", "config", "init", "rm", "mv", "cherry-pick", "revert",
     "bisect", "worktree", "submodule", "describe", "rev-parse", "ls-files",
+    "clean",
     "cat-file", "hash-object", "check-attr", "replace", "update-index",
     "apply", "am", "format-patch", "archive", "gc", "reflog", "notes",
 }) | READ_SUBCOMMANDS
@@ -236,6 +237,15 @@ def git_verdict(args: list, cwd: str = "") -> tuple:
         return git_verdict(expansion.split() + rest, cwd)
     if subcommand == "push":
         return push_verdict(rest)
+    if subcommand == "clean":
+        lowered = [token.lower() for token in rest]
+        if any(flag in lowered for flag in ("-n", "--dry-run")):
+            return "", ""
+        if any(flag.startswith("-") and ("d" in flag or "x" in flag)
+               for flag in lowered):
+            return "ask", ("git clean removing untracked files, over a set "
+                           "decided at run time")
+        return "", ""
     if subcommand == "reset" and "--hard" in rest:
         return "deny", "git reset --hard"
     if subcommand == "commit" and "--amend" in rest:
@@ -254,7 +264,13 @@ def unparseable_verdict(command: str, keywords: tuple) -> tuple:
     """
     if not any(keyword in command for keyword in keywords):
         return "", ""
-    for word in command.replace("\\", "/").split():
+    words = command.replace("\\", "/").split()
+    for word in words:
+        base = os.path.basename(word).lower().removesuffix(".exe")
+        if base.split(".", 1)[0] in ALWAYS_DESTRUCTIVE:
+            return "deny", (f"this command could not be parsed and names "
+                            f"{sanitize(base)}, which only partitions, "
+                            "formats, or wipes")
         if is_root_target(word) or is_root_target(word.rstrip("/") + "/"):
             return "deny", ("this command could not be parsed and names a "
                             "root or system directory")
@@ -447,25 +463,38 @@ EXEC_CAPABLE_SUBSECTIONS = {
 }
 
 
-def parse_git_config(cwd: str):
-    """Return {"section.key": value} from .git/config, or None on failure.
-
-    The file is read, never queried through `git config`: running git to
-    decide whether running git is safe is the bug this exists to close.
-    Format is git's own, which configparser does not implement, so it is
-    parsed here. None means the caller must fail closed.
-    """
+def _read_git_config(cwd: str):
+    """Return .git/config text, "" when absent, or None when unreadable."""
     path = os.path.join(cwd or ".", ".git", "config")
     try:
         if os.path.getsize(path) > MAX_CONFIG_BYTES:
             return None
         with open(path, encoding="utf-8") as handle:
-            raw = handle.read()
+            return handle.read()
     except FileNotFoundError:
-        return {}
+        return ""
     except (OSError, UnicodeDecodeError):
         return None
 
+
+def _section_name(header: str) -> str:
+    """Return the normalized section name for a [section "sub"] header."""
+    name, _, subsection = header.partition(" ")
+    if not subsection:
+        return name.lower()
+    return f"{name.lower()}.{subsection.strip().strip(chr(34))}"
+
+
+def parse_git_config(cwd: str):
+    """Return {"section.key": value} from .git/config, or None on failure.
+
+    The file is read, never queried through `git config`: running git to
+    decide whether running git is safe is the bug this exists to close.
+    Format is git's own, which configparser does not implement.
+    """
+    raw = _read_git_config(cwd)
+    if raw is None:
+        return None
     entries = {}
     section = ""
     for line in raw.splitlines():
@@ -473,14 +502,11 @@ def parse_git_config(cwd: str):
         if not stripped or stripped[0] in "#;":
             continue
         if stripped.startswith("[") and stripped.endswith("]"):
-            head = stripped[1:-1].strip()
-            name, _, subsection = head.partition(" ")
-            section = f"{name.lower()}.{subsection.strip(chr(34))}" if subsection else name.lower()
+            section = _section_name(stripped[1:-1].strip())
             continue
         key, separator, value = stripped.partition("=")
-        if not separator:
-            continue
-        entries[f"{section}.{key.strip().lower()}"] = value.strip()
+        if separator:
+            entries[f"{section}.{key.strip().lower()}"] = value.strip()
     return entries
 
 
@@ -520,3 +546,281 @@ def resolve_alias(cwd: str, subcommand: str) -> str:
     if not entries:
         return ""
     return entries.get(f"alias.{subcommand.lower()}", "")
+
+
+# Removing recovery data is the step that makes destruction irreversible,
+# and it is the highest-signal indicator in the data-destruction family.
+# No agent workflow deletes a shadow copy or a backup catalog.
+RECOVERY_DESTRUCTION = {
+    "vssadmin": ("delete",),
+    "wmic": ("shadowcopy",),
+    "wbadmin": ("delete",),
+    "bcdedit": ("recoveryenabled", "bootstatuspolicy", "safeboot"),
+}
+# Programs that write over a device or lay down a filesystem.
+DEVICE_WRITERS = frozenset({"mkfs", "diskpart", "format", "cipher", "fdisk",
+                            "parted", "sgdisk", "wipefs", "blkdiscard",
+                            "shred", "sdelete", "wipe", "dd"})
+# Programs with no purpose but to partition, format, or wipe. Unlike dd or
+# shred, no invocation of these operates on a single ordinary file, so an
+# unparseable one has no benign reading to fall back on.
+ALWAYS_DESTRUCTIVE = frozenset({"diskpart", "fdisk", "sgdisk", "parted",
+                                "wipefs", "blkdiscard", "mkfs", "format",
+                                "cipher", "dd"})
+# Programs that fetch a remote resource to standard output.
+DOWNLOADERS = frozenset({"curl", "wget", "fetch", "invoke-webrequest", "iwr",
+                         "invoke-restmethod", "irm", "httpie", "http", "aria2c"})
+# Programs that execute whatever they are handed on standard input.
+INPUT_EXECUTORS = frozenset({"bash", "sh", "zsh", "dash", "ksh", "busybox",
+                             "fish", "csh", "tcsh", "python", "python3",
+                             "perl", "ruby", "node", "php", "iex",
+                             "invoke-expression", "pwsh", "powershell"})
+DEVICE_PATH_MARKERS = ("/dev/", "\\\\.\\physicaldrive", "\\\\.\\",
+                       "/dev/disk")
+# Commands whose target set is decided at run time rather than written out.
+LOGGING_DISABLERS = {
+    "aws": ("stop-logging", "delete-trail", "delete-log-group"),
+    "az": ("diagnostic-settings",),
+    "gcloud": ("sinks",),
+    "vim-cmd": ("destroy", "unregister"),
+    "esxcli": ("destroy",),
+    "auditctl": ("-D",),
+    "systemctl": ("auditd", "rsyslog"),
+}
+# Mount points and shared temp directories DET0146 calls out by name: a
+# volume mount is somebody else's data reached through this filesystem.
+VOLUME_PREFIXES = ("/mnt/", "/media/", "/volumes/", "/private/tmp",
+                   "/var/tmp", "/srv/", "/net/", "/mounts/")
+
+UNBOUNDED_OPERATIONS = {
+    "find": ("-delete", "-exec", "-execdir", "-ok"),
+    "git": ("clean",),
+    "truncate": ("-s",),
+    "sed": ("-i",),
+    "perl": ("-i",),
+    "xargs": ("rm", "shred", "truncate"),
+}
+GLOB_CHARACTERS = "*?["
+
+
+def _mentions_device(args: list) -> bool:
+    """Return True if any operand names a raw device rather than a file."""
+    for token in args:
+        lowered = token.lower()
+        value = lowered.partition("=")[2] if "=" in lowered else lowered
+        if any(marker in value for marker in DEVICE_PATH_MARKERS):
+            # /dev/zero and /dev/urandom are sources, not targets.
+            if value.rstrip("0123456789").endswith(("/zero", "/urandom",
+                                                    "/random", "/null")):
+                continue
+            return True
+        if len(value) == 2 and value[1] == ":":
+            return True
+        if lowered.startswith("/w:"):
+            return True
+    return False
+
+
+def recovery_verdict(program: str, args: list) -> tuple:
+    """Return (decision, reason) for a command that destroys recovery data."""
+    name = os.path.basename(program).lower().removesuffix(".exe")
+    markers = RECOVERY_DESTRUCTION.get(name)
+    if not markers:
+        return "", ""
+    lowered = [token.lower() for token in args]
+    if not any(marker in token for marker in markers for token in lowered):
+        return "", ""
+    return "deny", (f"{name} removing recovery data: this is what makes a "
+                    "destructive act irreversible")
+
+
+def device_write_verdict(program: str, args: list) -> tuple:
+    """Return (decision, reason) for a device wipe or a file overwrite."""
+    name = os.path.basename(program).lower().removesuffix(".exe")
+    # mkfs ships as mkfs.ext4, mkfs.xfs, and so on.
+    base = name.split(".", 1)[0] if name.startswith("mkfs") else name
+    if base not in DEVICE_WRITERS:
+        return "", ""
+    name = base
+    # These exist only to partition or wipe, so any invocation counts.
+    if name in ALWAYS_DESTRUCTIVE and name not in ("cipher",):
+        return "deny", (f"{name} partitions or lays down a filesystem, which "
+                        "destroys every file on the target at once")
+    if _mentions_device(args):
+        return "deny", (f"{name} writing over a device or filesystem, which "
+                        "destroys every file on it at once")
+    if name in ("shred", "sdelete", "wipe"):
+        return "ask", f"{name} overwriting file contents in place"
+    return "", ""
+
+
+def _is_shallow_glob(token: str) -> bool:
+    """Return True for a glob whose parent is a root, such as /* or ~/*."""
+    if not any(character in token for character in GLOB_CHARACTERS):
+        return False
+    parent = token.rstrip("*?[]/")
+    return is_root_target(parent) or is_root_target(parent + "/")
+
+
+def mass_operation_verdict(program: str, args: list) -> tuple:
+    """Return (decision, reason) for a command with an unbounded target set.
+
+    A glob rooted at a system directory denies for the same reason the
+    directory itself does. Everything else asks: the gate cannot count
+    what a pattern will match, and a command that decides its own targets
+    at run time is one a person should see.
+    """
+    for token in args:
+        if _is_shallow_glob(token):
+            return "deny", ("an operation over every entry of a root or "
+                            "system directory")
+    name = os.path.basename(program).lower()
+    markers = UNBOUNDED_OPERATIONS.get(name)
+    if not markers:
+        return "", ""
+    lowered = [token.lower() for token in args]
+    if any(flag in lowered for flag in ("-n", "--dry-run", "--no-act")):
+        return "", ""
+    if not any(marker in lowered for marker in markers):
+        return "", ""
+    if any(any(character in token for character in GLOB_CHARACTERS)
+           for token in args) or name in ("find", "git", "xargs"):
+        return "ask", (f"{name} over a target set decided at run time, which "
+                       "the gate cannot count before it runs")
+    return "", ""
+
+
+def destruction_verdict(program: str, args: list) -> tuple:
+    """Return the strongest data-destruction verdict for one command."""
+    verdict = ("", "")
+    for check in (recovery_verdict, device_write_verdict,
+                  mass_operation_verdict, logging_verdict,
+                  disguised_destruction_verdict):
+        verdict = strongest(verdict, check(program, args))
+    return verdict
+
+
+def logging_verdict(program: str, args: list) -> tuple:
+    """Return (decision, reason) for disabling logging or purging a disk.
+
+    Destroying the record of an act belongs to the same campaign as the
+    act. These are read as commands rather than counted as events, which
+    is all a per-call gate can do.
+    """
+    name = os.path.basename(program).lower().removesuffix(".exe")
+    markers = LOGGING_DISABLERS.get(name)
+    if not markers:
+        return "", ""
+    lowered = " ".join(args).lower()
+    if not any(marker in lowered for marker in markers):
+        return "", ""
+    if name in ("vim-cmd", "esxcli"):
+        return "deny", f"{name} destroying a virtual disk or registration"
+    return "ask", (f"{name} disabling an audit or logging service, which "
+                   "removes the record of what follows")
+
+
+def volume_verdict(recursive: bool, operands: list) -> tuple:
+    """Return (decision, reason) for a recursive act on a mounted volume."""
+    if not recursive:
+        return "", ""
+    for token in operands:
+        candidate = token.strip().strip('"').strip("'").replace("\\", "/")
+        lowered = os.path.normpath(candidate).lower() + "/"
+        if any(lowered.startswith(prefix) for prefix in VOLUME_PREFIXES):
+            return "ask", ("a recursive act under a mount point or shared "
+                           "temp directory, which is not this project's data")
+    return "", ""
+
+
+def gated_keywords() -> tuple:
+    """Return every program name this core classifies.
+
+    Derived rather than written out. A hardcoded list is a second place to
+    remember, and the one that decides whether an unparseable command
+    fails closed: cipher /w:C:\\ does not tokenize, and a list that had
+    not learned "cipher" waved it through.
+    """
+    names = {"rm", "git"}
+    names.update(DEVICE_WRITERS)
+    names.update(RECOVERY_DESTRUCTION)
+    names.update(LOGGING_DISABLERS)
+    names.update(UNBOUNDED_OPERATIONS)
+    names.update(CMD_DELETE_VERBS)
+    names.update({"mv", "move", "chmod"})
+    names.update({"mkfs.ext4", "mkfs.xfs", "mkfs.btrfs", "mkfs.vfat"})
+    return tuple(sorted(names))
+
+
+def remote_execution_verdict(segments: list) -> tuple:
+    """Return (decision, reason) for a download piped into an interpreter.
+
+    Fetching code and running it in one step means nothing reads it first,
+    so the remote host chooses what executes. Prohibited outright rather
+    than asked about: consent to `curl | bash` is consent to whatever the
+    URL serves at the moment it is fetched, which nobody can give.
+    """
+    downloads = False
+    for segment in segments:
+        if not segment:
+            continue
+        names = [os.path.basename(token).lower().removesuffix(".exe")
+                 for token in segment]
+        program = names[0]
+        # A wrapper such as sudo delegates to the next real program.
+        for name in names:
+            if name not in ("sudo", "doas", "env", "command", "nohup"):
+                program = name
+                break
+        if downloads and program in INPUT_EXECUTORS:
+            return "deny", ("a download piped into an interpreter: the remote "
+                            "host chooses what runs, and nothing reads it "
+                            "first")
+        downloads = program in DOWNLOADERS
+    return "", ""
+
+
+# Moving a file to a device discards it. The command reads as a move, and
+# the file is gone with no delete anywhere in the line.
+DISCARD_DESTINATIONS = ("/dev/null", "/dev/random", "/dev/urandom",
+                        "/dev/zero", "nul", "nul:")
+# chmod 000 and its symbolic equivalents leave a file nobody can open.
+NO_ACCESS_MODES = frozenset({"000", "0000", "00000", "a-rwx", "ugo-rwx",
+                             "ug-rwx", "a=", "ugo=", "u-rwx,g-rwx,o-rwx"})
+
+
+def disguised_destruction_verdict(program: str, args: list) -> tuple:
+    """Return (decision, reason) for destruction wearing another name."""
+    name = os.path.basename(program).lower().removesuffix(".exe")
+    operands = [token for token in args if not token.startswith("-")]
+    if name in ("mv", "move") and operands:
+        destination = operands[-1].strip().strip('"').strip("'").lower()
+        if destination.rstrip("/") in DISCARD_DESTINATIONS:
+            return "deny", (f"mv to {sanitize(destination)} discards the "
+                            "file: a delete that reads as a move")
+    if name == "chmod":
+        for token in operands:
+            if token.strip().lower() in NO_ACCESS_MODES:
+                return "deny", ("chmod to a mode nobody can read, write, or "
+                                "execute, which makes the file unusable "
+                                "without deleting it")
+    return "", ""
+
+
+# Running as another user is a decision about authority, not about the
+# command. It is asked for on its own terms, then the wrapped command is
+# judged separately and the stronger verdict wins.
+PRIVILEGE_PROGRAMS = frozenset({"sudo", "su", "doas", "pkexec", "runas",
+                                "gsudo", "please"})
+
+
+def privilege_verdict(tokens: list) -> tuple:
+    """Return (decision, reason) when a statement escalates privilege."""
+    for token in tokens:
+        name = os.path.basename(token).lower().removesuffix(".exe")
+        if name in PRIVILEGE_PROGRAMS:
+            return "ask", (f"{name}: running as another user is the user's "
+                           "call, whatever the command does")
+        if not token.startswith("-"):
+            break
+    return "", ""

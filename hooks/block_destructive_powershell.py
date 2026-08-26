@@ -52,8 +52,8 @@ except ImportError as error:  # pragma: no cover - exercised by the adoption tes
     print(_REASON, file=sys.stderr)
     sys.exit(2)
 
-GATED_KEYWORDS = ("remove-item", "ri", "rm", "del", "erase", "rd", "rmdir",
-                  "git", "remove-itemproperty")
+GATED_KEYWORDS = core.gated_keywords() + (
+    "remove-item", "ri", "remove-itemproperty")
 SEPARATORS = frozenset({";", "|", "&&", "||", "\n"})
 REMOVE_ALIASES = frozenset({"remove-item", "ri", "rm", "del", "erase", "rd",
                             "rmdir"})
@@ -151,7 +151,13 @@ def _strip_wrappers(tokens: list) -> list:
 
 def _statement_verdict(tokens: list) -> tuple:
     """Return (decision, reason) for one PowerShell statement."""
+    privileged = core.privilege_verdict(tokens)
     redirects = _redirect_targets(tokens)
+    return core.strongest(privileged, _program_verdict(tokens, redirects))
+
+
+def _program_verdict(tokens: list, redirects: list) -> tuple:
+    """Return (decision, reason) for the cmdlet this statement runs."""
     stripped = _strip_wrappers(tokens)
     if len(stripped) < len(tokens) and len(stripped) == 1 and " " in stripped[0]:
         # Invoke-Expression and the call operator take a command as one
@@ -172,10 +178,12 @@ def _statement_verdict(tokens: list) -> tuple:
                               core.cmd_delete_verdict(program, tokens[1:]))
     if program == "git":
         return core.git_verdict(tokens[1:], _CWD[0])
-    cmd_decision = core.cmd_delete_verdict(program, tokens[1:])
-    if cmd_decision[0]:
-        return cmd_decision
-    return core.test_write_verdict(program, tokens[1:], redirects)
+    for verdict in (core.destruction_verdict(program, tokens[1:]),
+                    core.cmd_delete_verdict(program, tokens[1:]),
+                    core.test_write_verdict(program, tokens[1:], redirects)):
+        if verdict[0]:
+            return verdict
+    return "", ""
 
 
 def classify(command) -> tuple:
@@ -187,7 +195,10 @@ def classify(command) -> tuple:
         tokens = _tokenize(line)
         if tokens is None:
             return core.unparseable_verdict(command.lower(), GATED_KEYWORDS)
-        for segment in _segments(tokens):
+        segments = _segments(tokens)
+        verdict = core.strongest(
+            verdict, core.remote_execution_verdict(segments))
+        for segment in segments:
             verdict = core.strongest(verdict, _statement_verdict(segment))
     return verdict
 
