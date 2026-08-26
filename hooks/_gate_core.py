@@ -239,6 +239,9 @@ def git_verdict(args: list, cwd: str = "") -> tuple:
         return git_verdict(expansion.split() + rest, cwd)
     if subcommand == "push":
         return push_verdict(rest)
+    alias_decision = alias_verdict("git", [subcommand] + rest)
+    if alias_decision[0]:
+        return alias_decision
     if subcommand == "clean":
         lowered = [token.lower() for token in rest]
         if any(flag in lowered for flag in ("-n", "--dry-run")):
@@ -562,13 +565,14 @@ RECOVERY_DESTRUCTION = {
 # Programs that write over a device or lay down a filesystem.
 DEVICE_WRITERS = frozenset({"mkfs", "diskpart", "format", "cipher", "fdisk",
                             "parted", "sgdisk", "wipefs", "blkdiscard",
-                            "shred", "sdelete", "wipe", "dd"})
+                            "shred", "sdelete", "wipe", "dd", "hdparm",
+                            "badblocks", "nvme"})
 # Programs with no purpose but to partition, format, or wipe. Unlike dd or
 # shred, no invocation of these operates on a single ordinary file, so an
 # unparseable one has no benign reading to fall back on.
 ALWAYS_DESTRUCTIVE = frozenset({"diskpart", "fdisk", "sgdisk", "parted",
                                 "wipefs", "blkdiscard", "mkfs", "format",
-                                "cipher", "dd"})
+                                "cipher", "dd", "hdparm"})
 # Programs that fetch a remote resource to standard output.
 DOWNLOADERS = frozenset({"curl", "wget", "fetch", "invoke-webrequest", "iwr",
                          "invoke-restmethod", "irm", "httpie", "http", "aria2c"})
@@ -749,7 +753,8 @@ def gated_keywords() -> tuple:
     names.update(LOGGING_DISABLERS)
     names.update(UNBOUNDED_OPERATIONS)
     names.update(CMD_DELETE_VERBS)
-    names.update({"mv", "move", "chmod"})
+    names.update({"mv", "move", "chmod", "chown", "chgrp", "cat", "tee",
+                  "alias", "kill", "killall", "pkill", "hdparm", "install"})
     names.update({"mkfs.ext4", "mkfs.xfs", "mkfs.btrfs", "mkfs.vfat"})
     return tuple(sorted(names))
 
@@ -825,4 +830,114 @@ def privilege_verdict(tokens: list) -> tuple:
                            "call, whatever the command does")
         if not token.startswith("-"):
             break
+    return "", ""
+
+
+# A shell rc file runs on every future session, so a line added to one
+# outlives the change that added it.
+SHELL_PROFILES = ("/.bashrc", "/.bash_profile", "/.bash_login",
+                  "/.bash_aliases", "/.bash_logout", "/.profile",
+                  "/.zshrc", "/.zshenv", "/.zprofile", "/.zlogin",
+                  "/.zlogout", "/.cshrc", "/.kshrc", "/.inputrc",
+                  "/.config/fish/config.fish")
+PROCESS_PROGRAMS = frozenset({"kill", "killall", "pkill", "skill",
+                              "taskkill", "stop-process"})
+ALIAS_PROGRAMS = frozenset({"alias", "set-alias", "new-alias", "doskey"})
+MODE_PROGRAMS = frozenset({"chmod", "chown", "chgrp", "icacls", "takeown"})
+# Emptying a file destroys it without naming a delete.
+TRUNCATION_SOURCES = ("/dev/null", "nul")
+
+
+def _names_shell_profile(tokens: list) -> str:
+    """Return the shell profile a token names, or an empty string."""
+    for token in tokens:
+        candidate = token.strip().strip('"').strip("'").replace("\\", "/")
+        lowered = candidate.lower()
+        if any(lowered.endswith(profile) or lowered == profile.lstrip("/")
+               for profile in SHELL_PROFILES):
+            return candidate
+    return ""
+
+
+def profile_verdict(program: str, args: list, redirects: list) -> tuple:
+    """Return (decision, reason) for a write to a shell startup file."""
+    name = os.path.basename(program).lower()
+    writes = name in ("tee", "sed", "cp", "mv", "install", "truncate", "dd")
+    named = _names_shell_profile(list(redirects) + (args if writes else []))
+    if not named:
+        return "", ""
+    return "ask", (f"a write to {sanitize(named)}, which runs at the start of "
+                   "every future shell session")
+
+
+def process_verdict(program: str, args: list) -> tuple:
+    """Return (decision, reason) for terminating processes."""
+    name = os.path.basename(program).lower().removesuffix(".exe")
+    if name not in PROCESS_PROGRAMS:
+        return "", ""
+    return "ask", (f"{name} terminating a process: what it stops and what "
+                   "that loses is the user's call")
+
+
+def alias_verdict(program: str, args: list) -> tuple:
+    """Return (decision, reason) for defining a command alias.
+
+    An alias makes one name run another command, which defeats reading a
+    command to know what it does. Listing aliases is not defining one.
+    """
+    name = os.path.basename(program).lower().removesuffix(".exe")
+    if name in ALIAS_PROGRAMS:
+        if not args or not any("=" in token or not token.startswith("-")
+                               for token in args):
+            return "", ""
+        return "deny", (f"{name} defining a command alias, which makes a name "
+                        "run something the name does not say")
+    if name == "git" and args and args[0] == "config":
+        settings = [token for token in args[1:] if not token.startswith("-")]
+        if settings and settings[0].lower().startswith("alias.") and len(settings) > 1:
+            return "deny", ("git config defining an alias, which makes a "
+                            "subcommand run something it does not name")
+    return "", ""
+
+
+def truncation_verdict(program: str, args: list, redirects: list) -> tuple:
+    """Return (decision, reason) for emptying a file or writing a device."""
+    for target in redirects:
+        cleaned = target.strip().strip('"').strip("'")
+        if _mentions_device([cleaned]):
+            return "deny", (f"a redirect onto {sanitize(cleaned)}, which "
+                            "writes over a device rather than a file")
+    if not redirects:
+        return "", ""
+    name = os.path.basename(program).lower() if program else ""
+    if not name or name == ":":
+        return "deny", ("a bare redirect, which empties the target without "
+                        "naming a delete")
+    if name == "cat" and any(
+            token.strip().lower().rstrip("/") in TRUNCATION_SOURCES
+            for token in args):
+        return "deny", ("a redirect from an empty device, which empties the "
+                        "target without naming a delete")
+    return "", ""
+
+
+def mode_change_verdict(program: str, args: list) -> tuple:
+    """Return (decision, reason) for a recursive mode change on a root."""
+    name = os.path.basename(program).lower().removesuffix(".exe")
+    if name not in MODE_PROGRAMS:
+        return "", ""
+    recursive = any(token.lower() in ("-r", "-recurse", "/t")
+                    or token.lower().startswith("--recursive")
+                    or (token.startswith("-") and not token.startswith("--")
+                        and "R" in token)
+                    for token in args)
+    if not recursive:
+        return "", ""
+    for token in args:
+        if token.startswith("-"):
+            continue
+        if is_root_target(token) or is_root_target(token.rstrip("/") + "/"):
+            return "deny", (f"recursive {name} across a root or system "
+                            "directory, which breaks every program that "
+                            "depends on those permissions")
     return "", ""

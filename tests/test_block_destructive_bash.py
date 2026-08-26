@@ -817,3 +817,117 @@ class WindowsPathModuleTest(unittest.TestCase):
         for target in self.NOT_ROOTS:
             with self.subTest(target=target):
                 self.assertFalse(self.core.is_root_target(target))
+
+
+class ShellProfileTest(unittest.TestCase):
+    """A shell rc file runs on every future session."""
+
+    ASK = (
+        "echo 'export X=1' >> ~/.bashrc",
+        "echo 'export X=1' > ~/.zshrc",
+        "sed -i 's/a/b/' ~/.bash_profile",
+        "cp custom.sh ~/.zshenv",
+        "tee -a ~/.profile",
+        "mv rc.sh ~/.bash_aliases",
+    )
+
+    def test_profile_writes_ask(self):
+        for command in self.ASK:
+            with self.subTest(command=command):
+                _, decision = run_hook(command)
+                self.assertEqual(decision, "ask")
+
+    def test_reading_a_profile_passes(self):
+        for command in ("cat ~/.bashrc", "grep PATH ~/.zshrc"):
+            with self.subTest(command=command):
+                _, decision = run_hook(command)
+                self.assertEqual(decision, "")
+
+
+class ProcessAndAliasTest(unittest.TestCase):
+    """Killing processes needs a person; defining an alias hides commands."""
+
+    ASK = ("kill 1234", "kill -9 1234", "killall node", "pkill -f python")
+
+    DENY = (
+        "alias ll='ls -la'",
+        "alias rm='rm -f'",
+        "git config alias.nuke 'push --force'",
+        "hdparm --user-master u --security-erase p /dev/sda",
+        "hdparm -I /dev/sda",
+    )
+
+    def test_process_termination_asks(self):
+        for command in self.ASK:
+            with self.subTest(command=command):
+                _, decision = run_hook(command)
+                self.assertEqual(decision, "ask")
+
+    def test_alias_definition_and_hdparm_deny(self):
+        for command in self.DENY:
+            with self.subTest(command=command):
+                _, decision = run_hook(command)
+                self.assertEqual(decision, "deny")
+
+    def test_listing_aliases_passes(self):
+        for command in ("alias", "git config --get-regexp alias"):
+            with self.subTest(command=command):
+                _, decision = run_hook(command)
+                self.assertEqual(decision, "")
+
+
+class TruncationTest(unittest.TestCase):
+    """Emptying a file destroys it without naming a delete."""
+
+    DENY = (
+        "> important.log",
+        ">important.log",
+        "cat /dev/null > important.log",
+        "cat /dev/null > src/app.js",
+        ": > important.log",
+        "echo x > /dev/sda",
+        "cat image.iso > /dev/nvme0n1",
+    )
+
+    ALLOW = (
+        "echo hello > greeting.txt",
+        "python build.py > build.log",
+        "cat a.txt > b.txt",
+    )
+
+    def test_truncation_and_device_redirects_deny(self):
+        for command in self.DENY:
+            with self.subTest(command=command):
+                _, decision = run_hook(command)
+                self.assertEqual(decision, "deny")
+
+    def test_ordinary_redirects_pass(self):
+        for command in self.ALLOW:
+            with self.subTest(command=command):
+                _, decision = run_hook(command)
+                self.assertEqual(decision, "")
+
+
+class MassChmodTest(unittest.TestCase):
+    """Recursive mode changes across a system tree break the machine."""
+
+    DENY = (
+        "chmod -R 777 /",
+        "chmod -R 755 /usr",
+        "chmod -R 644 /etc",
+        "chmod -R u+w /var",
+        "chown -R nobody /etc",
+        "chmod -R 777 C:\\",
+    )
+
+    def test_recursive_mode_change_on_a_root_denies(self):
+        for command in self.DENY:
+            with self.subTest(command=command):
+                _, decision = run_hook(command)
+                self.assertEqual(decision, "deny")
+
+    def test_recursive_mode_change_in_a_project_passes(self):
+        for command in ("chmod -R u+w src/", "chown -R me:me ./build"):
+            with self.subTest(command=command):
+                _, decision = run_hook(command)
+                self.assertEqual(decision, "")

@@ -261,7 +261,9 @@ def _segment_verdict(tokens: list) -> tuple:
 def _program_verdict(tokens: list, redirects: list) -> tuple:
     """Return (decision, reason) for the program this segment runs."""
     if not tokens:
-        return core.test_write_verdict("", [], redirects)
+        return core.strongest(
+            core.truncation_verdict("", [], redirects),
+            core.test_write_verdict("", [], redirects))
     program = os.path.basename(tokens[0])
     if program.lower() in INTERPRETERS:
         return _interpreter_verdict(program, tokens[1:])
@@ -269,9 +271,15 @@ def _program_verdict(tokens: list, redirects: list) -> tuple:
         return _rm_verdict(tokens[1:])
     if program == "git":
         return core.git_verdict(tokens[1:], _CWD[0])
-    for verdict in (core.destruction_verdict(program, tokens[1:]),
-                    core.cmd_delete_verdict(program, tokens[1:]),
-                    core.test_write_verdict(program, tokens[1:], redirects)):
+    args = tokens[1:]
+    for verdict in (core.destruction_verdict(program, args),
+                    core.alias_verdict(program, args),
+                    core.mode_change_verdict(program, args),
+                    core.truncation_verdict(program, args, redirects),
+                    core.process_verdict(program, args),
+                    core.profile_verdict(program, args, redirects),
+                    core.cmd_delete_verdict(program, args),
+                    core.test_write_verdict(program, args, redirects)):
         if verdict[0]:
             return verdict
     if not _is_plausible_program(program) and _mentions_gated_command(tokens):
