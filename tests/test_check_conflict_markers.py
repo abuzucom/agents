@@ -7,6 +7,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch, MagicMock
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 CHECKER_PATH = REPO_ROOT / "scripts" / "check_conflict_markers.py"
@@ -61,6 +62,49 @@ class ConflictMarkerDetectionTest(unittest.TestCase):
             violations[0],
         )
 
+    def test_size_1_conflict_block_detected(self):
+        """Genuine size-1 balanced conflict block is detected."""
+        content = "< HEAD\nleft\n=\nright\n> branch\n"
+        violations = checker.check_content(content, "test.py")
+        self.assertEqual(len(violations), 1)
+        self.assertIn(
+            "test.py:1-5: unresolved conflict block",
+            violations[0],
+        )
+
+    def test_size_1_with_configured_size_1_detected(self):
+        content = "< HEAD\nleft\n=\nright\n> branch\n"
+        violations = checker.check_content(
+            content, "test.py", configured_marker_size=1
+        )
+        self.assertEqual(len(violations), 1)
+        self.assertIn(
+            "test.py:1-5: unresolved conflict block",
+            violations[0],
+        )
+
+    def test_size_2_conflict_block_detected(self):
+        """Genuine size-2 balanced conflict block is detected."""
+        content = "<< HEAD\nleft\n==\nright\n>> branch\n"
+        violations = checker.check_content(content, "test.py")
+        self.assertEqual(len(violations), 1)
+        self.assertIn(
+            "test.py:1-5: unresolved conflict block",
+            violations[0],
+        )
+
+    def test_size_2_detected_with_different_configured_size(self):
+        """Size-2 block detected even when configured size is 10."""
+        content = "<< HEAD\nleft\n==\nright\n>> branch\n"
+        violations = checker.check_content(
+            content, "test.py", configured_marker_size=10
+        )
+        self.assertEqual(len(violations), 1)
+        self.assertIn(
+            "test.py:1-5: unresolved conflict block",
+            violations[0],
+        )
+
     def test_configurable_marker_size_detected_exact(self):
         content = "<<< HEAD\nleft\n===\nright\n>>> branch\n"
         violations = checker.check_content(
@@ -106,18 +150,6 @@ class ConflictMarkerDetectionTest(unittest.TestCase):
         )
         violations = checker.check_content(
             content, "test.md", configured_marker_size=10
-        )
-        self.assertEqual(len(violations), 1)
-        self.assertIn("unresolved conflict block", violations[0])
-
-    def test_size_1_ignored_but_generic_patterns_work(self):
-        """Size 1 is degenerate; generic patterns still detect."""
-        content = (
-            "<<<<<<< HEAD\nleft\n=======\n"
-            "right\n>>>>>>> branch\n"
-        )
-        violations = checker.check_content(
-            content, "test.py", configured_marker_size=1
         )
         self.assertEqual(len(violations), 1)
         self.assertIn("unresolved conflict block", violations[0])
@@ -335,6 +367,60 @@ class FileCheckingTest(unittest.TestCase):
                 self.assertIsNone(err)
             except (OSError, NotImplementedError):
                 pass  # symlinks may need privileges on Windows
+
+    def test_get_git_attributes_raises_on_git_failure(self):
+        """get_git_attributes fails closed on non-zero git exit."""
+        with patch("subprocess.run") as mock_run:
+            mock_proc = MagicMock()
+            mock_proc.returncode = 128
+            mock_proc.stderr = b"fatal: git check-attr error"
+            mock_run.return_value = mock_proc
+            with self.assertRaises(RuntimeError) as ctx:
+                checker.get_git_attributes(["foo.py"])
+            self.assertIn("git check-attr failed", str(ctx.exception))
+
+    def test_staged_utf16_working_tree_encoding_not_applied(self):
+        """Staged blob in index is decoded as UTF-8 without working-tree-encoding."""
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            repo_path = Path(tmp_dir)
+            # Simulate index entry with conflict text in UTF-8
+            sha = "fake_sha_1234"
+            with patch.object(checker, "_get_index_entries") as mock_entries, \
+                 patch.object(checker, "get_git_attributes") as mock_attrs, \
+                 patch.object(checker, "_get_blob_size") as mock_size, \
+                 patch.object(checker, "_read_blob") as mock_blob:
+                mock_entries.return_value = [
+                    ("test.txt", sha, "0", "100644")
+                ]
+                mock_attrs.return_value = {
+                    "test.txt": {"working-tree-encoding": "UTF-16LE"}
+                }
+                mock_size.return_value = 50
+                mock_blob.return_value = (
+                    b"<<<<<<< HEAD\nleft\n=======\n"
+                    b"right\n>>>>>>> branch\n"
+                )
+                violations = checker._check_staged(str(repo_path))
+                self.assertEqual(len(violations), 1)
+                self.assertIn("unresolved conflict block", violations[0])
+
+    def test_staged_oversized_blob_rejected_without_buffering(self):
+        """Blobs exceeding MAX_FILE_SIZE are rejected via size check."""
+        with patch.object(checker, "_get_index_entries") as mock_entries, \
+             patch.object(checker, "get_git_attributes") as mock_attrs, \
+             patch.object(checker, "_get_blob_size") as mock_size, \
+             patch.object(checker, "_read_blob") as mock_blob:
+            mock_entries.return_value = [
+                ("huge.bin", "fake_sha_huge", "0", "100644")
+            ]
+            mock_attrs.return_value = {}
+            mock_size.return_value = checker.MAX_FILE_SIZE + 100
+            violations = checker._check_staged(".")
+            self.assertEqual(len(violations), 1)
+            self.assertIn("blob size", violations[0])
+            self.assertIn("exceeds limit", violations[0])
+            # _read_blob must never have been called
+            mock_blob.assert_not_called()
 
 
 class GitTrackedFilesTest(unittest.TestCase):

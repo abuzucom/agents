@@ -31,18 +31,10 @@ MAX_VIOLATIONS = 100
 MARKDOWN_EXTENSIONS = {".md", ".markdown", ".mdown", ".mkdn", ".mdx"}
 CODE_FENCE_PATTERN = re.compile(r"^(`{3,}|~{3,})")
 
-DEFAULT_OPENER = re.compile(r"^(<{7,})(?: (.*))?$")
-DEFAULT_DIFF3 = re.compile(r"^(\|{7,})(?: (.*))?$")
-DEFAULT_SEPARATOR = re.compile(r"^={7,}$")
-DEFAULT_CLOSER = re.compile(r"^(>{7,})(?: (.*))?$")
-
-# Catch balanced shorter markers from width 3 to 6
-SHORT_OPENER = re.compile(r"^(<{3,6})(?: (.*))?$")
-SHORT_DIFF3 = re.compile(r"^(\|{3,6})(?: (.*))?$")
-SHORT_SEPARATOR = re.compile(r"^={3,6}$")
-SHORT_CLOSER = re.compile(r"^(>{3,6})(?: (.*))?$")
-
-ORPHAN_SEPARATOR_PATTERN = re.compile(r"^={3,}$")
+OPENER_PATTERN = re.compile(r"^(<+)(?: (.*))?$")
+DIFF3_PATTERN = re.compile(r"^(\|+) *(?: (.*))?$")
+SEPARATOR_PATTERN = re.compile(r"^(=+)$")
+CLOSER_PATTERN = re.compile(r"^(>+)(?: (.*))?$")
 
 
 def is_markdown_file(path: str) -> bool:
@@ -118,37 +110,15 @@ def check_content(
 ) -> list[str]:
     """Scan text for conflict blocks and orphan markers.
 
-    Always applies generic patterns (width 3-6 and 7+). Adds exact-width
-    patterns for configured_marker_size >= 2. Width < 2 is degenerate
-    (single characters produce unbounded false positives) and ignored.
+    Parses balanced conflict blocks for any positive marker width (N >= 1).
+    Flags unclosed openers, mismatched closers, and orphan markers for
+    width >= 3 or matching configured_marker_size. Allows Setext headings
+    in Markdown only when preceded by valid heading text.
     """
     violations: list[str] = []
     lines = text.splitlines()
     open_marker_line: int | None = None
     open_marker_len = 0
-
-    if (
-        configured_marker_size is not None
-        and configured_marker_size >= 2
-    ):
-        exact_opener = re.compile(
-            rf"^(<{{{configured_marker_size}}})(?: (.*))?$"
-        )
-        exact_diff3 = re.compile(
-            rf"^(\|{{{configured_marker_size}}})(?: (.*))?$"
-        )
-        exact_separator = re.compile(
-            rf"^={{{configured_marker_size}}}$"
-        )
-        exact_closer = re.compile(
-            rf"^(>{{{configured_marker_size}}})(?: (.*))?$"
-        )
-    else:
-        exact_opener = None
-        exact_diff3 = None
-        exact_separator = None
-        exact_closer = None
-
     markdown = is_markdown_file(path)
 
     for number, line in enumerate(lines, 1):
@@ -162,49 +132,30 @@ def check_content(
         if len(line) > MAX_LINE_LENGTH:
             line = line[:MAX_LINE_LENGTH]
 
-        # Always apply generic patterns first
-        opener_match = (
-            DEFAULT_OPENER.match(line)
-            or SHORT_OPENER.match(line)
-        )
-        diff3_match = (
-            DEFAULT_DIFF3.match(line)
-            or SHORT_DIFF3.match(line)
-        )
-        separator_match = (
-            DEFAULT_SEPARATOR.match(line)
-            or SHORT_SEPARATOR.match(line)
-        )
-        closer_match = (
-            DEFAULT_CLOSER.match(line)
-            or SHORT_CLOSER.match(line)
-        )
-
-        # Add configured-width patterns if not already matched
-        if exact_opener and not opener_match:
-            opener_match = exact_opener.match(line)
-        if exact_diff3 and not diff3_match:
-            diff3_match = exact_diff3.match(line)
-        if exact_separator and not separator_match:
-            separator_match = exact_separator.match(line)
-        if exact_closer and not closer_match:
-            closer_match = exact_closer.match(line)
+        opener_match = OPENER_PATTERN.match(line)
+        closer_match = CLOSER_PATTERN.match(line)
+        diff3_match = DIFF3_PATTERN.match(line)
+        separator_match = SEPARATOR_PATTERN.match(line)
 
         if opener_match:
             marker_len = len(opener_match.group(1))
             if open_marker_line is not None:
-                violations.append(
-                    f"{path}:{open_marker_line}: "
-                    "unclosed conflict marker opener"
-                )
+                if (
+                    open_marker_len >= 3
+                    or (
+                        configured_marker_size is not None
+                        and open_marker_len == configured_marker_size
+                    )
+                ):
+                    violations.append(
+                        f"{path}:{open_marker_line}: "
+                        "unclosed conflict marker opener"
+                    )
             open_marker_line = number
             open_marker_len = marker_len
         elif closer_match:
             marker_len = len(closer_match.group(1))
-            if (
-                open_marker_line is not None
-                and marker_len == open_marker_len
-            ):
+            if open_marker_line is not None and marker_len == open_marker_len:
                 violations.append(
                     f"{path}:{open_marker_line}-{number}: "
                     "unresolved conflict block"
@@ -212,49 +163,86 @@ def check_content(
                 open_marker_line = None
                 open_marker_len = 0
             elif open_marker_line is not None:
-                violations.append(
-                    f"{path}:{open_marker_line}: "
-                    "unclosed conflict marker opener"
-                )
-                violations.append(
-                    f"{path}:{number}: "
-                    f"mismatched conflict marker closer '{line}'"
-                )
+                if (
+                    open_marker_len >= 3
+                    or (
+                        configured_marker_size is not None
+                        and open_marker_len == configured_marker_size
+                    )
+                ):
+                    violations.append(
+                        f"{path}:{open_marker_line}: "
+                        "unclosed conflict marker opener"
+                    )
+                if (
+                    marker_len >= 3
+                    or (
+                        configured_marker_size is not None
+                        and marker_len == configured_marker_size
+                    )
+                ):
+                    violations.append(
+                        f"{path}:{number}: "
+                        f"mismatched conflict marker closer '{line}'"
+                    )
                 open_marker_line = None
                 open_marker_len = 0
             else:
-                violations.append(
-                    f"{path}:{number}: "
-                    f"orphan conflict marker closer '{line}'"
-                )
+                if (
+                    marker_len >= 3
+                    or (
+                        configured_marker_size is not None
+                        and marker_len == configured_marker_size
+                    )
+                ):
+                    violations.append(
+                        f"{path}:{number}: "
+                        f"orphan conflict marker closer '{line}'"
+                    )
         elif diff3_match:
             if open_marker_line is None:
-                violations.append(
-                    f"{path}:{number}: "
-                    f"orphan conflict marker separator '{line}'"
-                )
-        elif (
-            separator_match
-            or ORPHAN_SEPARATOR_PATTERN.match(line)
-        ):
+                marker_len = len(diff3_match.group(1))
+                if (
+                    marker_len >= 3
+                    or (
+                        configured_marker_size is not None
+                        and marker_len == configured_marker_size
+                    )
+                ):
+                    violations.append(
+                        f"{path}:{number}: "
+                        f"orphan conflict marker separator '{line}'"
+                    )
+        elif separator_match:
+            marker_len = len(separator_match.group(1))
             if open_marker_line is not None:
                 pass  # inside open conflict block
-            elif (
-                markdown
-                and is_valid_setext_heading(lines, number - 1)
-            ):
+            elif markdown and is_valid_setext_heading(lines, number - 1):
                 pass  # valid Setext heading underline
-            else:
+            elif (
+                marker_len >= 3
+                or (
+                    configured_marker_size is not None
+                    and marker_len == configured_marker_size
+                )
+            ):
                 violations.append(
                     f"{path}:{number}: "
                     f"orphan conflict marker separator '{line}'"
                 )
 
     if open_marker_line is not None:
-        violations.append(
-            f"{path}:{open_marker_line}: "
-            "unclosed conflict marker opener"
-        )
+        if (
+            open_marker_len >= 3
+            or (
+                configured_marker_size is not None
+                and open_marker_len == configured_marker_size
+            )
+        ):
+            violations.append(
+                f"{path}:{open_marker_line}: "
+                "unclosed conflict marker opener"
+            )
 
     return violations
 
@@ -347,9 +335,31 @@ def get_git_attributes(
         return {}
 
     attributes: dict[str, dict[str, str]] = {}
+    repo_paths: list[tuple[str, str]] = []
+
+    if repo_root:
+        norm_root = os.path.abspath(repo_root)
+        for p in paths:
+            abs_p = os.path.abspath(p)
+            try:
+                rel_p = os.path.relpath(abs_p, norm_root)
+                if (
+                    not rel_p.startswith("..")
+                    and not os.path.isabs(rel_p)
+                ):
+                    repo_paths.append((p, rel_p))
+            except ValueError:
+                pass
+    else:
+        repo_paths = [(p, p) for p in paths]
+
+    if not repo_paths:
+        return attributes
+
     chunk_size = 500
-    for i in range(0, len(paths), chunk_size):
-        chunk = paths[i : i + chunk_size]
+    for i in range(0, len(repo_paths), chunk_size):
+        chunk = repo_paths[i : i + chunk_size]
+        rel_chunk = [rel for _, rel in chunk]
         cmd = [
             "git", "--no-pager",
             "-c", "core.fsmonitor=",
@@ -361,22 +371,36 @@ def get_git_attributes(
         if cached:
             cmd.append("--cached")
         cmd.append("--")
-        cmd.extend(chunk)
+        cmd.extend(rel_chunk)
         kwargs: dict = {"capture_output": True, "check": False}
         if repo_root:
             kwargs["cwd"] = repo_root
         proc = subprocess.run(cmd, **kwargs)
         if proc.returncode != 0:
-            continue
+            error_msg = proc.stderr.decode(
+                "utf-8", errors="replace"
+            ).strip()
+            raise RuntimeError(
+                f"git check-attr failed (exit {proc.returncode}): "
+                f"{error_msg}"
+            )
         raw = proc.stdout
         parts = raw.split(b"\x00")
+        raw_attrs: dict[str, dict[str, str]] = {}
         for j in range(0, len(parts) - 2, 3):
             fp = parts[j].decode("utf-8", errors="replace")
             attr = parts[j + 1].decode("utf-8", errors="replace")
             val = parts[j + 2].decode("utf-8", errors="replace")
-            if fp not in attributes:
-                attributes[fp] = {}
-            attributes[fp][attr] = val
+            if fp not in raw_attrs:
+                raw_attrs[fp] = {}
+            raw_attrs[fp][attr] = val
+
+        for orig_p, rel_p in chunk:
+            attrs = raw_attrs.get(
+                rel_p, raw_attrs.get(orig_p, {})
+            )
+            attributes[orig_p] = attrs
+            attributes[rel_p] = attrs
 
     return attributes
 
@@ -497,10 +521,14 @@ def _get_index_entries(
     return entries
 
 
-def _read_blob(sha: str, repo_root: str) -> bytes:
-    """Read a single blob from the git object store."""
+def _get_blob_size(sha: str, repo_root: str) -> int:
+    """Query object size without buffering object data."""
     result = subprocess.run(
-        ["git", "--no-pager", "cat-file", "blob", sha],
+        [
+            "git", "--no-pager",
+            "-c", "core.fsmonitor=",
+            "cat-file", "-s", sha,
+        ],
         capture_output=True,
         check=False,
         cwd=repo_root,
@@ -510,16 +538,46 @@ def _read_blob(sha: str, repo_root: str) -> bytes:
             "utf-8", errors="replace"
         ).strip()
         raise RuntimeError(
+            f"git cat-file -s {sha[:12]} failed: {error_msg}"
+        )
+    return int(result.stdout.decode("utf-8", errors="replace").strip())
+
+
+def _read_blob(
+    sha: str, repo_root: str, max_size: int = MAX_FILE_SIZE
+) -> bytes:
+    """Read a single blob from the git object store with size limit."""
+    proc = subprocess.Popen(
+        [
+            "git", "--no-pager",
+            "-c", "core.fsmonitor=",
+            "cat-file", "blob", sha,
+        ],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        cwd=repo_root,
+    )
+    data, err = proc.communicate()
+    if proc.returncode != 0:
+        error_msg = err.decode("utf-8", errors="replace").strip()
+        raise RuntimeError(
             f"git cat-file blob {sha[:12]} failed: {error_msg}"
         )
-    return result.stdout
+    if len(data) > max_size:
+        raise RuntimeError(
+            f"blob {sha[:12]} size ({len(data)} bytes) exceeds "
+            f"limit ({max_size} bytes)"
+        )
+    return data
 
 
 def _check_staged(repo_root: str) -> list[str]:
     """Check staged index blobs for conflict markers.
 
     Reads from the object store, not the worktree. Flags unmerged
-    entries (stage > 0) as violations.
+    entries (stage > 0) as violations. Index blobs are stored in
+    canonical format (UTF-8 or BOM) so working-tree-encoding is not
+    applied when decoding staged blobs.
     """
     entries = _get_index_entries(repo_root)
 
@@ -538,9 +596,12 @@ def _check_staged(repo_root: str) -> list[str]:
         stage0_regular.append((file_path, sha))
 
     paths = [p for p, _ in stage0_regular]
-    attributes = get_git_attributes(
-        paths, repo_root=repo_root, cached=True
-    )
+    try:
+        attributes = get_git_attributes(
+            paths, repo_root=repo_root, cached=True
+        )
+    except RuntimeError as err:
+        return [f"error: {err}"]
 
     for file_path, sha in stage0_regular:
         if len(violations) >= MAX_VIOLATIONS:
@@ -554,23 +615,29 @@ def _check_staged(repo_root: str) -> list[str]:
         conf_size = _parse_marker_size(
             file_attrs.get("conflict-marker-size")
         )
-        encoding = file_attrs.get("working-tree-encoding")
 
         try:
-            raw_bytes = _read_blob(sha, repo_root)
-        except RuntimeError as err:
-            violations.append(f"error: {err}")
+            blob_size = _get_blob_size(sha, repo_root)
+        except (RuntimeError, ValueError) as err:
+            violations.append(f"error: {file_path}: {err}")
             continue
 
-        if len(raw_bytes) > MAX_FILE_SIZE:
+        if blob_size > MAX_FILE_SIZE:
             violations.append(
                 f"error: {file_path}: blob size "
-                f"({len(raw_bytes)} bytes) exceeds limit "
+                f"({blob_size} bytes) exceeds limit "
                 f"({MAX_FILE_SIZE} bytes)"
             )
             continue
 
-        text, decode_err = decode_content(raw_bytes, encoding)
+        try:
+            raw_bytes = _read_blob(sha, repo_root, MAX_FILE_SIZE)
+        except RuntimeError as err:
+            violations.append(f"error: {err}")
+            continue
+
+        # Do not apply working-tree-encoding to staged index blobs
+        text, decode_err = decode_content(raw_bytes, None)
         if decode_err:
             violations.append(f"error: {file_path}: {decode_err}")
             continue
@@ -632,7 +699,11 @@ def main() -> int:
             else:
                 files.append(arg)
 
-    attributes = get_git_attributes(files, repo_root=repo_root)
+    try:
+        attributes = get_git_attributes(files, repo_root=repo_root)
+    except RuntimeError as err:
+        print(f"error: {err}", file=sys.stderr)
+        return 1
 
     violations: list[str] = []
     for path in files:
