@@ -72,6 +72,22 @@ def edit_payload(file_path: str, old: str, new: str, mode: str = "default") -> d
     }
 
 
+def _symlinks_available(directory: str) -> bool:
+    """Return True when this platform lets an unprivileged process link.
+
+    Windows raises WinError 1314 without Developer Mode or elevation, so
+    an unconditional symlink fixture fails the suite for an ordinary
+    contributor on a supported platform.
+    """
+    probe = Path(directory) / "_symlink_probe"
+    try:
+        probe.symlink_to(directory)
+    except (OSError, NotImplementedError):
+        return False
+    probe.unlink()
+    return True
+
+
 class TestFileFixture(unittest.TestCase):
     """Base class providing a real test file on disk."""
 
@@ -317,11 +333,17 @@ class PathAliasTest(unittest.TestCase):
         return decision_of(parsed)
 
     def test_symlink_with_an_innocuous_name_is_still_a_test(self):
+        if not _symlinks_available(self.tmp.name):
+            self.skipTest("this platform needs elevation to create symlinks; "
+                          "HardLinkTest covers alias resolution without it")
         alias = Path(self.root) / "notes.txt"
         alias.symlink_to(self.test_file)
         self.assertEqual(self._edit(str(alias)), "ask")
 
     def test_test_named_symlink_pointing_outside_the_root_is_gated(self):
+        if not _symlinks_available(self.tmp.name):
+            self.skipTest("this platform needs elevation to create symlinks; "
+                          "HardLinkTest covers alias resolution without it")
         outside = tempfile.TemporaryDirectory()
         self.addCleanup(outside.cleanup)
         target = Path(os.path.realpath(outside.name)) / "payload.js"

@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added a pushed-history line stating that `--force-with-lease` is not an exception and neither is a branch you created minutes ago.
 
 ### Changed
+- Skipped the two symlink fixtures with a recorded reason where the platform needs elevation to create a link. Windows raises `WinError 1314` without Developer Mode, so an unconditional fixture failed the suite for an ordinary contributor. The hard-link fixture covers alias resolution and needs no privilege.
 - Routed Bash writes that reach a test file through the same consent decision as an `Edit`: a redirect, a here-document, `tee`, `sed -i`, `cp`, and `mv`. Rule 3 applied to the same act through one tool and not the other, and #134 recorded the redirect as a known gap. Reading or running a test is untouched.
 - Moved the test-path classifier into `_gate_core.py`, so the consent gate and the shell gates decide from one definition instead of two.
 - Classified the command a shell is handed rather than the shell's own name. `bash -c 'rm -rf /tmp/x'` and `sh -c` read as the program `bash` and passed. The payload after `-c` is now classified as a nested command, for `bash`, `sh`, `zsh`, `dash`, `ksh`, `busybox`, and `cmd`, including combined short groups such as `-lc`. A shell invoked without a command string is not gated on its own name.
