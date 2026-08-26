@@ -336,3 +336,52 @@ class NonBashTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class InterpreterWrapperTest(unittest.TestCase):
+    """A shell invoked as a program hides the command it is handed."""
+
+    NESTED_DELETE = (
+        ("bash -c 'rm -rf /tmp/x'", "ask"),
+        ("sh -c 'rm -rf /tmp/x'", "ask"),
+        ("zsh -c 'rm -rf /tmp/x'", "ask"),
+        ("dash -c 'rm -rf /tmp/x'", "ask"),
+        ("ksh -c 'rm -rf /tmp/x'", "ask"),
+        ("/bin/bash -c 'rm -rf /tmp/x'", "ask"),
+        ("busybox sh -c 'rm -rf /tmp/x'", "ask"),
+        ("bash -c 'rm -rf /'", "deny"),
+        ("bash -lc 'git push --force'", "deny"),
+        ("sudo bash -c 'rm -rf /tmp/x'", "ask"),
+    )
+
+    def test_nested_shell_commands_are_classified(self):
+        for command, expected in self.NESTED_DELETE:
+            with self.subTest(command=command):
+                _, decision = run_hook(command)
+                self.assertEqual(decision, expected)
+
+    def test_shell_without_a_payload_is_not_gated(self):
+        for command in ("bash --version", "sh -n script.sh", "bash"):
+            with self.subTest(command=command):
+                _, decision = run_hook(command)
+                self.assertEqual(decision, "")
+
+
+class CmdVerbTest(unittest.TestCase):
+    """CMD reaches this gate nested inside a shell, so its verbs count."""
+
+    CASES = (
+        ("cmd /c rd /s /q C:\\\\work\\\\build", "ask"),
+        ("cmd.exe /c del /f /s /q C:\\\\work\\\\build", "ask"),
+        ("cmd /C RMDIR /S /Q C:\\\\work\\\\build", "ask"),
+        ("cmd /k erase /s C:\\\\work\\\\build", "ask"),
+        ("cmd /c rd /s /q %USERPROFILE%", "deny"),
+        ("cmd /c echo hello", ""),
+        ("cmd /c del build.log", ""),
+    )
+
+    def test_cmd_deletion_verbs_are_classified(self):
+        for command, expected in self.CASES:
+            with self.subTest(command=command):
+                _, decision = run_hook(command)
+                self.assertEqual(decision, expected)

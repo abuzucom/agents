@@ -25,7 +25,8 @@ import sys
 INTERACTIVE_MODES = frozenset({"default", "plan", "acceptEdits", "auto"})
 AMBIGUOUS_MARKERS = ("$", "`")
 FILESYSTEM_ROOTS = frozenset({"/", "//", "/*"})
-HOME_PREFIXES = ("~", "$HOME", "${HOME}", "$env:USERPROFILE", "$Env:USERPROFILE")
+HOME_PREFIXES = ("~", "$HOME", "${HOME}", "$env:USERPROFILE",
+                 "$Env:USERPROFILE", "%USERPROFILE%", "%HOMEPATH%")
 GIT_VALUE_OPTIONS = frozenset({
     "-C", "-c", "--exec-path", "--git-dir", "--work-tree", "--namespace",
     "--config-env", "--super-prefix",
@@ -256,3 +257,26 @@ def resolved_under(root: str, *parts: str):
     if candidate == base or candidate.startswith(base + os.sep):
         return candidate
     return None
+
+
+CMD_DELETE_VERBS = frozenset({"del", "erase", "rd", "rmdir"})
+CMD_RECURSIVE_FLAGS = frozenset({"/s"})
+
+
+def cmd_delete_verdict(program: str, args: list) -> tuple:
+    """Return (decision, reason) for a CMD deletion verb.
+
+    CMD flags are slash-prefixed and case-insensitive, and rd and rmdir
+    remove a directory tree whenever /s is present. del and erase take
+    /s to recurse into subdirectories.
+    """
+    if program.lower() not in CMD_DELETE_VERBS:
+        return "", ""
+    recursive = False
+    operands = []
+    for token in args:
+        if token.startswith("/"):
+            recursive = recursive or token.lower() in CMD_RECURSIVE_FLAGS
+        else:
+            operands.append(token)
+    return delete_verdict(recursive, operands, f"recursive {program.lower()}")

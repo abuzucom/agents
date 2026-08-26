@@ -70,6 +70,11 @@ GATED_KEYWORDS = ("rm", "git")
 OPERATOR_CHARS = frozenset("&|;")
 GROUPING = frozenset({"(", ")", "\n"})
 WRAPPERS = frozenset({"sudo", "doas", "env", "time", "nohup", "nice", "command", "xargs", "timeout"})
+# A shell handed a command string is a wrapper whose payload is another
+# command. Reading only the program name sees "bash" and stops there.
+INTERPRETERS = frozenset({"bash", "sh", "zsh", "dash", "ksh", "busybox",
+                          "cmd", "cmd.exe"})
+INTERPRETER_PAYLOAD_FLAGS = frozenset({"-c", "--command", "/c", "/k"})
 # Wrapper options that consume the token after them. Without these,
 # `sudo -u root rm -rf /` leaves `root` as the apparent program.
 WRAPPER_VALUE_OPTIONS = {
@@ -195,16 +200,49 @@ def _rm_verdict(args: list) -> tuple:
     return core.delete_verdict(recursive, operands, "recursive rm")
 
 
+def _interpreter_verdict(program: str, args: list) -> tuple:
+    """Return (decision, reason) for a shell handed a command string.
+
+    Only the payload after -c, /c, or /k is another command. A shell
+    invoked without one runs a script or a REPL, which this gate cannot
+    read either way, so it is not gated on the interpreter's own name.
+    """
+    for index, token in enumerate(args):
+        lowered = token.lower()
+        if lowered in INTERPRETER_PAYLOAD_FLAGS:
+            rest = args[index + 1:]
+            if not rest:
+                return "", ""
+            # A POSIX shell takes one string after -c. CMD takes the whole
+            # remainder of the line after /c or /k.
+            if lowered.startswith("/"):
+                return classify(" ".join(rest))
+            return classify(rest[0])
+        # busybox sh -c: the applet name precedes the flag
+        if not token.startswith(("-", "/")) and lowered in INTERPRETERS:
+            return _interpreter_verdict(lowered, args[index + 1:])
+        # a combined short group such as -lc still carries the payload
+        if token.startswith("-") and not token.startswith("--") and "c" in token:
+            payload = args[index + 1:index + 2]
+            return classify(payload[0]) if payload else ("", "")
+    return "", ""
+
+
 def _segment_verdict(tokens: list) -> tuple:
     """Return (decision, reason) for one command segment."""
     tokens = _strip_prefixes(tokens)
     if not tokens:
         return "", ""
     program = os.path.basename(tokens[0])
+    if program.lower() in INTERPRETERS:
+        return _interpreter_verdict(program, tokens[1:])
     if program == "rm":
         return _rm_verdict(tokens[1:])
     if program == "git":
         return core.git_verdict(tokens[1:])
+    cmd_decision = core.cmd_delete_verdict(program, tokens[1:])
+    if cmd_decision[0]:
+        return cmd_decision
     if not _is_plausible_program(program) and _mentions_gated_command(tokens):
         return "ask", "the command boundaries could not be interpreted, so the gate cannot clear it"
     return "", ""
