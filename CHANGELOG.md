@@ -95,6 +95,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Added `tests/test_check_hook_coverage.py`, 13 tests over the comparison and the statement accounting. It does not run the gate end to end, because the gate runs the suite and a suite that runs itself does not terminate.
 - Fixed a bootstrap deadlock in the coverage gate, found by installing it a second time. `--write-baseline` runs the suite, and the suite asserted the baseline exists, so the first baseline could never be produced. The baseline tests now skip when there is none. CI still fails on a missing baseline, through the gate rather than the suite.
 - Renamed the tracer directory from `tools/coverage` to `tools/hook-trace`. `coverage/` is one of the commonest `.gitignore` entries, and it silently excluded the file from the adopting repository's commit. The gate then reads no traced lines and reports every statement as unreached, so the failure arrives as a wall of noise rather than as the missing file it is. Any adopter with that line would have hit it.
+- Made the coverage gate refuse to write a baseline as root, and say so when it disagrees there. A mode 000 file is readable for root, so the two `OSError` branches in `require_consent.py` that a permission denial takes never fire in a root shell. The first baseline was written in one and failed CI, which measures as an ordinary user. The baseline now holds CI's values.
 - Synced the AGENTS.md additions into all eight tool copies.
 
 ## [1.12.0] (2026-08-20)

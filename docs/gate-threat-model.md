@@ -153,6 +153,19 @@ nobody maintains stops being a limit and becomes a place to hide.
 Every entry in that baseline needs a reason here. An entry nobody can explain
 is untested code, not a recorded one.
 
+The baseline is measured in CI, and the tool refuses to write one as root. A
+mode 000 file is readable for root, so the two `OSError` branches in
+`require_consent.py` that a permission denial would take never fire in a root
+shell and do fire for an ordinary user. A baseline written as root records
+fewer unreached statements than CI finds and fails the check it exists to
+satisfy.
+
+That difference also means `test_unreadable_test_file_is_gated` passes without
+testing what it names when the suite runs as root: the file it chmods to 000
+stays readable, so the ordinary path runs and the assertion holds for the wrong
+reason. The gate surfaced it; whether to change the test is the maintainer's
+call under Rule 3.
+
 ## Keeping this current
 
 Every finding, from any round, lands here as a covered item or as a stated
