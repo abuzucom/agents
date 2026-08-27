@@ -39,6 +39,14 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Added copy instructions to Rules 2 and 3, in the shape Rule 14 and the branch-naming section already use: which files to copy, which matcher registers them, which suite comes with them, and the Rule 9 reminder that a hook is tooling the user approves first.
 
 ### Changed
+- Replaced pickle hook-coverage trace files with validated JSON. Test processes
+  influence the trace directory, so loading those files with `pickle.load`
+  allowed a crafted test artifact to execute code in the coverage checker.
+- Classified command strings passed to Bash `eval`, treated `exec` as a command
+  prefix, and routed unresolved `eval` expansions to the user. These builtins
+  previously hid destructive commands from the gate.
+- Included `scripts/` in the shell-write consent paths because repository hooks
+  execute branch-name and identity checkers from that directory.
 - Replaced the spaced hyphen in the `# pragma: no cover` and
   `# noqa: BLE001` comments with parentheses. `scripts/check_ascii.py`
   reads a spaced hyphen as an em-dash substitute, which the house style
