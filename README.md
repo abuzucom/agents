@@ -164,6 +164,45 @@ request through `.github/workflows/sync-check.yml`.
     regex for a repo that commits under another convention. Propose it to
     the user first, like any other new tooling (Rule 9).
 
+12. Wire the consent gate in the same change. Copy
+    `hooks/require_consent.py` and `hooks/_gate_core.py`, which it
+    imports; a gate copied without the core raises `ImportError` at
+    startup, which exits non-zero but not 2, and Claude Code treats that
+    as a non-blocking error, so the gate fails open in exactly the repo
+    that installed it. The gate denies and exits 2 on a missing core
+    rather than crashing, but the copy still has to include it. Merge the
+    `SessionStart` and the `Edit|Write|MultiEdit|NotebookEdit` entries
+    from `hooks/claude-code-settings.example.json`, and copy
+    `tests/test_require_consent.py`. Decide the launcher: the example
+    names `python`, which resolves on Windows and on GitHub runners, and
+    Debian without `python-is-python3` needs `python3` instead. The
+    suite asserts the configured string resolves, so a wrong value fails
+    a test rather than silently disabling every gate. Propose the hook,
+    the test step, and any CI job to the user first, like any other new
+    tooling (Rule 9).
+13. Wire the shell gates in the same change, if the target repo wants
+    them. Copy `hooks/block_destructive_bash.py`,
+    `hooks/block_destructive_powershell.py`, and `hooks/_gate_core.py`,
+    then merge the `Bash` and `PowerShell` entries from the same example
+    file. Copy `tests/test_block_destructive_bash.py`,
+    `tests/test_block_destructive_powershell.py`, and
+    `tests/test_gate_parity.py`. The parity suite is not optional
+    decoration: it asserts the two gates reach identical verdicts and
+    that neither defines a decision function of its own, which is what
+    stops a fix from landing in one and missing the other. Read Rule 2
+    before adopting these, since the refusal list is long and a repo that
+    formats disks or wipes volumes as ordinary work should not take them
+    unchanged.
+14. Keep a drift record. A file copied from this template and then
+    modified locally is invisible here, which is how
+    `check_commit_message.py` came to block in one repo and warn in
+    another undetected. Record every local difference in the adopting
+    repo, and open an issue in `abuzucom/agents` naming the file, the
+    change, and whether you recommend upstreaming it, so maintainers can
+    adopt it or decline it. Settings files and repo-specific sections are
+    expected to differ and need no issue; a template file you modified
+    does. Nothing verifies any of this.
+
 ### Checker reference
 
 `scripts/check_banned_agents.py` backs Banned agents below, not this table.

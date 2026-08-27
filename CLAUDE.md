@@ -95,6 +95,8 @@ An unattended session turns every prompt into a refusal, since consent cannot be
 
 The gates read a command's shape, not a stream of events. Rate and volume analytics, "N deletions in M minutes" and correlation with login anomalies, need telemetry a per-call hook does not have. A command behind an alias to a shell function, a wrapper script on `PATH`, or a variable holding a program name is invisible to them.
 
+Wire the gates into a repository in the same change that adds this file: copy `hooks/block_destructive_bash.py`, `hooks/block_destructive_powershell.py`, and `hooks/_gate_core.py`, which both import, and register them in `.claude/settings.json` under `PreToolUse` on the `Bash` and `PowerShell` matchers. Copy `tests/test_gate_parity.py` with them; it fails when the two gates reach different verdicts on the same act. A gate copied without the core denies and exits 2 rather than failing open, but the copy is still incomplete. Adding a hook or a CI job is tooling: propose it to the user for approval first, per Rule 9.
+
 ### 3. Do not change tests to make code pass
 
 Never edit, weaken, skip, or delete a test to get a pass. Do not soften assertions, widen tolerances, or mock away behavior under test.
@@ -103,7 +105,9 @@ If a test is wrong, stop, report it, and wait for a human decision.
 Disclosure is not a substitute for stopping. Writing the violation into a plan file, a commit message, or a pull request body does not convert a stop condition into a disclosure obligation.
 Neither does judging that the rule's purpose does not reach this case. A comment recording why a test asserts what it asserts is a person's decision written down, not an invitation to overrule it.
 Deliberately changing a specification is still this rule: the test states the current specification, so changing it is the human's call.
-Backed by `hooks/require_consent.py`, which routes an edit that removes, rewrites, or weakens existing test content to the user for a decision at the act. Adding a test, or appending one at the end of an existing file, is not gated. Anything else, including an edit that keeps an assertion's text while commenting it out or moving it into a branch that never runs, is.
+Backed by `hooks/require_consent.py`, which routes every edit to a test file that already exists to the user for a decision at the act. It reads the path, never the content: creating a new test file is unprompted, and an append is not, because no textual check separates a new test from a statement that neutralizes every test above it. Setting `ExistingTest = None` at the end of a file is one line and disables the whole class.
+
+Wire it in the same change that adds this file: copy `hooks/require_consent.py` and `hooks/_gate_core.py`, which it imports, register it in `.claude/settings.json` under `PreToolUse` on the `Edit|Write|MultiEdit|NotebookEdit` matcher, and copy `tests/test_require_consent.py`. The Bash gate covers the same files reached through a redirect, `tee`, `sed -i`, `cp`, or `mv`, so adopt both or neither. Adding a hook or a CI job is tooling: propose it to the user for approval first, per Rule 9.
 
 ### 4. Stay within the user's intent
 
