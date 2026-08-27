@@ -93,6 +93,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Added `scripts/check_hook_coverage.py` and `tools/coverage/sitecustomize.py`, run in CI. The gates execute as subprocesses, so ordinary in-process coverage sees almost none of their decision code and reports the opposite of the truth; Python imports `sitecustomize` in every interpreter it starts, which is the stdlib way to reach them. The run is compared against `hook-coverage-baseline.json`, counted per function so an edit above a function does not churn it.
 - Made that gate fail in both directions. A function gaining unreached statements is new code no test reaches. A function losing them is a baseline going stale, which fails too: a recorded limit nobody maintains stops being a limit and becomes a place to hide. Both directions are proven end to end, not only unit tested.
 - Added `tests/test_check_hook_coverage.py`, 13 tests over the comparison and the statement accounting. It does not run the gate end to end, because the gate runs the suite and a suite that runs itself does not terminate.
+- Fixed a bootstrap deadlock in the coverage gate, found by installing it a second time. `--write-baseline` runs the suite, and the suite asserted the baseline exists, so the first baseline could never be produced. The baseline tests now skip when there is none. CI still fails on a missing baseline, through the gate rather than the suite.
 - Synced the AGENTS.md additions into all eight tool copies.
 
 ## [1.12.0] (2026-08-20)

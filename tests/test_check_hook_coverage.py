@@ -93,7 +93,17 @@ class StatementAccountingTest(unittest.TestCase):
 
 
 class BaselineFileTest(unittest.TestCase):
-    """The committed baseline stays readable and matches this tree's shape."""
+    """The committed baseline stays readable and matches this tree's shape.
+
+    Skipped when there is no baseline yet. Generating the first one runs
+    this suite, so a suite that requires the file makes it impossible to
+    produce, which is what a second installation of this gate found. CI
+    still fails on a missing baseline, through the gate rather than here.
+    """
+
+    def setUp(self):
+        if not BASELINE.is_file():
+            self.skipTest("no baseline yet; run --write-baseline to make one")
 
     def test_the_baseline_is_present_and_parses(self):
         body = json.loads(BASELINE.read_text(encoding="utf-8"))
