@@ -10,7 +10,14 @@ That is not hypothetical. `check_commit_message.py` blocked in one repository
 and warned in the other for weeks, and the three checker fixes backported in
 1.13.0 were found the same way: by hand, by accident.
 
-This file states the policy. Nothing verifies any of it.
+This file states the policy. One part of it is mechanical and the rest is not.
+
+`scripts/sync.py --check-shared` compares the files carrying gate decisions
+against `shared-files.json`, a manifest of SHA-256 digests committed in every
+repository holding them. A file that changes in one repository and not another
+fails that repository's check on its next run. It runs in CI.
+
+Everything else here is a convention. Nothing verifies it.
 
 ## Three categories
 
@@ -42,6 +49,24 @@ Three files, split so the record does not become its own drift surface.
 Each links the others. None restates a field it does not own: a value copied
 into two files is a value that can disagree with itself, which is the failure
 this whole document exists to name.
+
+## The shared-file manifest
+
+`SHARED_FILES` in `scripts/sync.py` lists the files that must stay
+byte-identical: `hooks/_gate_core.py`, both shell gates,
+`hooks/require_consent.py`, `tests/gate_corpus.py`, and the two shell gate
+suites. These carry decisions, and a decision reached by one copy and not
+another is the failure this whole design exists to prevent.
+
+After changing one, run `scripts/sync.py --write-shared` and commit the new
+manifest in every repository holding those files. Line endings are normalized
+before hashing, so a Windows checkout does not report every file as drift.
+
+`tests/test_require_consent.py` is deliberately absent from that list. The
+adopting repository moved two wiring assertions into it from a suite it
+declined, so the two copies cannot be byte-identical. That is recorded in the
+adopter file rather than enforced here, which is what a true-drift entry looks
+like once somebody has judged it.
 
 ## Opening a drift issue
 
