@@ -40,7 +40,8 @@ GATE = "block_destructive_powershell.py"
 
 try:
     import _gate_core as core
-except ImportError as error:  # pragma: no cover - exercised by the adoption test
+except ImportError as error:  # pragma: no cover
+    # The adoption test exercises this import failure.
     # Fail closed. Claude Code treats any non-zero exit other than 2 as a
     # non-blocking error, so an unhandled ImportError would wave the command
     # through in exactly the repos that installed this gate.
@@ -156,8 +157,6 @@ def _interpreter_verdict(program: str, args: list, depth: int = 0) -> tuple:
         if kind == "deny":
             return "deny", value
         if kind == "command":
-            if depth >= core.MAX_COMMAND_DEPTH:
-                return "deny", "PowerShell command nesting exceeds the inspection limit"
             return classify(value, depth + 1)
     for index, token in enumerate(args):
         lowered = token.lower()

@@ -144,8 +144,8 @@ stat errors also return an incomplete result rather than clearing the write.
 
 The suites run each gate as a subprocess, so in-process coverage sees almost
 none of the decision code. Tracing every interpreter through a `sitecustomize`
-module on `PYTHONPATH` reaches them, and against the full suite it leaves 113
-statements in `hooks/` unrun, out of 1,758.
+module on `PYTHONPATH` reaches them, and against the full suite it leaves 118
+function-owned statements in `hooks/` unrun, out of 1,352.
 
 Two unreachable helpers, `find_reason` and `find_consent_reason`, were deleted
 after the tracing pass showed that neither repository called them.
@@ -156,16 +156,19 @@ The baseline entries fall into these recorded groups:
   malformed, missing-operand, alternate `env -S`, direct-caller, and
   maximum-depth branches that the subprocess entry points reject earlier or
   that require syntactic forms outside the regression corpus.
-- The git-read helpers from `_environment_config` through
-  `_read_invocation_configs` retain bounds, missing optional files, invalid
+- The Git config and repository-discovery helpers, including
+  `_apply_git_config_argument`, `_apply_git_path_argument`,
+  `_environment_config`, `_parent_repository_dir`, and
+  `_read_invocation_configs`, retain bounds, missing optional files, invalid
   keys, and filesystem errors. Tests cover malformed gitfiles, empty and valid
   common-directory pointers, each fail-closed class, and every executable
   setting, but not every equivalent arm.
 - The git-write context helpers, `git_checker_environment`,
-  `_alias_write_label`, and both enforcement handlers retain malformed global
-  options, alias-depth and shell-alias variants, absent config sources, and
-  error-reporting arms. Real subprocess tests run the effective-repository,
-  inline-identity, configured-alias, and inline-alias paths.
+  `_alias_write_label`, `_shell_alias_write_label`, and both enforcement
+  handlers retain malformed global options, alias-depth and shell-alias
+  variants, absent config sources, and error-reporting arms. Real subprocess
+  tests run the effective-repository, inline-identity, configured-alias, and
+  inline-alias paths.
 - `_protected_path`, `_is_system_root`, `_mentions_device`,
   `_segment_program`, `device_write_verdict`, `forge_verdict`,
   `logging_verdict`, `mass_operation_verdict`, `posix_delete_verdict`,

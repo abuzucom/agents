@@ -36,6 +36,7 @@ UNC_SHARE_ROOT_PARTS = 2
 DRIVE_ROOT_LENGTH = 2
 MAX_GIT_CONFIG_COUNT = 1000
 MAX_GIT_ALIAS_DEPTH = 10
+GIT_SHORT_OPTION_VALUE_INDEX = 2
 # section.subsection.key, the only shape a driver name takes.
 GIT_CONFIG_SUBSECTION_PARTS = 3
 # Latin-1 renders as \\xNN; everything above it needs \\uNNNN.
@@ -852,6 +853,56 @@ def _finalize_git_state(state: dict, environment: dict) -> tuple:
     return (None, reason) if reason else (state, "")
 
 
+def _apply_git_config_argument(args: list, index: int,
+                               token: str, state: dict) -> tuple:
+    """Apply one -c setting and return its last argument index."""
+    setting = token[GIT_SHORT_OPTION_VALUE_INDEX:] if token != "-c" else ""
+    if token == "-c":
+        index += 1
+        setting = args[index] if index < len(args) else ""
+    parsed = _parse_config_setting(setting)
+    if parsed is None:
+        return index, "git -c has a missing or malformed setting"
+    state["settings"].append(parsed)
+    return index, ""
+
+
+def _apply_git_path_argument(args: list, index: int,
+                             token: str, state: dict) -> tuple:
+    """Apply one repository path option and return its last argument index."""
+    name, separator, attached = token.partition("=")
+    value = attached if separator else ""
+    if not separator:
+        index += 1
+        value = args[index] if index < len(args) else ""
+    if not value or is_ambiguous(value):
+        return index, f"git {name} has a missing or unresolved path"
+    resolved = os.path.realpath(os.path.join(state["cwd"], value))
+    if name == "-C":
+        state["cwd"] = resolved
+    elif name == "--git-dir":
+        state["git_dir"] = resolved
+        state["explicit_git_dir"] = True
+    else:
+        state["work_tree"] = resolved
+    state["repository_override"] = True
+    return index, ""
+
+
+def _apply_git_global_argument(args: list, index: int, state: dict) -> tuple:
+    """Apply one Git global argument and return its last index or an error."""
+    token = args[index]
+    name = token.partition("=")[0]
+    if (token == "-c" or token.startswith("-c")
+            and len(token) > GIT_SHORT_OPTION_VALUE_INDEX):
+        return _apply_git_config_argument(args, index, token, state)
+    if name in ("-C", "--git-dir", "--work-tree"):
+        return _apply_git_path_argument(args, index, token, state)
+    if name == "--config-env":
+        return index, "git --config-env cannot be inspected from command text"
+    return index, ""
+
+
 def _git_global_state(args: list, cwd: str, environment: dict = None) -> tuple:
     """Return invocation settings and repository location, or an error."""
     environment = environment or {}
@@ -866,39 +917,9 @@ def _git_global_state(args: list, cwd: str, environment: dict = None) -> tuple:
     }
     index = 0
     while index < len(args) and args[index].startswith("-"):
-        token = args[index]
-        name, separator, attached = token.partition("=")
-        if token == "-c" or token.startswith("-c") and len(token) > 2:
-            setting = token[2:] if token != "-c" else ""
-            if token == "-c":
-                index += 1
-                setting = args[index] if index < len(args) else ""
-            parsed = _parse_config_setting(setting)
-            if parsed is None:
-                return None, "git -c has a missing or malformed setting"
-            state["settings"].append(parsed)
-        elif name in ("-C", "--git-dir", "--work-tree"):
-            value = attached if separator else ""
-            if not separator:
-                index += 1
-                value = args[index] if index < len(args) else ""
-            if not value or is_ambiguous(value):
-                return None, f"git {name} has a missing or unresolved path"
-            if name == "-C":
-                state["cwd"] = os.path.realpath(
-                    os.path.join(state["cwd"], value))
-                state["repository_override"] = True
-            elif name == "--git-dir":
-                state["git_dir"] = os.path.realpath(
-                    os.path.join(state["cwd"], value))
-                state["explicit_git_dir"] = True
-                state["repository_override"] = True
-            else:
-                state["work_tree"] = os.path.realpath(
-                    os.path.join(state["cwd"], value))
-                state["repository_override"] = True
-        elif name == "--config-env":
-            return None, "git --config-env cannot be inspected from command text"
+        index, reason = _apply_git_global_argument(args, index, state)
+        if reason:
+            return None, reason
         index += 1
     return _finalize_git_state(state, environment)
 
@@ -919,6 +940,20 @@ def _read_gitdir_pointer(path: str, marker: str):
     return raw.strip() or None
 
 
+def _parent_repository_dir(current: str, device: int) -> tuple:
+    """Return the next parent on the same device, or an inspection error."""
+    parent = os.path.dirname(current)
+    if parent == current:
+        return "", ""
+    try:
+        parent_device = os.stat(parent).st_dev
+    except OSError:
+        return None, "a parent repository directory could not be inspected"
+    if parent_device != device:
+        return "", ""
+    return parent, ""
+
+
 def _discover_dot_git(cwd: str) -> tuple:
     """Return the .git entry Git discovers upward, or an inspection error."""
     current = os.path.realpath(cwd or ".")
@@ -936,16 +971,32 @@ def _discover_dot_git(cwd: str) -> tuple:
             return None, "a parent repository entry could not be inspected"
         else:
             return dot_git, ""
-        parent = os.path.dirname(current)
-        if parent == current:
+        parent, reason = _parent_repository_dir(current, device)
+        if parent is None:
+            return None, reason
+        if not parent:
             return "", ""
-        try:
-            if os.stat(parent).st_dev != device:
-                return "", ""
-        except OSError:
-            return None, "a parent repository directory could not be inspected"
         current = parent
     return None, "the parent repository search exceeded its depth limit"
+
+
+def _redirected_repo_config_paths(dot_git: str) -> tuple:
+    """Return config paths reached through a .git pointer file."""
+    value = _read_gitdir_pointer(dot_git, "gitdir")
+    if value is None:
+        return None, "the redirected repository config could not be resolved"
+    git_dir = os.path.realpath(os.path.join(os.path.dirname(dot_git), value))
+    common = _read_gitdir_pointer(os.path.join(git_dir, "commondir"), "")
+    if common is None:
+        return None, "the redirected repository common config could not be resolved"
+    if not common:
+        return [(os.path.join(git_dir, "config"), True)], ""
+    common_dir = os.path.realpath(os.path.join(git_dir, common))
+    return [
+        (os.path.join(common_dir, "config"), True),
+        (os.path.join(git_dir, "config"), False),
+        (os.path.join(git_dir, "config.worktree"), False),
+    ], ""
 
 
 def _repo_config_paths(state: dict) -> tuple:
@@ -964,21 +1015,7 @@ def _repo_config_paths(state: dict) -> tuple:
         return [(os.path.join(state["cwd"], ".git", "config"), False)], ""
     if not os.path.isfile(dot_git):
         return [(os.path.join(dot_git, "config"), False)], ""
-    value = _read_gitdir_pointer(dot_git, "gitdir")
-    if value is None:
-        return None, "the redirected repository config could not be resolved"
-    git_dir = os.path.realpath(os.path.join(os.path.dirname(dot_git), value))
-    common = _read_gitdir_pointer(os.path.join(git_dir, "commondir"), "")
-    if common is None:
-        return None, "the redirected repository common config could not be resolved"
-    if not common:
-        return [(os.path.join(git_dir, "config"), True)], ""
-    common_dir = os.path.realpath(os.path.join(git_dir, common))
-    return [
-        (os.path.join(common_dir, "config"), True),
-        (os.path.join(git_dir, "config"), False),
-        (os.path.join(git_dir, "config.worktree"), False),
-    ], ""
+    return _redirected_repo_config_paths(dot_git)
 
 
 def _environment_config(environment: dict) -> tuple:
@@ -1110,6 +1147,25 @@ def git_read_verdict(args: list, cwd: str, assignments: list) -> tuple:
     return "ask", (f"a git read sets {found}, which names a program git runs")
 
 
+def _shell_alias_write_label(expansion: str, entries: dict,
+                             depth: int) -> tuple:
+    """Return a write label found inside a Git shell alias."""
+    try:
+        shell_tokens = shlex.split(expansion[1:])
+    except ValueError:
+        return "", "git shell alias could not be inspected"
+    for index, token in enumerate(shell_tokens):
+        if os.path.basename(token).lower().removesuffix(".exe") != "git":
+            continue
+        nested, nested_rest = git_subcommand(shell_tokens[index + 1:])
+        label, reason = _alias_write_label(
+            nested, nested_rest, entries, depth + 1)
+        if label or reason:
+            return label, reason
+        return "", "git shell alias may hide a Git write"
+    return "", "git shell alias may execute an uninspectable command"
+
+
 def _alias_write_label(subcommand: str, rest: list,
                        entries: dict, depth: int = 0) -> tuple:
     """Return a resolved write label and an alias-resolution error."""
@@ -1121,19 +1177,7 @@ def _alias_write_label(subcommand: str, rest: list,
     if depth >= MAX_GIT_ALIAS_DEPTH:
         return "", "git alias expansion exceeds the inspection limit"
     if expansion.startswith("!"):
-        try:
-            shell_tokens = shlex.split(expansion[1:])
-        except ValueError:
-            return "", "git shell alias could not be inspected"
-        for index, token in enumerate(shell_tokens):
-            if os.path.basename(token).lower().removesuffix(".exe") == "git":
-                nested, nested_rest = git_subcommand(shell_tokens[index + 1:])
-                label, reason = _alias_write_label(
-                    nested, nested_rest, entries, depth + 1)
-                if label or reason:
-                    return label, reason
-                return "", "git shell alias may hide a Git write"
-        return "", "git shell alias may execute an uninspectable command"
+        return _shell_alias_write_label(expansion, entries, depth)
     try:
         expanded = shlex.split(expansion)
     except ValueError:
@@ -1143,8 +1187,9 @@ def _alias_write_label(subcommand: str, rest: list,
 
 
 def _git_write_context(state: dict, environment: dict, assignments: list,
-                       settings: list, label: str, error: str = "") -> dict:
+                       settings: list, resolution: tuple) -> dict:
     """Return structured context for an effective Git write."""
+    label, error = resolution
     return {
         "label": label,
         "error": error,
@@ -1171,7 +1216,7 @@ def _ambiguous_git_context(state: dict, environment: dict,
     """Return a fail-closed context for an alias source we cannot inspect."""
     label = f"git {sanitize(subcommand)}" if subcommand else "ambiguous git write"
     return _git_write_context(
-        state, environment, assignments, [], label, reason)
+        state, environment, assignments, [], (label, reason))
 
 
 def _fallback_git_state(cwd: str) -> dict:
@@ -1194,7 +1239,7 @@ def _resolve_git_write_context(state: dict, environment: dict,
         if direct_label or _could_be_alias(subcommand):
             return _git_write_context(
                 state, environment, assignments, [],
-                direct_label or f"git {sanitize(subcommand)}", reason)
+                (direct_label or f"git {sanitize(subcommand)}", reason))
         return {}
     if is_ambiguous(subcommand):
         return _ambiguous_git_context(
@@ -1205,7 +1250,7 @@ def _resolve_git_write_context(state: dict, environment: dict,
         return {}
     return _git_write_context(
         state, environment, assignments, settings,
-        label or f"git {sanitize(subcommand)}", alias_error)
+        (label or f"git {sanitize(subcommand)}", alias_error))
 
 
 def git_write_context(args: list, cwd: str, assignments: list) -> dict:

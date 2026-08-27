@@ -39,6 +39,9 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Added copy instructions to Rules 2 and 3, in the shape Rule 14 and the branch-naming section already use: which files to copy, which matcher registers them, which suite comes with them, and the Rule 9 reminder that a hook is tooling the user approves first.
 
 ### Changed
+- Split Git option, repository-config, alias, and nested-interpreter parsing into
+  focused helpers so adopters can enforce stricter complexity limits without
+  changing gate decisions.
 - Exposed the shared Git-environment classifier through a public core helper
   instead of calling a private name from the PowerShell gate. Removed the
   duplicate project-directory assignment in the same gate, and pinned

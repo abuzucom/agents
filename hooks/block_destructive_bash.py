@@ -54,7 +54,8 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 try:
     import _gate_core as core
     import _bash_parser as bash_parser
-except ImportError as error:  # pragma: no cover - exercised by the adoption test
+except ImportError as error:  # pragma: no cover
+    # The adoption test exercises this import failure.
     # Fail closed. Claude Code treats any non-zero exit other than 2 as a
     # non-blocking error, so an unhandled ImportError would wave the command
     # through in exactly the repos that installed this gate.
@@ -102,6 +103,43 @@ def _redirect_targets(tokens: list) -> list:
     return bash_parser.redirect_targets(tokens)
 
 
+def _nested_command_verdict(command: str, depth: int, shell: str) -> tuple:
+    """Classify one nested command while enforcing the inspection limit."""
+    if depth >= core.MAX_COMMAND_DEPTH:
+        return "deny", f"{shell} command nesting exceeds the inspection limit"
+    return classify(command, depth + 1)
+
+
+def _powershell_interpreter_verdict(program: str, args: list,
+                                    depth: int):
+    """Return a PowerShell payload verdict, or None when none is present."""
+    if program.lower() not in core.POWERSHELL_PROGRAMS:
+        return None
+    kind, value = core.powershell_payload(args)
+    if kind == "deny":
+        return "deny", value
+    if kind == "command":
+        return _nested_command_verdict(value, depth, "PowerShell")
+    return None
+
+
+def _interpreter_argument_verdict(token: str, rest: list, depth: int):
+    """Return a command-payload verdict for one interpreter argument."""
+    lowered = token.lower()
+    if lowered in INTERPRETER_PAYLOAD_FLAGS:
+        if not rest:
+            return "", ""
+        # A POSIX shell takes one string after -c. CMD takes the whole
+        # remainder of the line after /c or /k.
+        payload = " ".join(rest) if lowered.startswith("/") else rest[0]
+        return _nested_command_verdict(payload, depth, "shell")
+    if token.startswith("-") and not token.startswith("--") and "c" in token:
+        if not rest:
+            return "", ""
+        return _nested_command_verdict(rest[0], depth, "shell")
+    return None
+
+
 def _interpreter_verdict(program: str, args: list, depth: int) -> tuple:
     """Return (decision, reason) for a shell handed a command string.
 
@@ -109,38 +147,18 @@ def _interpreter_verdict(program: str, args: list, depth: int) -> tuple:
     invoked without one runs a script or a REPL, which this gate cannot
     read either way, so it is not gated on the interpreter's own name.
     """
-    if program.lower() in core.POWERSHELL_PROGRAMS:
-        kind, value = core.powershell_payload(args)
-        if kind == "deny":
-            return "deny", value
-        if kind == "command":
-            if depth >= core.MAX_COMMAND_DEPTH:
-                return "deny", "PowerShell command nesting exceeds the inspection limit"
-            return classify(value, depth + 1)
+    verdict = _powershell_interpreter_verdict(program, args, depth)
+    if verdict is not None:
+        return verdict
     for index, token in enumerate(args):
-        lowered = token.lower()
-        if lowered in INTERPRETER_PAYLOAD_FLAGS:
-            rest = args[index + 1:]
-            if not rest:
-                return "", ""
-            if depth >= core.MAX_COMMAND_DEPTH:
-                return "deny", "shell command nesting exceeds the inspection limit"
-            # A POSIX shell takes one string after -c. CMD takes the whole
-            # remainder of the line after /c or /k.
-            if lowered.startswith("/"):
-                return classify(" ".join(rest), depth + 1)
-            return classify(rest[0], depth + 1)
+        rest = args[index + 1:]
+        verdict = _interpreter_argument_verdict(token, rest, depth)
+        if verdict is not None:
+            return verdict
         # busybox sh -c: the applet name precedes the flag
+        lowered = token.lower()
         if not token.startswith(("-", "/")) and lowered in INTERPRETERS:
-            return _interpreter_verdict(lowered, args[index + 1:], depth)
-        # a combined short group such as -lc still carries the payload
-        if token.startswith("-") and not token.startswith("--") and "c" in token:
-            payload = args[index + 1:index + 2]
-            if not payload:
-                return "", ""
-            if depth >= core.MAX_COMMAND_DEPTH:
-                return "deny", "shell command nesting exceeds the inspection limit"
-            return classify(payload[0], depth + 1)
+            return _interpreter_verdict(lowered, rest, depth)
     return "", ""
 
 
