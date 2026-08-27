@@ -144,7 +144,7 @@ stat errors also return an incomplete result rather than clearing the write.
 
 The suites run each gate as a subprocess, so in-process coverage sees almost
 none of the decision code. Tracing every interpreter through a `sitecustomize`
-module on `PYTHONPATH` reaches them, and against the full suite it leaves 120
+module on `PYTHONPATH` reaches them, and against the full suite it leaves 113
 statements in `hooks/` unrun, out of 1,758.
 
 Two unreachable helpers, `find_reason` and `find_consent_reason`, were deleted
@@ -157,9 +157,10 @@ The baseline entries fall into these recorded groups:
   maximum-depth branches that the subprocess entry points reject earlier or
   that require syntactic forms outside the regression corpus.
 - The git-read helpers from `_environment_config` through
-  `_read_invocation_configs` retain bounds, malformed pointer files, missing
-  optional files, invalid keys, and filesystem errors. Tests cover each
-  fail-closed class and every executable setting, but not every equivalent arm.
+  `_read_invocation_configs` retain bounds, missing optional files, invalid
+  keys, and filesystem errors. Tests cover malformed gitfiles, empty and valid
+  common-directory pointers, each fail-closed class, and every executable
+  setting, but not every equivalent arm.
 - The git-write context helpers, `git_checker_environment`,
   `_alias_write_label`, and both enforcement handlers retain malformed global
   options, alias-depth and shell-alias variants, absent config sources, and
@@ -174,9 +175,10 @@ The baseline entries fall into these recorded groups:
   mounts.
 - `read_payload`, `resolved_under`, and `sanitize` retain defensive exceptions
   or direct-caller bounds. The hook entry points reject those states earlier.
-- The consent entries retain permission-dependent filesystem errors, alternate
-  out-of-tree path explanations, absent path fields, and the top-level
-  exception boundary. The hard-link budget and ordinary denial paths run.
+- The consent entries retain cross-drive path handling, absent path fields, and
+  the top-level exception boundary. Narrow OS-boundary tests run the redirected
+  out-of-tree and open-error explanations on every platform. The hard-link
+  budget and ordinary denial paths run.
 
 `scripts/check_hook_coverage.py` runs this in CI. It compares the run against
 `hook-coverage-baseline.json`, counted per function so an edit above a function
@@ -188,18 +190,10 @@ nobody maintains stops being a limit and becomes a place to hide.
 Every entry in that baseline needs a reason here. An entry nobody can explain
 is untested code, not a recorded one.
 
-The baseline is measured in CI, and the tool refuses to write one as root. A
-mode 000 file is readable for root, so the two `OSError` branches in
-`require_consent.py` that a permission denial would take never fire in a root
-shell and do fire for an ordinary user. A baseline written as root records
-fewer unreached statements than CI finds and fails the check it exists to
-satisfy.
-
-That difference also means `test_unreadable_test_file_is_gated` passes without
-testing what it names when the suite runs as root: the file it chmods to 000
-stays readable, so the ordinary path runs and the assertion holds for the wrong
-reason. The gate surfaced it; whether to change the test is the maintainer's
-call under Rule 3.
+The baseline tool conservatively refuses to write one as root. Permission-mode
+tests still use real files, but narrow patches at `os.open` and `os.stat` now
+exercise their error boundaries independently of account privileges. Windows
+and Linux therefore record the same consent-hook branches.
 
 ## Keeping this current
 

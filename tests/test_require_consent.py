@@ -68,6 +68,14 @@ def decision_of(parsed: dict) -> str:
     return parsed.get("hookSpecificOutput", {}).get("permissionDecision", "")
 
 
+def load_hook_module(name: str):
+    """Load a distinct consent-hook module for direct OS-boundary tests."""
+    spec = importlib.util.spec_from_file_location(name, HOOK_PATH)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
 def edit_payload(file_path: str, old: str, new: str, mode: str = "default") -> dict:
     """Return a PreToolUse Edit payload for `file_path`."""
     return {
@@ -524,6 +532,39 @@ class PathFieldTypeTest(unittest.TestCase):
                 })
                 self.assertEqual(code, BLOCKING_EXIT_CODE)
                 self.assertEqual(decision_of(parsed), "deny")
+
+
+class PathReasonTest(unittest.TestCase):
+    """Out-of-tree and unreadable paths explain why consent is required."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.root = Path(self.tmp.name) / "project"
+        self.root.mkdir()
+        self.module = load_hook_module("require_consent_path_reasons")
+
+    def test_redirected_out_of_root_path_names_the_link_boundary(self):
+        raw = self.root / "linked" / "test_external.py"
+        target = Path(self.tmp.name) / "outside" / "test_external.py"
+        reason = self.module.escape_reason(
+            str(raw), str(target), str(self.root))
+        self.assertEqual(
+            reason,
+            "follows a link to a test file outside the project root, "
+            "which the gate cannot vouch for",
+        )
+
+    def test_open_os_error_reports_that_the_target_cannot_be_confirmed(self):
+        target = self.root / "tests" / "test_unreadable.py"
+        error = PermissionError(13, "permission denied")
+        with mock.patch.object(self.module.os, "open", side_effect=error):
+            reason = self.module.find_gate_reason("Edit", str(target))
+        self.assertEqual(
+            reason,
+            "cannot be opened (permission denied), so the gate cannot confirm "
+            "what this edit changes",
+        )
 
 
 class FailClosedInputTest(unittest.TestCase):

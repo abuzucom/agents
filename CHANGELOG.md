@@ -39,6 +39,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Added copy instructions to Rules 2 and 3, in the shape Rule 14 and the branch-naming section already use: which files to copy, which matcher registers them, which suite comes with them, and the Rule 9 reminder that a hook is tooling the user approves first.
 
 ### Changed
+- Made the hook coverage baseline platform-independent by exercising missing repository roots, malformed gitfiles, empty and valid common-directory pointers, absent alias config, redirected out-of-tree paths, and consent-hook open errors through real filesystem cases or narrow OS-boundary patches.
 - Returned every effective or ambiguous Git write across a chained Bash command and checked each repository independently. Unknown subcommands now fail closed when alias sources cannot be inspected through `--config-env`, `GIT_CONFIG_PARAMETERS`, redirected config, or malformed config; ordinary aliases and read settings discover a parent repository after `-C` into a subdirectory.
 - Gated Bash `export`, `declare -x`, and `typeset -x` forms for relevant Git variables, plus PowerShell plain and braced environment assignments and `Set-Item` or `Set-Variable` provider forms.
 - Recognized valid unambiguous PowerShell prefixes for `Path`, `LiteralPath`, `Destination`, `FilePath`, and `Value`, independent of parameter order. Protected write targets now resolve directory links before deciding whether they enter `hooks/` or `.claude/`.

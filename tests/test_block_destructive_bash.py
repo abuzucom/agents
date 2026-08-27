@@ -10,6 +10,7 @@ An `ask` routes the decision to the human through the permission prompt,
 which is the only consent AGENTS.md recognizes for Rule 2 and for rewriting
 pushed history.
 """
+import importlib.util
 import json
 import os
 import ntpath
@@ -26,6 +27,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 HOOK_PATH = REPO_ROOT / "hooks" / "block_destructive_bash.py"
+CORE_PATH = REPO_ROOT / "hooks" / "_gate_core.py"
 BLOCKING_EXIT_CODE = 2
 
 
@@ -48,6 +50,14 @@ def run_hook(command: str, permission_mode: str = "default") -> tuple:
     if result.stdout.strip():
         decision = json.loads(result.stdout)["hookSpecificOutput"]["permissionDecision"]
     return result.returncode, decision
+
+
+def load_core_module(name: str):
+    """Load a distinct shared-core module for direct filesystem tests."""
+    spec = importlib.util.spec_from_file_location(name, CORE_PATH)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 
 class DenyTest(unittest.TestCase):
@@ -717,6 +727,68 @@ class RepoExecutesOnReadTest(unittest.TestCase):
         _repo_with_config(self.tmp.name, '[diff]\n\texternal = /tmp/evil\n')
         _, decision = run_hook_in("git push origin feat/x", self.tmp.name)
         self.assertEqual(decision, "")
+
+
+class GitConfigPathTest(unittest.TestCase):
+    """Repository indirection is inspected without invoking Git."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.root = Path(self.tmp.name)
+        self.core = load_core_module("gate_core_config_paths")
+
+    @staticmethod
+    def make_state(cwd: Path) -> dict:
+        """Return the repository-location state used by the shared core."""
+        return {
+            "common_dir": "",
+            "git_dir": "",
+            "explicit_git_dir": False,
+            "cwd": str(cwd),
+        }
+
+    def test_missing_repository_search_root_reports_inspection_failure(self):
+        paths, reason = self.core._repo_config_paths(
+            self.make_state(self.root / "missing"))
+        self.assertIsNone(paths)
+        self.assertEqual(
+            reason, "the repository search root could not be inspected")
+
+    def test_malformed_gitfile_reports_resolution_failure(self):
+        (self.root / ".git").write_text("not a gitdir pointer\n", encoding="utf-8")
+        paths, reason = self.core._repo_config_paths(self.make_state(self.root))
+        self.assertIsNone(paths)
+        self.assertEqual(
+            reason, "the redirected repository config could not be resolved")
+
+    def test_empty_commondir_reports_resolution_failure(self):
+        git_dir = self.root / "admin"
+        git_dir.mkdir()
+        (self.root / ".git").write_text("gitdir: admin\n", encoding="utf-8")
+        (git_dir / "commondir").write_text("", encoding="utf-8")
+        paths, reason = self.core._repo_config_paths(self.make_state(self.root))
+        self.assertIsNone(paths)
+        self.assertEqual(
+            reason, "the redirected repository common config could not be resolved")
+
+    def test_valid_commondir_returns_common_and_worktree_configs(self):
+        common_dir = self.root / "admin"
+        git_dir = common_dir / "worktrees" / "one"
+        git_dir.mkdir(parents=True)
+        (self.root / ".git").write_text(
+            "gitdir: admin/worktrees/one\n", encoding="utf-8")
+        (git_dir / "commondir").write_text("../..\n", encoding="utf-8")
+        paths, reason = self.core._repo_config_paths(self.make_state(self.root))
+        self.assertEqual(reason, "")
+        self.assertEqual(paths, [
+            (str(common_dir / "config"), True),
+            (str(git_dir / "config"), False),
+            (str(git_dir / "config.worktree"), False),
+        ])
+
+    def test_resolve_alias_without_config_returns_empty(self):
+        self.assertEqual(self.core.resolve_alias(str(self.root), "ship"), "")
 
 
 class GitAliasTest(unittest.TestCase):
