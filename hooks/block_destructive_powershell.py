@@ -55,7 +55,10 @@ except ImportError as error:  # pragma: no cover - exercised by the adoption tes
     sys.exit(2)
 
 GATED_KEYWORDS = core.gated_keywords() + tuple(core.DELETE_PROGRAMS)
-SEPARATORS = frozenset({";", "|", "&&", "||", "\n"})
+# A subexpression puts a command where an argument goes, the mirror of
+# the Bash gate's brace group. Reading Write-Output as the program sees
+# no delete at all, so the parentheses end a statement.
+SEPARATORS = frozenset({";", "|", "&&", "||", "(", ")", "\n"})
 # The call operator and the cmdlets that run a command given to them.
 WRAPPERS = frozenset({"&", "start-process", "invoke-expression", "iex",
                       "invoke-command", "sudo"})

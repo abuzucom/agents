@@ -4,7 +4,13 @@ import os
 import shlex
 
 OPERATOR_CHARS = frozenset("&|;")
-GROUPING = frozenset({"(", ")", "\n"})
+# A brace group and a backtick substitution both put a command where a
+# program name goes. Reading "{" or a backtick as the program name sees
+# no delete at all, so each ends a segment the way a parenthesis does.
+GROUPING = frozenset({"(", ")", "{", "}", "`", "\n"})
+# shlex's default punctuation set plus the backtick, so `cmd` splits
+# into its own tokens instead of arriving glued to the words beside it.
+PUNCTUATION_CHARS = "();<>|&`"
 REDIRECTION_CHARS = frozenset("<>&0123456789")
 WRAPPERS = frozenset({
     "sudo", "doas", "env", "time", "nohup", "nice", "command", "xargs",
@@ -132,7 +138,8 @@ def _split_segments(tokens: list) -> list:
 
 def _tokenize_line(line: str) -> tuple:
     """Return tokens and whether the whole line parsed."""
-    lexer = shlex.shlex(line, posix=True, punctuation_chars=True)
+    lexer = shlex.shlex(line, posix=True,
+                        punctuation_chars=PUNCTUATION_CHARS)
     lexer.whitespace_split = True
     tokens = []
     try:
@@ -154,21 +161,28 @@ def command_segments(command: str) -> tuple:
     return segments, complete
 
 
+def _ambiguous_context(label: str, error: str, cwd: str) -> dict:
+    """Return the context a caller blocks on when a command cannot be read."""
+    return {
+        "label": label,
+        "error": error,
+        "cwd": os.path.realpath(cwd or "."),
+        "settings": [],
+    }
+
+
 def git_write_operation(command: str, resolve_git, cwd: str = "") -> list:
     """Return every effective or ambiguous Git write in `command`."""
     if not isinstance(command, str):
         return []
     contexts = []
-    segments, _ = command_segments(command)
+    segments, parsed = command_segments(command)
     for segment in segments:
         executable, assignments, complete = strip_prefixes(segment)
         if not complete:
-            contexts.append({
-                "label": "unresolved env -S command",
-                "error": "env -S command text could not be inspected",
-                "cwd": os.path.realpath(cwd or "."),
-                "settings": [],
-            })
+            contexts.append(_ambiguous_context(
+                "unresolved env -S command",
+                "env -S command text could not be inspected", cwd))
             continue
         if not executable:
             continue
@@ -178,4 +192,13 @@ def git_write_operation(command: str, resolve_git, cwd: str = "") -> list:
         context = resolve_git(executable[1:], cwd, assignments)
         if context:
             contexts.append(context)
+    if not parsed:
+        # block_destructive_bash.classify fails closed on this same flag.
+        # Dropping it here let a line continuation split a git write
+        # across two segments that neither gate recognized. It goes last
+        # so a write the parse did recover still names itself first.
+        contexts.append(_ambiguous_context(
+            "unparseable command",
+            "the command could not be parsed, so a git write it names "
+            "could not be read", cwd))
     return contexts

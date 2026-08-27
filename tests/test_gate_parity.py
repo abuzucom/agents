@@ -134,6 +134,17 @@ class BoundaryParityTest(unittest.TestCase):
         ("echo x > tests/test_auth.py", "Write-Output x > tests/test_auth.py"),
         ("echo x > src/app.js", "Write-Output x > src/app.js"),
         ("cmd /c rd /s /q C:/work", "cmd /c rd /s /q C:/work"),
+        # Grouping that puts a command where a program name goes. The
+        # PowerShell gate read its own & { ... } and the Bash gate did not
+        # read { ... ; }; the Bash gate read $( ... ) and the PowerShell
+        # gate did not. Each gap was invisible until both spellings sat
+        # in one row.
+        ("{ rm -rf /tmp/x; }", "& { Remove-Item -Recurse -Force /tmp/x }"),
+        ("{ git push --force; }", "& { git push --force }"),
+        ("echo `rm -rf /tmp/x`",
+         "Write-Output $(Remove-Item -Recurse -Force /tmp/x)"),
+        ("rm -rf build", "Remove-Item -Recurse -Force (Join-Path $a build)"),
+        ("echo {a,b}.txt", "Write-Output {a,b}.txt"),
     )
 
     def test_equivalent_commands_agree(self):

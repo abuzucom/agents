@@ -39,6 +39,24 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Added copy instructions to Rules 2 and 3, in the shape Rule 14 and the branch-naming section already use: which files to copy, which matcher registers them, which suite comes with them, and the Rule 9 reminder that a hook is tooling the user approves first.
 
 ### Changed
+- Ended a Bash segment at a brace group and at a backtick substitution.
+  `{ rm -rf /tmp/x; }` read its program name as `{`, and a backtick
+  substitution left the inner command glued into argument tokens, so every
+  verdict keyed on the program name cleared both. That covered the deny cases
+  as well: `{ git push --force; }` and a write to `hooks/` inside a brace group
+  passed unprompted. The PowerShell gate had read its own `& { ... }` form
+  since it was written, so the two gates disagreed and no parity row covered
+  it.
+- Ended a PowerShell statement at a subexpression, the mirror of the same gap.
+  `Write-Output $(Remove-Item -Recurse -Force /tmp/x)` cleared while its Bash
+  equivalent asked.
+- Stopped `git_write_operation` discarding the flag that says whether a command
+  parsed. `block_destructive_bash.py` fails closed on that same flag, and the
+  branch-name and identity hooks reach the parser only through this function,
+  so a line continuation split a Git write across two segments that neither
+  hook recognized. An unreadable command now yields an ambiguous context those
+  hooks block on, placed after any write the parse did recover so the recovered
+  write still names itself first.
 - Canonicalized the linked-worktree config fixture's expected paths. Windows
   can expose a temporary directory through its 8.3 short name while
   `realpath` returns the long name, so the assertion now compares the same
