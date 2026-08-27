@@ -143,8 +143,15 @@ The rest divide into two kinds, neither a gap:
   the classifier; what is unrun is the arm that a real device or mount would
   take.
 
-Re-run the pass when the gates change. It is not wired into CI, because a
-coverage gate is new tooling and Rule 9 puts that behind the user's approval.
+`scripts/check_hook_coverage.py` runs this in CI. It compares the run against
+`hook-coverage-baseline.json`, counted per function so an edit above a function
+does not churn it, and fails in both directions: a function gaining unreached
+statements is new code no test reaches, and a function losing them is a
+baseline going stale. The second matters as much as the first. A recorded limit
+nobody maintains stops being a limit and becomes a place to hide.
+
+Every entry in that baseline needs a reason here. An entry nobody can explain
+is untested code, not a recorded one.
 
 ## Keeping this current
 

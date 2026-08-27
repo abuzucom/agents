@@ -48,6 +48,8 @@ jobs:
         run: python scripts/sync.py --check
       - name: Check the shared gate files against the manifest
         run: python scripts/sync.py --check-shared
+      - name: Check no untested statement entered the hooks
+        run: python scripts/check_hook_coverage.py
       - name: Run style lint
         run: python scripts/lint_style.py
       - name: Check American spelling (warning only)

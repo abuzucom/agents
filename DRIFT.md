@@ -62,6 +62,10 @@ After changing one, run `scripts/sync.py --write-shared` and commit the new
 manifest in every repository holding those files. Line endings are normalized
 before hashing, so a Windows checkout does not report every file as drift.
 
+`hook-coverage-baseline.json` is deliberately absent too, and for a different
+reason: each repository's suite differs, so what it leaves unrun differs. A
+shared baseline would be wrong in both. Expected to differ.
+
 `tests/test_require_consent.py` is deliberately absent from that list. The
 adopting repository moved two wiring assertions into it from a suite it
 declined, so the two copies cannot be byte-identical. That is recorded in the

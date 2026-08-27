@@ -90,6 +90,9 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Removed `find_reason` and `find_consent_reason` from the Bash gate. Both were defined and called by nothing, in either repository, and a reachability pass over the whole suite is what found them.
 - Covered the digest-bound form of `AGENTS_CONSENT_GRANTED`, which no test had ever run. The bare `path` grant was covered; `path@sha256:<digest>` was not, so the binding the gate's docstring promises had never been shown to hold. Four tests now cover it, including a stale digest and a digest belonging to another file.
 - Recorded the reachability pass in `docs/gate-threat-model.md`: what no test reaches, and why each remaining statement is defensive depth or an environment the suite does not build rather than a gap.
+- Added `scripts/check_hook_coverage.py` and `tools/coverage/sitecustomize.py`, run in CI. The gates execute as subprocesses, so ordinary in-process coverage sees almost none of their decision code and reports the opposite of the truth; Python imports `sitecustomize` in every interpreter it starts, which is the stdlib way to reach them. The run is compared against `hook-coverage-baseline.json`, counted per function so an edit above a function does not churn it.
+- Made that gate fail in both directions. A function gaining unreached statements is new code no test reaches. A function losing them is a baseline going stale, which fails too: a recorded limit nobody maintains stops being a limit and becomes a place to hide. Both directions are proven end to end, not only unit tested.
+- Added `tests/test_check_hook_coverage.py`, 13 tests over the comparison and the statement accounting. It does not run the gate end to end, because the gate runs the suite and a suite that runs itself does not terminate.
 - Synced the AGENTS.md additions into all eight tool copies.
 
 ## [1.12.0] (2026-08-20)
