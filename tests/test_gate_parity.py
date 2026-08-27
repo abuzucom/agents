@@ -11,6 +11,7 @@ form exists in only one shell, the pair repeats the same string, which
 still asserts that both gates read it identically.
 """
 import json
+import tempfile
 import subprocess
 import sys
 import unittest
@@ -21,7 +22,8 @@ BASH_HOOK = REPO_ROOT / "hooks" / "block_destructive_bash.py"
 POWERSHELL_HOOK = REPO_ROOT / "hooks" / "block_destructive_powershell.py"
 
 
-def _decision(hook: Path, tool: str, command, mode: str = "default") -> str:
+def _decision(hook: Path, tool: str, command, mode: str = "default",
+              cwd: str = "") -> str:
     """Return the permission decision one gate reaches for `command`."""
     payload = {
         "hook_event_name": "PreToolUse",
@@ -29,6 +31,8 @@ def _decision(hook: Path, tool: str, command, mode: str = "default") -> str:
         "permission_mode": mode,
         "tool_input": {"command": command},
     }
+    if cwd:
+        payload["cwd"] = cwd
     result = subprocess.run(
         [sys.executable, str(hook)],
         input=json.dumps(payload), capture_output=True, text=True, check=False)
@@ -74,6 +78,26 @@ class GitParityTest(unittest.TestCase):
         for command in self.COMMANDS:
             with self.subTest(command=command):
                 self.assertEqual(bash(command), powershell(command))
+
+    def test_inline_config_and_repo_location_forms_agree(self):
+        with tempfile.TemporaryDirectory() as root:
+            git_dir = Path(root) / ".git"
+            git_dir.mkdir()
+            (git_dir / "config").write_text(
+                '[diff "x"]\n\ttextconv = /tmp/evil\n', encoding="utf-8")
+            commands = (
+                "git -c core.pager=/tmp/evil status",
+                "git -ccore.pager=/tmp/evil log",
+                "git -c core.pager=/tmp/evil -c core.pager= status",
+                "git --git-dir .git --work-tree . show HEAD",
+                "git -C . diff",
+            )
+            for command in commands:
+                with self.subTest(command=command):
+                    self.assertEqual(
+                        _decision(BASH_HOOK, "Bash", command, cwd=root),
+                        _decision(POWERSHELL_HOOK, "PowerShell", command, cwd=root),
+                    )
 
 
 class MalformedParityTest(unittest.TestCase):

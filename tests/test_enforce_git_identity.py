@@ -385,21 +385,179 @@ class PreToolUseTest(IdentityRepo):
         self.assertEqual(result.returncode, BLOCKING_EXIT_CODE)
         self.assertIn("separate tool call", result.stderr)
 
+    def test_repo_location_checks_the_identity_that_would_commit(self):
+        self.set_identity(ALLOWED_NAME, ALLOWED_EMAIL)
+        other = Path(self._tmp.name) / "other"
+        other.mkdir()
+        subprocess.run(
+            ["git", "init", "-q", "-b", "feat/other"],
+            cwd=other,
+            env=self.env(),
+            check=True,
+        )
+        subprocess.run(
+            ["git", "config", "user.name", "Ada Lovelace"],
+            cwd=other,
+            env=self.env(),
+            check=True,
+        )
+        subprocess.run(
+            ["git", "config", "user.email", CORPORATE_EMAIL],
+            cwd=other,
+            env=self.env(),
+            check=True,
+        )
+        command = f"git -C {other.as_posix()} commit -m x"
+        result = self.run_hook(bash_payload(command))
+        self.assertEqual(result.returncode, BLOCKING_EXIT_CODE, result.stderr)
+        self.assertIn(CORPORATE_EMAIL, result.stderr)
+
+    def test_git_dir_and_work_tree_check_the_effective_identity(self):
+        self.set_identity(ALLOWED_NAME, ALLOWED_EMAIL)
+        other = Path(self._tmp.name) / "other"
+        other.mkdir()
+        subprocess.run(
+            ["git", "init", "-q", "-b", "feat/other"],
+            cwd=other,
+            env=self.env(),
+            check=True,
+        )
+        subprocess.run(
+            ["git", "config", "user.name", "Ada Lovelace"],
+            cwd=other,
+            env=self.env(),
+            check=True,
+        )
+        subprocess.run(
+            ["git", "config", "user.email", CORPORATE_EMAIL],
+            cwd=other,
+            env=self.env(),
+            check=True,
+        )
+        command = (
+            f"git --git-dir={other.joinpath('.git').as_posix()} "
+            f"--work-tree={other.as_posix()} commit -m x"
+        )
+        result = self.run_hook(bash_payload(command))
+        self.assertEqual(result.returncode, BLOCKING_EXIT_CODE, result.stderr)
+        self.assertIn(CORPORATE_EMAIL, result.stderr)
+
+    def test_inline_disallowed_identity_blocks(self):
+        self.set_identity(ALLOWED_NAME, ALLOWED_EMAIL)
+        command = f"git -c user.email={CORPORATE_EMAIL} commit -m x"
+        result = self.run_hook(bash_payload(command))
+        self.assertEqual(result.returncode, BLOCKING_EXIT_CODE, result.stderr)
+        self.assertIn(CORPORATE_EMAIL, result.stderr)
+
+    def test_configured_alias_resolving_to_commit_blocks(self):
+        self.git("config", "alias.ship", "commit")
+        result = self.run_hook(bash_payload("git ship -m x"))
+        self.assertEqual(result.returncode, BLOCKING_EXIT_CODE, result.stderr)
+
+    def test_inline_alias_resolving_to_commit_blocks(self):
+        result = self.run_hook(
+            bash_payload("git -c alias.ship=commit ship -m x"))
+        self.assertEqual(result.returncode, BLOCKING_EXIT_CODE, result.stderr)
+
+    def test_malformed_env_split_string_fails_closed(self):
+        result = self.run_hook(bash_payload("env -S '\"unterminated'"))
+        self.assertEqual(result.returncode, BLOCKING_EXIT_CODE, result.stderr)
+        self.assertIn("could not be inspected", result.stderr)
+
+    def test_uninspectable_alias_source_fails_closed(self):
+        result = self.run_hook(
+            bash_payload("git --config-env=alias.ship=ALIAS ship -m x"),
+            ALIAS="commit",
+        )
+        self.assertEqual(result.returncode, BLOCKING_EXIT_CODE, result.stderr)
+        self.assertIn("cannot be inspected", result.stderr)
+
+    def test_parent_repo_alias_is_resolved_after_c(self):
+        child = self.repo / "nested" / "child"
+        child.mkdir(parents=True)
+        self.git("config", "alias.ship", "commit")
+        result = self.run_hook(bash_payload("git -C nested/child ship -m x"))
+        self.assertEqual(result.returncode, BLOCKING_EXIT_CODE, result.stderr)
+
+    def test_every_git_write_context_is_checked(self):
+        self.set_identity(ALLOWED_NAME, ALLOWED_EMAIL)
+        other = Path(self._tmp.name) / "other"
+        other.mkdir()
+        subprocess.run(
+            ["git", "init", "-q", "-b", "feat/other"],
+            cwd=other,
+            env=self.env(),
+            check=True,
+        )
+        subprocess.run(
+            ["git", "config", "user.name", "Ada Lovelace"],
+            cwd=other,
+            env=self.env(),
+            check=True,
+        )
+        subprocess.run(
+            ["git", "config", "user.email", CORPORATE_EMAIL],
+            cwd=other,
+            env=self.env(),
+            check=True,
+        )
+        command = (
+            f"git -C {self.repo.as_posix()} commit -m first && "
+            f"git -C {other.as_posix()} commit -m second"
+        )
+        result = self.run_hook(bash_payload(command))
+        self.assertEqual(result.returncode, BLOCKING_EXIT_CODE, result.stderr)
+        self.assertIn(CORPORATE_EMAIL, result.stderr)
+
 
 class BlockedCommandTest(unittest.TestCase):
     """The command matcher names the git write operation it found."""
 
     def test_matches_commit_and_push(self):
-        self.assertEqual(hook.blocked_command("git commit -m x"), "git commit")
-        self.assertEqual(hook.blocked_command("git push origin main"), "git push")
+        commands = (
+            ("git commit -m x", "git commit"),
+            ("git push origin main", "git push"),
+            ("git -C . commit -m x", "git commit"),
+            ("git -c user.name=x push", "git push"),
+            ("git -cuser.name=x commit", "git commit"),
+            ("git --git-dir .git --work-tree . push", "git push"),
+            ("env X=1 command git -C . commit -m x", "git commit"),
+            ("make lint && git --no-pager push", "git push"),
+            ("git -C . commit 'unterminated", "git commit"),
+        )
+        for command, expected in commands:
+            with self.subTest(command=command):
+                match = hook.blocked_command(command)[0]
+                self.assertEqual(match.get("label", ""), expected)
 
     def test_ignores_unrelated_commands(self):
-        self.assertEqual(hook.blocked_command("git status"), "")
-        self.assertEqual(hook.blocked_command("echo commit"), "")
+        self.assertEqual(hook.blocked_command("git status"), [])
+        self.assertEqual(hook.blocked_command("echo commit"), [])
+        self.assertEqual(hook.blocked_command("echo 'git commit'"), [])
 
     def test_push_gates_on_two_checks(self):
         self.assertEqual(hook.check_args("git push"), [[], ["--unpushed"]])
         self.assertEqual(hook.check_args("git commit"), [[]])
+
+    def test_env_split_string_is_inspected(self):
+        match = hook.blocked_command("env -S 'git commit -m x'")[0]
+        self.assertEqual(match["label"], "git commit")
+
+    def test_inline_alias_resolving_to_push_is_inspected(self):
+        match = hook.blocked_command(
+            "git -c alias.ship=push ship origin main")[0]
+        self.assertEqual(match["label"], "git push")
+
+    def test_other_uninspectable_alias_sources_return_context(self):
+        commands = (
+            "GIT_CONFIG_PARAMETERS=x git ship",
+            "GIT_CONFIG_GLOBAL=missing-config git ship",
+        )
+        for command in commands:
+            with self.subTest(command=command):
+                matches = hook.blocked_command(command)
+                self.assertTrue(matches)
+                self.assertTrue(matches[0]["error"])
 
 
 class FindViolationTest(unittest.TestCase):

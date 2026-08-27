@@ -21,10 +21,12 @@ proceeds anyway still cannot land the branch.
 The two events cover a harness-assigned branch name, which the model cannot
 choose and, being stateless across sessions, cannot remember to fix. Renaming
 the branch (`git branch -m <type>/<kebab-description>`) clears both.
+
+This repository-controlled hook is a defense-in-depth workflow prompt, not an
+authorization boundary. A repository writer can alter it or its registration.
 """
 import json
 import os
-import re
 import subprocess
 import sys
 
@@ -32,16 +34,14 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 try:
     import _gate_core as core
+    import _bash_parser as bash_parser
 except ImportError as error:  # pragma: no cover - exercised by the adoption test
-    print(f"hooks/_gate_core.py could not be imported ({error})", file=sys.stderr)
+    print(f"the shared hook parser or core could not be imported ({error})",
+          file=sys.stderr)
     sys.exit(2)
 
 CHECKER_PATH = os.path.join("scripts", "check_branch_name.py")
 ALLOWED_PREFIXES = "feat/, fix/, chore/, docs/, test/"
-BLOCKED_COMMANDS = (
-    (r"\bgit\s+commit\b", "git commit"),
-    (r"\bgit\s+push\b", "git push"),
-)
 
 
 def _read_payload() -> dict:
@@ -55,7 +55,7 @@ def _read_payload() -> dict:
     return payload if payload is not None else {}
 
 
-def find_violation(project_dir: str) -> str:
+def find_violation(project_dir: str, invocation: dict = None) -> str:
     """Return the checker's complaint about the current branch, or an empty string.
 
     An absent checker yields an empty string: a repo that has not copied
@@ -64,12 +64,17 @@ def find_violation(project_dir: str) -> str:
     checker = core.resolved_under(project_dir, CHECKER_PATH)
     if checker is None or not os.path.isfile(checker):
         return ""
+    cwd = invocation["cwd"] if invocation else project_dir
+    environment = core.git_checker_environment(invocation) if invocation else None
+    if environment is not None and invocation.get("repository_override"):
+        environment.pop("GITHUB_HEAD_REF", None)
     result = subprocess.run(
         [sys.executable, checker],
-        cwd=project_dir,
+        cwd=cwd,
         capture_output=True,
         text=True,
         check=False,
+        env=environment,
     )
     if result.returncode == 0:
         return ""
@@ -100,8 +105,8 @@ def build_warning(violation: str) -> str:
         "   git branch -m <type>/<kebab-description>",
         "2. Ask the user for explicit sign-off to keep the current name.",
         "",
-        "A PreToolUse hook blocks git commit and git push until the name",
-        "conforms, so proceeding without one of those two actions fails.",
+        "A PreToolUse hook prompts this compliant workflow before git commit",
+        "or git push. Repository writers can alter that hook or its settings.",
         "",
         "REPOSITORY_DATA:",
     ]
@@ -110,12 +115,10 @@ def build_warning(violation: str) -> str:
     return "\n".join(lines)
 
 
-def blocked_command(command: str) -> str:
-    """Return the git write operation found in `command`, or an empty string."""
-    for pattern, label in BLOCKED_COMMANDS:
-        if re.search(pattern, command):
-            return label
-    return ""
+def blocked_command(command: str, project_dir: str = "") -> list:
+    """Return every effective or ambiguous Git write context in `command`."""
+    return bash_parser.git_write_operation(
+        command, core.git_write_context, project_dir)
 
 
 def _handle_session_start(project_dir: str) -> int:
@@ -135,17 +138,19 @@ def _handle_session_start(project_dir: str) -> int:
     return 0
 
 
-def _handle_pre_tool_use(payload: dict, project_dir: str) -> int:
-    """Block a commit or push while the branch name breaks the convention."""
-    if payload.get("tool_name") != "Bash":
-        return 0
-    command = payload.get("tool_input", {}).get("command", "")
-    label = blocked_command(command)
-    if not label:
-        return 0
-    violation = find_violation(project_dir)
+def _blocks_invocation(project_dir: str, invocation: dict) -> bool:
+    """Report and return True when one effective Git write must block."""
+    label = invocation["label"]
+    if invocation.get("error"):
+        print(
+            f"blocked by hooks/enforce_branch_name.py: {label}: "
+            f"{invocation['error']}.",
+            file=sys.stderr,
+        )
+        return True
+    violation = find_violation(project_dir, invocation)
     if not violation:
-        return 0
+        return False
     print(
         f"blocked by hooks/enforce_branch_name.py: {label} on a non-conforming branch.\n"
         f"{violation}\n"
@@ -153,7 +158,23 @@ def _handle_pre_tool_use(payload: dict, project_dir: str) -> int:
         f"{ALLOWED_PREFIXES}), or get the user's explicit sign-off to keep this name.",
         file=sys.stderr,
     )
-    return 2
+    return True
+
+
+def _handle_pre_tool_use(payload: dict, project_dir: str) -> int:
+    """Block a commit or push while the branch name breaks the convention."""
+    if payload.get("tool_name") != "Bash":
+        return 0
+    tool_input = payload.get("tool_input")
+    if not isinstance(tool_input, dict):
+        print("blocked by hooks/enforce_branch_name.py: malformed tool input.",
+              file=sys.stderr)
+        return 2
+    command = tool_input.get("command", "")
+    for invocation in blocked_command(command, project_dir):
+        if _blocks_invocation(project_dir, invocation):
+            return 2
+    return 0
 
 
 def main() -> int:
