@@ -11,11 +11,17 @@ which is the only consent AGENTS.md recognizes for Rule 2 and for rewriting
 pushed history.
 """
 import json
+import os
 import ntpath
 import subprocess
 import sys
 import tempfile
 import unittest
+
+# discover -s tests puts this directory on the path; a direct
+# `unittest tests.<module>` run does not, and CI uses both.
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import gate_corpus
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -1132,3 +1138,17 @@ class UnrecognizedModeTest(unittest.TestCase):
         self.assertEqual(code, 2)
         self.assertNotIn("\n", reason)
         self.assertIn("\\x0a", reason)
+
+
+class CorpusTest(unittest.TestCase):
+    """Every known Bash bypass reaches the verdict the corpus records.
+
+    tests/gate_corpus.py is shared with the adopting repository, so a fix
+    landing in one repo and not the other fails here.
+    """
+
+    def test_every_corpus_row_reaches_its_verdict(self):
+        for command, expected, why in gate_corpus.BASH_CASES:
+            with self.subTest(command=command, why=why):
+                _, decision = run_hook(command)
+                self.assertEqual(decision or gate_corpus.ALLOW, expected)

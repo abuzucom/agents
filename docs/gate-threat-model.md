@@ -32,6 +32,15 @@ and `NotebookEdit` tools, on POSIX and Windows, attempting any of:
 - A git read command (`status`, `diff`, `log`, `show`, `blame`, `grep`) in a
   repository whose own config declares a key naming a program git runs.
 - A git alias, resolved from the repository config rather than executed.
+- A command handed to a shell through another shell. Each gate reads the
+  interpreter names of both, so `powershell -Command 'Remove-Item -Recurse
+  -Force /etc'` reaching the Bash gate and `bash -c 'rm -rf /etc'` reaching
+  the PowerShell gate both deny. The three delete readings, POSIX, PowerShell,
+  and CMD, live in the core and are tried together, so neither gate can learn
+  a spelling the other does not.
+- A command inside a PowerShell script block (`& { ... }`) or handed to a
+  program through `Start-Process -ArgumentList`. Wrapper unwrapping is bounded;
+  past the bound the command is treated as unparseable, which prompts.
 
 Path spellings that reach a covered target are covered with it: symlinks, hard
 links resolved by inode, case variants on a case-insensitive filesystem,
@@ -108,5 +117,10 @@ must end before it does.
 ## Keeping this current
 
 Every finding, from any round, lands here as a covered item or as a stated
-non-goal. A non-goal is recorded so it is visible to the user and the adopter,
-never to argue a finding away.
+non-goal, and in `tests/gate_corpus.py` as a row carrying the reason it exists.
+A round's findings arrive as data rather than as another test class nobody
+rereads, and both repositories import the same corpus, so a fix landing in one
+and not the other fails the other's suite.
+
+A non-goal is recorded so it is visible to the user and the adopter, never to
+argue a finding away.
