@@ -114,6 +114,38 @@ The inode walk that resolves hard links runs only when `st_nlink > 1`, skips
 hook timeout is 30 seconds and a hook that times out fails open, so the walk
 must end before it does.
 
+## What no test reaches
+
+The suites run each gate as a subprocess, so in-process coverage sees almost
+none of the decision code. Tracing every interpreter through a `sitecustomize`
+module on `PYTHONPATH` reaches them, and against the full suite it leaves 65
+statements in `hooks/` unrun, out of roughly 880. `enforce_branch_name.py` and
+`enforce_git_identity.py` are fully covered.
+
+Two of those were worth acting on. `find_reason` and `find_consent_reason` in
+the Bash gate were defined and called by nothing in either repository, so they
+are deleted. `is_override_granted` never ran its digest comparison: the bare
+`path` form of `AGENTS_CONSENT_GRANTED` was covered and the
+`path@sha256:<digest>` form was not, so the binding this document relies on had
+never been shown to hold. Four tests now cover it, including a stale digest and
+a digest belonging to another file.
+
+The rest divide into two kinds, neither a gap:
+
+- Defensive depth a caller cannot reach through the hook. `classify` rejects a
+  non-string command, but `main` rejects one first, so the inner guard exists
+  for a direct caller rather than for the tool. The exception boundary in
+  `require_consent.main` is the same shape: it catches a bug, and constructing
+  a bug to reach it would test the construction.
+- Branches needing an environment the suite does not build: an unreadable
+  `.git/config`, a device write, a mount-point delete, a logging disabler on
+  `vim-cmd` or `esxcli`. Each has a corpus row asserting the verdict through
+  the classifier; what is unrun is the arm that a real device or mount would
+  take.
+
+Re-run the pass when the gates change. It is not wired into CI, because a
+coverage gate is new tooling and Rule 9 puts that behind the user's approval.
+
 ## Keeping this current
 
 Every finding, from any round, lands here as a covered item or as a stated
