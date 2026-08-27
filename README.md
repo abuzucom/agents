@@ -276,16 +276,30 @@ themselves (AGENTS.md stays tool-agnostic; it is synced byte-identical to
 non-Claude tools). Each one is a mechanical backstop for a single tool,
 independent of whether the model remembers the rule.
 
-### Destructive Bash gate (live)
+### Destructive shell gates (live)
 
-`hooks/block_destructive_bash.py` is live in this repo, wired through
-`.claude/settings.json`. A `PreToolUse` hook on the `Bash` matcher backs
-rule 2 and the history-safety rule in Workflow, with two outcomes:
+`hooks/block_destructive_bash.py` and
+`hooks/block_destructive_powershell.py` are live in this repo, wired
+through `.claude/settings.json` as `PreToolUse` hooks on the `Bash` and
+`PowerShell` matchers. They back rule 2 and the history-safety rule in
+Workflow, with two outcomes: `deny` at exit 2, and `ask`.
 
-| Outcome | Commands |
-|---|---|
-| `deny`, exit 2 | a recursive `rm` aimed at `/`, `~`, or `$HOME`; a bare `git push --force`/`-f`; `git reset --hard` |
-| `ask` | a recursive `rm` against any other target; the `--force-with-lease` and `--force-if-includes` family; `git push --mirror`; `git push --delete`; a forced (`+`) refspec; `git commit --amend`; `git rebase`; `git filter-branch` |
+Which commands land in which outcome is stated once, in AGENTS.md rule 2.
+That list is long and it moves; repeating it here would give it a second
+copy to disagree with, which is the failure `DRIFT.md` exists to name. Read
+it there.
+
+Both gates take every decision from `hooks/_gate_core.py`. Only the parsing
+is shell-specific: statement boundaries, wrapper commands, redirection
+forms, and how each shell spells a delete. `tests/test_gate_parity.py`
+feeds both an equivalent corpus, fails when their verdicts differ, and
+fails when either grows a decision function of its own, so a fix cannot
+land in one gate and miss the other.
+
+CMD reaches both through interpreters. No CMD tool matcher exists, so `del`,
+`erase`, `rd`, and `rmdir` arrive nested inside a `Bash` or `PowerShell`
+call, and the classifier reads the argument after `/c` or `/k` the same way
+it reads the one after `bash -c`.
 
 The command is tokenized and normalized before any decision. Matching the raw
 string matches spelling rather than meaning, and every destructive command has
@@ -309,12 +323,17 @@ history rule requires. An `ask` needs someone to answer it: when
 `permission_mode` reports an unattended session, or a mode the hook does not
 recognize, the ask becomes a deny.
 
-It is a heuristic, not a sandbox: it does not parse the shell, so a command
-hidden behind a variable, alias, or wrapper script is invisible to it.
-`tests/test_block_destructive_bash.py` pins every deny, ask, and allow
-outcome. Adopting repos copy the script, the test, and the matching `hooks`
-key from `hooks/claude-code-settings.example.json`; propose it to the user
-first, like any other new tooling (Rule 9).
+A gate is a heuristic, not a sandbox. It reads a command's shape, so a
+command hidden behind a variable, an alias to a shell function, or a wrapper
+script on `PATH` is invisible to it, and rate analytics of the kind MITRE
+ATT&CK describes for T1485 need telemetry a per-call hook does not have.
+`docs/gate-threat-model.md` records what is covered and what is not.
+
+`tests/test_block_destructive_bash.py` and
+`tests/test_block_destructive_powershell.py` pin every deny, ask, and allow
+outcome. Adopting repos follow step 13 under Adopting, which names every
+file to copy; propose it to the user first, like any other new tooling
+(Rule 9).
 
 ### Consent gate (live)
 
@@ -326,27 +345,30 @@ the PR body and proceed". Writing the violation down feels like compliance
 and satisfies nothing. A model can talk itself out of a rule; it cannot talk
 itself past a permission prompt.
 
-One script serves three registrations, dispatched on `hook_event_name` and
+One script serves two registrations, dispatched on `hook_event_name` and
 `tool_name`:
 
 | Event | Behavior |
 |---|---|
-| `PreToolUse` (`Edit\|Write\|MultiEdit\|NotebookEdit`) | Returns `ask` for any write to an existing test file except an append at the end of it. A new test file passes. |
+| `PreToolUse` (`Edit\|Write\|MultiEdit\|NotebookEdit`) | Returns `ask` for any write to a test file that already exists. Creating a new test file passes. |
 | `SessionStart` | States which gates are live, that approving a plan is not authorization for the acts inside it, and the checklist a question must satisfy before it is written. |
 
-The append carve-out is what keeps the gate installed. AGENTS.md mandates a
-test-first workflow, so a gate that prompted on every added test would be
-switched off within a day and would enforce nothing. An append is verified,
-not guessed: the new text must begin with the old text, the addition must
-start on a new line, and the old text must sit at the end of the file.
+The gate reads the path, never the content. It opens the target once and
+branches on whether the open succeeded, so there is no window in which a file
+appears between a check and a write, and no reading of the file to argue
+about.
 
-Everything else is gated, including edits that keep the old text. "The old
-text still appears somewhere in the new text" is not evidence the old
-behavior survived: commenting an assertion out, wrapping it in a string, or
-moving it into a branch that never runs all preserve its text while removing
-its effect. Separating those from a real addition needs to parse the language
-under test, so the gate does not try. Refusing to guess costs a prompt;
-guessing wrong costs the assertion.
+An earlier version exempted a verified append at the end of an existing file,
+on the reasoning that AGENTS.md mandates a test-first workflow and a gate
+prompting on every added test would be switched off within a day. The
+exemption did not survive contact. Appending
+`ExistingTest.__unittest_skip__ = True` satisfies every structural condition
+an append check can state, and leaves every assertion above it present and
+inert; rebinding the class to `None` does the same in one line. Enumerating
+those spellings is a denylist over text the writer chooses, which is the
+construction that failed four separate times in building these gates.
+
+The cost is real and accepted: iterating on an existing test now prompts.
 
 The question checklist is a reminder, not enforcement, and the table above is
 the honest description of it (Rule 13). It rides on `SessionStart` rather
@@ -381,16 +403,27 @@ For headless runs a human sets `AGENTS_CONSENT_GRANTED` at launch to a
 comma-separated list of paths the gate may release, compared on the canonical
 path so one grant releases one file. A Bash tool call cannot forge it: shell
 state does not persist between calls, and the hook inherits Claude Code's
-environment rather than the model's shell. Known gap: a Bash
-call can still write a test file through a redirect or here-document, which
-no `Edit` or `Write` matcher sees, so a repo that wants that covered needs a
-CI backstop requiring owner approval on test changes.
+environment rather than the model's shell, and each grant is bound to a
+digest of the file's current content, so a grant does not outlive the file it
+was given for.
+
+Bash writes reaching a test file go through the same decision: a redirect, a
+here-document, `tee`, `sed -i`, `cp`, and `mv`. Rule 3 applied to the same act
+through one tool and not the other until the shell gate covered it.
+
+What a local hook cannot cover is whoever edits the hook or its settings
+before it runs. Writes to `hooks/` and `.claude/` are gated, which raises the
+cost and does not remove it: a gate is not its own root of trust. The
+server-side backstop is the adopting repository's to provide, and this
+template ships none.
 
 `tests/test_require_consent.py` runs the hook as a subprocess against
-synthetic payloads and real files on disk. 19 tests cover the additive
-cases, the gated cases, notebook paths, fail-closed behavior under an
-unattended `permission_mode`, the override variable, the question checklist,
-and whether both settings files register the hook for each event.
+synthetic payloads and real files on disk. 49 tests cover the new-file case,
+the gated cases, notebook paths, hard links and symlinks into the test tree,
+Windows path spellings, malformed payload fields, fail-closed behavior under
+an unattended `permission_mode`, the digest-bound override variable, the
+question checklist, and whether both settings files register the hook for
+each event.
 
 ### Branch-name enforcement (live)
 

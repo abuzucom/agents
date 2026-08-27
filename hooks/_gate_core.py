@@ -343,10 +343,22 @@ def decide(gate: str, payload: dict, decision: str, reason: str) -> int:
         return emit(gate, "deny", reason)
     if require_str(payload.get("permission_mode")) in INTERACTIVE_MODES:
         return emit(gate, "ask", reason)
-    return emit(gate, "deny", f"{reason}. No interactive session is available to consent.")
+    return emit(gate, "deny", f"{reason}. No interactive session is available "
+                              f"to consent (permission_mode {mode_label(payload)}).")
 
 
 MAX_REASON_VALUE = 160
+
+
+def mode_label(payload: dict) -> str:
+    """Return the payload's permission_mode as text safe to put in a prompt.
+
+    INTERACTIVE_MODES is a fixed list, so an interactive mode Claude Code
+    adds later denies here. Naming the value is what separates that from a
+    genuinely unattended session, which otherwise read identically.
+    """
+    mode = require_str(payload.get("permission_mode"))
+    return sanitize(mode) if mode is not None else "absent"
 
 
 def sanitize(value) -> str:
