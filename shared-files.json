@@ -7,7 +7,7 @@
     "hooks/block_destructive_powershell.py": "8bfefc513423e50b860452062b8ae16277b68df941f0459a24002adb9f22c605",
     "hooks/require_consent.py": "57847cefbbaf34ed7b6b434719371b8200c42093d16dbcc906d3222238c57beb",
     "tests/gate_corpus.py": "a7bdfb90fac74a8ce82a566d4d1cb240677fd9093375bac3271a09b9cd45d052",
-    "tests/test_block_destructive_bash.py": "d361e593a0d9a013002ab8f3b1eb5ce22df53944c107a9af1f0b1cf67bee4908",
+    "tests/test_block_destructive_bash.py": "0875c3042165cf6a8e939efb4cc5e693b9cda5f775c487183ece342a1a6bf005",
     "tests/test_block_destructive_powershell.py": "6b4635a5e5df1e882e90ab862f97d197c802ec9ddf4ebaa0b4221ed5e292a011"
   }
 }

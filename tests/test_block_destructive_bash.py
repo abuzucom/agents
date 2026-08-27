@@ -781,10 +781,12 @@ class GitConfigPathTest(unittest.TestCase):
         (git_dir / "commondir").write_text("../..\n", encoding="utf-8")
         paths, reason = self.core._repo_config_paths(self.make_state(self.root))
         self.assertEqual(reason, "")
+        canonical_common = os.path.realpath(common_dir)
+        canonical_git = os.path.realpath(git_dir)
         self.assertEqual(paths, [
-            (str(common_dir / "config"), True),
-            (str(git_dir / "config"), False),
-            (str(git_dir / "config.worktree"), False),
+            (os.path.join(canonical_common, "config"), True),
+            (os.path.join(canonical_git, "config"), False),
+            (os.path.join(canonical_git, "config.worktree"), False),
         ])
 
     def test_resolve_alias_without_config_returns_empty(self):
