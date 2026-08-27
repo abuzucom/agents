@@ -201,7 +201,9 @@ request through `.github/workflows/sync-check.yml`.
     change, and whether you recommend upstreaming it, so maintainers can
     adopt it or decline it. Settings files and repo-specific sections are
     expected to differ and need no issue; a template file you modified
-    does. Nothing verifies any of this.
+    does. Nothing verifies any of this. [`DRIFT.md`](DRIFT.md) holds the
+    policy and the categories; `adopters/<repo>.md` holds what each
+    adopting repository took versus declined.
 
 ### Checker reference
 
