@@ -39,6 +39,13 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Added copy instructions to Rules 2 and 3, in the shape Rule 14 and the branch-naming section already use: which files to copy, which matcher registers them, which suite comes with them, and the Rule 9 reminder that a hook is tooling the user approves first.
 
 ### Changed
+- Replaced the spaced hyphen in the `# pragma: no cover` and
+  `# noqa: BLE001` comments with parentheses. `scripts/check_ascii.py`
+  reads a spaced hyphen as an em-dash substitute, which the house style
+  bans, and no CI job points it at `hooks/`, so these went unreported.
+- Imported `unittest.mock` rather than importing `unittest` twice, once
+  plainly and once with `from`. A code-quality bot flagged the pair on the
+  adopting repository's pull request.
 - Split Git option, repository-config, alias, and nested-interpreter parsing into
   focused helpers so adopters can enforce stricter complexity limits without
   changing gate decisions.

@@ -35,7 +35,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 try:
     import _gate_core as core
     import _bash_parser as bash_parser
-except ImportError as error:  # pragma: no cover - exercised by the adoption test
+except ImportError as error:  # pragma: no cover (exercised by the adoption test)
     print(f"the shared hook parser or core could not be imported ({error})",
           file=sys.stderr)
     sys.exit(2)
