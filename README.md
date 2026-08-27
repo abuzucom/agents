@@ -25,10 +25,12 @@ Banned agents below. Copy into a repository and adapt.
   of the template, not optional tooling - see Adopting step 1.
 - **`scripts/check_*.py`** and **`.github/workflows/`** - this template's
   own mechanical enforcement of its rules, dogfooded in its own CI and
-  `.pre-commit-config.yaml`. Pull request jobs run from the base-defined
-  `immutable-conflict-check.yml` after its immutable object scan. Push checks
-  remain in `sync-check.yml` and `agents-md-compliance.yml`, which calls the
-  reusable `agents-compliance.yml`.
+  `.pre-commit-config.yaml`. Privileged pull request jobs run from the
+  base-defined `immutable-conflict-check.yml` after its immutable object scan.
+  Tests and PR-authored checks run from `sync-check.yml` under the standard
+  `pull_request` event. Push checks also run from `sync-check.yml` and
+  `agents-md-compliance.yml`, which calls the reusable
+  `agents-compliance.yml`.
 - **`hooks/`** - Claude-Code-specific hooks: an opt-in `PreToolUse` example
   blocking obviously destructive Bash commands, plus two live hooks wired
   through `.claude/settings.json`: `enforce_branch_name.py`, which refuses
@@ -39,10 +41,10 @@ Banned agents below. Copy into a repository and adapt.
   `hooks/enforce_branch_name.py`, `hooks/enforce_git_identity.py`, and
   their settings wiring. Run it with
   `make test` (or `python -m unittest discover -s tests`);
-  `immutable-conflict-check.yml` runs it on every pull request after the
-  immutable gate, and `.pre-commit-config.yaml` runs it when a hook, test,
-  settings, or `check_branch_name.py` file changes. No test dependencies:
-  `unittest` ships with Python.
+  `sync-check.yml` runs it under the standard `pull_request` event, and
+  `.pre-commit-config.yaml` runs it when a hook, test, settings, or
+  `check_branch_name.py` file changes. No test dependencies: `unittest` ships
+  with Python.
 - **`plan/HANDOFF.md.example`** - an opt-in per-repo handoff/progress
   template; see Handoff file example below.
 - **`SECURITY.md.example`** - an opt-in vulnerability-reporting policy
@@ -54,7 +56,7 @@ Banned agents below. Copy into a repository and adapt.
   Summary/Test plan PR shape and a single issue template covering bugs
   and proposals; adopting repos can copy them too, like any other new
   tooling (Rule 9).
-- **AgentLint** - `sync-check.yml` and the gated pull request job also run
+- **AgentLint** - `sync-check.yml` runs
   [AgentLint](https://github.com/0xmariowu/AgentLint), a third-party
   GitHub Action that audits AI-agent-harness setup and scores it across
   6 dimensions. Advisory only (`fail-below: '0'`, never fails the job).
@@ -76,9 +78,10 @@ Run before pushing. Python 3 standard library only, no install step.
 | `make identity` | reports the git identity, `gh` account, and `user.useConfigOnly` |
 
 `.pre-commit-config.yaml` runs the same checks on the files each one owns.
-CI runs the tests and checker scripts on every pull request through the
-base-defined `.github/workflows/immutable-conflict-check.yml`. Every job that
-checks out pull request code depends on its immutable conflict scan.
+CI runs tests and PR-authored checker scripts through `sync-check.yml` under
+the standard `pull_request` event. Base-context jobs run trusted checkers from
+the base-defined `.github/workflows/immutable-conflict-check.yml` and depend on
+its immutable conflict scan.
 
 ## Adopting
 
@@ -119,10 +122,11 @@ checks out pull request code depends on its immutable conflict scan.
    or database has no use for the weak-hashing rule or `check_weak_hashing.py`.
    A pruned rule carries no enforcement obligation; rule 13 binds only rules and
    claims that remain in the file. This template's pull request CI uses
-   `immutable-conflict-check.yml`; `sync-check.yml` and
-   `agents-md-compliance.yml` preserve push checks. None of these workflows
-   copies into a target repo by default. Propagating one, like any other
-   checker in this section, is its own proposal under Rule 9.
+   `immutable-conflict-check.yml` for trusted base-context checks and
+   `sync-check.yml` for PR-authored checks. `sync-check.yml` and
+   `agents-md-compliance.yml` also preserve push checks. None of these
+   workflows copies into a target repo by default. Propagating one, like any
+   other checker in this section, is its own proposal under Rule 9.
 7. Copy `plan/HANDOFF.md.example` to `plan/HANDOFF.md` if you want a
    handoff/progress convention; fill Status/Next/Blocked under Active work
    per session, paired with verification methods, and delete the setup

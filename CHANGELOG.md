@@ -22,7 +22,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added permanent security header, active work structure, command-execution prohibition, and sensitive data protections to `plan/HANDOFF.md.example`.
 - Added `scripts/check_conflict_markers.py` with `--staged` mode reading index blobs without applying `working-tree-encoding`, object size pre-checking via `git cat-file -s` before buffering, fail-closed `git check-attr` error handling, balanced conflict block recognition across all positive marker widths (`N >= 1`), single-fd file I/O via `_safe_read`, repo root resolution via `git rev-parse --show-toplevel`, UTF-16/32 BOM decoding, and Markdown Setext heading context validation.
 - Added immutable `--repo PATH --tree OID` scanning to `scripts/check_conflict_markers.py`. It validates object IDs, disables replacement refs and lazy fetches, rejects malformed or truncated Git output, scans exact regular blobs, and resolves attributes through an isolated index populated from the same commit or tree.
-- Added `.github/workflows/immutable-conflict-check.yml`, a base-defined `pull_request_target` workflow. Its trusted immutable scan gates every job that checks out or executes pull request code, including sync, tests, compliance checks, and AgentLint.
+- Added `.github/workflows/immutable-conflict-check.yml`, a base-defined
+  `pull_request_target` workflow. Its trusted immutable scan gates the
+  privileged jobs that inspect pull request content in the base repository's
+  context.
 - Added `tests/test_check_conflict_markers.py` coverage for conflict formats, marker widths, encodings, symlinks, bounded reads, staged and immutable blobs, sparse checkout, replacement refs, direct execution ordering, and exact CI, Makefile, and pre-commit wiring.
 
 ### Changed
@@ -37,14 +40,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Reported reportable-width diff3 and normal separators independently when an active width-1 or width-2 opener has another width. The narrow block state and Markdown Setext heading allowance remain intact.
 - Replaced digest-driven handoff control instructions with an active-user request requirement. Handoff content remains untrusted status. No Git command runs before consent, and later stdout, stderr, and ref-name display require trusted external sanitization that repository scripts do not provide.
 - Moved `unittest.main()` to the physical end of `tests/test_check_conflict_markers.py`, so direct execution defines and runs every test class.
-- Made `sync-check.yml` and `agents-md-compliance.yml` push-only. Their pull request checks now run behind the immutable gate with explicit `needs` dependencies and job-level `contents: read` permissions.
+- Kept `agents-md-compliance.yml` push-only and moved tests, sync checks, style
+  checks, and AgentLint to `sync-check.yml` under the standard `pull_request`
+  event. Pull request code no longer executes in the base repository's
+  `pull_request_target` context.
 - Added the `edited` pull request activity to the trusted workflow, so base retargeting reruns the gate and dependent checks.
 - Pinned every access-control checker in the privileged pull request workflow
   to the exact trusted base. The checker code now comes from `trusted-base`
   while its paths, commits, and workflow inputs come from `pr-head`.
   Regression coverage requires read-only job permissions and forbids secret
   references or write scopes under `pull_request_target`.
-- Removed AgentLint pull request comments. AgentLint remains advisory on pushes and gated pull requests, but no pull request code runs with `pull-requests: write` permission.
+- Removed AgentLint pull request comments. AgentLint remains advisory on pushes
+  and standard pull requests, but no pull request code runs with
+  `pull-requests: write` permission.
 - Cleaned up redundant conditions in `scripts/check_dockerfile_root.py` (`if` to `elif` on service-indent comparison) and `scripts/check_commit_message.py` (removed unreachable empty-sha guard).
 
 ## [1.12.0] - 2026-08-20

@@ -643,13 +643,13 @@ class WiringTest(unittest.TestCase):
         self.assertIn('--repo "$PR_REPO" --tree "$PR_HEAD_SHA"', content)
         self.assertNotIn("python pr-head/", content)
 
-    def test_all_pr_code_jobs_depend_on_the_immutable_gate(self):
+    def test_privileged_pr_jobs_depend_on_the_immutable_gate(self):
         content = IMMUTABLE_WORKFLOW_PATH.read_text(encoding="utf-8")
         jobs = _workflow_jobs(content)
         gate = "immutable-conflict-check"
         self.assertEqual(
             set(jobs),
-            {gate, "check-sync", "pr-checks", "static-checks"},
+            {gate, "pr-checks", "static-checks"},
         )
         for job_id, block in jobs.items():
             with self.subTest(job=job_id):
@@ -663,6 +663,12 @@ class WiringTest(unittest.TestCase):
         self.assertIn("GIT_ALTERNATE_OBJECT_DIRECTORIES", jobs["pr-checks"])
         self.assertNotIn("pull-requests: write", content)
         self.assertNotIn("actions/github-script", content)
+
+    def test_privileged_workflow_does_not_execute_pr_authored_tools(self):
+        content = IMMUTABLE_WORKFLOW_PATH.read_text(encoding="utf-8")
+        self.assertNotIn("python -m unittest", content)
+        self.assertNotRegex(content, r"run:\s+python scripts/")
+        self.assertNotIn("0xmariowu/AgentLint", content)
 
     def test_privileged_trigger_has_read_only_permissions_and_no_secrets(self):
         content = IMMUTABLE_WORKFLOW_PATH.read_text(encoding="utf-8")
@@ -719,21 +725,24 @@ class WiringTest(unittest.TestCase):
                         block,
                     )
 
-    def test_legacy_workflows_are_push_only(self):
+    def test_untrusted_checks_use_the_standard_pull_request_event(self):
         sync_content = WORKFLOW_PATH.read_text(encoding="utf-8")
         compliance_content = AGENTS_MD_WORKFLOW_PATH.read_text(
             encoding="utf-8")
-        self.assertEqual(_workflow_events(sync_content), {"push"})
+        self.assertEqual(
+            _workflow_events(sync_content), {"push", "pull_request"})
         self.assertEqual(_workflow_events(compliance_content), {"push"})
+        self.assertNotIn("pull_request_target", sync_content)
         self.assertNotIn("pull-requests: write", sync_content)
         self.assertNotIn("actions/github-script", sync_content)
 
     def test_pr_draft_semantics_remain_explicit(self):
-        jobs = _workflow_jobs(
+        privileged_jobs = _workflow_jobs(
             IMMUTABLE_WORKFLOW_PATH.read_text(encoding="utf-8"))
-        self.assertNotIn("draft", jobs["check-sync"])
-        self.assertIn("draft == false", jobs["pr-checks"])
-        self.assertIn("draft == false", jobs["static-checks"])
+        sync_jobs = _workflow_jobs(WORKFLOW_PATH.read_text(encoding="utf-8"))
+        self.assertNotIn("draft", sync_jobs["check-sync"])
+        self.assertIn("draft == false", privileged_jobs["pr-checks"])
+        self.assertIn("draft == false", privileged_jobs["static-checks"])
 
     def test_handoff_requires_active_user_request(self):
         for path in (AGENTS_PATH, HANDOFF_PATH, README_PATH):

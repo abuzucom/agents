@@ -49,42 +49,6 @@ jobs:
           python "$TRUSTED_CHECKER"
           --repo "$PR_REPO" --tree "$PR_HEAD_SHA"
 
-  check-sync:
-    needs: immutable-conflict-check
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          repository: ${{ env.PR_HEAD_REPOSITORY }}
-          ref: ${{ env.PR_HEAD_SHA }}
-          persist-credentials: false
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.x'
-      - name: Run tests
-        run: python -m unittest discover -s tests -v
-      - name: Run sync check
-        run: python scripts/sync.py --check
-      - name: Run style lint
-        run: python scripts/lint_style.py
-      - name: Check American spelling (warning only)
-        run: python scripts/check_us_spelling.py AGENTS.md plan/HANDOFF.md.example SECURITY.md.example CONTRIBUTING.md.example .github/PULL_REQUEST_TEMPLATE.md .github/ISSUE_TEMPLATE.md
-      - name: Check English only (warning only)
-        run: python scripts/check_english_only.py AGENTS.md plan/HANDOFF.md.example SECURITY.md.example CONTRIBUTING.md.example .github/PULL_REQUEST_TEMPLATE.md .github/ISSUE_TEMPLATE.md
-      - name: Check for hedging and fluff (warning only)
-        run: python scripts/check_hedging.py AGENTS.md plan/HANDOFF.md.example SECURITY.md.example CONTRIBUTING.md.example .github/PULL_REQUEST_TEMPLATE.md .github/ISSUE_TEMPLATE.md
-      - name: Check dashes and ASCII in template files
-        run: python scripts/check_ascii.py plan/HANDOFF.md.example SECURITY.md.example CONTRIBUTING.md.example .github/PULL_REQUEST_TEMPLATE.md .github/ISSUE_TEMPLATE.md
-      - name: Check worktree conflict markers (ordinary test)
-        run: python scripts/check_conflict_markers.py
-      - name: AgentLint (advisory, no PR comment)
-        uses: 0xmariowu/AgentLint@v1.1.13
-        with:
-          fail-below: '0'
-
   pr-checks:
     needs: immutable-conflict-check
     if: github.event.pull_request.draft == false
