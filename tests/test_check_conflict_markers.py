@@ -2,6 +2,7 @@
 """Tests for scripts/check_conflict_markers.py and its wiring."""
 import importlib.util
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -14,8 +15,17 @@ CHECKER_PATH = REPO_ROOT / "scripts" / "check_conflict_markers.py"
 WORKFLOW_PATH = (
     REPO_ROOT / ".github" / "workflows" / "sync-check.yml"
 )
+IMMUTABLE_WORKFLOW_PATH = (
+    REPO_ROOT / ".github" / "workflows" / "immutable-conflict-check.yml"
+)
+AGENTS_MD_WORKFLOW_PATH = (
+    REPO_ROOT / ".github" / "workflows" / "agents-md-compliance.yml"
+)
 MAKEFILE_PATH = REPO_ROOT / "Makefile"
 PRE_COMMIT_CONFIG_PATH = REPO_ROOT / ".pre-commit-config.yaml"
+AGENTS_PATH = REPO_ROOT / "AGENTS.md"
+HANDOFF_PATH = REPO_ROOT / "plan" / "HANDOFF.md.example"
+README_PATH = REPO_ROOT / "README.md"
 
 
 def _load_checker_module():
@@ -28,6 +38,60 @@ def _load_checker_module():
 
 
 checker = _load_checker_module()
+
+
+def _workflow_events(content: str) -> set[str]:
+    """Return event keys from a workflow's top-level on block."""
+    lines = content.splitlines()
+    start = lines.index("on:") + 1
+    events = set()
+    for line in lines[start:]:
+        if line and not line.startswith(" "):
+            break
+        match = re.match(r"^  ([a-z_]+):", line)
+        if match:
+            events.add(match.group(1))
+    return events
+
+
+def _workflow_jobs(content: str) -> dict[str, str]:
+    """Return job blocks keyed by job ID."""
+    lines = content.splitlines()
+    start = lines.index("jobs:") + 1
+    starts = []
+    for index in range(start, len(lines)):
+        match = re.match(r"^  ([a-z0-9-]+):$", lines[index])
+        if match:
+            starts.append((index, match.group(1)))
+    jobs = {}
+    for position, (index, job_id) in enumerate(starts):
+        end = starts[position + 1][0] if position + 1 < len(starts) else len(lines)
+        jobs[job_id] = "\n".join(lines[index:end])
+    return jobs
+
+
+def _job_needs(job_block: str) -> set[str]:
+    """Return scalar or inline-list needs from one job block."""
+    match = re.search(r"^    needs:\s*(.+)$", job_block, re.MULTILINE)
+    if not match:
+        return set()
+    value = match.group(1).strip().strip("[]")
+    return {item.strip() for item in value.split(",") if item.strip()}
+
+
+def _depends_on(jobs: dict[str, str], job_id: str, target: str) -> bool:
+    """Return True if a job reaches target through the needs graph."""
+    pending = list(_job_needs(jobs[job_id]))
+    visited = set()
+    while pending:
+        dependency = pending.pop()
+        if dependency == target:
+            return True
+        if dependency in visited or dependency not in jobs:
+            continue
+        visited.add(dependency)
+        pending.extend(_job_needs(jobs[dependency]))
+    return False
 
 
 class ConflictMarkerDetectionTest(unittest.TestCase):
@@ -246,6 +310,54 @@ class ConflictMarkerDetectionTest(unittest.TestCase):
             violations[1],
         )
 
+    def test_narrow_openers_do_not_hide_reportable_diff3_separators(self):
+        for width in (1, 2):
+            narrow = "<" * width
+            content = (
+                f"{narrow} HEAD\n||||||| base\n"
+                f"{narrow.replace('<', '=')}\n"
+                f"{narrow.replace('<', '>')} branch\n"
+            )
+            with self.subTest(width=width):
+                violations = checker.check_content(content, "hidden.py")
+                self.assertEqual(len(violations), 2)
+                self.assertIn(
+                    "hidden.py:2: orphan conflict marker separator",
+                    violations[0],
+                )
+                self.assertIn(
+                    "hidden.py:1-4: unresolved conflict block",
+                    violations[1],
+                )
+
+    def test_narrow_openers_do_not_hide_reportable_separators(self):
+        for width in (1, 2):
+            narrow = "<" * width
+            content = (
+                f"{narrow} HEAD\n=======\n"
+                f"{narrow.replace('<', '=')}\n"
+                f"{narrow.replace('<', '>')} branch\n"
+            )
+            with self.subTest(width=width):
+                violations = checker.check_content(content, "hidden.py")
+                self.assertEqual(len(violations), 2)
+                self.assertIn(
+                    "hidden.py:2: orphan conflict marker separator",
+                    violations[0],
+                )
+                self.assertIn(
+                    "hidden.py:1-4: unresolved conflict block",
+                    violations[1],
+                )
+
+    def test_setext_heading_stays_valid_under_a_narrow_opener(self):
+        content = "< note\nHeading\n=======\n=\n> branch\n"
+        violations = checker.check_content(content, "heading.md")
+        self.assertEqual(
+            violations,
+            ["heading.md:1-5: unresolved conflict block"],
+        )
+
 
 class FileCheckingTest(unittest.TestCase):
     """Filesystem interactions, encodings, and fail-closed errors."""
@@ -395,11 +507,12 @@ class FileCheckingTest(unittest.TestCase):
                 mock_attrs.return_value = {
                     "test.txt": {"working-tree-encoding": "UTF-16LE"}
                 }
-                mock_size.return_value = 50
-                mock_blob.return_value = (
+                staged_content = (
                     b"<<<<<<< HEAD\nleft\n=======\n"
                     b"right\n>>>>>>> branch\n"
                 )
+                mock_size.return_value = len(staged_content)
+                mock_blob.return_value = staged_content
                 violations = checker._check_staged(str(repo_path))
                 self.assertEqual(len(violations), 1)
                 self.assertIn("unresolved conflict block", violations[0])
@@ -509,11 +622,79 @@ class WiringTest(unittest.TestCase):
     def test_sync_check_workflow_wires_exact_command(self):
         content = WORKFLOW_PATH.read_text(encoding="utf-8")
         expected = (
-            "- name: Check for unresolved conflict markers\n"
+            "- name: Check worktree conflict markers (ordinary test)\n"
             "        run: python scripts/"
             "check_conflict_markers.py"
         )
         self.assertIn(expected, content)
+
+    def test_immutable_workflow_uses_only_the_base_checker(self):
+        content = IMMUTABLE_WORKFLOW_PATH.read_text(encoding="utf-8")
+        self.assertEqual(_workflow_events(content), {"pull_request_target"})
+        self.assertIn("edited", content)
+        self.assertIn("uses: actions/setup-python@v5", content)
+        self.assertIn("ref: ${{ env.PR_BASE_SHA }}", content)
+        self.assertIn("ref: ${{ env.PR_HEAD_SHA }}", content)
+        self.assertIn("path: trusted-base", content)
+        self.assertIn("path: pr-head", content)
+        self.assertIn("TRUSTED_CHECKER: trusted-base/scripts/", content)
+        self.assertIn('python "$TRUSTED_CHECKER"', content)
+        self.assertIn('--repo "$PR_REPO" --tree "$PR_HEAD_SHA"', content)
+        self.assertNotIn("python pr-head/", content)
+
+    def test_all_pr_code_jobs_depend_on_the_immutable_gate(self):
+        content = IMMUTABLE_WORKFLOW_PATH.read_text(encoding="utf-8")
+        jobs = _workflow_jobs(content)
+        gate = "immutable-conflict-check"
+        self.assertEqual(
+            set(jobs),
+            {gate, "check-sync", "pr-checks", "static-checks"},
+        )
+        for job_id, block in jobs.items():
+            with self.subTest(job=job_id):
+                self.assertIn(
+                    "    permissions:\n      contents: read", block)
+                if job_id != gate:
+                    self.assertTrue(_depends_on(jobs, job_id, gate))
+                    self.assertIn("ref: ${{ env.PR_HEAD_SHA }}", block)
+        self.assertIn("ref: ${{ env.PR_BASE_SHA }}", jobs["pr-checks"])
+        self.assertIn("working-directory: pr-head", jobs["pr-checks"])
+        self.assertIn("GIT_ALTERNATE_OBJECT_DIRECTORIES", jobs["pr-checks"])
+        self.assertNotIn("pull-requests: write", content)
+        self.assertNotIn("actions/github-script", content)
+
+    def test_legacy_workflows_are_push_only(self):
+        sync_content = WORKFLOW_PATH.read_text(encoding="utf-8")
+        compliance_content = AGENTS_MD_WORKFLOW_PATH.read_text(
+            encoding="utf-8")
+        self.assertEqual(_workflow_events(sync_content), {"push"})
+        self.assertEqual(_workflow_events(compliance_content), {"push"})
+        self.assertNotIn("pull-requests: write", sync_content)
+        self.assertNotIn("actions/github-script", sync_content)
+
+    def test_pr_draft_semantics_remain_explicit(self):
+        jobs = _workflow_jobs(
+            IMMUTABLE_WORKFLOW_PATH.read_text(encoding="utf-8"))
+        self.assertNotIn("draft", jobs["check-sync"])
+        self.assertIn("draft == false", jobs["pr-checks"])
+        self.assertIn("draft == false", jobs["static-checks"])
+
+    def test_handoff_requires_active_user_request(self):
+        for path in (AGENTS_PATH, HANDOFF_PATH, README_PATH):
+            content = path.read_text(encoding="utf-8")
+            with self.subTest(path=path.name):
+                self.assertNotIn("acknowledged digest", content)
+                self.assertIn("active-user request", content)
+                self.assertNotIn("git --no-pager branch", content)
+                self.assertIn("trusted external sanitization", content)
+
+    def test_handoff_prescribes_no_pre_consent_git_command(self):
+        for path in (AGENTS_PATH, HANDOFF_PATH, README_PATH):
+            content = path.read_text(encoding="utf-8")
+            with self.subTest(path=path.name):
+                self.assertNotIn("git --no-pager --no-replace-objects", content)
+                self.assertIn("Do not run Git commands before consent", content)
+                self.assertIn("trusted external sanitization", content)
 
     def test_makefile_wires_exact_lint_recipe(self):
         content = MAKEFILE_PATH.read_text(encoding="utf-8")
@@ -538,8 +719,34 @@ class WiringTest(unittest.TestCase):
         self.assertIn("pass_filenames: false", content)
 
 
-if __name__ == "__main__":
-    unittest.main()
+class DirectExecutionOrderingTest(unittest.TestCase):
+    """Direct execution must define every late test class before running."""
+
+    def test_direct_execution_can_run_late_test_classes(self):
+        tests = [
+            "SecurityHardeningTest.test_blob_size_separates_the_object_name",
+            "WindowsPathHandlingTest."
+            "test_attribute_lookup_survives_a_backslash_relpath",
+            "SparseCheckoutTest.test_skip_worktree_entry_does_not_fail_the_check",
+        ]
+        result = subprocess.run(
+            [sys.executable, str(Path(__file__).resolve()), "-v", *tests],
+            cwd=REPO_ROOT,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(
+            result.returncode,
+            0,
+            f"stdout: {result.stdout}, stderr: {result.stderr}",
+        )
+        for class_name in (
+            "SecurityHardeningTest",
+            "WindowsPathHandlingTest",
+            "SparseCheckoutTest",
+        ):
+            self.assertIn(class_name, result.stderr)
 
 
 def _init_repo(path: str) -> None:
@@ -586,6 +793,88 @@ class SecurityHardeningTest(unittest.TestCase):
         self.assertTrue(
             violations, "a replacement ref hid conflict markers in the index")
 
+    def test_replacement_ref_does_not_hide_a_tree_conflict(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            _init_repo(tmp)
+            target = Path(tmp) / "merged.txt"
+            target.write_text(
+                "<<<<<<< HEAD\nleft\n=======\nright\n>>>>>>> branch\n",
+                encoding="utf-8",
+            )
+            subprocess.run(["git", "add", "merged.txt"], cwd=tmp, check=True,
+                           capture_output=True)
+            subprocess.run(["git", "commit", "-qm", "test: add conflict"],
+                           cwd=tmp, check=True, capture_output=True)
+            treeish = subprocess.run(
+                ["git", "rev-parse", "HEAD"], cwd=tmp, check=True,
+                capture_output=True, text=True).stdout.strip()
+            dirty = subprocess.run(
+                ["git", "rev-parse", "HEAD:merged.txt"], cwd=tmp, check=True,
+                capture_output=True, text=True).stdout.strip()
+            clean = subprocess.run(
+                ["git", "hash-object", "-w", "--stdin"], cwd=tmp, check=True,
+                input="left\n", capture_output=True, text=True).stdout.strip()
+            subprocess.run(["git", "replace", "--force", dirty, clean],
+                           cwd=tmp, check=True, capture_output=True)
+
+            result = subprocess.run(
+                [sys.executable, str(CHECKER_PATH), "--repo", tmp,
+                 "--tree", treeish],
+                cwd=tmp, capture_output=True, text=True, check=False)
+
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("unresolved conflict block", result.stderr)
+
+    def test_tree_mode_rejects_malformed_object_id(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            _init_repo(tmp)
+            result = subprocess.run(
+                [sys.executable, str(CHECKER_PATH), "--repo", tmp,
+                 "--tree", "HEAD;echo unsafe"],
+                cwd=tmp, capture_output=True, text=True, check=False)
+
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("validated hexadecimal object id", result.stderr)
+
+    def test_tree_parser_rejects_truncated_and_malformed_entries(self):
+        malformed_outputs = (
+            b"100644 blob " + (b"a" * 40) + b"\tfile.txt",
+            b"100644 blob\x00",
+            b"100644 tree " + (b"a" * 40) + b"\tfile.txt\x00",
+        )
+        for raw in malformed_outputs:
+            with self.subTest(raw=raw):
+                with self.assertRaises(RuntimeError):
+                    checker._parse_tree_entries(raw)
+
+    def test_tree_mode_reads_content_and_attributes_from_the_tree(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            _init_repo(tmp)
+            target = Path(tmp) / "marker.txt"
+            attributes = Path(tmp) / ".gitattributes"
+            target.write_text("< HEAD\n", encoding="utf-8")
+            attributes.write_text(
+                "marker.txt conflict-marker-size=1\n", encoding="utf-8")
+            subprocess.run(["git", "add", "."], cwd=tmp, check=True,
+                           capture_output=True)
+            subprocess.run(["git", "commit", "-qm", "test: add tree"],
+                           cwd=tmp, check=True, capture_output=True)
+            treeish = subprocess.run(
+                ["git", "rev-parse", "HEAD"], cwd=tmp, check=True,
+                capture_output=True, text=True).stdout.strip()
+            target.write_text("clean worktree content\n", encoding="utf-8")
+            attributes.write_text("marker.txt -conflict-marker-size\n",
+                                  encoding="utf-8")
+
+            result = subprocess.run(
+                [sys.executable, str(CHECKER_PATH), "--repo", tmp,
+                 "--tree", treeish],
+                cwd=tmp, capture_output=True, text=True, check=False)
+
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("marker.txt:1: unclosed conflict marker opener",
+                      result.stderr)
+
     def test_blob_size_separates_the_object_name(self):
         """A sha beginning with a dash is read as an option without --."""
         with patch("subprocess.run") as run:
@@ -614,10 +903,10 @@ class SecurityHardeningTest(unittest.TestCase):
             plain = Path(tmp) / "plain.txt"
             plain.write_text("clean\n", encoding="utf-8")
             link = Path(tmp) / "link.txt"
-            link.symlink_to(plain)
-
-            self.assertIs(checker._probe_is_symlink(str(plain)), False)
-            self.assertIs(checker._probe_is_symlink(str(link)), True)
+            with patch.object(checker.os.path, "islink",
+                              side_effect=[False, True]):
+                self.assertIs(checker._probe_is_symlink(str(plain)), False)
+                self.assertIs(checker._probe_is_symlink(str(link)), True)
             with patch.object(checker.os.path, "islink",
                               side_effect=OSError("probe failed")):
                 self.assertIsNone(checker._probe_is_symlink(str(plain)))
@@ -667,7 +956,7 @@ class WindowsPathHandlingTest(unittest.TestCase):
 
 
 class SparseCheckoutTest(unittest.TestCase):
-    """A skip-worktree entry has no working-tree file and is not an error."""
+    """Scan skip-worktree content from its authoritative source."""
 
     def test_skip_worktree_entry_does_not_fail_the_check(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -690,3 +979,65 @@ class SparseCheckoutTest(unittest.TestCase):
         self.assertEqual(
             result.returncode, 0,
             f"a valid sparse checkout failed: {result.stderr}")
+
+    def test_present_skip_worktree_entry_uses_unstaged_content(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            _init_repo(tmp)
+            target = Path(tmp) / "present.txt"
+            target.write_text("clean content\n", encoding="utf-8")
+            subprocess.run(["git", "add", "present.txt"], cwd=tmp,
+                           check=True, capture_output=True)
+            subprocess.run(["git", "commit", "-qm", "test: add file"],
+                           cwd=tmp, check=True, capture_output=True)
+            subprocess.run(["git", "update-index", "--skip-worktree",
+                            "present.txt"], cwd=tmp, check=True,
+                           capture_output=True)
+            target.write_text(
+                "<<<<<<< HEAD\nleft\n=======\nright\n>>>>>>> branch\n",
+                encoding="utf-8",
+            )
+
+            result = subprocess.run(
+                [sys.executable, str(CHECKER_PATH), "--all"],
+                cwd=tmp, capture_output=True, text=True, check=False)
+
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("unresolved conflict block", result.stderr)
+
+    def test_sparse_checkout_scans_absent_index_blob_with_cached_attributes(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            _init_repo(tmp)
+            target = Path(tmp) / "sparse.txt"
+            present = Path(tmp) / "present.txt"
+            attributes = Path(tmp) / ".gitattributes"
+            target.write_text("< HEAD\n", encoding="utf-8")
+            present.write_text("clean content\n", encoding="utf-8")
+            attributes.write_text(
+                "sparse.txt conflict-marker-size=1\n", encoding="utf-8")
+            subprocess.run(["git", "add", "."], cwd=tmp, check=True,
+                           capture_output=True)
+            subprocess.run(["git", "commit", "-qm", "test: add sparse"],
+                           cwd=tmp, check=True, capture_output=True)
+            subprocess.run(["git", "sparse-checkout", "init", "--no-cone"],
+                           cwd=tmp, check=True, capture_output=True)
+            subprocess.run(
+                ["git", "sparse-checkout", "set", "--no-cone",
+                 "/present.txt", "/.gitattributes"],
+                cwd=tmp, check=True, capture_output=True)
+            self.assertFalse(target.exists())
+            index_state = subprocess.run(
+                ["git", "ls-files", "-v", "sparse.txt"], cwd=tmp,
+                check=True, capture_output=True, text=True).stdout
+            self.assertTrue(index_state.startswith("S "), index_state)
+
+            result = subprocess.run(
+                [sys.executable, str(CHECKER_PATH), "--all"],
+                cwd=tmp, capture_output=True, text=True, check=False)
+
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("sparse.txt:1: unclosed conflict marker opener",
+                      result.stderr)
+
+
+if __name__ == "__main__":
+    unittest.main()

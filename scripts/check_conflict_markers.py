@@ -12,6 +12,8 @@ Modes:
   check_conflict_markers.py <file> ...   Check explicitly provided files
   check_conflict_markers.py --all        Check all git-tracked regular files
   check_conflict_markers.py --staged     Check staged index blobs (pre-commit)
+  check_conflict_markers.py --repo PATH --tree OID
+                                         Check one immutable commit or tree
   check_conflict_markers.py              Default: --all
 
 Exits 1 on any violation or read/git error (fail-closed), 0 if clean.
@@ -22,6 +24,7 @@ import re
 import stat
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 MAX_FILE_SIZE = 50 * 1024 * 1024  # 50 MB
@@ -31,6 +34,8 @@ MAX_VIOLATIONS = 100
 # invocation stays a reasonable size on a large repository.
 CHECK_ATTR_CHUNK = 500
 MAX_DIAGNOSTIC_LENGTH = 200
+REGULAR_MODES = {"100644", "100755"}
+OBJECT_ID_PATTERN = re.compile(r"(?:[0-9a-fA-F]{40}|[0-9a-fA-F]{64})\Z")
 
 
 def _sanitize(value: object) -> str:
@@ -215,7 +220,7 @@ def _scan_closer(scan: _BlockScan, marker_len: int, number: int,
 
 
 def _scan_diff3(scan: _BlockScan, marker_len: int, number: int,
-                line: str, safe_path: str) -> list:
+                 line: str, safe_path: str) -> list:
     """Record the diff3 base separator, or report it as an orphan."""
     if scan.opener_line is None:
         if scan.reportable(marker_len):
@@ -226,6 +231,11 @@ def _scan_diff3(scan: _BlockScan, marker_len: int, number: int,
         return []
     if marker_len == scan.opener_len:
         scan.has_separator = True
+    elif scan.reportable(marker_len):
+        return [
+            f"{safe_path}:{number}: "
+            f"orphan conflict marker separator '{_sanitize(line)}'"
+        ]
     return []
 
 
@@ -236,6 +246,14 @@ def _scan_separator(scan: _BlockScan, marker_len: int, number: int,
     if scan.opener_line is not None:
         if marker_len == scan.opener_len:
             scan.has_separator = True
+        elif (not markdown
+              or not is_valid_setext_heading(lines, number - 1)):
+            if scan.reportable(marker_len):
+                return [
+                    f"{safe_path}:{number}: "
+                    "orphan conflict marker separator "
+                    f"'{_sanitize(line)}'"
+                ]
         return []
     if markdown and is_valid_setext_heading(lines, number - 1):
         return []
@@ -527,10 +545,10 @@ def check_file(
 def get_tracked_regular_files(
     repo_root: str | None = None,
 ) -> list[str]:
-    """Return git-tracked regular files that exist in the working tree.
+    """Return all git-tracked regular files.
 
-    Excludes symlinks (120000) and submodules (160000), and skip-worktree
-    entries, which a sparse checkout deliberately omits from disk.
+    Excludes symlinks (120000) and submodules (160000). Callers decide
+    whether a skip-worktree entry comes from disk or its index blob.
     """
     if repo_root is None:
         repo_root = _get_repo_root()
@@ -543,10 +561,9 @@ def get_tracked_regular_files(
                 part.decode("utf-8", errors="replace"))
         except (ValueError, IndexError):
             continue
-        if mode in ("100644", "100755"):
+        if mode in REGULAR_MODES:
             regular.append(file_path)
-    skipped = _skip_worktree_paths(repo_root)
-    return [path for path in regular if path not in skipped]
+    return regular
 
 
 def _skip_worktree_paths(repo_root: str) -> set:
@@ -619,6 +636,7 @@ def _get_blob_size(sha: str, repo_root: str) -> int:
             "git", "--no-pager",
             "-c", "core.fsmonitor=",
             "--no-replace-objects",
+            "--no-lazy-fetch",
             "cat-file", "-s", "--", sha,
         ],
         capture_output=True,
@@ -636,7 +654,8 @@ def _get_blob_size(sha: str, repo_root: str) -> int:
 
 
 def _read_blob(
-    sha: str, repo_root: str, max_size: int = MAX_FILE_SIZE
+    sha: str, repo_root: str, max_size: int = MAX_FILE_SIZE,
+    expected_size: int | None = None,
 ) -> bytes:
     """Read a single blob from the git object store with size limit."""
     proc = subprocess.Popen(
@@ -644,6 +663,7 @@ def _read_blob(
             "git", "--no-pager",
             "-c", "core.fsmonitor=",
             "--no-replace-objects",
+            "--no-lazy-fetch",
             "cat-file", "blob", "--", sha,
         ],
         stdout=subprocess.PIPE,
@@ -661,6 +681,11 @@ def _read_blob(
             f"blob {sha[:12]} size ({len(data)} bytes) exceeds "
             f"limit ({max_size} bytes)"
         )
+    if expected_size is not None and len(data) != expected_size:
+        raise RuntimeError(
+            f"blob {sha[:12]} read {len(data)} bytes; "
+            f"expected {expected_size}"
+        )
     return data
 
 
@@ -674,7 +699,7 @@ def _partition_index_entries(entries: list) -> tuple:
                 f"{_sanitize(file_path)}: unmerged index entry "
                 f"(stage {stage})"
             )
-        elif mode in ("100644", "100755"):
+        elif mode in REGULAR_MODES:
             readable.append((file_path, sha))
     return violations, readable
 
@@ -693,7 +718,8 @@ def _check_staged_blob(file_path: str, sha: str, repo_root: str,
             f"({MAX_FILE_SIZE} bytes)"
         ]
     try:
-        raw_bytes = _read_blob(sha, repo_root, MAX_FILE_SIZE)
+        raw_bytes = _read_blob(
+            sha, repo_root, MAX_FILE_SIZE, expected_size=blob_size)
     except RuntimeError as err:
         return [f"error: {_sanitize(err)}"]
 
@@ -736,6 +762,228 @@ def _check_staged(repo_root: str) -> list[str]:
     return violations
 
 
+def _check_all(repo_root: str) -> list[str]:
+    """Check present worktree files and absent skip-worktree index blobs."""
+    violations, readable = _partition_index_entries(
+        _get_index_entries(repo_root))
+    skipped = _skip_worktree_paths(repo_root)
+    present = [path for path, _ in readable if os.path.lexists(path)]
+    absent_skipped = [
+        (path, sha) for path, sha in readable
+        if path in skipped and not os.path.lexists(path)
+    ]
+    worktree_attributes = get_git_attributes(
+        present, repo_root=repo_root)
+    cached_attributes = get_git_attributes(
+        [path for path, _ in absent_skipped], repo_root=repo_root,
+        cached=True)
+
+    for file_path, sha in readable:
+        if len(violations) >= MAX_VIOLATIONS:
+            violations.append(
+                f"reached violation limit ({MAX_VIOLATIONS}), stopping")
+            break
+        if file_path in skipped and not os.path.lexists(file_path):
+            attrs = cached_attributes.get(file_path, {})
+            violations.extend(_check_staged_blob(
+                file_path, sha, repo_root,
+                _parse_marker_size(attrs.get("conflict-marker-size"))))
+            continue
+        attrs = worktree_attributes.get(file_path, {})
+        violations.extend(check_file(
+            file_path,
+            _parse_marker_size(attrs.get("conflict-marker-size")),
+            attrs.get("working-tree-encoding"),
+        ))
+    return violations
+
+
+def _run_immutable_git(
+    repo_root: str, args: list[str], input_bytes: bytes | None = None,
+    env: dict | None = None,
+) -> bytes:
+    """Run a non-fetching Git object command without replacement refs."""
+    command = [
+        "git", "--no-pager", "--no-replace-objects", "--no-lazy-fetch",
+        "-c", "core.fsmonitor=", *args,
+    ]
+    result = subprocess.run(
+        command, cwd=repo_root, input=input_bytes, capture_output=True,
+        check=False, env=env)
+    if result.returncode != 0:
+        message = result.stderr.decode("utf-8", errors="replace").strip()
+        raise RuntimeError(
+            f"git {args[0]} failed (exit {result.returncode}): "
+            f"{_sanitize(message)}"
+        )
+    return result.stdout
+
+
+def _validate_object_id(object_id: str) -> str:
+    """Return a normalized validated hexadecimal object ID."""
+    if not OBJECT_ID_PATTERN.fullmatch(object_id):
+        raise RuntimeError(
+            "--tree requires a validated hexadecimal object id "
+            "with 40 or 64 characters"
+        )
+    return object_id.lower()
+
+
+def _validate_tree_path(raw_path: bytes) -> str:
+    """Decode and validate one repository-relative tree path."""
+    try:
+        file_path = raw_path.decode("utf-8")
+    except UnicodeDecodeError as err:
+        raise RuntimeError("tree entry path is not valid UTF-8") from err
+    parts = file_path.split("/")
+    if (not file_path or file_path.startswith("/")
+            or any(part in ("", ".", "..") for part in parts)):
+        raise RuntimeError(
+            f"malformed tree entry path: {_sanitize(file_path)}")
+    return file_path
+
+
+def _parse_tree_entries(raw: bytes) -> list[tuple[str, str]]:
+    """Parse complete ls-tree output into regular blob paths and IDs."""
+    if raw and not raw.endswith(b"\x00"):
+        raise RuntimeError("truncated git ls-tree output")
+    entries: list[tuple[str, str]] = []
+    seen: set[str] = set()
+    for record in raw[:-1].split(b"\x00") if raw else []:
+        try:
+            metadata, raw_path = record.split(b"\t", 1)
+            mode, object_type, raw_id = metadata.split(b" ")
+            object_id = raw_id.decode("ascii")
+        except (ValueError, UnicodeDecodeError) as err:
+            raise RuntimeError("malformed git ls-tree entry") from err
+        file_path = _validate_tree_path(raw_path)
+        if file_path in seen or not OBJECT_ID_PATTERN.fullmatch(object_id):
+            raise RuntimeError(
+                f"malformed git ls-tree entry: {_sanitize(file_path)}")
+        seen.add(file_path)
+        if (mode, object_type) in ((b"100644", b"blob"),
+                                   (b"100755", b"blob")):
+            entries.append((file_path, object_id.lower()))
+        elif (mode, object_type) not in ((b"120000", b"blob"),
+                                        (b"160000", b"commit")):
+            raise RuntimeError(
+                f"unsupported git ls-tree entry: {_sanitize(file_path)}")
+    return entries
+
+
+def _parse_tree_attributes(
+    raw: bytes, requested: list[str],
+) -> dict[str, dict[str, str]]:
+    """Parse complete check-attr output and require every requested value."""
+    if raw and not raw.endswith(b"\x00"):
+        raise RuntimeError("truncated git check-attr output")
+    parts = raw[:-1].split(b"\x00") if raw else []
+    if len(parts) % 3 != 0:
+        raise RuntimeError("malformed git check-attr output")
+    expected = set(requested)
+    parsed: dict[str, dict[str, str]] = {}
+    for index in range(0, len(parts), 3):
+        try:
+            path = parts[index].decode("utf-8")
+            attribute = parts[index + 1].decode("ascii")
+            value = parts[index + 2].decode("utf-8")
+        except UnicodeDecodeError as err:
+            raise RuntimeError("malformed git check-attr output") from err
+        values = parsed.setdefault(path, {})
+        if path not in expected or attribute in values:
+            raise RuntimeError("unexpected git check-attr output")
+        values[attribute] = value
+    required = {"conflict-marker-size", "working-tree-encoding"}
+    if set(parsed) != expected or any(set(value) != required
+                                     for value in parsed.values()):
+        raise RuntimeError("incomplete git check-attr output")
+    return parsed
+
+
+def _isolated_git_env(repo_root: str, config_root: str) -> dict:
+    """Build an environment whose attributes come only from source objects."""
+    raw_objects = _run_immutable_git(
+        repo_root, ["rev-parse", "--git-path", "objects"])
+    try:
+        object_path = raw_objects.decode("utf-8").rstrip("\n")
+    except UnicodeDecodeError as err:
+        raise RuntimeError("git object directory is not valid UTF-8") from err
+    if "\n" in object_path or "\r" in object_path:
+        raise RuntimeError("git returned a malformed object directory")
+    if not os.path.isabs(object_path):
+        object_path = os.path.join(repo_root, object_path)
+    object_path = os.path.abspath(object_path)
+    if not os.path.isdir(object_path):
+        raise RuntimeError("git object directory does not exist")
+    env = os.environ.copy()
+    env.update({
+        "GIT_ALTERNATE_OBJECT_DIRECTORIES": object_path,
+        "GIT_ATTR_NOSYSTEM": "1",
+        "GIT_CONFIG_GLOBAL": os.devnull,
+        "GIT_CONFIG_NOSYSTEM": "1",
+        "GIT_CONFIG_SYSTEM": os.devnull,
+        "HOME": config_root,
+        "XDG_CONFIG_HOME": config_root,
+    })
+    return env
+
+
+def _get_tree_attributes(
+    paths: list[str], repo_root: str, object_id: str,
+) -> dict[str, dict[str, str]]:
+    """Read attributes from an isolated index populated by the exact tree."""
+    if not paths:
+        return {}
+    attributes: dict[str, dict[str, str]] = {}
+    with tempfile.TemporaryDirectory() as temp_dir:
+        env = _isolated_git_env(repo_root, temp_dir)
+        init = subprocess.run(
+            ["git", "--no-pager", "-c", "init.templateDir=", "init",
+             "--bare", "--quiet", temp_dir],
+            capture_output=True, check=False, env=env)
+        if init.returncode != 0:
+            message = init.stderr.decode("utf-8", errors="replace").strip()
+            raise RuntimeError(f"git init failed: {_sanitize(message)}")
+        git_dir = f"--git-dir={temp_dir}"
+        _run_immutable_git(
+            repo_root, [git_dir, "read-tree", object_id], env=env)
+        for start in range(0, len(paths), CHECK_ATTR_CHUNK):
+            chunk = paths[start:start + CHECK_ATTR_CHUNK]
+            stdin = b"\x00".join(path.encode("utf-8") for path in chunk)
+            raw = _run_immutable_git(
+                repo_root,
+                [git_dir, "check-attr", "conflict-marker-size",
+                 "working-tree-encoding", "-z", "--stdin", "--cached"],
+                input_bytes=stdin + b"\x00", env=env)
+            attributes.update(_parse_tree_attributes(raw, chunk))
+    return attributes
+
+
+def _check_tree(repo_root: str, raw_object_id: str) -> list[str]:
+    """Check regular blobs and attributes from one immutable commit or tree."""
+    object_id = _validate_object_id(raw_object_id)
+    object_type = _run_immutable_git(
+        repo_root, ["cat-file", "-t", "--", object_id])
+    if object_type not in (b"commit\n", b"tree\n"):
+        raise RuntimeError("--tree object must be a commit or tree")
+    raw_entries = _run_immutable_git(
+        repo_root, ["ls-tree", "-r", "-z", "--full-tree", object_id])
+    entries = _parse_tree_entries(raw_entries)
+    attributes = _get_tree_attributes(
+        [path for path, _ in entries], repo_root, object_id)
+    violations: list[str] = []
+    for file_path, blob_id in entries:
+        if len(violations) >= MAX_VIOLATIONS:
+            violations.append(
+                f"reached violation limit ({MAX_VIOLATIONS}), stopping")
+            break
+        marker_size = _parse_marker_size(
+            attributes[file_path].get("conflict-marker-size"))
+        violations.extend(_check_staged_blob(
+            file_path, blob_id, repo_root, marker_size))
+    return violations
+
+
 def _collect_files(resolved: list, repo_root: str) -> list:
     """Return the files to check, expanding --all against the index."""
     if not resolved or resolved == ["--all"]:
@@ -758,14 +1006,12 @@ def _report(violations: list) -> int:
 
 def _check_worktree(args: list, repo_root: str) -> list:
     """Check working-tree files, resolving paths before the chdir."""
-    resolved = [arg if arg == "--all" else os.path.abspath(arg)
-                for arg in args]
+    resolved = [os.path.abspath(arg) for arg in args if arg != "--all"]
     os.chdir(repo_root)
-    files = _collect_files(resolved, repo_root)
-    attributes = get_git_attributes(files, repo_root=repo_root)
+    violations = _check_all(repo_root) if not args or "--all" in args else []
+    attributes = get_git_attributes(resolved, repo_root=repo_root)
 
-    violations: list[str] = []
-    for path in files:
+    for path in resolved:
         file_attrs = attributes.get(path, {})
         violations.extend(check_file(
             path,
@@ -775,13 +1021,61 @@ def _check_worktree(args: list, repo_root: str) -> list:
     return violations
 
 
+def _parse_cli(raw_args: list[str]) -> tuple[bool, list[str], str | None,
+                                             str | None]:
+    """Parse the staged, tree, and worktree CLI modes."""
+    staged = False
+    tree_id: str | None = None
+    repo_path: str | None = None
+    files: list[str] = []
+    index = 0
+    while index < len(raw_args):
+        argument = raw_args[index]
+        if argument == "--staged":
+            staged = True
+        elif argument in ("--tree", "--repo"):
+            if index + 1 >= len(raw_args):
+                raise RuntimeError(f"{argument} requires a value")
+            value = raw_args[index + 1]
+            index += 1
+            if argument == "--tree":
+                if tree_id is not None:
+                    raise RuntimeError("--tree may be supplied only once")
+                tree_id = value
+            else:
+                if repo_path is not None:
+                    raise RuntimeError("--repo may be supplied only once")
+                repo_path = value
+        else:
+            files.append(argument)
+        index += 1
+    if tree_id is not None or repo_path is not None:
+        if tree_id is None or repo_path is None:
+            raise RuntimeError("--tree and --repo must be supplied together")
+        if staged or files:
+            raise RuntimeError("--tree mode does not accept other modes or files")
+    return staged, files, tree_id, repo_path
+
+
+def _resolve_repo_path(repo_path: str) -> str:
+    """Resolve an existing repository directory without changing cwd."""
+    try:
+        resolved = Path(repo_path).resolve(strict=True)
+    except OSError as err:
+        raise RuntimeError(
+            f"could not resolve --repo path: {_sanitize(err)}") from err
+    if not resolved.is_dir():
+        raise RuntimeError("--repo path is not a directory")
+    return str(resolved)
+
+
 def main() -> int:
     """Entry point for CLI execution."""
-    raw_args = sys.argv[1:]
-    staged = "--staged" in raw_args
-    args = [arg for arg in raw_args if arg != "--staged"]
-
     try:
+        staged, args, tree_id, repo_path = _parse_cli(sys.argv[1:])
+        if tree_id is not None and repo_path is not None:
+            repo_root = _resolve_repo_path(repo_path)
+            return _report(_check_tree(repo_root, tree_id))
         repo_root = _get_repo_root()
         if staged:
             return _report(_check_staged(repo_root))

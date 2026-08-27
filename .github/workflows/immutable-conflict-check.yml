@@ -1,0 +1,186 @@
+name: Immutable Conflict Check
+
+on:
+  pull_request_target:
+    branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review, edited]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  PR_BASE_REPOSITORY: ${{ github.event.pull_request.base.repo.full_name }}
+  PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+  PR_HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name }}
+  PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+  PR_REPO: pr-head
+  TRUSTED_CHECKER: trusted-base/scripts/check_conflict_markers.py
+
+jobs:
+  immutable-conflict-check:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Check out the exact trusted base
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.PR_BASE_REPOSITORY }}
+          ref: ${{ env.PR_BASE_SHA }}
+          path: trusted-base
+          persist-credentials: false
+      - name: Check out the exact pull request head
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.PR_HEAD_REPOSITORY }}
+          ref: ${{ env.PR_HEAD_SHA }}
+          path: pr-head
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Scan immutable pull request objects with the trusted checker
+        run: >-
+          python "$TRUSTED_CHECKER"
+          --repo "$PR_REPO" --tree "$PR_HEAD_SHA"
+
+  check-sync:
+    needs: immutable-conflict-check
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ env.PR_HEAD_REPOSITORY }}
+          ref: ${{ env.PR_HEAD_SHA }}
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Run tests
+        run: python -m unittest discover -s tests -v
+      - name: Run sync check
+        run: python scripts/sync.py --check
+      - name: Run style lint
+        run: python scripts/lint_style.py
+      - name: Check American spelling (warning only)
+        run: python scripts/check_us_spelling.py AGENTS.md plan/HANDOFF.md.example SECURITY.md.example CONTRIBUTING.md.example .github/PULL_REQUEST_TEMPLATE.md .github/ISSUE_TEMPLATE.md
+      - name: Check English only (warning only)
+        run: python scripts/check_english_only.py AGENTS.md plan/HANDOFF.md.example SECURITY.md.example CONTRIBUTING.md.example .github/PULL_REQUEST_TEMPLATE.md .github/ISSUE_TEMPLATE.md
+      - name: Check for hedging and fluff (warning only)
+        run: python scripts/check_hedging.py AGENTS.md plan/HANDOFF.md.example SECURITY.md.example CONTRIBUTING.md.example .github/PULL_REQUEST_TEMPLATE.md .github/ISSUE_TEMPLATE.md
+      - name: Check dashes and ASCII in template files
+        run: python scripts/check_ascii.py plan/HANDOFF.md.example SECURITY.md.example CONTRIBUTING.md.example .github/PULL_REQUEST_TEMPLATE.md .github/ISSUE_TEMPLATE.md
+      - name: Check worktree conflict markers (ordinary test)
+        run: python scripts/check_conflict_markers.py
+      - name: AgentLint (advisory, no PR comment)
+        uses: 0xmariowu/AgentLint@v1.1.13
+        with:
+          fail-below: '0'
+
+  pr-checks:
+    needs: immutable-conflict-check
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: pr-head
+    env:
+      GIT_ALTERNATE_OBJECT_DIRECTORIES: ${{ github.workspace }}/trusted-base/.git/objects
+    steps:
+      - name: Check out the exact base history
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.PR_BASE_REPOSITORY }}
+          ref: ${{ env.PR_BASE_SHA }}
+          path: trusted-base
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Check out the exact pull request history
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.PR_HEAD_REPOSITORY }}
+          ref: ${{ env.PR_HEAD_SHA }}
+          path: pr-head
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Check banned-agent authorship
+        env:
+          CHECK_BASE: ${{ env.PR_BASE_SHA }}
+          CHECK_HEAD: ${{ env.PR_HEAD_SHA }}
+        run: >-
+          python scripts/check_banned_agents.py
+          --base "$CHECK_BASE" --head "$CHECK_HEAD"
+      - name: Check commit messages (warning only)
+        if: github.event.pull_request.user.login != 'dependabot[bot]'
+        env:
+          CHECK_BASE: ${{ env.PR_BASE_SHA }}
+          CHECK_HEAD: ${{ env.PR_HEAD_SHA }}
+        run: >-
+          python scripts/check_commit_message.py
+          --base "$CHECK_BASE" --head "$CHECK_HEAD"
+      - name: Check commit identities
+        env:
+          CHECK_BASE: ${{ env.PR_BASE_SHA }}
+          CHECK_HEAD: ${{ env.PR_HEAD_SHA }}
+        run: >-
+          python scripts/check_git_identity.py
+          --base "$CHECK_BASE" --head "$CHECK_HEAD"
+
+  static-checks:
+    needs: immutable-conflict-check
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ env.PR_HEAD_REPOSITORY }}
+          ref: ${{ env.PR_HEAD_SHA }}
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Check branch name
+        if: github.event.pull_request.user.login != 'dependabot[bot]'
+        env:
+          GITHUB_HEAD_REF: ${{ github.event.pull_request.head.ref }}
+        run: python scripts/check_branch_name.py
+      - name: Check persist-credentials on checkout steps
+        run: python scripts/check_persist_credentials.py .github/workflows/*.yml
+      - name: Check for unjustified MD5/SHA-1
+        run: |
+          shopt -s nullglob
+          files=(scripts/*.py)
+          if [ ${#files[@]} -gt 0 ]; then
+            python scripts/check_weak_hashing.py "${files[@]}"
+          fi
+      - name: Check for non-root containers
+        run: |
+          shopt -s nullglob
+          files=(Dockerfile* docker-compose*.yml docker-compose*.yaml compose*.yml compose*.yaml)
+          if [ ${#files[@]} -gt 0 ]; then
+            python scripts/check_dockerfile_root.py "${files[@]}"
+          fi
+      - name: Check for likely secrets
+        run: |
+          shopt -s nullglob
+          files=(scripts/*.py .github/workflows/*.yml .pre-commit-config.yaml Makefile)
+          if [ ${#files[@]} -gt 0 ]; then
+            python scripts/check_secrets_heuristic.py "${files[@]}"
+          fi
