@@ -6,54 +6,54 @@ Banned agents below. Copy into a repository and adapt.
 
 ## What's in it
 
-- **Non-negotiable summary** - every critical rule in one line, at the
+- **Non-negotiable summary**: every critical rule in one line, at the
   top, where model attention is strongest.
-- **Fourteen critical rules** - injection, destructive commands, test
+- **Fourteen critical rules**: injection, destructive commands, test
   integrity, scope, draft-PR workflow, API contracts, hashing, secrets,
   dependencies, workflow-state verification, CI credential hygiene,
   container privilege, honest enforcement claims, git identity.
-- **Branch naming** - clean conventions for branch names.
-- **Workflow** - test-first, lint-clean, safe editing, retry discipline.
-- **Correctness & safety** - divisors, regex backtracking, collection
+- **Branch naming**: clean conventions for branch names.
+- **Workflow**: test-first, lint-clean, safe editing, retry discipline.
+- **Correctness & safety**: divisors, regex backtracking, collection
   mutation, unbounded recursion, log sanitization, idempotency.
-- **Concurrency & shared state** - locks, task joining, lock ordering.
-- **Code quality and style** - limits and conventions (magic numbers, change size, duplication, TODO/FIXME ban, comments, commit messages, extended ASCII ban) applicable without judgment calls.
-- **Orientation template** (commented out, end of file) - Commands, Do not
+- **Concurrency & shared state**: locks, task joining, lock ordering.
+- **Code quality and style**: limits and conventions (magic numbers, change size, duplication, TODO/FIXME ban, comments, commit messages, extended ASCII ban) applicable without judgment calls.
+- **Orientation template** (commented out, end of file): Commands, Do not
   touch, Architecture, Gotchas, doc pointers. Per-repo; fill on adoption.
-- **`.claudeignore`** - excludes noisy/generated paths (`node_modules/`,
+- **`.claudeignore`**: excludes noisy/generated paths (`node_modules/`,
   build output, lockfiles, `.env*`, etc.) from Claude Code's context. Part
-  of the template, not optional tooling - see Adopting step 1.
+  of the template, not optional tooling; see Adopting step 1.
 - **`scripts/check_*.py`** and **`.github/workflows/agents-md-compliance.yml`**
   (which calls the reusable `.github/workflows/agents-compliance.yml`) -
   this template's own mechanical enforcement of its rules, dogfooded in its
   own CI and `.pre-commit-config.yaml`; see the Checker reference table under
   Adopting for what each script backs, and Banned agents below for
   `check_banned_agents.py` specifically.
-- **`hooks/`** - Claude-Code-specific hooks: an opt-in `PreToolUse` example
+- **`hooks/`**: Claude-Code-specific hooks: an opt-in `PreToolUse` example
   blocking obviously destructive Bash commands, plus two live hooks wired
   through `.claude/settings.json`: `enforce_branch_name.py`, which refuses
   commits and pushes from a branch that breaks the naming convention, and
   `enforce_git_identity.py`, which refuses them under an unset or
   disallowed git identity; see Claude Code hooks below.
-- **`tests/`** - the stdlib `unittest` suite covering
+- **`tests/`**: the stdlib `unittest` suite covering
   `hooks/enforce_branch_name.py`, `hooks/enforce_git_identity.py`, and
   their settings wiring. Run it with
   `make test` (or `python -m unittest discover -s tests`); `sync-check.yml`
   runs it on every pull request, and `.pre-commit-config.yaml` runs it when
   a hook, test, settings, or `check_branch_name.py` file changes. No test
   dependencies: `unittest` ships with Python.
-- **`plan/HANDOFF.md.example`** - an opt-in per-repo handoff/progress
+- **`plan/HANDOFF.md.example`**: an opt-in per-repo handoff/progress
   template; see Handoff file example below.
-- **`SECURITY.md.example`** - an opt-in vulnerability-reporting policy
+- **`SECURITY.md.example`**: an opt-in vulnerability-reporting policy
   template; see Security policy example below.
-- **`CONTRIBUTING.md.example`** - an opt-in contribution-guide template;
+- **`CONTRIBUTING.md.example`**: an opt-in contribution-guide template;
   see Contributing guide example below.
 - **`.github/PULL_REQUEST_TEMPLATE.md`** and
-  **`.github/ISSUE_TEMPLATE.md`** - live for this repo, formalizing the
+  **`.github/ISSUE_TEMPLATE.md`**: live for this repo, formalizing the
   Summary/Test plan PR shape and a single issue template covering bugs
   and proposals; adopting repos can copy them too, like any other new
   tooling (Rule 9).
-- **AgentLint** - `sync-check.yml` also runs
+- **AgentLint**: `sync-check.yml` also runs
   [AgentLint](https://github.com/0xmariowu/AgentLint), a third-party
   GitHub Action that audits AI-agent-harness setup and scores it across
   6 dimensions. Advisory only (`fail-below: '0'`, never fails the job);
@@ -80,7 +80,7 @@ request through `.github/workflows/sync-check.yml`.
 
 ## Adopting
 
-1. Copy `AGENTS.md`, `.claudeignore`, `.gitattributes`, and `.editorconfig` to your repo root - all are
+1. Copy `AGENTS.md`, `.claudeignore`, `.gitattributes`, and `.editorconfig` to your repo root; all are
    part of this template. If the target repository already contains custom rules files
    (e.g., CLAUDE.md, .cursorrules), respect those custom rules: do not blindly overwrite them.
    Analyze their content, extract repository-specific guidelines, and merge them into AGENTS.md,
@@ -95,7 +95,7 @@ request through `.github/workflows/sync-check.yml`.
    AGENTS.md (Windows compatibility). After editing AGENTS.md, run
    `make sync` (or manually run `python scripts/sync.py`); `--check` in CI or
    `make check` catches drift. `.claudeignore`, `.gitattributes`, and `.editorconfig`
-   are not part of this sync - they are single shared files, copied as-is.
+   are not part of this sync; they are single shared files, copied as-is.
 5. Back lintable rules with no shipped checker (nesting, function size, line
    length, empty catches, cond-assign, injection) with linter/semgrep config. If
    you (agent) are doing the integration, do not wire up lint CI, add files, or
@@ -214,7 +214,7 @@ request through `.github/workflows/sync-check.yml`.
 | `check_us_spelling.py` | American spelling | 0, warning only | |
 | `check_english_only.py` | English only | 0, warning only | stopword-ratio heuristic, not language detection; real detection needs a dependency (e.g. `langdetect`), a separate Rule 9 proposal |
 | `check_hedging.py` | No hedging/fluff/self-justification/self-narration; historical narration in comments | 0, warning only | heuristic keyword match, not NLP; false positives/negatives expected |
-| `check_ascii.py` | No run-on sentences/dashes; No non-ASCII characters | 1, blocking | |
+| `check_ascii.py` | No run-on sentences/dashes; No non-ASCII characters | 1, blocking | CI points it at the example files and at this repo's own `README.md`, `CHANGELOG.md`, `DRIFT.md`, `docs/`, and `adopters/`. A rule the template's own prose fails is a rule an adopter has no reason to keep. The one cost is the CHANGELOG heading, which parenthesizes its date rather than following Keep a Changelog's spaced hyphen |
 | `check_persist_credentials.py` | Rule 11 | 1, blocking | |
 | `check_weak_hashing.py` | Rule 7 | 1, blocking | |
 | `check_dockerfile_root.py` | Rule 12 | 1, blocking | |
@@ -236,7 +236,7 @@ trailer; pair it with platform-level bot blocks. Adopting repos must copy
 the script and wire it into their own CI; it is not part of the sync step.
 A repo that wants this check (and the other compliance checks) unmodified
 can instead call `uses: abuzucom/agents/.github/workflows/agents-compliance.yml@<tag>`
-as a `workflow_call` job - see Versioning below for the `@<tag>` pin.
+as a `workflow_call` job; see Versioning below for the `@<tag>` pin.
 
 Do not create pointer or copy files for banned tools; do not add them to
 `scripts/sync.py`.
@@ -265,7 +265,7 @@ until one exists.
 | Other local agents (Zed, Continue, etc.) | `AGENTS.md` or config | Native or point config at it |
 | GitHub/Microsoft Copilot | `.github/copilot-instructions.md`, `.copilot-instructions` | Synced copies |
 | Mistral, Perplexity, DeepSeek, Lovable | N/A | No repo-file convention: paste AGENTS.md into system prompt / custom instructions / project knowledge |
-| xAI/Grok | N/A | Banned - see Banned agents; no pointer files |
+| xAI/Grok | N/A | Banned: see Banned agents, no pointer files |
 
 Verify against each tool's current docs; conventions shift.
 

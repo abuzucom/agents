@@ -3,9 +3,13 @@
 All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+with one deviation: a version heading parenthesizes its date,
+`## [1.2.3] (2026-01-01)`, rather than setting it off with a spaced hyphen.
+The house style bans that hyphen and `scripts/check_ascii.py` enforces the ban
+on this file.
+This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.13.0] - 2026-08-25
+## [1.13.0] (2026-08-25)
 
 ### Added
 - Denied anything piped into an interpreter, not only a download. `history | sh` hands the choice of what runs to whatever the shell happens to remember, and `cat script.sh | bash` runs a file nobody read. Piping into a reader such as `grep`, `jq`, `less`, or `tee` is untouched.
@@ -80,9 +84,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added `scripts/sync.py --check-shared` and `--write-shared`, backed by `shared-files.json`: SHA-256 digests of the seven files carrying gate decisions, committed in every repository holding them. `sync.py` copies the AGENTS.md family and can copy nothing that lives in another repository, so the gates are compared rather than copied. A file changed in one repository and not another fails that repository's check, which runs in CI. Line endings are normalized before hashing so a Windows checkout does not report every file as drift. Covered by `tests/test_sync_shared.py`, which builds a synthetic tree rather than touching the real one.
 - Fixed a crash in the PowerShell gate's `-ArgumentList` handler, which called `unparseable_verdict` with one argument against a two-parameter function. A payload that would not tokenize raised `TypeError` instead of denying, and a raise is a non-zero exit that is not 2, which Claude Code treats as non-blocking: the gate failed open on exactly the input it exists to catch. The corpus carries the case.
 - Brought every hook and script under the adopting repository's ruff ruleset, which is stricter than anything this template runs: named seven magic values, split `git_verdict` into resolution, per-subcommand, and flag readings, and split the three `_program_verdict` functions so each returns at most six times. The shared files have to be byte-identical across both repositories, so the stricter of the two rulesets is the only stable state for them.
+- Pointed `check_ascii.py` at this repository's own prose in CI, and fixed what it found: 21 spaced hyphens in `README.md` and 17 in `CHANGELOG.md`. The checker had been wired to the example files only, so the template failed the rule it ships. README bullet definitions now use a colon, and a version heading parenthesizes its date, `## [1.2.3] (2026-01-01)`, which the CHANGELOG header records as a deliberate deviation from Keep a Changelog. `DRIFT.md`, `docs/`, and `adopters/` are covered from the start.
 - Synced the AGENTS.md additions into all eight tool copies.
 
-## [1.12.0] - 2026-08-20
+## [1.12.0] (2026-08-20)
 
 ### Added
 - Added AGENTS.md Rule 14, "Verify the git identity before the first commit", and a matching item 14 in the Non-negotiable summary. The rule requires checking `git config user.name` and `user.email` before the first commit of a session, states that git does not inherit the `gh` identity, restricts commit emails to GitHub noreply addresses, and refers a wrong identity already in history to the existing pushed-history consent rule instead of a rewrite.
@@ -98,7 +103,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Updated the README critical-rule count to fourteen, the `hooks/` and `tests/` bullets, the Local checks table, and the Checker reference table.
 - Synced the AGENTS.md Rule 14 addition into all eight tool copies.
 
-## [1.11.0] - 2026-08-17
+## [1.11.0] (2026-08-17)
 
 ### Added
 - Added `hooks/enforce_branch_name.py`, a Claude Code hook backing the Branch naming conventions section from the harness instead of the model's memory. On `SessionStart` it runs `scripts/check_branch_name.py` before the session does any git work and injects a stop-and-rename instruction into the session context; on `PreToolUse` (`Bash` matcher) it exits 2 on a `git commit` or `git push` while the branch name is non-conforming.
@@ -116,7 +121,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Updated the README `hooks/` bullet and `check_branch_name.py` Checker reference row for the new hook, and corrected the claim that this repo has no `.claude/` directory.
 - Synced the AGENTS.md branch-naming additions into all eight tool copies.
 
-## [1.10.0] - 2026-08-15
+## [1.10.0] (2026-08-15)
 
 ### Added
 - Added `CONTRIBUTING.md.example`, an opt-in, self-contained contribution guide for human contributors, covering setup, naming/comment conventions, security and review practices, code quality, and workflow, each item drawn from an explicit item-by-item review of AGENTS.md's rules.
@@ -125,7 +130,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added a README "Contributing guide example" section and Adopting step 9 documenting the new template.
 - Extended `check_us_spelling.py`, `check_english_only.py`, `check_hedging.py`, and `check_ascii.py` in `sync-check.yml` to also scan all three new files.
 
-## [1.9.0] - 2026-08-15
+## [1.9.0] (2026-08-15)
 
 ### Added
 - Added `SECURITY.md.example`, an opt-in vulnerability-reporting policy template routing reports through GitHub's private vulnerability reporting, conforming to AGENTS.md's Style section throughout.
@@ -133,7 +138,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added a README "Security policy example" section and Adopting step 8 documenting the new template.
 - Extended `check_us_spelling.py`, `check_english_only.py`, `check_hedging.py`, and `check_ascii.py` in `sync-check.yml` to also scan `SECURITY.md.example`.
 
-## [1.8.0] - 2026-08-15
+## [1.8.0] (2026-08-15)
 
 ### Added
 - Added `plan/HANDOFF.md.example`, an opt-in per-repo handoff/progress template pairing every status claim with a command that verifies it, conforming to AGENTS.md's Style section throughout.
@@ -142,7 +147,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Extended `check_us_spelling.py`, `check_english_only.py`, and `check_hedging.py` in `sync-check.yml` to also scan `plan/HANDOFF.md.example`.
 - Added a `check_ascii.py` step to `sync-check.yml`'s `check-sync` job, covering `plan/HANDOFF.md.example`'s dash/ASCII conformance.
 
-## [1.7.3] - 2026-08-15
+## [1.7.3] (2026-08-15)
 
 ### Added
 - Added AgentLint (`0xmariowu/AgentLint@v1.1.13`) to `sync-check.yml`'s `check-sync` job, an advisory, third-party AI-agent-harness audit, pinned to an exact tag with `fail-below: '0'` so it never fails the job.
@@ -150,7 +155,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added a README bullet documenting AgentLint's integration, separate from the Checker reference table since it is a third-party action, not a portable `scripts/check_*.py` checker.
 - Added `format: md`/`output-dir` to the AgentLint step and a report-reading step, embedding the full generated report in a collapsible section of the PR comment below the score table.
 
-## [1.7.2] - 2026-08-15
+## [1.7.2] (2026-08-15)
 
 ### Added
 - Added a Style rule banning hedging qualifiers, self-justification, self-narration, prompt/task/plan references, tutorial-mode narration, and justification theater in prose, documentation, CHANGELOG entries, and code comments.
@@ -162,7 +167,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - Synced all tool rule copies with `AGENTS.md`.
 
-## [1.7.1] - 2026-08-15
+## [1.7.1] (2026-08-15)
 
 ### Added
 - Added a Branch naming rule banning `claude/`-prefixed branches by name, so a model cannot rationalize past an implicit "match one of these five prefixes" statement.
@@ -181,7 +186,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - Synced all tool rule copies with `AGENTS.md`.
 
-## [1.7.0] - 2026-08-08
+## [1.7.0] (2026-08-08)
 
 ### Added
 - Added `scripts/` references to the dash/ASCII rule (`lint_style.py`/`check_ascii.py`) and the American spelling/English-only rules (`check_us_spelling.py`/`check_english_only.py`, marked warning only), completing the enforcement markers across every rule with a shipped checker.
@@ -196,7 +201,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - Synced all tool rule copies with `AGENTS.md`.
 
-## [1.6.0] - 2026-08-08
+## [1.6.0] (2026-08-08)
 
 ### Added
 - Added `scripts/check_branch_name.py`, backing Branch naming by validating `<type>/<kebab-description>` against the documented prefixes, exempting `main`, `master`, and detached HEAD.
@@ -208,7 +213,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - Synced all tool rule copies with `AGENTS.md`.
 
-## [1.5.0] - 2026-08-08
+## [1.5.0] (2026-08-08)
 
 ### Added
 - Added `scripts/check_persist_credentials.py`, backing rule 11 by scanning workflow files for `actions/checkout` steps missing `persist-credentials: false`.
@@ -223,7 +228,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - Synced all tool rule copies with `AGENTS.md`.
 
-## [1.4.0] - 2026-08-08
+## [1.4.0] (2026-08-08)
 
 ### Added
 - Added rule 13, **Back enforcement claims with real checks**: no rule may claim CI or tooling enforcement it lacks; propose the check in the same change that adds an enforceable rule.
@@ -237,7 +242,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - Synced all tool rule copies with `AGENTS.md`.
 
-## [1.3.0] - 2026-08-08
+## [1.3.0] (2026-08-08)
 
 ### Added
 - Added `**American English spelling**` rule banning British spelling variants (`-our`, `-ise`/`-isation`, `-re`, etc.) even though they are valid ASCII.
@@ -251,7 +256,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - Synced all tool rule copies with `AGENTS.md`.
 
-## [1.2.0] - 2026-07-19
+## [1.2.0] (2026-07-19)
 
 ### Added
 - Added rule requiring `persist-credentials: false` on `actions/checkout` steps that do not need the credential afterward.
@@ -261,7 +266,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Set `persist-credentials: false` on the `sync-check.yml` checkout step per the new rule.
 - Synced all tool rule copies with `AGENTS.md`.
 
-## [1.1.0] - 2026-07-16
+## [1.1.0] (2026-07-16)
 
 ### Added
 - Added `**No suppressing checks**` rule banning `# noqa`, `type: ignore`, and disabling CI steps to force a pass.
@@ -281,7 +286,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed `AGENTS.md` self-violations of its own dash and ASCII rules, and replaced emoji `Bad`/`Good` markers with ASCII.
 - Synced all tool rule copies with `AGENTS.md`.
 
-## [1.0.0] - 2026-07-11
+## [1.0.0] (2026-07-11)
 
 ### Added
 - Added `**Documentation and versioning**` rule specifying target README/CHANGELOG updates and Semantic Versioning (SemVer 2.0.0) requirements.
