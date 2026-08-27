@@ -10,6 +10,7 @@ Each row pairs a command with its equivalent in the other shell. Where a
 form exists in only one shell, the pair repeats the same string, which
 still asserts that both gates read it identically.
 """
+import importlib.util
 import json
 import tempfile
 import subprocess
@@ -20,6 +21,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent
 BASH_HOOK = REPO_ROOT / "hooks" / "block_destructive_bash.py"
 POWERSHELL_HOOK = REPO_ROOT / "hooks" / "block_destructive_powershell.py"
+CORE_PATH = REPO_ROOT / "hooks" / "_gate_core.py"
 
 
 def _decision(hook: Path, tool: str, command, mode: str = "default",
@@ -156,10 +158,18 @@ class BoundaryParityTest(unittest.TestCase):
 class CoreOwnershipTest(unittest.TestCase):
     """Every decision function lives in the core, not in one gate."""
 
+    def test_git_environment_classifier_is_public(self):
+        spec = importlib.util.spec_from_file_location("gate_core_public", CORE_PATH)
+        core = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(core)
+        self.assertTrue(core.is_relevant_git_environment("GIT_DIR"))
+        self.assertFalse(core.is_relevant_git_environment("PATH"))
+
     def test_neither_gate_defines_its_own_verdict_helpers(self):
         shared = ("delete_verdict", "git_verdict", "push_verdict",
                   "is_root_target", "strongest", "is_test_path",
-                  "cmd_delete_verdict", "sanitize")
+                  "cmd_delete_verdict", "sanitize",
+                  "is_relevant_git_environment")
         for hook in (BASH_HOOK, POWERSHELL_HOOK):
             source = hook.read_text(encoding="utf-8")
             for name in shared:

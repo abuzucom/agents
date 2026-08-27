@@ -209,7 +209,7 @@ def _environment_assignment_verdict(tokens: list) -> tuple:
             name = _environment_reference_name(token)
             if name:
                 break
-    if not core._is_relevant_git_environment(name):
+    if not core.is_relevant_git_environment(name):
         return "", ""
     return "ask", (f"assigning $env:{core.sanitize(name)} changes how a later "
                    "git read resolves or executes programs")
@@ -312,7 +312,6 @@ def main() -> int:
     if command is None:
         return core.emit(GATE, "deny", "the command field is not a string, so "
                                        "the gate cannot read it")
-    _CWD[0] = core.project_dir(payload)
     decision, reason = classify(command)
     if not decision:
         return 0

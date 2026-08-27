@@ -301,6 +301,12 @@ class BlockedCommandTest(unittest.TestCase):
         self.assertTrue(match["cwd"].endswith("child"))
         self.assertEqual(match["settings"], [("user.name", "x")])
 
+    def test_unparseable_command_returns_ambiguous_context(self):
+        matches = hook.blocked_command("git \\\npush --force")
+        self.assertEqual(len(matches), 1)
+        self.assertEqual(matches[0]["label"], "unparseable command")
+        self.assertTrue(matches[0]["error"])
+
 
 class FindViolationTest(unittest.TestCase):
     """A repo without the checker has no convention for the hook to enforce."""

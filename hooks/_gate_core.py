@@ -1053,7 +1053,7 @@ def _environment_exec_key(environment: dict) -> str:
     return ""
 
 
-def _is_relevant_git_environment(name: str) -> bool:
+def is_relevant_git_environment(name: str) -> bool:
     """Return True when a variable can alter inspected Git behavior."""
     return (name in {
         "GIT_DIR", "GIT_COMMON_DIR", "GIT_WORK_TREE", "GIT_PAGER", "PAGER",
@@ -1069,7 +1069,7 @@ def _git_environment(assignments: list) -> dict:
     """Return effective relevant environment values for one invocation."""
     environment = {
         name: value for name, value in os.environ.items()
-        if _is_relevant_git_environment(name)
+        if is_relevant_git_environment(name)
     }
     environment.update(_assignment_map(assignments))
     return environment
@@ -1234,7 +1234,7 @@ def git_checker_environment(context: dict) -> dict:
     """Return a constrained child environment matching a Git invocation."""
     environment = dict(os.environ)
     for name, value in context.get("assignments", []):
-        if _is_relevant_git_environment(name):
+        if is_relevant_git_environment(name):
             environment[name] = value
     locations = {
         "GIT_DIR": context.get("git_dir", ""),
@@ -1271,7 +1271,7 @@ def environment_assignment_verdict(program: str, args: list) -> tuple:
         if token.startswith("-"):
             continue
         name = token.split("=", 1)[0]
-        if _is_relevant_git_environment(name):
+        if is_relevant_git_environment(name):
             return "ask", (f"exporting {sanitize(name)} changes how a later "
                            "git read resolves or executes programs")
     return "", ""

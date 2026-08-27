@@ -39,6 +39,10 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Added copy instructions to Rules 2 and 3, in the shape Rule 14 and the branch-naming section already use: which files to copy, which matcher registers them, which suite comes with them, and the Rule 9 reminder that a hook is tooling the user approves first.
 
 ### Changed
+- Exposed the shared Git-environment classifier through a public core helper
+  instead of calling a private name from the PowerShell gate. Removed the
+  duplicate project-directory assignment in the same gate, and pinned
+  incomplete command parsing in both Git-write consumers.
 - Ended a Bash segment at a brace group and at a backtick substitution.
   `{ rm -rf /tmp/x; }` read its program name as `{`, and a backtick
   substitution left the inner command glued into argument tokens, so every
