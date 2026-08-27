@@ -30,6 +30,7 @@ pairing moves until they merge.
 | `scripts/check_weak_hashing.py` | |
 | `scripts/sync.py` | |
 | `hooks/_gate_core.py` | |
+| `hooks/_bash_parser.py` | Required by the shell, branch-name, and identity hooks. |
 | `hooks/block_destructive_bash.py` | |
 | `hooks/block_destructive_powershell.py` | |
 | `hooks/require_consent.py` | |

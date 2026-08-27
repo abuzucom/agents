@@ -29,9 +29,29 @@ and `NotebookEdit` tools, on POSIX and Windows, attempting any of:
 - Recovery destruction: `vssadmin`, `wbadmin`, `wmic shadowcopy`, `bcdedit`.
 - Any edit to a test file that already exists, through an edit tool or through
   a Bash redirect, here-document, `tee`, `sed -i`, `cp`, or `mv`.
+- Known Bash and PowerShell writes to `hooks/` or `.claude/`, through redirects
+  and recognized write programs. PowerShell named path and destination
+  parameters accept valid unambiguous prefixes and are read independently of
+  their order. Literal targets resolve directory links before classification.
+  This preserves prompt consistency only. It does not protect a writable
+  repository root.
 - A git read command (`status`, `diff`, `log`, `show`, `blame`, `grep`) in a
-  repository whose own config declares a key naming a program git runs.
-- A git alias, resolved from the repository config rather than executed.
+  repository whose effective config declares a key naming a program git runs.
+  The classifier accounts for ordered `-c` settings, leading environment
+  assignments, config vectors and path overrides, `GIT_DIR`,
+  `GIT_COMMON_DIR`, `-C`, `--git-dir`, `--work-tree`, gitfiles, and
+  linked-worktree common config. Repository discovery walks upward from an
+  effective `-C` directory on the same device, with a depth bound.
+  `GIT_CONFIG_PARAMETERS` fails closed.
+- A persistent Bash export or PowerShell environment assignment that can make a
+  later git read execute a pager, external diff, or configured program. Covered
+  forms include `export`, `declare -x`, `typeset -x`, plain and braced
+  PowerShell environment references, `Set-Item`, and `Set-Variable`.
+- A git alias, resolved from the effective repository and inline config rather
+  than executed. Branch-name and identity checks carry the effective Git cwd,
+  repository locations, and inline settings into their checker subprocess.
+  They inspect every Git write in a chained command. An unknown subcommand
+  becomes an ambiguous write when its alias sources cannot be inspected.
 - A command handed to a shell through another shell. Each gate reads the
   interpreter names of both, so `powershell -Command 'Remove-Item -Recurse
   -Force /etc'` reaching the Bash gate and `bash -c 'rm -rf /etc'` reaching
@@ -40,7 +60,10 @@ and `NotebookEdit` tools, on POSIX and Windows, attempting any of:
   a spelling the other does not.
 - A command inside a PowerShell script block (`& { ... }`) or handed to a
   program through `Start-Process -ArgumentList`. Wrapper unwrapping is bounded;
-  past the bound the command is treated as unparseable, which prompts.
+  past the bound the command denies.
+- A PowerShell `EncodedCommand`, under every supported abbreviation and alias.
+  Base64 and UTF-16LE decoding are strict, and decoded commands re-enter the
+  bounded classifier. Missing, malformed, or over-nested payloads deny.
 
 Path spellings that reach a covered target are covered with it: symlinks, hard
 links resolved by inode, case variants on a case-insensitive filesystem,
@@ -66,11 +89,16 @@ between imperative sentences.
 
 ## Explicit non-goals
 
-A hook is not a sandbox.
+A repository hook is not a sandbox, authorization boundary, or security
+boundary. Repository writers can alter the hook source and registration.
+Tamper resistance requires an external harness, filesystem isolation, or
+server-side controls. This template ships none.
 
 - A command behind an alias to a shell function, a wrapper script on `PATH`, or
-  a variable holding a program name is invisible. Where the shape is
-  detectable, it fails closed to `ask`; otherwise it is not seen.
+  a variable holding a program name is invisible. An unknown writer, a write
+  program with an unrecognized parameter shape, and a command whose program is
+  hidden in a variable remain heuristic gaps. Where the shape is detectable,
+  it fails closed to `ask`; otherwise it is not seen.
 - Rate and volume analytics are out of reach. "N deletions in M minutes", and
   correlation with an anomalous login, need telemetry a per-call hook does not
   have. The gates read one command's shape.
@@ -91,14 +119,11 @@ A hook is not a sandbox.
 
 ## Cannot be fixed from inside a hook
 
-Three inputs decide whether an edit is released: the environment grant,
-`.claude/settings.json`, which decides whether the hook runs at all, and the
-hook's own source, which decides what it does. Whoever edits any of them before
-the hook runs has already won.
-
-Writes to `hooks/` and `.claude/` are gated, which raises the cost. It does not
-remove it, and a local hook cannot be its own root of trust. The server-side
-backstop is the adopting repository's to provide. This template ships none.
+`.claude/settings.json` decides whether a hook runs, and the hook source decides
+what it does. Whoever edits either before the hook runs controls the result.
+Recognizing shell paths and prompting on known writes to those files does not
+close this writable-root bypass. Only controls outside the repository can
+provide tamper resistance.
 
 ## Modes and limits
 
@@ -110,38 +135,48 @@ deny reason names the value it did not recognize, so the cause is visible rather
 than mysterious. Review this list when Claude Code adds a mode.
 
 The inode walk that resolves hard links runs only when `st_nlink > 1`, skips
-`.git` and `node_modules`, and carries a budget. Exceeding it returns `ask`. The
-hook timeout is 30 seconds and a hook that times out fails open, so the walk
-must end before it does.
+`.git` and `node_modules`, and carries a budget. Exceeding it returns an
+incomplete result that the caller gates conservatively. The hook timeout is 30
+seconds, so the walk must end before it does. Directory traversal and candidate
+stat errors also return an incomplete result rather than clearing the write.
 
 ## What no test reaches
 
 The suites run each gate as a subprocess, so in-process coverage sees almost
 none of the decision code. Tracing every interpreter through a `sitecustomize`
-module on `PYTHONPATH` reaches them, and against the full suite it leaves 65
-statements in `hooks/` unrun, out of roughly 880. `enforce_branch_name.py` and
-`enforce_git_identity.py` are fully covered.
+module on `PYTHONPATH` reaches them, and against the full suite it leaves 120
+statements in `hooks/` unrun, out of 1,758.
 
-Two of those were worth acting on. `find_reason` and `find_consent_reason` in
-the Bash gate were defined and called by nothing in either repository, so they
-are deleted. `is_override_granted` never ran its digest comparison: the bare
-`path` form of `AGENTS_CONSENT_GRANTED` was covered and the
-`path@sha256:<digest>` form was not, so the binding this document relies on had
-never been shown to hold. Four tests now cover it, including a stale digest and
-a digest belonging to another file.
+Two unreachable helpers, `find_reason` and `find_consent_reason`, were deleted
+after the tracing pass showed that neither repository called them.
 
-The rest divide into two kinds, neither a gap:
+The baseline entries fall into these recorded groups:
 
-- Defensive depth a caller cannot reach through the hook. `classify` rejects a
-  non-string command, but `main` rejects one first, so the inner guard exists
-  for a direct caller rather than for the tool. The exception boundary in
-  `require_consent.main` is the same shape: it catches a bug, and constructing
-  a bug to reach it would test the construction.
-- Branches needing an environment the suite does not build: an unreadable
-  `.git/config`, a device write, a mount-point delete, a logging disabler on
-  `vim-cmd` or `esxcli`. Each has a corpus row asserting the verdict through
-  the classifier; what is unrun is the arm that a real device or mount would
-  take.
+- The `_bash_parser` entries and the Bash and PowerShell parser entries retain
+  malformed, missing-operand, alternate `env -S`, direct-caller, and
+  maximum-depth branches that the subprocess entry points reject earlier or
+  that require syntactic forms outside the regression corpus.
+- The git-read helpers from `_environment_config` through
+  `_read_invocation_configs` retain bounds, malformed pointer files, missing
+  optional files, invalid keys, and filesystem errors. Tests cover each
+  fail-closed class and every executable setting, but not every equivalent arm.
+- The git-write context helpers, `git_checker_environment`,
+  `_alias_write_label`, and both enforcement handlers retain malformed global
+  options, alias-depth and shell-alias variants, absent config sources, and
+  error-reporting arms. Real subprocess tests run the effective-repository,
+  inline-identity, configured-alias, and inline-alias paths.
+- `_protected_path`, `_is_system_root`, `_mentions_device`,
+  `_segment_program`, `device_write_verdict`, `forge_verdict`,
+  `logging_verdict`, `mass_operation_verdict`, `posix_delete_verdict`,
+  `remote_execution_verdict`, `schedule_verdict`, `unparseable_verdict`, and
+  `volume_verdict` retain platform, device, mount, and uncommon program arms.
+  Corpus rows cover their classifier outcomes without building real devices or
+  mounts.
+- `read_payload`, `resolved_under`, and `sanitize` retain defensive exceptions
+  or direct-caller bounds. The hook entry points reject those states earlier.
+- The consent entries retain permission-dependent filesystem errors, alternate
+  out-of-tree path explanations, absent path fields, and the top-level
+  exception boundary. The hard-link budget and ordinary denial paths run.
 
 `scripts/check_hook_coverage.py` runs this in CI. It compares the run against
 `hook-coverage-baseline.json`, counted per function so an edit above a function

@@ -85,8 +85,8 @@ The rule carries no scope qualifier. A scratch directory, a temporary profile, o
 
 Those four are instructions, not checks. No tool verifies that a command was restated or that an authorization was recorded, because no mechanical signal distinguishes a restatement from any other sentence.
 
-What is enforced, by `hooks/block_destructive_bash.py` and
-`hooks/block_destructive_powershell.py`, is which commands reach the user at all:
+The repository hooks classify these commands for compliant Claude Code
+workflows:
 
 - **Refused outright**, with no prompt offered: a delete targeting a drive root, a UNC share root, or a system directory (`/`, `/bin`, `/boot`, `/dev`, `/etc`, `/home`, `/lib*`, `/media`, `/mnt`, `/opt`, `/proc`, `/root`, `/run`, `/sbin`, `/srv`, `/sys`, `/tmp`, `/usr`, `/var`, and the macOS equivalents); `git reset --hard`; filesystem formatting and repair (`mkfs`, `diskpart`, `format`, `fdisk`, `fsck`); `dd` in any form; `hdparm`; a bare redirect or a redirect from `/dev/null`, which empties a file with no delete in the line; any redirect onto a device; `mv` to `/dev/null` or `/dev/random`; `chmod 000`; `chmod`, `chown`, or `chgrp` on a root; anything piped into an interpreter, including `curl | bash` and `history | sh`; defining a command alias; `crontab -r`; recovery destruction through `vssadmin`, `wbadmin`, `wmic`, or `bcdedit`; and `gh repo delete`.
 - **Routed to the user**: every other recursive delete, whatever the target; `git push --force`, `--force-with-lease`, `--mirror`, `--delete`, `--prune`, and a forced or empty refspec; `git commit --amend`, `git rebase`, `git filter-branch`, `git clean -fdx`, and `git branch -D`; `sudo`, `su`, `doas`, and `pkexec`; `kill`, `killall`, and `pkill`; `shred` and `sdelete`; `find -delete` and `-exec`; writes to a shell startup file; a git read command in a repository whose config names a program git runs; and any write reaching a test file, including through a redirect.
@@ -94,6 +94,13 @@ What is enforced, by `hooks/block_destructive_bash.py` and
 An unattended session turns every prompt into a refusal, since consent cannot be given where nobody is present.
 
 The gates read a command's shape, not a stream of events. Rate and volume analytics, "N deletions in M minutes" and correlation with login anomalies, need telemetry a per-call hook does not have. A command behind an alias to a shell function, a wrapper script on `PATH`, or a variable holding a program name is invisible to them.
+
+Repository-controlled hooks are defense-in-depth prompts, not an authorization
+or security boundary. A writer who controls the repository can alter the hooks
+or `.claude/settings.json`. Recognizing shell writes to those paths does not
+close that writable-root bypass. Tamper resistance requires an external
+harness, filesystem isolation, or server-side controls. This template ships
+none of those controls.
 
 Wire the gates into a repository in the same change that adds this file: copy `hooks/block_destructive_bash.py`, `hooks/block_destructive_powershell.py`, and `hooks/_gate_core.py`, which both import, and register them in `.claude/settings.json` under `PreToolUse` on the `Bash` and `PowerShell` matchers. Copy `tests/test_gate_parity.py` with them; it fails when the two gates reach different verdicts on the same act. A gate copied without the core denies and exits 2 rather than failing open, but the copy is still incomplete. Adding a hook or a CI job is tooling: propose it to the user for approval first, per Rule 9.
 
@@ -105,7 +112,7 @@ If a test is wrong, stop, report it, and wait for a human decision.
 Disclosure is not a substitute for stopping. Writing the violation into a plan file, a commit message, or a pull request body does not convert a stop condition into a disclosure obligation.
 Neither does judging that the rule's purpose does not reach this case. A comment recording why a test asserts what it asserts is a person's decision written down, not an invitation to overrule it.
 Deliberately changing a specification is still this rule: the test states the current specification, so changing it is the human's call.
-Backed by `hooks/require_consent.py`, which routes every edit to a test file that already exists to the user for a decision at the act. It reads the path, never the content: creating a new test file is unprompted, and an append is not, because no textual check separates a new test from a statement that neutralizes every test above it. Setting `ExistingTest = None` at the end of a file is one line and disables the whole class.
+In compliant Claude Code workflows, `hooks/require_consent.py` routes every edit to a test file that already exists to the user for a decision at the act. It reads the path, never the content: creating a new test file is unprompted, and an append is not, because no textual check separates a new test from a statement that neutralizes every test above it. Setting `ExistingTest = None` at the end of a file is one line and disables the whole class.
 
 Wire it in the same change that adds this file: copy `hooks/require_consent.py` and `hooks/_gate_core.py`, which it imports, register it in `.claude/settings.json` under `PreToolUse` on the `Edit|Write|MultiEdit|NotebookEdit` matcher, and copy `tests/test_require_consent.py`. The Bash gate covers the same files reached through a redirect, `tee`, `sed -i`, `cp`, or `mv`, so adopt both or neither. Adding a hook or a CI job is tooling: propose it to the user for approval first, per Rule 9.
 

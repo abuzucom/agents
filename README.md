@@ -29,12 +29,10 @@ Banned agents below. Copy into a repository and adapt.
   own CI and `.pre-commit-config.yaml`; see the Checker reference table under
   Adopting for what each script backs, and Banned agents below for
   `check_banned_agents.py` specifically.
-- **`hooks/`**: Claude-Code-specific hooks: an opt-in `PreToolUse` example
-  blocking obviously destructive Bash commands, plus two live hooks wired
-  through `.claude/settings.json`: `enforce_branch_name.py`, which refuses
-  commits and pushes from a branch that breaks the naming convention, and
-  `enforce_git_identity.py`, which refuses them under an unset or
-  disallowed git identity; see Claude Code hooks below.
+- **`hooks/`**: Claude-Code-specific defense-in-depth prompts for destructive
+  Bash and PowerShell commands, writes to existing tests and gate files,
+  branch names, and git identities. All are live through
+  `.claude/settings.json`; see Claude Code hooks below.
 - **`tests/`**: the stdlib `unittest` suite covering
   `hooks/enforce_branch_name.py`, `hooks/enforce_git_identity.py`, and
   their settings wiring. Run it with
@@ -139,7 +137,7 @@ request through `.github/workflows/sync-check.yml`.
     not as a follow-up. Copy `scripts/check_branch_name.py` and register
     it as a `pre-push` hook (see `.pre-commit-config.yaml` here for the
     `stages: [pre-push]` shape). For Claude Code, also copy
-    `hooks/enforce_branch_name.py` and merge the `SessionStart` and
+     `hooks/enforce_branch_name.py`, `hooks/_bash_parser.py`, and merge the `SessionStart` and
     `PreToolUse` keys from `hooks/claude-code-settings.example.json` into
     the target repo's `.claude/settings.json`. CI alone catches a bad
     branch name only after a pull request exists, and a session handed a
@@ -157,7 +155,7 @@ request through `.github/workflows/sync-check.yml`.
     object the moment it is created. Add the `--unpushed` variant at
     `pre-push` to catch commits authored before the identity was fixed,
     and the `--base`/`--head` variant to CI. For Claude Code, copy
-    `hooks/enforce_git_identity.py` and merge its two entries from
+     `hooks/enforce_git_identity.py`, `hooks/_bash_parser.py`, and merge its two entries from
     `hooks/claude-code-settings.example.json`, then copy
     `tests/test_enforce_git_identity.py`. Decide the allowlist: the
     default accepts GitHub noreply addresses only, and `--allow` takes a
@@ -182,7 +180,8 @@ request through `.github/workflows/sync-check.yml`.
     tooling (Rule 9).
 13. Wire the shell gates in the same change, if the target repo wants
     them. Copy `hooks/block_destructive_bash.py`,
-    `hooks/block_destructive_powershell.py`, and `hooks/_gate_core.py`,
+     `hooks/block_destructive_powershell.py`, `hooks/_gate_core.py`, and
+     `hooks/_bash_parser.py`,
     then merge the `Bash` and `PowerShell` entries from the same example
     file. Copy `tests/test_block_destructive_bash.py`,
     `tests/test_block_destructive_powershell.py`, and
@@ -330,6 +329,12 @@ script on `PATH` is invisible to it, and rate analytics of the kind MITRE
 ATT&CK describes for T1485 need telemetry a per-call hook does not have.
 `docs/gate-threat-model.md` records what is covered and what is not.
 
+These hooks are defense-in-depth prompts for compliant workflows, not an
+authorization or security boundary. Repository writers can alter the hooks or
+`.claude/settings.json`. Recognizing shell writes to those paths does not close
+that writable-root bypass. Tamper resistance requires an external harness,
+filesystem isolation, or server-side controls. This template ships none.
+
 `tests/test_block_destructive_bash.py` and
 `tests/test_block_destructive_powershell.py` pin every deny, ask, and allow
 outcome. Adopting repos follow step 13 under Adopting, which names every
@@ -400,29 +405,22 @@ redirected it there or the caller named it directly. The gate reasons about
 one tree and can only speak for that tree, so a file outside it is one the
 person running the session gets asked about.
 
-For headless runs a human sets `AGENTS_CONSENT_GRANTED` at launch to a
-comma-separated list of paths the gate may release, compared on the canonical
-path so one grant releases one file. A Bash tool call cannot forge it: shell
-state does not persist between calls, and the hook inherits Claude Code's
-environment rather than the model's shell, and each grant is bound to a
-digest of the file's current content, so a grant does not outlive the file it
-was given for.
+Unattended modes deny every gated act because no person is present to answer a
+prompt.
 
 Bash writes reaching a test file go through the same decision: a redirect, a
 here-document, `tee`, `sed -i`, `cp`, and `mv`. Rule 3 applied to the same act
 through one tool and not the other until the shell gate covered it.
 
-What a local hook cannot cover is whoever edits the hook or its settings
-before it runs. Writes to `hooks/` and `.claude/` are gated, which raises the
-cost and does not remove it: a gate is not its own root of trust. The
-server-side backstop is the adopting repository's to provide, and this
-template ships none.
+Known shell writes to `hooks/` and `.claude/` prompt in both classifiers. This
+is best-effort consistency for compliant workflows, not tamper resistance. A
+repository writer can alter the classifier or settings before either runs.
 
 `tests/test_require_consent.py` runs the hook as a subprocess against
 synthetic payloads and real files on disk. 49 tests cover the new-file case,
 the gated cases, notebook paths, hard links and symlinks into the test tree,
 Windows path spellings, malformed payload fields, fail-closed behavior under
-an unattended `permission_mode`, the digest-bound override variable, the
+an unattended `permission_mode`, the
 question checklist, and whether both settings files register the hook for
 each event.
 
