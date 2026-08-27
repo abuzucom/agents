@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Tests for scripts/check_conflict_markers.py and its wiring."""
 import importlib.util
+import io
 import os
 import re
 import subprocess
@@ -1092,6 +1093,66 @@ class SparseCheckoutTest(unittest.TestCase):
         self.assertEqual(result.returncode, 1)
         self.assertIn("sparse.txt:1: unclosed conflict marker opener",
                       result.stderr)
+
+
+
+class GitOptionSupportTest(unittest.TestCase):
+    """A git without --no-lazy-fetch must still read objects."""
+
+    def setUp(self):
+        checker._supports_no_lazy_fetch.cache_clear()
+
+    def tearDown(self):
+        checker._supports_no_lazy_fetch.cache_clear()
+
+    @staticmethod
+    def _probe(stderr: bytes):
+        """Return a subprocess.run stub answering the support probe."""
+        return MagicMock(returncode=129 if stderr else 0, stderr=stderr,
+                         stdout=b"")
+
+    def test_unknown_option_is_read_as_no_support(self):
+        """Git 2.43 rejects the option; Ubuntu 24.04 LTS ships 2.43."""
+        with patch("subprocess.run",
+                   return_value=self._probe(b"unknown option: --no-lazy-fetch\n")):
+            self.assertFalse(checker._supports_no_lazy_fetch("."))
+
+    def test_accepted_option_is_read_as_support(self):
+        with patch("subprocess.run", return_value=self._probe(b"")):
+            self.assertTrue(checker._supports_no_lazy_fetch("."))
+
+    def test_command_omits_the_option_where_git_rejects_it(self):
+        with patch("subprocess.run",
+                   return_value=self._probe(b"unknown option: --no-lazy-fetch\n")):
+            command = checker._object_command(".", "cat-file", "-s", "--", "abc")
+        self.assertNotIn("--no-lazy-fetch", command)
+        self.assertIn("--no-replace-objects", command)
+        self.assertLess(command.index("--"), command.index("abc"))
+
+    def test_command_keeps_the_option_where_git_accepts_it(self):
+        with patch("subprocess.run", return_value=self._probe(b"")):
+            command = checker._object_command(".", "cat-file", "-s", "--", "abc")
+        self.assertIn("--no-lazy-fetch", command)
+        self.assertIn("--no-replace-objects", command)
+
+    def test_missing_support_warns_once_rather_than_per_file(self):
+        """The old failure printed one error line per tracked file."""
+        stub = self._probe(b"unknown option: --no-lazy-fetch\n")
+        with patch("subprocess.run", return_value=stub), \
+             patch("sys.stderr", new_callable=io.StringIO) as captured:
+            for _ in range(5):
+                checker._object_command(".", "cat-file", "-s", "--", "abc")
+            warnings = captured.getvalue()
+        self.assertEqual(warnings.count("--no-lazy-fetch"), 1)
+        self.assertIn("no verdict changes", warnings)
+
+    def test_the_checker_reads_objects_on_this_git(self):
+        """Whatever git runs here, --staged must reach a verdict."""
+        result = subprocess.run(
+            [sys.executable, str(CHECKER_PATH), "--staged"],
+            cwd=REPO_ROOT, capture_output=True, text=True, check=False)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertNotIn("unknown option", result.stderr)
 
 
 if __name__ == "__main__":

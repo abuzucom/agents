@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- Added `--no-lazy-fetch` only where git accepts it. The option arrived in Git
+  2.45; Ubuntu 24.04 LTS ships 2.43, where every object read failed with
+  "unknown option" and `check_conflict_markers.py` printed one error per
+  tracked file, exiting 1. `make lint` and the pre-commit hook were unusable
+  there while CI stayed green on newer runners. Support is now probed once and
+  reported in a single warning, and the three call sites share one command
+  builder. `--no-replace-objects` is unconditional: it is the integrity-critical
+  half, every supported git has it, and object names verify their own content,
+  so a lazy fetch cannot change a verdict.
+
 ### Added
 - Added permanent security header, active work structure, command-execution prohibition, and sensitive data protections to `plan/HANDOFF.md.example`.
 - Added `scripts/check_conflict_markers.py` with `--staged` mode reading index blobs without applying `working-tree-encoding`, object size pre-checking via `git cat-file -s` before buffering, fail-closed `git check-attr` error handling, balanced conflict block recognition across all positive marker widths (`N >= 1`), single-fd file I/O via `_safe_read`, repo root resolution via `git rev-parse --show-toplevel`, UTF-16/32 BOM decoding, and Markdown Setext heading context validation.

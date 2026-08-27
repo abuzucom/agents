@@ -19,6 +19,7 @@ Modes:
 Exits 1 on any violation or read/git error (fail-closed), 0 if clean.
 """
 import errno
+import functools
 import os
 import re
 import stat
@@ -629,16 +630,50 @@ def _get_index_entries(
     return entries
 
 
+@functools.lru_cache(maxsize=1)
+def _supports_no_lazy_fetch(repo_root: str) -> bool:
+    """Return True when this git accepts the --no-lazy-fetch global option.
+
+    The option arrived in Git 2.45. Ubuntu 24.04 LTS ships 2.43, where every
+    object read failed with "unknown option" and the checker reported one
+    error per tracked file rather than one message about git.
+
+    Probe rather than parse `git --version`: a distribution backport carries
+    the option without carrying the version number.
+    """
+    probe = subprocess.run(
+        ["git", "--no-lazy-fetch", "rev-parse", "--git-dir"],
+        capture_output=True, check=False, cwd=repo_root)
+    stderr = probe.stderr.decode("utf-8", errors="replace")
+    if "unknown option" not in stderr:
+        return True
+    print(
+        "warning: this git predates cat-file --no-lazy-fetch (Git 2.45), so "
+        "a partial clone may fetch a missing object while scanning. Object "
+        "names still verify their content and replacement refs stay "
+        "disabled, so no verdict changes.",
+        file=sys.stderr)
+    return False
+
+
+def _object_command(repo_root: str, *args: str) -> list:
+    """Return a git object command that neither replaces nor fetches objects.
+
+    --no-replace-objects is the integrity-critical half and every supported
+    git has it. --no-lazy-fetch is added only where it exists, because a git
+    that rejects it fails the whole scan instead of reading one object.
+    """
+    command = ["git", "--no-pager", "--no-replace-objects"]
+    if _supports_no_lazy_fetch(repo_root):
+        command.append("--no-lazy-fetch")
+    command += ["-c", "core.fsmonitor=", *args]
+    return command
+
+
 def _get_blob_size(sha: str, repo_root: str) -> int:
     """Query object size without buffering object data."""
     result = subprocess.run(
-        [
-            "git", "--no-pager",
-            "-c", "core.fsmonitor=",
-            "--no-replace-objects",
-            "--no-lazy-fetch",
-            "cat-file", "-s", "--", sha,
-        ],
+        _object_command(repo_root, "cat-file", "-s", "--", sha),
         capture_output=True,
         check=False,
         cwd=repo_root,
@@ -659,13 +694,7 @@ def _read_blob(
 ) -> bytes:
     """Read a single blob from the git object store with size limit."""
     proc = subprocess.Popen(
-        [
-            "git", "--no-pager",
-            "-c", "core.fsmonitor=",
-            "--no-replace-objects",
-            "--no-lazy-fetch",
-            "cat-file", "blob", "--", sha,
-        ],
+        _object_command(repo_root, "cat-file", "blob", "--", sha),
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         cwd=repo_root,
@@ -803,10 +832,7 @@ def _run_immutable_git(
     env: dict | None = None,
 ) -> bytes:
     """Run a non-fetching Git object command without replacement refs."""
-    command = [
-        "git", "--no-pager", "--no-replace-objects", "--no-lazy-fetch",
-        "-c", "core.fsmonitor=", *args,
-    ]
+    command = _object_command(repo_root, *args)
     result = subprocess.run(
         command, cwd=repo_root, input=input_bytes, capture_output=True,
         check=False, env=env)
