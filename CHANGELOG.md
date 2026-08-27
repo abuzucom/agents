@@ -45,6 +45,9 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Classified command strings passed to Bash `eval`, treated `exec` as a command
   prefix, and routed unresolved `eval` expansions to the user. These builtins
   previously hid destructive commands from the gate.
+- Treated Bash `builtin` as a command prefix and retained the enclosing command
+  around backtick substitutions. Prefixing `eval` with `builtin`, or building
+  its command name through a substitution, previously bypassed classification.
 - Included `scripts/` in the shell-write consent paths because repository hooks
   execute branch-name and identity checkers from that directory.
 - Replaced the spaced hyphen in the `# pragma: no cover` and
