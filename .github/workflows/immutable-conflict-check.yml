@@ -122,7 +122,7 @@ jobs:
           CHECK_BASE: ${{ env.PR_BASE_SHA }}
           CHECK_HEAD: ${{ env.PR_HEAD_SHA }}
         run: >-
-          python scripts/check_banned_agents.py
+          python ../trusted-base/scripts/check_banned_agents.py
           --base "$CHECK_BASE" --head "$CHECK_HEAD"
       - name: Check commit messages (warning only)
         if: github.event.pull_request.user.login != 'dependabot[bot]'
@@ -130,14 +130,14 @@ jobs:
           CHECK_BASE: ${{ env.PR_BASE_SHA }}
           CHECK_HEAD: ${{ env.PR_HEAD_SHA }}
         run: >-
-          python scripts/check_commit_message.py
+          python ../trusted-base/scripts/check_commit_message.py
           --base "$CHECK_BASE" --head "$CHECK_HEAD"
       - name: Check commit identities
         env:
           CHECK_BASE: ${{ env.PR_BASE_SHA }}
           CHECK_HEAD: ${{ env.PR_HEAD_SHA }}
         run: >-
-          python scripts/check_git_identity.py
+          python ../trusted-base/scripts/check_git_identity.py
           --base "$CHECK_BASE" --head "$CHECK_HEAD"
 
   static-checks:
@@ -146,11 +146,23 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+    defaults:
+      run:
+        working-directory: pr-head
     steps:
-      - uses: actions/checkout@v4
+      - name: Check out the exact trusted base
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.PR_BASE_REPOSITORY }}
+          ref: ${{ env.PR_BASE_SHA }}
+          path: trusted-base
+          persist-credentials: false
+      - name: Check out the exact pull request head
+        uses: actions/checkout@v4
         with:
           repository: ${{ env.PR_HEAD_REPOSITORY }}
           ref: ${{ env.PR_HEAD_SHA }}
+          path: pr-head
           persist-credentials: false
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -160,27 +172,29 @@ jobs:
         if: github.event.pull_request.user.login != 'dependabot[bot]'
         env:
           GITHUB_HEAD_REF: ${{ github.event.pull_request.head.ref }}
-        run: python scripts/check_branch_name.py
+        run: python ../trusted-base/scripts/check_branch_name.py
       - name: Check persist-credentials on checkout steps
-        run: python scripts/check_persist_credentials.py .github/workflows/*.yml
+        run: >-
+          python ../trusted-base/scripts/check_persist_credentials.py
+          .github/workflows/*.yml
       - name: Check for unjustified MD5/SHA-1
         run: |
           shopt -s nullglob
           files=(scripts/*.py)
           if [ ${#files[@]} -gt 0 ]; then
-            python scripts/check_weak_hashing.py "${files[@]}"
+            python ../trusted-base/scripts/check_weak_hashing.py "${files[@]}"
           fi
       - name: Check for non-root containers
         run: |
           shopt -s nullglob
           files=(Dockerfile* docker-compose*.yml docker-compose*.yaml compose*.yml compose*.yaml)
           if [ ${#files[@]} -gt 0 ]; then
-            python scripts/check_dockerfile_root.py "${files[@]}"
+            python ../trusted-base/scripts/check_dockerfile_root.py "${files[@]}"
           fi
       - name: Check for likely secrets
         run: |
           shopt -s nullglob
           files=(scripts/*.py .github/workflows/*.yml .pre-commit-config.yaml Makefile)
           if [ ${#files[@]} -gt 0 ]; then
-            python scripts/check_secrets_heuristic.py "${files[@]}"
+            python ../trusted-base/scripts/check_secrets_heuristic.py "${files[@]}"
           fi

@@ -28,6 +28,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Moved `unittest.main()` to the physical end of `tests/test_check_conflict_markers.py`, so direct execution defines and runs every test class.
 - Made `sync-check.yml` and `agents-md-compliance.yml` push-only. Their pull request checks now run behind the immutable gate with explicit `needs` dependencies and job-level `contents: read` permissions.
 - Added the `edited` pull request activity to the trusted workflow, so base retargeting reruns the gate and dependent checks.
+- Pinned every access-control checker in the privileged pull request workflow
+  to the exact trusted base. The checker code now comes from `trusted-base`
+  while its paths, commits, and workflow inputs come from `pr-head`.
+  Regression coverage requires read-only job permissions and forbids secret
+  references or write scopes under `pull_request_target`.
 - Removed AgentLint pull request comments. AgentLint remains advisory on pushes and gated pull requests, but no pull request code runs with `pull-requests: write` permission.
 - Cleaned up redundant conditions in `scripts/check_dockerfile_root.py` (`if` to `elif` on service-indent comparison) and `scripts/check_commit_message.py` (removed unreachable empty-sha guard).
 

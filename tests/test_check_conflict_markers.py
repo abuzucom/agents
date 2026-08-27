@@ -663,6 +663,61 @@ class WiringTest(unittest.TestCase):
         self.assertNotIn("pull-requests: write", content)
         self.assertNotIn("actions/github-script", content)
 
+    def test_privileged_trigger_has_read_only_permissions_and_no_secrets(self):
+        content = IMMUTABLE_WORKFLOW_PATH.read_text(encoding="utf-8")
+        self.assertNotIn("secrets.", content.lower())
+        self.assertNotIn("write-all", content.lower())
+        self.assertIn("permissions:\n  contents: read", content)
+        for job_id, block in _workflow_jobs(content).items():
+            with self.subTest(job=job_id):
+                match = re.search(
+                    r"^    permissions:\n((?:      [^\n]+\n?)+)",
+                    block,
+                    re.MULTILINE,
+                )
+                self.assertIsNotNone(match)
+                self.assertEqual(
+                    [line.strip() for line in match.group(1).splitlines()],
+                    ["contents: read"],
+                )
+        self.assertNotRegex(
+            content,
+            r"(?m)^\s+[a-z-]+:\s*(?:write|write-all)\s*$",
+        )
+
+    def test_security_jobs_use_trusted_base_checkers(self):
+        jobs = _workflow_jobs(
+            IMMUTABLE_WORKFLOW_PATH.read_text(encoding="utf-8"))
+        expected = {
+            "pr-checks": (
+                "check_banned_agents.py",
+                "check_commit_message.py",
+                "check_git_identity.py",
+            ),
+            "static-checks": (
+                "check_branch_name.py",
+                "check_persist_credentials.py",
+                "check_weak_hashing.py",
+                "check_dockerfile_root.py",
+                "check_secrets_heuristic.py",
+            ),
+        }
+        for job_id, checker_names in expected.items():
+            block = jobs[job_id]
+            with self.subTest(job=job_id):
+                self.assertIn("path: trusted-base", block)
+                self.assertIn("path: pr-head", block)
+                self.assertIn("working-directory: pr-head", block)
+                for checker_name in checker_names:
+                    self.assertIn(
+                        f"python ../trusted-base/scripts/{checker_name}",
+                        block,
+                    )
+                    self.assertNotIn(
+                        f"python scripts/{checker_name}",
+                        block,
+                    )
+
     def test_legacy_workflows_are_push_only(self):
         sync_content = WORKFLOW_PATH.read_text(encoding="utf-8")
         compliance_content = AGENTS_MD_WORKFLOW_PATH.read_text(
