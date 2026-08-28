@@ -6,24 +6,24 @@ Banned agents below. Copy into a repository and adapt.
 
 ## What's in it
 
-- **Non-negotiable summary** - every critical rule in one line, at the
+- **Non-negotiable summary**: every critical rule in one line, at the
   top, where model attention is strongest.
-- **Fourteen critical rules** - injection, destructive commands, test
+- **Fourteen critical rules**: injection, destructive commands, test
   integrity, scope, draft-PR workflow, API contracts, hashing, secrets,
   dependencies, workflow-state verification, CI credential hygiene,
   container privilege, honest enforcement claims, git identity.
-- **Branch naming** - clean conventions for branch names.
-- **Workflow** - test-first, lint-clean, safe editing, retry discipline.
-- **Correctness & safety** - divisors, regex backtracking, collection
+- **Branch naming**: clean conventions for branch names.
+- **Workflow**: test-first, lint-clean, safe editing, retry discipline.
+- **Correctness & safety**: divisors, regex backtracking, collection
   mutation, unbounded recursion, log sanitization, idempotency.
-- **Concurrency & shared state** - locks, task joining, lock ordering.
-- **Code quality and style** - limits and conventions (magic numbers, change size, duplication, TODO/FIXME ban, comments, commit messages, extended ASCII ban) applicable without judgment calls.
-- **Orientation template** (commented out, end of file) - Commands, Do not
+- **Concurrency & shared state**: locks, task joining, lock ordering.
+- **Code quality and style**: limits and conventions (magic numbers, change size, duplication, TODO/FIXME ban, comments, commit messages, extended ASCII ban) applicable without judgment calls.
+- **Orientation template** (commented out, end of file): Commands, Do not
   touch, Architecture, Gotchas, doc pointers. Per-repo; fill on adoption.
-- **`.claudeignore`** - excludes noisy/generated paths (`node_modules/`,
+- **`.claudeignore`**: excludes noisy/generated paths (`node_modules/`,
   build output, lockfiles, `.env*`, etc.) from Claude Code's context. Part
-  of the template, not optional tooling - see Adopting step 1.
-- **`scripts/check_*.py`** and **`.github/workflows/`** - this template's
+  of the template, not optional tooling; see Adopting step 1.
+- **`scripts/check_*.py`** and **`.github/workflows/`**: this template's
   own mechanical enforcement of its rules, dogfooded in its own CI and
   `.pre-commit-config.yaml`. Privileged pull request jobs run from the
   base-defined `immutable-conflict-check.yml` after its immutable object scan.
@@ -31,13 +31,11 @@ Banned agents below. Copy into a repository and adapt.
   `pull_request` event. Push checks also run from `sync-check.yml` and
   `agents-md-compliance.yml`, which calls the reusable
   `agents-compliance.yml`.
-- **`hooks/`** - Claude-Code-specific hooks: an opt-in `PreToolUse` example
-  blocking obviously destructive Bash commands, plus two live hooks wired
-  through `.claude/settings.json`: `enforce_branch_name.py`, which refuses
-  commits and pushes from a branch that breaks the naming convention, and
-  `enforce_git_identity.py`, which refuses them under an unset or
-  disallowed git identity; see Claude Code hooks below.
-- **`tests/`** - the stdlib `unittest` suite covering
+- **`hooks/`**: Claude-Code-specific defense-in-depth prompts for destructive
+  Bash and PowerShell commands, writes to existing tests and gate files,
+  branch names, and git identities. All are live through
+  `.claude/settings.json`; see Claude Code hooks below.
+- **`tests/`**: the stdlib `unittest` suite covering
   `hooks/enforce_branch_name.py`, `hooks/enforce_git_identity.py`, and
   their settings wiring. Run it with
   `make test` (or `python -m unittest discover -s tests`);
@@ -45,18 +43,18 @@ Banned agents below. Copy into a repository and adapt.
   `.pre-commit-config.yaml` runs it when a hook, test, settings, or
   `check_branch_name.py` file changes. No test dependencies: `unittest` ships
   with Python.
-- **`plan/HANDOFF.md.example`** - an opt-in per-repo handoff/progress
+- **`plan/HANDOFF.md.example`**: an opt-in per-repo handoff/progress
   template; see Handoff file example below.
-- **`SECURITY.md.example`** - an opt-in vulnerability-reporting policy
+- **`SECURITY.md.example`**: an opt-in vulnerability-reporting policy
   template; see Security policy example below.
-- **`CONTRIBUTING.md.example`** - an opt-in contribution-guide template;
+- **`CONTRIBUTING.md.example`**: an opt-in contribution-guide template;
   see Contributing guide example below.
 - **`.github/PULL_REQUEST_TEMPLATE.md`** and
-  **`.github/ISSUE_TEMPLATE.md`** - live for this repo, formalizing the
+  **`.github/ISSUE_TEMPLATE.md`**: live for this repo, formalizing the
   Summary/Test plan PR shape and a single issue template covering bugs
   and proposals; adopting repos can copy them too, like any other new
   tooling (Rule 9).
-- **AgentLint** - `sync-check.yml` runs
+- **AgentLint**: `sync-check.yml` also runs
   [AgentLint](https://github.com/0xmariowu/AgentLint), a third-party
   GitHub Action that audits AI-agent-harness setup and scores it across
   6 dimensions. Advisory only (`fail-below: '0'`, never fails the job).
@@ -85,7 +83,7 @@ its immutable conflict scan.
 
 ## Adopting
 
-1. Copy `AGENTS.md`, `.claudeignore`, `.gitattributes`, and `.editorconfig` to your repo root - all are
+1. Copy `AGENTS.md`, `.claudeignore`, `.gitattributes`, and `.editorconfig` to your repo root; all are
    part of this template. If the target repository already contains custom rules files
    (e.g., CLAUDE.md, .cursorrules), respect those custom rules: do not blindly overwrite them.
    Analyze their content, extract repository-specific guidelines, and merge them into AGENTS.md,
@@ -100,7 +98,7 @@ its immutable conflict scan.
    AGENTS.md (Windows compatibility). After editing AGENTS.md, run
    `make sync` (or manually run `python scripts/sync.py`); `--check` in CI or
    `make check` catches drift. `.claudeignore`, `.gitattributes`, and `.editorconfig`
-   are not part of this sync - they are single shared files, copied as-is.
+   are not part of this sync; they are single shared files, copied as-is.
 5. Back lintable rules with no shipped checker (nesting, function size, line
    length, empty catches, cond-assign, injection) with linter/semgrep config. If
    you (agent) are doing the integration, do not wire up lint CI, add files, or
@@ -160,7 +158,7 @@ its immutable conflict scan.
     not as a follow-up. Copy `scripts/check_branch_name.py` and register
     it as a `pre-push` hook (see `.pre-commit-config.yaml` here for the
     `stages: [pre-push]` shape). For Claude Code, also copy
-    `hooks/enforce_branch_name.py` and merge the `SessionStart` and
+     `hooks/enforce_branch_name.py`, `hooks/_bash_parser.py`, and merge the `SessionStart` and
     `PreToolUse` keys from `hooks/claude-code-settings.example.json` into
     the target repo's `.claude/settings.json`. CI alone catches a bad
     branch name only after a pull request exists, and a session handed a
@@ -178,12 +176,54 @@ its immutable conflict scan.
     object the moment it is created. Add the `--unpushed` variant at
     `pre-push` to catch commits authored before the identity was fixed,
     and the `--base`/`--head` variant to CI. For Claude Code, copy
-    `hooks/enforce_git_identity.py` and merge its two entries from
+     `hooks/enforce_git_identity.py`, `hooks/_bash_parser.py`, and merge its two entries from
     `hooks/claude-code-settings.example.json`, then copy
     `tests/test_enforce_git_identity.py`. Decide the allowlist: the
     default accepts GitHub noreply addresses only, and `--allow` takes a
     regex for a repo that commits under another convention. Propose it to
     the user first, like any other new tooling (Rule 9).
+
+12. Wire the consent gate in the same change. Copy
+    `hooks/require_consent.py` and `hooks/_gate_core.py`, which it
+    imports; a gate copied without the core raises `ImportError` at
+    startup, which exits non-zero but not 2, and Claude Code treats that
+    as a non-blocking error, so the gate fails open in exactly the repo
+    that installed it. The gate denies and exits 2 on a missing core
+    rather than crashing, but the copy still has to include it. Merge the
+    `SessionStart` and the `Edit|Write|MultiEdit|NotebookEdit` entries
+    from `hooks/claude-code-settings.example.json`, and copy
+    `tests/test_require_consent.py`. Decide the launcher: the example
+    names `python`, which resolves on Windows and on GitHub runners, and
+    Debian without `python-is-python3` needs `python3` instead. The
+    suite asserts the configured string resolves, so a wrong value fails
+    a test rather than silently disabling every gate. Propose the hook,
+    the test step, and any CI job to the user first, like any other new
+    tooling (Rule 9).
+13. Wire the shell gates in the same change, if the target repo wants
+    them. Copy `hooks/block_destructive_bash.py`,
+     `hooks/block_destructive_powershell.py`, `hooks/_gate_core.py`, and
+     `hooks/_bash_parser.py`,
+    then merge the `Bash` and `PowerShell` entries from the same example
+    file. Copy `tests/test_block_destructive_bash.py`,
+    `tests/test_block_destructive_powershell.py`, and
+    `tests/test_gate_parity.py`. The parity suite is not optional
+    decoration: it asserts the two gates reach identical verdicts and
+    that neither defines a decision function of its own, which is what
+    stops a fix from landing in one and missing the other. Read Rule 2
+    before adopting these, since the refusal list is long and a repo that
+    formats disks or wipes volumes as ordinary work should not take them
+    unchanged.
+14. Keep a drift record. A file copied from this template and then
+    modified locally is invisible here, which is how
+    `check_commit_message.py` came to block in one repo and warn in
+    another undetected. Record every local difference in the adopting
+    repo, and open an issue in `abuzucom/agents` naming the file, the
+    change, and whether you recommend upstreaming it, so maintainers can
+    adopt it or decline it. Settings files and repo-specific sections are
+    expected to differ and need no issue; a template file you modified
+    does. Nothing verifies any of this. [`DRIFT.md`](DRIFT.md) holds the
+    policy and the categories; `adopters/<repo>.md` holds what each
+    adopting repository took versus declined.
 
 ### Checker reference
 
@@ -194,7 +234,8 @@ its immutable conflict scan.
 | `check_us_spelling.py` | American spelling | 0, warning only | |
 | `check_english_only.py` | English only | 0, warning only | stopword-ratio heuristic, not language detection; real detection needs a dependency (e.g. `langdetect`), a separate Rule 9 proposal |
 | `check_hedging.py` | No hedging/fluff/self-justification/self-narration; historical narration in comments | 0, warning only | heuristic keyword match, not NLP; false positives/negatives expected |
-| `check_ascii.py` | No run-on sentences/dashes; No non-ASCII characters | 1, blocking | |
+| `check_ascii.py` | No run-on sentences/dashes; No non-ASCII characters | 1, blocking | CI points it at the example files and at this repo's own `README.md`, `CHANGELOG.md`, `DRIFT.md`, `docs/`, and `adopters/`. A rule the template's own prose fails is a rule an adopter has no reason to keep. The one cost is the CHANGELOG heading, which parenthesizes its date rather than following Keep a Changelog's spaced hyphen |
+| `check_hook_coverage.py` | Nothing untested enters `hooks/` | 1, blocking | runs the suite with `tools/hook-trace` on `PYTHONPATH`, which traces every interpreter the suite starts. The gates run as subprocesses, so ordinary in-process coverage sees almost none of their decision code. On first install run it once with `--write-baseline` to create the baseline, then commit that; regenerate the same way whenever a recorded function changes |
 | `check_persist_credentials.py` | Rule 11 | 1, blocking | |
 | `check_weak_hashing.py` | Rule 7 | 1, blocking | |
 | `check_dockerfile_root.py` | Rule 12 | 1, blocking | |
@@ -202,7 +243,7 @@ its immutable conflict scan.
 | `check_conflict_markers.py` | Merge conflicts in tracked files | 1, blocking | scans files for unresolved git conflict markers (`<<<<<<<`, `=======`, `>>>>>>>`) |
 | `check_branch_name.py` | Branch naming | 1, blocking | usable as a `pre-push` hook, a `pull_request` CI step, or a Claude Code hook through `hooks/enforce_branch_name.py`; no arguments needed |
 | `check_git_identity.py` | Rule 14 | 1, blocking | no arguments checks the configured identity before a commit; `--unpushed` and `--base`/`--head` apply the allowlist to commit objects; `--advise` adds `gh` and `user.useConfigOnly` notes that never change the exit code |
-| `check_commit_message.py` | Commit-message style | 0, warning only | CI-only, takes `--base`/`--head`; not a drop-in `commit-msg` hook, which receives a message-file path instead |
+| `check_commit_message.py` | Commit-message style | 0, warning only | CI-only, takes `--base`/`--head`; skips merge commits, whose subject git writes; not a drop-in `commit-msg` hook, which receives a message-file path instead |
 
 ## Banned agents
 
@@ -217,7 +258,7 @@ trailer; pair it with platform-level bot blocks. Adopting repos must copy
 the script and wire it into their own CI; it is not part of the sync step.
 A repo that wants this check (and the other compliance checks) unmodified
 can instead call `uses: abuzucom/agents/.github/workflows/agents-compliance.yml@<tag>`
-as a `workflow_call` job - see Versioning below for the `@<tag>` pin.
+as a `workflow_call` job; see Versioning below for the `@<tag>` pin.
 
 Do not create pointer or copy files for banned tools; do not add them to
 `scripts/sync.py`.
@@ -246,7 +287,7 @@ until one exists.
 | Other local agents (Zed, Continue, etc.) | `AGENTS.md` or config | Native or point config at it |
 | GitHub/Microsoft Copilot | `.github/copilot-instructions.md`, `.copilot-instructions` | Synced copies |
 | Mistral, Perplexity, DeepSeek, Lovable | N/A | No repo-file convention: paste AGENTS.md into system prompt / custom instructions / project knowledge |
-| xAI/Grok | N/A | Banned - see Banned agents; no pointer files |
+| xAI/Grok | N/A | Banned: see Banned agents, no pointer files |
 
 Verify against each tool's current docs; conventions shift.
 
@@ -257,18 +298,153 @@ themselves (AGENTS.md stays tool-agnostic; it is synced byte-identical to
 non-Claude tools). Each one is a mechanical backstop for a single tool,
 independent of whether the model remembers the rule.
 
-### Destructive Bash example (opt-in)
+### Destructive shell gates (live)
 
-`hooks/block_destructive_bash.py` is an opt-in defense-in-depth example.
-This repo's `.claude/settings.json` does not wire it up. A `PreToolUse` hook
-on the `Bash` matcher blocks `rm -rf /`, `~`, or `$HOME`, a bare
-`git push --force`/`-f`, and `git reset --hard`, mirroring rule 2 and the
-history-safety rule in Workflow. It is a heuristic, not a sandbox: it does
-not parse the shell, so a command hidden behind a variable, alias, or
-wrapper script is invisible to it. To use it, copy the script and
-`hooks/claude-code-settings.example.json` into a target repo and merge the
-example's `hooks` key into that repo's own `.claude/settings.json`; propose
-this to the user first, like any other new tooling (Rule 9).
+`hooks/block_destructive_bash.py` and
+`hooks/block_destructive_powershell.py` are live in this repo, wired
+through `.claude/settings.json` as `PreToolUse` hooks on the `Bash` and
+`PowerShell` matchers. They back rule 2 and the history-safety rule in
+Workflow, with two outcomes: `deny` at exit 2, and `ask`.
+
+Which commands land in which outcome is stated once, in AGENTS.md rule 2.
+That list is long and it moves; repeating it here would give it a second
+copy to disagree with, which is the failure `DRIFT.md` exists to name. Read
+it there.
+
+Both gates take every decision from `hooks/_gate_core.py`. Only the parsing
+is shell-specific: statement boundaries, wrapper commands, redirection
+forms, and how each shell spells a delete. `tests/test_gate_parity.py`
+feeds both an equivalent corpus, fails when their verdicts differ, and
+fails when either grows a decision function of its own, so a fix cannot
+land in one gate and miss the other.
+
+CMD reaches both through interpreters. No CMD tool matcher exists, so `del`,
+`erase`, `rd`, and `rmdir` arrive nested inside a `Bash` or `PowerShell`
+call, and the classifier reads the argument after `/c` or `/k` the same way
+it reads the one after `bash -c`.
+
+The command is tokenized and normalized before any decision. Matching the raw
+string matches spelling rather than meaning, and every destructive command has
+many spellings: `rm -Rf` for `rm -rf`, `git -C dir push --force` for
+`git push --force`, `--force-with-lease=main:<oid>` for the bare flag, and
+`git push origin +HEAD:main` for a forced push carrying no flag at all. A
+string matcher lets each of those through while appearing to work. Tokenizing
+also removes a false positive: `echo 'rm -rf / is a string'` is a quoted
+argument, not a command.
+
+Ambiguity fails closed. A command that will not tokenize, or a `git` whose
+subcommand sits behind a variable, is gated rather than waved through, because
+the gate cannot clear what it cannot read.
+
+The `ask` set exists because each of those is legitimate with the user's
+consent and forbidden without it, so the decision belongs on a permission
+prompt rather than in the model's judgment. Rule 2 carries no scope
+qualifier, which is why a scratch directory the session created itself is
+gated like any other target, and a lease is not the human consent the
+history rule requires. An `ask` needs someone to answer it: when
+`permission_mode` reports an unattended session, or a mode the hook does not
+recognize, the ask becomes a deny.
+
+A gate is a heuristic, not a sandbox. It reads a command's shape, so a
+command hidden behind a variable, an alias to a shell function, or a wrapper
+script on `PATH` is invisible to it, and rate analytics of the kind MITRE
+ATT&CK describes for T1485 need telemetry a per-call hook does not have.
+`docs/gate-threat-model.md` records what is covered and what is not.
+
+These hooks are defense-in-depth prompts for compliant workflows, not an
+authorization or security boundary. Repository writers can alter the hooks or
+`.claude/settings.json`. Recognizing shell writes to those paths does not close
+that writable-root bypass. Tamper resistance requires an external harness,
+filesystem isolation, or server-side controls. This template ships none.
+
+`tests/test_block_destructive_bash.py` and
+`tests/test_block_destructive_powershell.py` pin every deny, ask, and allow
+outcome. Adopting repos follow step 13 under Adopting, which names every
+file to copy; propose it to the user first, like any other new tooling
+(Rule 9).
+
+### Consent gate (live)
+
+`hooks/require_consent.py` is live in this repo, wired through
+`.claude/settings.json`. It backs Rule 3, and targets a failure that
+instructions do not reach: an agent that reads the rule, agrees it applies,
+and then converts "stop and wait for a human decision" into "disclose it in
+the PR body and proceed". Writing the violation down feels like compliance
+and satisfies nothing. A model can talk itself out of a rule; it cannot talk
+itself past a permission prompt.
+
+One script serves two registrations, dispatched on `hook_event_name` and
+`tool_name`:
+
+| Event | Behavior |
+|---|---|
+| `PreToolUse` (`Edit\|Write\|MultiEdit\|NotebookEdit`) | Returns `ask` for any write to a test file that already exists. Creating a new test file passes. |
+| `SessionStart` | States which gates are live, that approving a plan is not authorization for the acts inside it, and the checklist a question must satisfy before it is written. |
+
+The gate reads the path, never the content. It opens the target once and
+branches on whether the open succeeded, so there is no window in which a file
+appears between a check and a write, and no reading of the file to argue
+about.
+
+An earlier version exempted a verified append at the end of an existing file,
+on the reasoning that AGENTS.md mandates a test-first workflow and a gate
+prompting on every added test would be switched off within a day. The
+exemption did not survive contact. Appending
+`ExistingTest.__unittest_skip__ = True` satisfies every structural condition
+an append check can state, and leaves every assertion above it present and
+inert; rebinding the class to `None` does the same in one line. Enumerating
+those spellings is a denylist over text the writer chooses, which is the
+construction that failed four separate times in building these gates.
+
+The cost is real and accepted: iterating on an existing test now prompts.
+
+The question checklist is a reminder, not enforcement, and the table above is
+the honest description of it (Rule 13). It rides on `SessionStart` rather
+than on `AskUserQuestion`, because a `PreToolUse` hook sees a question whose
+options the model has already written, and `additionalContext` cannot rewrite
+them. Guidance that arrives after the decision it is meant to shape is
+decoration. What makes a hidden cost survivable is not the checklist but the
+edit gate, which fires at the act regardless of what any question said.
+
+Both hooks fail closed on their own inputs. A payload that will not parse, or
+a tool input that is not an object, is denied rather than waved through, and a
+test file that cannot be decoded as text is gated rather than read as empty.
+Claude Code treats any non-zero exit other than 2 as a non-blocking error, so
+a hook that crashes on malformed input is a hook that is not there.
+
+Registrations use the exec form (`command` plus `args`) rather than a shell
+string. In shell form a project path containing a space splits into two
+arguments and the hook silently never runs, which removes the gate without
+removing the appearance of one.
+
+Paths are resolved before anything is decided about them. A path is only as
+trustworthy as the file it reaches, so classification runs on both the name
+given and its canonical target: a symlink called `notes.txt` still reaches a
+test, and a symlink out of the tree is gated rather than followed.
+
+Any test file resolving outside the project root is gated, whether a link
+redirected it there or the caller named it directly. The gate reasons about
+one tree and can only speak for that tree, so a file outside it is one the
+person running the session gets asked about.
+
+Unattended modes deny every gated act because no person is present to answer a
+prompt.
+
+Bash writes reaching a test file go through the same decision: a redirect, a
+here-document, `tee`, `sed -i`, `cp`, and `mv`. Rule 3 applied to the same act
+through one tool and not the other until the shell gate covered it.
+
+Known shell writes to `hooks/` and `.claude/` prompt in both classifiers. This
+is best-effort consistency for compliant workflows, not tamper resistance. A
+repository writer can alter the classifier or settings before either runs.
+
+`tests/test_require_consent.py` runs the hook as a subprocess against
+synthetic payloads and real files on disk. 49 tests cover the new-file case,
+the gated cases, notebook paths, hard links and symlinks into the test tree,
+Windows path spellings, malformed payload fields, fail-closed behavior under
+an unattended `permission_mode`, the
+question checklist, and whether both settings files register the hook for
+each event.
 
 ### Branch-name enforcement (live)
 
@@ -302,7 +478,7 @@ propose it to the user first, like any other new tooling (Rule 9).
 synthetic Claude Code payloads, the same path the harness uses. Branch names
 come from `GITHUB_HEAD_REF`, which `check_branch_name.py` reads before
 falling back to `git rev-parse`, so the results do not depend on which
-branch the test run happens to be on. 22 tests cover both events, the
+branch the test run happens to be on. 23 tests cover both events, the
 `git branch -m` escape hatch, read-only git commands, non-Bash tools,
 empty and malformed stdin, a missing checker, and whether both settings
 files still register the hook for each event. That last group is the one
