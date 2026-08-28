@@ -13,6 +13,11 @@ import re
 import subprocess
 import sys
 
+try:
+    from scripts.trusted_git import run_git
+except ModuleNotFoundError:
+    from trusted_git import run_git
+
 DEFAULT_PREFIXES = ("feat", "fix", "chore", "docs", "test")
 EXEMPT_BRANCHES = ("main", "master", "HEAD")
 
@@ -33,30 +38,45 @@ def find_violations(branch: str, prefixes: tuple[str, ...] = DEFAULT_PREFIXES) -
     return [f"branch '{branch}' does not match <type>/<kebab-description> ({allowed})"]
 
 
-def _current_branch() -> str:
+def _current_branch(repo=None) -> str:
     """Return the PR head branch in CI, or the local checked-out branch."""
     head_ref = os.environ.get("GITHUB_HEAD_REF", "")
     if head_ref:
         return head_ref
-    result = subprocess.run(
-        ["git", "rev-parse", "--abbrev-ref", "HEAD"],
-        capture_output=True,
-        text=True,
-        check=False,
+    repository = repo or os.getcwd()
+    result = run_git(
+        repository,
+        ["rev-parse", "--abbrev-ref", "HEAD"],
+        runner=subprocess.run,
     )
-    return result.stdout.strip()
+    branch = result.stdout.strip()
+    if result.returncode != 0:
+        raise subprocess.CalledProcessError(
+            result.returncode,
+            "git rev-parse",
+            output=result.stdout,
+            stderr=result.stderr,
+        )
+    if not branch:
+        raise ValueError("git rev-parse returned an empty branch name")
+    return branch
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("branch", nargs="?", help="branch to check (default: current branch)")
+    parser.add_argument("--repo", default=os.getcwd(), help="repository to inspect (default: cwd)")
     parser.add_argument(
         "--prefixes",
         default=",".join(DEFAULT_PREFIXES),
         help="comma-separated allowed prefixes",
     )
     args = parser.parse_args()
-    branch = args.branch or _current_branch()
+    try:
+        branch = args.branch or _current_branch(args.repo)
+    except (OSError, subprocess.CalledProcessError, ValueError) as error:
+        print(f"error: branch lookup failed: {error}", file=sys.stderr)
+        return 1
     prefixes = tuple(prefix.strip() for prefix in args.prefixes.split(",") if prefix.strip())
 
     violations = find_violations(branch, prefixes)
