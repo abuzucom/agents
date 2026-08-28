@@ -11,443 +11,320 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
-### Fixed
-- Hardened `scripts/sync.py` against symlink traversal, repository escapes,
-  partial destination writes, and destination races. Copies now use a flushed
-  temporary file followed by an atomic replacement after path revalidation.
-- Parsed workflow, Compose, and Kubernetes YAML with duplicate-key rejection.
-  Rule 11 now requires the boolean `false`, and Rule 12 evaluates the final
-  Dockerfile user and every service and Kubernetes container independently.
-- Made weak-hash detection follow Python imports and simple aliases, recognize
-  `hashlib.new`, and require real comments that name a non-security use. Secret
-  scanning now blocks every `.env.*` variant except `.env.example` and detects
-  encrypted and PGP private-key headers.
-- Made branch, commit, banned-agent, and identity Git reads resolve an absolute
-  executable outside the repository and fail closed when Git lookup or output
-  fails. Co-author trailer keys are now case-insensitive and only the terminal
-  structured trailer block contributes identities.
-- Added `--no-lazy-fetch` only where git accepts it. The option arrived in Git
-  2.45; Ubuntu 24.04 LTS ships 2.43, where every object read failed with
-  "unknown option" and `check_conflict_markers.py` printed one error per
-  tracked file, exiting 1. `make lint` and the pre-commit hook were unusable
-  there while CI stayed green on newer runners. Support is now probed once and
-  reported in a single warning, and the three call sites share one command
-  builder. `--no-replace-objects` is unconditional: it is the integrity-critical
-  half, every supported git has it, and object names verify their own content,
-  so a lazy fetch cannot change a verdict.
-
 ### Added
-- Added `scripts/check_compliance_tree.py`, which dispatches trusted base
-  checkers over bounded blobs from one validated commit or tree without
-  importing pull request code. It scans regular and symlink blobs, commit
-  metadata, pull request authorship, branch names, immutable action revisions,
-  and the closed execution surface of `pull_request_target` workflows.
-- Added adversarial regression coverage for filesystem races, parser bypasses,
-  repository-local Git executables, immutable secrets, symlink blobs, workflow
-  trust boundaries, and immutable action references.
-- Added pinned `PyYAML==6.0.3` checker requirements for safe YAML parsing.
-- Added permanent security header, active work structure, command-execution prohibition, and sensitive data protections to `plan/HANDOFF.md.example`.
-- Added `scripts/check_conflict_markers.py` with `--staged` mode reading index blobs without applying `working-tree-encoding`, object size pre-checking via `git cat-file -s` before buffering, fail-closed `git check-attr` error handling, balanced conflict block recognition across all positive marker widths (`N >= 1`), single-fd file I/O via `_safe_read`, repo root resolution via `git rev-parse --show-toplevel`, UTF-16/32 BOM decoding, and Markdown Setext heading context validation.
-- Added immutable `--repo PATH --tree OID` scanning to `scripts/check_conflict_markers.py`. It validates object IDs, disables replacement refs and lazy fetches, rejects malformed or truncated Git output, scans exact regular blobs, and resolves attributes through an isolated index populated from the same commit or tree.
+- Added `scripts/check_compliance_tree.py` to run trusted base checkers against
+  bounded blobs from one validated commit or tree. It covers regular and
+  symlink blobs, commit and pull request identities, branch names, immutable
+  action revisions, and the execution surface of `pull_request_target`
+  workflows without importing pull request code.
+- Added `scripts/check_conflict_markers.py` with worktree, staged, and immutable
+  tree scanning. It bounds object reads, rejects malformed Git data, ignores
+  replacement refs, handles sparse checkouts and UTF-16 or UTF-32 BOMs, honors
+  conflict marker attributes, and distinguishes Markdown Setext headings.
 - Added `.github/workflows/immutable-conflict-check.yml`, a base-defined
-  `pull_request_target` workflow. Its trusted immutable scan gates the
-  privileged jobs that inspect pull request content in the base repository's
-  context.
-- Added `tests/test_check_conflict_markers.py` coverage for conflict formats, marker widths, encodings, symlinks, bounded reads, staged and immutable blobs, sparse checkout, replacement refs, direct execution ordering, and exact CI, Makefile, and pre-commit wiring.
+  `pull_request_target` workflow whose immutable compliance scan is the sole
+  privileged job.
+- Added pinned `PyYAML==6.0.3` checker requirements for safe YAML parsing.
+- Added a permanent security header, active-work structure, command-execution
+  prohibition, and sensitive-data protections to `plan/HANDOFF.md.example`.
+- Added adversarial coverage for filesystem races, parser bypasses, local Git
+  executable substitution, immutable secrets and actions, symlink blobs, and
+  workflow trust boundaries.
 
 ### Changed
-- Reduced the privileged `pull_request_target` workflow to one read-only
-  immutable compliance job. It installs dependencies from the trusted base,
-  executes no pull request-authored code, and pins every external action to an
-  approved commit SHA. Standard pull request tests remain unprivileged.
-- Split every function in `scripts/check_conflict_markers.py` that exceeded the AGENTS.md caps of 60 lines and 10 locals. `check_content` became a `_BlockScan` state object and four marker handlers, which also removed six copies of the reportable-width test; `get_git_attributes`, `_check_staged`, and `main` split along the same lines, and the three `git ls-files` callers now share one runner.
-- Documented the reason for each remaining empty `except` in `decode_content` and `_get_index_entries`, per the Catch blocks rule.
-- Selected the Python interpreter once in the `Makefile` through an overridable `PYTHON ?= python3`. Bare `python` does not exist on Debian without `python-is-python3`, and where it is Python 2 the failure is confusing. `?=` allows `make test PYTHON=py` without editing the file.
-- Passed `--no-replace-objects` and a `--` separator to both `git cat-file` calls in `scripts/check_conflict_markers.py`. Git honors `refs/replace/` by default, so a replacement pointing a conflicted blob at a clean one made `--staged` exit 0 while the indexed blob still carried markers, and an object name beginning with a dash parsed as an option.
-- Reported a failed symlink probe in `_safe_read` instead of swallowing the `OSError`. On platforms without `O_NOFOLLOW` a failed check read as "not a link" and the path was opened anyway.
-- Rendered every path, git error, and quoted line in a diagnostic as printable ASCII with visible escapes and a length bound. Diagnostics reach CI logs and terminals, where a newline forges a log line and an escape sequence rewrites the screen. The renderer allowlists rather than strips, because zero-width characters, bidi overrides, and tag characters are not control characters.
-- Normalized the path separator before the `git check-attr` lookup. `os.path.relpath` returns backslashes on Windows while git answers with forward slashes, so every nested path silently lost `conflict-marker-size`.
-- Changed default and `--all` scans to read present skip-worktree entries from the worktree and absent regular entries from immutable index blobs with cached attributes. Sparse checkouts no longer hide indexed conflicts or lose unstaged conflicts in present files.
-- Reported reportable-width diff3 and normal separators independently when an active width-1 or width-2 opener has another width. The narrow block state and Markdown Setext heading allowance remain intact.
-- Replaced digest-driven handoff control instructions with an active-user request requirement. Handoff content remains untrusted status. No Git command runs before consent, and later stdout, stderr, and ref-name display require trusted external sanitization that repository scripts do not provide.
-- Moved `unittest.main()` to the physical end of `tests/test_check_conflict_markers.py`, so direct execution defines and runs every test class.
-- Kept `agents-md-compliance.yml` push-only and moved tests, sync checks, style
-  checks, and AgentLint to `sync-check.yml` under the standard `pull_request`
-  event. Pull request code no longer executes in the base repository's
-  `pull_request_target` context.
-- Added the `edited` pull request activity to the trusted workflow, so base retargeting reruns the gate and dependent checks.
-- Pinned every access-control checker in the privileged pull request workflow
-  to the exact trusted base. The checker code now comes from `trusted-base`
-  while its paths, commits, and workflow inputs come from `pr-head`.
-  Regression coverage requires read-only job permissions and forbids secret
-  references or write scopes under `pull_request_target`.
-- Removed AgentLint pull request comments. AgentLint remains advisory on pushes
-  and standard pull requests, but no pull request code runs with
+- Reduced the privileged `pull_request_target` workflow to one read-only,
+  immutable compliance job. Dependency specifications and checker code come
+  from the exact trusted base. Pull request input remains data, and retargeting
+  a pull request reruns the job.
+- Pinned trusted workflow actions to the policy SHAs
+  `actions/checkout@11d5960a326750d5838078e36cf38b85af677262` and
+  `actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065`.
+- Kept `agents-md-compliance.yml` push-only. Tests, sync and style checks, and
+  advisory AgentLint now run under the standard unprivileged `pull_request`
+  event. Removed AgentLint pull request comments and the need for
   `pull-requests: write` permission.
-- Cleaned up redundant conditions in `scripts/check_dockerfile_root.py` (`if` to `elif` on service-indent comparison) and `scripts/check_commit_message.py` (removed unreachable empty-sha guard).
+- Made conflict diagnostics printable ASCII and length-bounded, normalized
+  Windows paths for Git attributes, and treated symlink probe failures as
+  errors. Sparse scans now combine present worktree files with immutable index
+  blobs for absent files, preserving unstaged and indexed conflict detection.
+- Replaced digest-driven handoff instructions with active-user consent. Handoff
+  content remains untrusted status, Git commands require consent, and displayed
+  Git output requires trusted external sanitization.
+- Selected Python through overridable `PYTHON ?= python3` in the `Makefile` for
+  Debian compatibility and local interpreter overrides.
+- Reorganized repository documentation around canonical current behavior and
+  split prose clauses into complete sentences.
+
+### Fixed
+- Hardened `scripts/sync.py` against symlink traversal, repository escapes,
+  partial writes, and destination races through path revalidation and atomic
+  replacement.
+- Rejected duplicate YAML keys. Rule 11 now requires boolean `false`, and Rule
+  12 evaluates the final Dockerfile user plus every Compose service and
+  Kubernetes container independently.
+- Expanded weak-hash analysis across Python imports, aliases, and `hashlib.new`,
+  with real non-security justification comments required. Secret scanning now
+  blocks every `.env.*` variant except `.env.example` and recognizes encrypted
+  and PGP private-key headers.
+- Made branch, commit, banned-agent, and identity checks use an absolute Git
+  executable outside the repository and fail closed on lookup or output errors.
+  Co-author keys are case-insensitive and only terminal structured trailers
+  contribute identities.
+- Preserved Ubuntu 24.04 compatibility by probing Git 2.45's `--no-lazy-fetch`
+  before use. Replacement objects remain disabled on all supported Git versions.
 
 ## [1.13.0] (2026-08-25)
 
 ### Added
-- Denied anything piped into an interpreter, not only a download. `history | sh` hands the choice of what runs to whatever the shell happens to remember, and `cat script.sh | bash` runs a file nobody read. Piping into a reader such as `grep`, `jq`, `less`, or `tee` is untouched.
-- Denied `crontab -r`, which removes every scheduled job at once with no copy kept and no prompt from crontab itself, and `schtasks /delete`. Denied the filesystem repair tools (`fsck`, `e2fsck`, `xfs_repair`, `chkdsk`, `ntfsfix`), which rewrite metadata in place and can discard what they cannot reconcile.
-- Denied `gh repo delete` and its equivalents for releases, gists, and organizations, across `gh`, `glab`, `hub`, and `tea`. These remove work no local clone holds, and no local action undoes them. Read-only forge commands are untouched.
-- Routed `git branch -D` to the user: it discards a branch whose commits may not be merged anywhere else. `git branch -d`, which refuses an unmerged branch, is untouched. Case carries the meaning here, so the check does not lowercase before reading it.
-- Denied defining a command alias (`alias`, `Set-Alias`, `doskey`, `git config alias.x`). An alias makes one name run another command, which defeats reading a command to know what it does. Listing aliases is untouched.
-- Denied `hdparm` and the other drive-firmware tools, a bare redirect (`> file`), a redirect from an empty device (`cat /dev/null > file`), and any redirect onto a device (`> /dev/sda`). Each empties or overwrites its target without a delete appearing anywhere in the line.
-- Denied a recursive `chmod`, `chown`, or `chgrp` across a root or system directory, which breaks every program depending on those permissions. The same command inside a project is untouched.
-- Routed writes to a shell startup file to the user: `.bashrc`, `.zshrc`, `.bash_profile`, `.zshenv`, `.profile` and the rest, whether through a redirect or through `sed -i`, `cp`, `mv`, or `tee`. A line added to one runs at the start of every future session. Reading one is untouched.
-- Routed `kill`, `killall`, `pkill`, and `taskkill` to the user. What a termination stops, and what that loses, is not something a gate can weigh.
-- Added data-destruction detection to the shared core, covering the command forms in the MITRE ATT&CK T1485 family (DET0146). Denied outright: filesystem formatting (`mkfs`, `diskpart`, `format`, `fdisk`, `parted`, `wipefs`); `dd` in every form; a download piped into an interpreter (`curl | bash`, `wget -qO- | sh`), because the remote host chooses what runs and nothing reads it first; `mv` to `/dev/null`, `/dev/random`, or `/dev/zero`, which is a delete that reads as a move; `chmod 000` and its symbolic equivalents; recovery destruction (`vssadmin delete shadows`, `wmic shadowcopy delete`, `wbadmin delete`, `bcdedit` recovery flags); and a glob rooted at a system directory. Routed to the user: `shred` and `sdelete` on a file, `find -delete` and `-exec`, `git clean -xfd`, `sed -i` and `truncate` over a glob, recursive acts under a mount point or shared temp directory, and logging disablers such as `aws cloudtrail stop-logging` and `auditctl -D`.
-- Routed every `sudo`, `su`, `doas`, `pkexec`, and `runas` invocation to the user, whatever it wraps. Running as another user is a decision about authority rather than about the command, so it is asked for on its own terms and the wrapped command is judged separately: `sudo ls` asks, `sudo rm -rf /` still denies.
-- Derived the fail-closed keyword list from the core's own program sets. It was hardcoded to `rm` and `git`, so a command that would not tokenize and named anything else, `cipher /w:C:\\` among them, was waved through by the path meant to fail closed.
-- Added `repo_executes_on_read` to `_gate_core.py`, which routes `git status`, `diff`, `log`, `show`, `blame`, and `grep` to the user when the repository's own config declares a key naming a program git runs: `diff.external`, `filter.<driver>.clean`, `log.showSignature`, `core.fsmonitor`, `core.sshCommand`, `core.hooksPath`, and the rest. It reads `.git/config` as a file rather than asking `git config`, because running git to decide whether running git is safe is the bug. A repository declaring none of them prompts on nothing, and a command that clears the key with `-c key=` passes.
-- Resolved git aliases from the same parse. `git myalias` read as an unknown subcommand and passed; its expansion is now classified. An alias beginning with `!` is a shell command, so it is reported rather than expanded or run, and a subcommand that is neither known nor a declared alias asks.
-- Added `hooks/block_destructive_powershell.py`, registered under a `PowerShell` matcher in both settings files. The Bash matcher covered only Bash, so `Remove-Item -Recurse -Force` on a Windows session met no gate at all. Every decision comes from `_gate_core.py`, which the Bash gate also imports, so only the parsing is shell-specific: statement boundaries, the call operator and the cmdlets that run another command, PowerShell's redirection forms, and `Remove-Item` with its aliases. PowerShell parameters abbreviate to any unambiguous prefix, so `-Recurse`, `-Rec`, and `-r` are one switch, matched case-insensitively. Verified against synthetic payloads only.
-- Added `tests/test_gate_parity.py`, which feeds both gates an equivalent corpus and fails when their verdicts differ. It also asserts that neither gate defines a decision function of its own, so a fix cannot land in one and miss the other. Parity is otherwise a promise, and this repository has already watched `check_commit_message.py` diverge between two copies undetected.
-- Added `hooks/require_consent.py`, a Claude Code hook backing Rule 3 from the harness. The only unprompted edit to an existing test file is a verified append at the end of it: the new text must begin with the old text, the addition must start on a new line, and the old text must sit at the end of the file. An earlier form of this check asked only whether the old text still appeared somewhere in the new text, which passed an assertion that had been commented out, wrapped in a string, moved into a branch that never runs, or extended on the same line. On `PreToolUse` (`Edit|Write|MultiEdit|NotebookEdit` matcher) it routes an edit that removes or rewrites existing test content, drops an assertion, or introduces a skip marker to the user as a permission prompt. A new test file passes, and so does an append to an existing one, detected by the old string surviving verbatim inside the new one, so the mandated test-first workflow stays unprompted. On `SessionStart` it states which gates are live and carries the checklist a question must satisfy before it is written. The checklist sits there rather than on an `AskUserQuestion` matcher because a `PreToolUse` hook sees a question whose options are already written, and `additionalContext` cannot rewrite them.
-- Added `tests/test_require_consent.py`, running the hook against synthetic payloads and real files on disk. It covers additive cases, gated cases, notebook paths, unattended modes, the question checklist, and settings wiring.
-- Added `tests/test_block_destructive_bash.py`, pinning every deny, ask, and allow outcome of the Bash gate.
-- Added a per-act consent line to the Non-negotiable preamble: approving a plan, a design document, or a task description is not authorization for the individual acts inside it.
-- Added a Rule 3 paragraph stating that disclosure is not a substitute for stopping, that a comment recording why a test asserts what it asserts is a person's decision written down, and that a deliberate specification change is still the human's call.
-- Added a Rule 2 line stating the rule carries no scope qualifier, so a scratch directory the session created itself is gated like any other target.
-- Added a pushed-history line stating that `--force-with-lease` is not an exception and neither is a branch you created minutes ago.
-- Added Adopting steps 12 through 14 to `README.md`, covering the consent gate, the two shell gates, and a drift record. The list ended at 11 and named neither gate, so a repository could adopt this file and never learn the hooks existed. Step 12 states the failure mode that decides whether the copy is safe: a gate copied without `hooks/_gate_core.py` cannot import it, and a hook that fails to start exits non-zero but not 2, which Claude Code treats as non-blocking, so the gate fails open in the one repository that installed it.
-- Added copy instructions to Rules 2 and 3, in the shape Rule 14 and the branch-naming section already use: which files to copy, which matcher registers them, which suite comes with them, and the Rule 9 reminder that a hook is tooling the user approves first.
+- Expanded destructive-command policy across Bash, PowerShell, nested shells,
+  and CMD payloads. Root and system deletion, formatting and repair tools,
+  `dd`, drive firmware tools, recovery destruction, truncating redirects,
+  interpreter pipelines, alias definitions, `crontab -r`, scheduled-task
+  deletion, and destructive forge operations deny outright.
+- Routed consent-sensitive operations to the user, including non-root recursive
+  deletion, `git branch -D`, history rewriting and destructive Git cleanup,
+  privilege escalation, process termination, secure erasure, `find -delete` or
+  `-exec`, glob truncation, shell startup writes, mount-point operations, and
+  logging shutdown. Unattended modes deny every gated act.
+- Added a PowerShell destructive-command hook with the same decisions as the
+  Bash hook. It handles cmdlet aliases, abbreviated parameters, script blocks,
+  subexpressions, encoded commands, redirections, and commands launched through
+  PowerShell process APIs. Its behavior is tested with synthetic hook payloads
+  only, not by launching native PowerShell commands.
+- Added consent enforcement for test changes. Every direct editor-tool edit to
+  an existing test file asks the user, including edits through case variants,
+  Windows filename decorations, links, and alternate paths. Direct creation of
+  a new test file passes. Known shell writers prompt on test-shaped paths
+  without checking whether the target exists.
+- Added safe classification of Git aliases, effective repositories, config and
+  environment overrides, linked worktrees, and read commands that repository
+  configuration can turn into code execution. Unknown or uninspectable forms
+  fail closed without executing repository-defined configuration.
+- Added per-act consent language, clarified that Rule 2 covers scratch paths,
+  and stated that disclosure or a planned specification change cannot replace
+  consent for changing tests. Pushed-history rules now explicitly cover
+  `--force-with-lease` and newly created branches.
+- Added adopter instructions for copying and registering both shell gates, the
+  shared decision core, the test consent hook, and their verification suites.
+  Hook installation remains tooling that requires Rule 9 approval.
 
 ### Changed
-- Replaced pickle hook-coverage trace files with validated JSON. Test processes
-  influence the trace directory, so loading those files with `pickle.load`
-  allowed a crafted test artifact to execute code in the coverage checker.
-- Classified command strings passed to Bash `eval`, treated `exec` as a command
-  prefix, and routed unresolved `eval` expansions to the user. These builtins
-  previously hid destructive commands from the gate.
-- Treated Bash `builtin` as a command prefix and retained the enclosing command
-  around backtick substitutions. Prefixing `eval` with `builtin`, or building
-  its command name through a substitution, previously bypassed classification.
-- Included `scripts/` in the shell-write consent paths because repository hooks
-  execute branch-name and identity checkers from that directory.
-- Replaced the spaced hyphen in the `# pragma: no cover` and
-  `# noqa: BLE001` comments with parentheses. `scripts/check_ascii.py`
-  reads a spaced hyphen as an em-dash substitute, which the house style
-  bans, and no CI job points it at `hooks/`, so these went unreported.
-- Imported `unittest.mock` rather than importing `unittest` twice, once
-  plainly and once with `from`. A code-quality bot flagged the pair on the
-  adopting repository's pull request.
-- Split Git option, repository-config, alias, and nested-interpreter parsing into
-  focused helpers so adopters can enforce stricter complexity limits without
-  changing gate decisions.
-- Exposed the shared Git-environment classifier through a public core helper
-  instead of calling a private name from the PowerShell gate. Removed the
-  duplicate project-directory assignment in the same gate, and pinned
-  incomplete command parsing in both Git-write consumers.
-- Ended a Bash segment at a brace group and at a backtick substitution.
-  `{ rm -rf /tmp/x; }` read its program name as `{`, and a backtick
-  substitution left the inner command glued into argument tokens, so every
-  verdict keyed on the program name cleared both. That covered the deny cases
-  as well: `{ git push --force; }` and a write to `hooks/` inside a brace group
-  passed unprompted. The PowerShell gate had read its own `& { ... }` form
-  since it was written, so the two gates disagreed and no parity row covered
-  it.
-- Ended a PowerShell statement at a subexpression, the mirror of the same gap.
-  `Write-Output $(Remove-Item -Recurse -Force /tmp/x)` cleared while its Bash
-  equivalent asked.
-- Stopped `git_write_operation` discarding the flag that says whether a command
-  parsed. `block_destructive_bash.py` fails closed on that same flag, and the
-  branch-name and identity hooks reach the parser only through this function,
-  so a line continuation split a Git write across two segments that neither
-  hook recognized. An unreadable command now yields an ambiguous context those
-  hooks block on, placed after any write the parse did recover so the recovered
-  write still names itself first.
-- Canonicalized the linked-worktree config fixture's expected paths. Windows
-  can expose a temporary directory through its 8.3 short name while
-  `realpath` returns the long name, so the assertion now compares the same
-  canonical spelling that the implementation returns.
-- Made the hook coverage baseline platform-independent by exercising missing repository roots, malformed gitfiles, empty and valid common-directory pointers, absent alias config, redirected out-of-tree paths, and consent-hook open errors through real filesystem cases or narrow OS-boundary patches.
-- Returned every effective or ambiguous Git write across a chained Bash command and checked each repository independently. Unknown subcommands now fail closed when alias sources cannot be inspected through `--config-env`, `GIT_CONFIG_PARAMETERS`, redirected config, or malformed config; ordinary aliases and read settings discover a parent repository after `-C` into a subdirectory.
-- Gated Bash `export`, `declare -x`, and `typeset -x` forms for relevant Git variables, plus PowerShell plain and braced environment assignments and `Set-Item` or `Set-Variable` provider forms.
-- Recognized valid unambiguous PowerShell prefixes for `Path`, `LiteralPath`, `Destination`, `FilePath`, and `Value`, independent of parameter order. Protected write targets now resolve directory links before deciding whether they enter `hooks/` or `.claude/`.
-- Applied branch-name and identity checks to the effective Git invocation rather than the hook's starting repository. `-C`, `--git-dir`, `--work-tree`, inline identity settings, configured and inline aliases, and `env -S` command strings now reach the checker with their effective repository and configuration; malformed split strings and uninspectable alias forms fail closed. Safe reads and standalone `git config` remain available.
-- Classified `GIT_DIR` and `GIT_COMMON_DIR` when inspecting Git reads, and gated `GIT_CONFIG_PARAMETERS` conservatively. Bash exports and persistent PowerShell assignments of pager, external-diff, config-vector, and config-path variables route to the user rather than changing a later read outside the inspected segment.
-- Parsed PowerShell `-Path`, `-LiteralPath`, `-Destination`, and `-FilePath` write parameters independently of their order for content, output, copy, and move cmdlets and aliases. Known writes to `hooks/` and `.claude/` remain best-effort prompts rather than tamper resistance.
-- Made hard-link scans return an incomplete result on directory traversal and candidate-stat errors. The caller gates that result conservatively instead of treating an unreadable part of the test tree as proof that no alias exists.
-- Classified PowerShell `EncodedCommand` payloads under every supported abbreviation and alias, with strict Base64, strict UTF-16LE, and bounded recursive classification. Missing, malformed, and over-nested payloads deny. An unrelated interpreter's `-e` remains unrelated.
-- Replaced raw commit and push regexes in the branch-name and identity hooks with shared Bash segmentation and prefix parsing. Git global options, wrappers, chains, quoted text, and malformed command tails now resolve through `_gate_core.git_subcommand`.
-- Classified executable git-read settings from repository config, ordered inline `-c` settings, leading pager and diff environment assignments, config vectors, config path overrides, and repository-location globals. Redirected and unreadable config fails closed, while linked worktrees inspect their common config.
-- Routed known Bash and PowerShell writes to `hooks/` and `.claude/` through the same prompt as direct writes. This is best-effort workflow consistency, not protection of a writable repository root.
-- Removed every unattended consent grant. Unattended modes deny every gated act.
-- Made hard-link scans gate conservatively when their inode-walk budget is exhausted.
-- Documented repository hooks as defense-in-depth prompts for compliant workflows, not an authorization or security boundary. Tamper resistance requires controls outside the repository, which this template does not ship.
-- Rewrote Rule 2 to state the procedure a destructive command follows and to describe what the gates actually enforce. The rule claimed only that `rm -rf` aimed at `/`, `~`, or `$HOME` denies and everything else asks, which had become a large understatement: the refusal list now runs to system directories, formatting and repair tools, `dd`, `hdparm`, truncating redirects, pipes into interpreters, alias definitions, `crontab -r`, recovery destruction, and `gh repo delete`. Rule 13 cuts both ways, and a rule that understates its enforcement misleads an adopter as surely as one that overstates it.
-- Added four procedural requirements to Rule 2: do not guess at what a command affects, propose a non-destructive alternative first, restate the command and wait for confirmation after authorization, and record the text that authorized it. Marked plainly as instructions rather than checks: no mechanical signal distinguishes a restatement from any other sentence.
-- Changed `git push --force` and `-f` from a refusal to a permission prompt, at the user's direction. A refusal offers no way to consent, and the pushed-history rule is about requiring consent rather than making the act impossible. An unattended session still denies, since consent cannot be given there.
-- Denied a `chmod`, `chown`, or `chgrp` targeting a root or system directory whether or not it recurses. `chown nobody /etc` breaks the machine with no `-R` anywhere in the line.
-- Normalized POSIX root paths with `posixpath` rather than `os.path`. On Windows `os.path.normpath("/etc")` returns `\\etc`, so the check anchored on a leading slash rejected every POSIX system root on the one platform where it mattered: `/etc`, `/usr`, and `/Applications` asked instead of denying. The `windows-latest` job caught it, and a regression test now substitutes `ntpath` so the same class is covered from Linux.
-- Denied rather than asked for the deletion of a drive root, a UNC share root, or a system directory: `/`, `/bin`, `/boot`, `/dev`, `/etc`, `/home`, `/lib*`, `/media`, `/mnt`, `/opt`, `/proc`, `/root`, `/run`, `/sbin`, `/srv`, `/sys`, `/tmp`, `/usr`, `/var`, and the macOS equivalents. Offering that choice is not consent, it is an invitation to a mistake nobody can undo. A path inside one is an ordinary recursive delete and still asks. Paths normalize first, so `/usr/.`, `/etc//`, and `/home/..` reach the same verdict as the directory they name.
-- Denied an unparseable command that names a root. `rm -rf C:\\` ends in an unterminated escape and previously asked; no reading of it is a decision to put to a person.
-- Skipped the two symlink fixtures with a recorded reason where the platform needs elevation to create a link. Windows raises `WinError 1314` without Developer Mode, so an unconditional fixture failed the suite for an ordinary contributor. The hard-link fixture covers alias resolution and needs no privilege.
-- Routed Bash writes that reach a test file through the same consent decision as an `Edit`: a redirect, a here-document, `tee`, `sed -i`, `cp`, and `mv`. Rule 3 applied to the same act through one tool and not the other, and #134 recorded the redirect as a known gap. Reading or running a test is untouched.
-- Moved the test-path classifier into `_gate_core.py`, so the consent gate and the shell gates decide from one definition instead of two.
-- Classified the command a shell is handed rather than the shell's own name. `bash -c 'rm -rf /tmp/x'` and `sh -c` read as the program `bash` and passed. The payload after `-c` is now classified as a nested command, for `bash`, `sh`, `zsh`, `dash`, `ksh`, `busybox`, and `cmd`, including combined short groups such as `-lc`. A shell invoked without a command string is not gated on its own name.
-- Added the CMD deletion verbs `del`, `erase`, `rd`, and `rmdir` to the shared classifier, with slash-prefixed case-insensitive flags. No CMD tool matcher exists, so those verbs arrive nested inside a shell call. `%USERPROFILE%` and `%HOMEPATH%` join the root targets that deny.
-- Separated instructions from data in both `SessionStart` warnings. Each spliced checker output into the middle of an imperative block sent to the model as `additionalContext`, and that output carries commit author and committer fields, which whoever wrote a commit chooses. A commit authored as an address followed by a newline and a correction could write instructions into the context the hook exists to make the model obey. Fixed text now sits above a single labeled `REPOSITORY_DATA` block holding every untrusted value, each escaped and on its own line.
-- Removed the end-of-file append carve-out from `hooks/require_consent.py`. Every edit to a test file that already exists now asks, in any language; creating a new one is the only exemption left. A textual append check cannot carry the claim it made: appending `ExistingTest.__unittest_skip__ = True`, or rebinding the class to `None`, leaves every assertion above it present and inert, and enumerating those spellings is a denylist over text an attacker chooses. The cost is real and accepted: iterating on an existing test now prompts.
-- Wrapped the gate's entry point in an exception boundary that denies and exits 2. A non-string `old_string` raised an uncaught traceback and exited 1, which Claude Code treats as non-blocking, so the edit proceeded ungated. The boundary emits a fixed reason rather than the traceback, keeping internal paths out of the prompt.
-- Matched test paths case-insensitively and stripped Windows filename decorations before matching. `Tests/Test_Auth.py`, `SPEC/thing.SPEC.JS`, an alternate data stream (`test_x.py:evil`), and a trailing dot or space each reach a test file while failing the previous pattern.
-- Compared paths against the project root with `os.path.commonpath` instead of a string prefix, so a Windows short name or a `\\?\` prefix cannot spell its way out of the tree.
-- Resolved hard links by inode against the project's test tree. `realpath` resolves a symlink because a symlink has a target; a hard link has none, so a test could be edited through a name that looks like anything. The walk runs only for files with more than one link and has a bounded entry count.
-- Rendered every value reaching a permission prompt or stderr as printable ASCII through `_gate_core.sanitize`. A filename carrying newlines or terminal control rewrote the prompt the user reads to decide, and stderr on a deny reaches the model as tool output.
-- Canonicalized the checker path in `hooks/enforce_branch_name.py` and `hooks/enforce_git_identity.py` before executing it, and required it to resolve inside the project root. Both joined a payload-supplied directory with a fixed relative path and ran the result.
-- Named the unrecognized `permission_mode` in the deny reason, so a mode Claude Code adds later is visible rather than silently denied.
-- Consolidated the payload readers into `_gate_core.read_payload`, whose `empty_is_session_start` flag carries the one behavior that differed between the four copies.
-- Launched every hook as `python` rather than `python3` in both settings files. Claude Code spawns the exec form directly with no shell, and Windows has no `python3.exe`, so every gate failed to start there. A startup failure exits non-zero but not 2, which Claude Code treats as a non-blocking error, so the gates failed open on that platform in silence. Debian without `python-is-python3` needs the opposite value; the new test names both.
-- Added a wiring test asserting `shutil.which()` resolves the launcher string configured in both settings files. The behavioral tests run hooks through `sys.executable`, so they passed against a configuration that never started.
-- Added a `windows-latest` job to `.github/workflows/sync-check.yml`. No Linux job can show that the configured launcher resolves on Windows, that the symlink fixtures skip instead of erroring, or that path handling holds on a case-insensitive filesystem.
-- Excluded merge commits from `scripts/check_commit_message.py`. `git merge` writes `Merge branch 'x' into y`, which no author chose and which no `type: description` subject can express, so every ordinary branch update failed the check. Added `tests/test_check_commit_message.py`, which builds a throwaway repository and covers the merge case, a real violation, and the advisory exit code.
-- Registered every hook in the exec form (`command` plus `args`) instead of a shell string. In shell form an unquoted `${CLAUDE_PROJECT_DIR}` splits a project path containing a space, so `python3 /My Project/hooks/require_consent.py` fails to open `/My`, and the gate silently never runs.
-- Made both hooks fail closed on their own inputs. A payload that will not parse, or a `tool_input` that is not an object, is denied instead of being treated as a SessionStart or crashing; Claude Code treats any non-zero exit other than 2 as a non-blocking error, so an unhandled exception waved the command through. A test file that cannot be read or decoded is gated instead of reading as an empty string, which had let a non-UTF-8 test file be overwritten with no prompt.
-- Rewrote `hooks/block_destructive_bash.py` to tokenize and normalize the command before deciding, and extended it from a single deny outcome to deny plus ask. The previous string matcher missed every equivalent spelling of the commands it named: `rm -Rf` and `rm -r`, `git -C dir push --force` and other global-option forms, `--force-with-lease=main:<oid>`, a forced `+` refspec, and `git push --mirror`. One of those, `git -C dir push --force`, bypassed a deny rather than an ask. Ambiguity now fails closed: a command that will not tokenize, or a git subcommand hidden behind a variable, is gated. The four previously denied commands still deny and still exit 2. Newly routed to the user: `rm -rf` against any target other than `/`, `~`, or `$HOME`; the `--force-with-lease` and `--force-if-includes` family, which the old `--force` pattern never matched; `git push --delete`; `git commit --amend`; `git rebase`; and `git filter-branch`. An unrecognized or unattended `permission_mode` turns an ask into a deny.
-- Wired `block_destructive_bash.py` into `.claude/settings.json`. It had been example-only since 1.11.0, so nothing in this repo ran it.
-- Replaced `test_pre_tool_use_entries_target_bash` in `tests/test_enforce_branch_name.py` with a per-hook wiring table asserting that each hook is registered under exactly the matchers it needs, plus a check that every registered hook appears in the table. The blanket assertion that every `PreToolUse` matcher equals `Bash` could not survive a hook that gates `Edit`. Replaced on the user's explicit sign-off, per Rule 3.
-- Corrected the Rule 3 enforcement sentence, which still described the removed end-of-file carve-out. It told an adopter that appending to an existing test file is not gated, and that the gate reads content for removed assertions and skip markers. Neither has been true since the carve-out came out: the gate reads the path, and every edit to a test file that already exists asks.
-- Backported three files the adopting repository had already improved past this template. `check_ascii.py` and `lint_style.py` name the `127` boundary `MAX_ASCII_CODEPOINT`, and `check_english_only.py` drops `para` from the Portuguese stopword list, where the Spanish list above it already carries the word. `sync.py` covers only the AGENTS.md family, so nothing reported the drift; it was found by comparing the two repositories by hand, which is the case for the drift record in Adopting step 14.
-- Added `docs/gate-threat-model.md`, recording what the gates cover and what they do not: the tools and command classes they see, the path spellings that reach a covered target, the malformed payload fields that deny rather than crash, and the untrusted text that reaches a prompt inert. It also states the non-goals plainly. A hook is not a sandbox, it cannot see a command behind an alias or a wrapper script, it has no telemetry for rate analytics, and it cannot enforce Rule 4 because it sees no statement of scope. A non-goal is recorded so an adopter reads the limit rather than inferring it, never to argue a finding away.
-- Added `DRIFT.md` and `adopters/1a2n-web-visualizer.md`. `sync.py` covers the AGENTS.md family and nothing else, so every `scripts/`, `hooks/`, and `tests/` file is copied by hand and maintained in the adopting repository, where a local edit is invisible from here. `DRIFT.md` states the three categories and which of the three files owns which field; the adopter file records the adopted-at commit and what that repository took versus declined. Nothing verifies either, and both say so.
-- Named the unrecognized `permission_mode` in the deny reason emitted by `_gate_core.decide`, which both shell gates use. `INTERACTIVE_MODES` is a fixed list, so an interactive mode Claude Code adds later denies here, and the reason read identically to a genuinely unattended session. A missing or non-string mode reads `absent` rather than `None`. The mode is payload text, so it renders through the same allowlist as every other untrusted value.
-- Rewrote the README hook sections, which described gates two revisions old: two hooks where there are three, `git push --force` as a refusal after it moved to a prompt, the append carve-out as live after it came out, and the Bash redirect as an open gap after the shell gate closed it. The deny and ask lists now live only in rule 2; a second copy is a second thing to disagree with.
-- Added `tests/gate_corpus.py`, one table of every known gate bypass with the verdict it must reach and the reason the row exists, imported by the Bash, PowerShell, and consent suites. Writing it found five more bypasses in an afternoon, which is the argument for it: each gate knew only its own shell's interpreters, so `powershell -Command 'Remove-Item -Recurse -Force /etc'` crossed the Bash gate and `bash -c 'rm -rf /etc'` crossed the PowerShell gate, both untouched; a PowerShell script block (`& { ... }`) put a brace where a program name goes and was read as a program named `{`; and `Start-Process -ArgumentList` handed a CMD line to a program without any payload flag the gate recognized.
-- Moved all three delete readings, POSIX `rm`, PowerShell `Remove-Item`, and the CMD verbs, into `_gate_core.py`, along with the interpreter and payload-flag sets. Both gates now try all three readings and take the strongest, so neither can learn a spelling the other does not. Wrapper unwrapping is bounded; past the bound a command is unparseable, which prompts rather than passes.
-- Added `scripts/sync.py --check-shared` and `--write-shared`, backed by `shared-files.json`: SHA-256 digests of the seven files carrying gate decisions, committed in every repository holding them. `sync.py` copies the AGENTS.md family and can copy nothing that lives in another repository, so the gates are compared rather than copied. A file changed in one repository and not another fails that repository's check, which runs in CI. Line endings are normalized before hashing so a Windows checkout does not report every file as drift. Covered by `tests/test_sync_shared.py`, which builds a synthetic tree rather than touching the real one.
-- Fixed a crash in the PowerShell gate's `-ArgumentList` handler, which called `unparseable_verdict` with one argument against a two-parameter function. A payload that would not tokenize raised `TypeError` instead of denying, and a raise is a non-zero exit that is not 2, which Claude Code treats as non-blocking: the gate failed open on exactly the input it exists to catch. The corpus carries the case.
-- Brought every hook and script under the adopting repository's ruff ruleset, which is stricter than anything this template runs: named seven magic values, split `git_verdict` into resolution, per-subcommand, and flag readings, and split the three `_program_verdict` functions so each returns at most six times. The shared files have to be byte-identical across both repositories, so the stricter of the two rulesets is the only stable state for them.
-- Pointed `check_ascii.py` at this repository's own prose in CI, and fixed what it found: 21 spaced hyphens in `README.md` and 17 in `CHANGELOG.md`. The checker had been wired to the example files only, so the template failed the rule it ships. README bullet definitions now use a colon, and a version heading parenthesizes its date, `## [1.2.3] (2026-01-01)`, which the CHANGELOG header records as a deliberate deviation from Keep a Changelog. `DRIFT.md`, `docs/`, and `adopters/` are covered from the start.
-- Closed three false positives in `check_ascii.py` and `lint_style.py`, each a place the checker read syntax or data as prose. A Markdown table delimiter row (`| --- | --- |`) tripped the dash rule; so did a list marker opening its own line (`   - Set the width`); and an inline code span opening on one line and closing on the next leaked its contents, because pairing backticks within a line pairs the wrong ones. The last one matters most: it flagged a preset name carrying a spaced hyphen in an adopter's changelog, where rewriting it would have falsified the record of which preset was removed. Backtick state now carries across lines, and the table and marker exclusions apply to the dash rule alone rather than blinding the em-dash and non-ASCII checks on the same line.
-- Added `tests/test_check_ascii.py`, 13 tests. Six of them pin what the rule still catches, since a fix to a linter's false positives is one edit away from a fix to its true ones.
-- Removed `find_reason` and `find_consent_reason` from the Bash gate. Both were defined and called by nothing, in either repository, and a reachability pass over the whole suite is what found them.
-- Recorded the reachability pass in `docs/gate-threat-model.md`: what no test reaches, and why each remaining statement is defensive depth or an environment the suite does not build rather than a gap.
-- Added `scripts/check_hook_coverage.py` and `tools/hook-trace/sitecustomize.py`, run in CI. The gates execute as subprocesses, so ordinary in-process coverage sees almost none of their decision code and reports the opposite of the truth; Python imports `sitecustomize` in every interpreter it starts, which is the stdlib way to reach them. The run is compared against `hook-coverage-baseline.json`, counted per function so an edit above a function does not churn it.
-- Made that gate fail in both directions. A function gaining unreached statements is new code no test reaches. A function losing them is a baseline going stale, which fails too: a recorded limit nobody maintains stops being a limit and becomes a place to hide. Both directions are proven end to end, not only unit tested.
-- Added `tests/test_check_hook_coverage.py`, 13 tests over the comparison and the statement accounting. It does not run the gate end to end, because the gate runs the suite and a suite that runs itself does not terminate.
-- Fixed a bootstrap deadlock in the coverage gate, found by installing it a second time. `--write-baseline` runs the suite, and the suite asserted the baseline exists, so the first baseline could never be produced. The baseline tests now skip when there is none. CI still fails on a missing baseline, through the gate rather than the suite.
-- Renamed the tracer directory from `tools/coverage` to `tools/hook-trace`. `coverage/` is one of the commonest `.gitignore` entries, and it silently excluded the file from the adopting repository's commit. The gate then reads no traced lines and reports every statement as unreached, so the failure arrives as a wall of noise rather than as the missing file it is. Any adopter with that line would have hit it.
-- Made the coverage gate refuse to write a baseline as root, and say so when it disagrees there. A mode 000 file is readable for root, so the two `OSError` branches in `require_consent.py` that a permission denial takes never fire in a root shell. The first baseline was written in one and failed CI, which measures as an ordinary user. The baseline now holds CI's values.
-- Synced the AGENTS.md additions into all eight tool copies.
+- Replaced pickle hook-coverage traces with validated JSON so test-controlled
+  artifacts cannot execute code in the coverage checker.
+- Unified Bash, PowerShell, and CMD command classification across nested shells,
+  `eval`, `exec`, wrappers, substitutions, aliases, chains, and malformed input.
+  Gates take the strongest verdict and bound recursive command unwrapping.
+- Applied branch-name and identity checks to the effective Git repository and
+  configuration, including `-C`, worktree options, aliases, inline settings,
+  environment vectors, and linked-worktree common configuration. Safe reads and
+  standalone `git config` remain available.
+- Routed known shell writers targeting `hooks/`, `.claude/`, and `scripts/`
+  through consent prompts. Direct edit-tool protection covers existing tests,
+  `hooks/`, and `.claude/`, but not `scripts/`. Unknown writers can pass. These
+  repository hooks remain defense-in-depth workflow prompts, not a security
+  boundary or tamper-resistant sandbox.
+- Rewrote Rule 2 to match the enforced deny and prompt classes. It now requires
+  a non-destructive alternative, exact command restatement, confirmation, and an
+  authorization record. Those procedural requirements are not mechanically
+  enforced.
+- Changed `git push --force` and `-f` from an unconditional refusal to a user
+  prompt. Force variants, delete and mirror pushes, amend, rebase, and
+  `filter-branch` require consent, while unattended sessions still deny them.
+- Denied normalized drive, UNC, POSIX, macOS system-root deletion and permission
+  changes on both Linux and Windows. Paths within those roots remain prompts for
+  recursive deletion, and unparseable root-targeting commands deny.
+- Separated fixed instructions from escaped repository data in session context.
+  Permission prompts and errors now render untrusted values as bounded printable
+  ASCII, report unknown permission modes, and deny malformed payloads or
+  unreadable test files instead of failing open.
+- Registered hooks in shell-free exec form and switched their configured
+  launcher from `python3` to `python` for Windows. Added `windows-latest` CI to
+  cover launcher availability, case-insensitive paths, and symlink restrictions.
+  Debian adopters without `python` must override the launcher.
+- Exempted merge commits from the advisory commit-message checker because Git
+  generates subjects outside the required `type: description` form.
+- Activated the destructive Bash hook in this repository after it had remained
+  example-only since 1.11.0. Its parser now normalizes command variants, asks or
+  denies as policy requires, and fails closed on ambiguity.
+- Aligned Rule 3 and README hook documentation with the final consent behavior,
+  permission modes, shell-write coverage, and live hook set. The deny and prompt
+  lists now have one canonical home in Rule 2.
+- Added a gate threat model, adopter drift records, and shared-file SHA-256
+  checks with line-ending normalization for manually copied gate files.
+- Added subprocess hook coverage enforcement using validated traces. CI rejects
+  newly unreachable code and stale baselines, baseline creation works from a
+  fresh adoption, root cannot write a baseline, and trace files live outside
+  commonly ignored coverage directories.
+- Expanded ASCII checks to repository prose and removed false positives for
+  Markdown table delimiters, list markers, and multiline code spans.
+- Synced the rule changes into all eight tool-specific copies.
 
 ## [1.12.0] (2026-08-20)
 
 ### Added
-- Added AGENTS.md Rule 14, "Verify the git identity before the first commit", and a matching item 14 in the Non-negotiable summary. The rule requires checking `git config user.name` and `user.email` before the first commit of a session, states that git does not inherit the `gh` identity, restricts commit emails to GitHub noreply addresses, and refers a wrong identity already in history to the existing pushed-history consent rule instead of a rewrite.
-- Added `scripts/check_git_identity.py`, a portable blocking checker with three modes: no arguments checks the identity the next commit would use, reading the environment variables git treats as explicit before `user.name` and `user.email`; `--unpushed` checks commits absent from every remote-tracking ref; `--base`/`--head` checks a pull request range. `--allow` takes a regex for repos on another convention, and `--advise` adds `gh` and `user.useConfigOnly` notes that never change the exit code.
-- Added `hooks/enforce_git_identity.py`, a Claude Code hook backing Rule 14 from the harness. On `SessionStart` it runs the checker with `--advise` and injects a stop-and-ask instruction into the session context; on `PreToolUse` (`Bash` matcher) it exits 2 on a `git commit` under an unset or disallowed identity, and on a `git push` when either the current config or any commit that push would publish fails. `git config` is never blocked.
-- Added `tests/test_enforce_git_identity.py`, 42 stdlib `unittest` tests running the hook and the checker against a throwaway git repo, so results do not depend on the identity configured on the machine running them. Covers both events, unset and disallowed identities, environment-supplied identities, the `git config` escape hatch, the `--unpushed` path, GitHub's squash-merge committer, `[bot]` addresses, and whether both settings files still register the hook for each event.
-- Added both `enforce_git_identity.py` entries to `.claude/settings.json` and `hooks/claude-code-settings.example.json`, inside the existing `Bash` matcher.
-- Added a `check-git-identity` pre-commit hook and a `check-unpushed-identity` pre-push hook to `.pre-commit-config.yaml`, a "Check commit identities" step to the `pr-checks` job in `agents-compliance.yml`, and an `identity` target to the Makefile.
-- Added a README "Git identity enforcement (live)" subsection under Claude Code hooks, a "Git identity outside this repository" section covering the machine, account, and organization settings a repository file cannot reach, and Adopting step 11.
+- Added Rule 14 requiring identity checks before the first commit, GitHub noreply addresses, and consent before
+  rewriting a wrong identity in history. Git identity remains separate from `gh`.
+- Added a portable checker for the next commit, unpushed commits, and pull request ranges, with configurable
+  allow patterns and advisory guidance.
+- Added live Claude Code enforcement at session start, commit, and push. It blocks disallowed identities and
+  commits a push would publish, while leaving `git config` available as the recovery path.
+- Recorded that the identity hook does not match commit-writing forms of
+  `git merge`, `git revert`, `git cherry-pick`, `git rebase`, or `git am`.
+- Added identity checks to pre-commit, pre-push, pull request CI, and the `Makefile`, plus adopter documentation.
 
 ### Changed
-- Widened the `hook-tests` pre-commit `files` pattern to cover `scripts/check_git_identity.py`.
-- Updated the README critical-rule count to fourteen, the `hooks/` and `tests/` bullets, the Local checks table, and the Checker reference table.
-- Synced the AGENTS.md Rule 14 addition into all eight tool copies.
+- Included identity enforcement in hook verification and aligned README references with the new rule and tooling.
 
 ## [1.11.0] (2026-08-17)
 
 ### Added
-- Added `hooks/enforce_branch_name.py`, a Claude Code hook backing the Branch naming conventions section from the harness instead of the model's memory. On `SessionStart` it runs `scripts/check_branch_name.py` before the session does any git work and injects a stop-and-rename instruction into the session context; on `PreToolUse` (`Bash` matcher) it exits 2 on a `git commit` or `git push` while the branch name is non-conforming.
-- Added `.claude/settings.json`, wiring `enforce_branch_name.py` into both events for this repo. `block_destructive_bash.py` stays opt-in and is not wired up.
-- Added both `enforce_branch_name.py` hook entries to `hooks/claude-code-settings.example.json`, alongside the existing `block_destructive_bash.py` entry.
-- Added a README "Branch-name enforcement (live)" subsection under a renamed "Claude Code hooks" section, splitting the live branch hook from the opt-in destructive-Bash example.
-- Added two paragraphs to AGENTS.md's Branch naming conventions section: a harness-assigned or dispatcher-assigned branch name is not an exception and gets renamed before the first commit, and adopting repos wire the branch check in (pre-push hook, plus the two Claude Code hook events) in the same change that adds AGENTS.md.
-- Added README Adopting step 10 covering that wiring.
-- Added `tests/test_enforce_branch_name.py`, 22 stdlib `unittest` tests covering both hook events, the `git branch -m` escape hatch, read-only git commands, non-Bash tools, empty and malformed stdin, an absent checker, and whether `.claude/settings.json` and `hooks/claude-code-settings.example.json` still register the hook for each event. No new dependency.
-- Added a `test` target to the Makefile, a "Run tests" step to `sync-check.yml`, and a `hook-tests` pre-commit hook scoped to `hooks/`, `tests/`, `.claude/settings.json`, and `scripts/check_branch_name.py`.
-- Added a README "Local checks" section listing the four make targets, a `tests/` bullet under "What's in it", and test coverage detail under Branch-name enforcement.
-- Added an AGENTS.md paragraph requiring adopting repos to copy the hook's test suite and run it in CI and pre-commit.
+- Added live Claude Code branch-name enforcement at session start, commit, and push, with `git branch -m` as
+  the recovery path.
+- Added repository and example settings. The destructive Bash hook remained opt-in and inactive in this release.
+- Applied naming rules to harness-assigned branches and documented pre-push plus Claude Code adopter wiring.
+- Added hook verification to local tests, CI, and pre-commit without a dependency. Adopters must copy the suite.
 
 ### Changed
-- Updated the README `hooks/` bullet and `check_branch_name.py` Checker reference row for the new hook, and corrected the claim that this repo has no `.claude/` directory.
-- Synced the AGENTS.md branch-naming additions into all eight tool copies.
+- Aligned README hook and local-check documentation and corrected the `.claude/` directory description.
 
 ## [1.10.0] (2026-08-15)
 
 ### Added
-- Added `CONTRIBUTING.md.example`, an opt-in, self-contained contribution guide for human contributors, covering setup, naming/comment conventions, security and review practices, code quality, and workflow, each item drawn from an explicit item-by-item review of AGENTS.md's rules.
-- Added `.github/PULL_REQUEST_TEMPLATE.md` (live), formalizing the Summary/Test plan PR shape used throughout this project's history.
-- Added `.github/ISSUE_TEMPLATE.md` (live), a single legacy-format template covering both bug reports and rule/template proposals.
-- Added a README "Contributing guide example" section and Adopting step 9 documenting the new template.
-- Extended `check_us_spelling.py`, `check_english_only.py`, `check_hedging.py`, and `check_ascii.py` in `sync-check.yml` to also scan all three new files.
+- Added an opt-in `CONTRIBUTING.md.example` covering setup, conventions, security, review, code quality, and workflow.
+- Added live pull request and issue templates for summaries, test plans, bugs, and rule or template proposals.
+- Documented adoption and extended spelling, language, hedging, and ASCII checks to all three files.
 
 ## [1.9.0] (2026-08-15)
 
 ### Added
-- Added `SECURITY.md.example`, an opt-in vulnerability-reporting policy template routing reports through GitHub's private vulnerability reporting, conforming to AGENTS.md's Style section throughout.
-- Added a `## Security` line to AGENTS.md's commented-out orientation template, pointing at `SECURITY.md.example`.
-- Added a README "Security policy example" section and Adopting step 8 documenting the new template.
-- Extended `check_us_spelling.py`, `check_english_only.py`, `check_hedging.py`, and `check_ascii.py` in `sync-check.yml` to also scan `SECURITY.md.example`.
+- Added an opt-in policy that routes reports through GitHub private vulnerability reporting, plus adoption guidance.
+- Extended spelling, language, hedging, and ASCII checks to the security policy.
 
 ## [1.8.0] (2026-08-15)
 
 ### Added
-- Added `plan/HANDOFF.md.example`, an opt-in per-repo handoff/progress template pairing every status claim with a command that verifies it, conforming to AGENTS.md's Style section throughout.
-- Added a `## Handoff` line to AGENTS.md's commented-out orientation template, pointing at `plan/HANDOFF.md.example`.
-- Added a README "Handoff file example" section and Adopting step 7 documenting the new template.
-- Extended `check_us_spelling.py`, `check_english_only.py`, and `check_hedging.py` in `sync-check.yml` to also scan `plan/HANDOFF.md.example`.
-- Added a `check_ascii.py` step to `sync-check.yml`'s `check-sync` job, covering `plan/HANDOFF.md.example`'s dash/ASCII conformance.
+- Added an opt-in handoff template pairing status claims with verification commands, plus adoption guidance.
+- Extended spelling, language, hedging, dash, and ASCII checks to the handoff template.
 
 ## [1.7.3] (2026-08-15)
 
 ### Added
-- Added AgentLint (`0xmariowu/AgentLint@v1.1.13`) to `sync-check.yml`'s `check-sync` job, an advisory, third-party AI-agent-harness audit, pinned to an exact tag with `fail-below: '0'` so it never fails the job.
-- Added a `pull-requests: write` permission and an `actions/github-script@v9.0.0` step posting AgentLint's score as an upserted PR comment (find-and-update via a marker HTML comment, not a new comment per push).
-- Added a README bullet documenting AgentLint's integration, separate from the Checker reference table since it is a third-party action, not a portable `scripts/check_*.py` checker.
-- Added `format: md`/`output-dir` to the AgentLint step and a report-reading step, embedding the full generated report in a collapsible section of the PR comment below the score table.
+- Added advisory AgentLint `0xmariowu/AgentLint@v1.1.13` with `fail-below: '0'`,
+  so no valid score could trigger its score-threshold failure. Action failures
+  could still fail the step.
+- Added `pull-requests: write` and pinned `actions/github-script@v9.0.0` for score and report comments.
+- Documented AgentLint separately from portable repository checkers.
 
 ## [1.7.2] (2026-08-15)
 
 ### Added
-- Added a Style rule banning hedging qualifiers, self-justification, self-narration, prompt/task/plan references, tutorial-mode narration, and justification theater in prose, documentation, CHANGELOG entries, and code comments.
-- Extended the "Comment the why" rule to ban historical narration in comments (referencing removed code or prior implementations); git history covers that.
-- Added `scripts/check_hedging.py`, a portable, warning-only heuristic checker backing both rules above, matching phrase lists plus generic filler comment openers (`# Note:`, `# This function`, `# Handle errors`, etc.).
-- Added a `check_hedging.py` step to `sync-check.yml`'s existing `check-sync` job, with no new job or checkout/setup-python cost.
-- Added a `check_hedging.py` row to the README Checker reference table.
-
-### Fixed
-- Synced all tool rule copies with `AGENTS.md`.
+- Added prose rules against hedging, self-justification, self-narration, task references, and unsupported claims.
+- Extended comment guidance to prohibit historical implementation narration.
+- Added a portable warning-only hedging checker to existing CI and documented its heuristic contract.
 
 ## [1.7.1] (2026-08-15)
 
 ### Added
-- Added a Branch naming rule banning `claude/`-prefixed branches by name, so a model cannot rationalize past an implicit "match one of these five prefixes" statement.
-- Added a Branch naming exemption for automated dependency-update tools (Dependabot): their branch and commit format is not configurable.
-- Added `.github/workflows/agents-compliance.yml`, a reusable `workflow_call` workflow holding the `pr-checks` and `static-checks` jobs, as an opt-in path for downstream repos that want the compliance checks unmodified, alongside the existing copy-and-tailor adoption path.
-- Added a Rule 9 note: pin any `uses:` reference to this repo's reusable workflow to a released tag, never `@main`.
-- Added `concurrency: cancel-in-progress` groups to `sync-check.yml` and `agents-md-compliance.yml`, cancelling superseded runs on the same branch or PR.
-- Added `ready_for_review` to `agents-md-compliance.yml`'s `pull_request` trigger types, so a PR leaving draft status re-runs its draft-skipped jobs instead of staying stuck at "skipped".
+- Explicitly banned `claude/` branches and exempted Dependabot from formats it cannot configure.
+- Added an opt-in reusable compliance workflow. Consumers must pin it to a released tag, never `@main`.
+- Added concurrency cancellation for superseded runs and reruns when a pull request leaves draft status.
 
 ### Changed
-- Consolidated `agents-md-compliance.yml` from 4 jobs to a thin caller of `agents-compliance.yml`'s 2 jobs, halving redundant checkout/setup-python overhead per PR run.
-- Made `scripts/check_commit_message.py` warning-only (always exits 0), matching `check_us_spelling.py`/`check_english_only.py`, instead of blocking on subject-format violations.
-- Exempted Dependabot PRs from the `branch-name` and `commit-message` checks, keyed on PR author (`github.event.pull_request.user.login`) rather than `github.actor`, since a human pushing to or rebasing a Dependabot branch changes the triggering actor but not the PR's author.
-- Updated README's "Adopting"/"Banned agents" sections with the reusable-workflow option, a CI efficiency pattern for repos writing custom checker CI, and a new Versioning section.
-
-### Fixed
-- Synced all tool rule copies with `AGENTS.md`.
+- Reduced the live compliance workflow to a thin reusable-workflow caller.
+- Made commit-message checks warning-only and keyed Dependabot exemptions to the pull request author.
+- Documented reusable adoption, efficient custom CI, banned-agent checks, and versioning.
 
 ## [1.7.0] (2026-08-08)
 
 ### Added
-- Added `scripts/` references to the dash/ASCII rule (`lint_style.py`/`check_ascii.py`) and the American spelling/English-only rules (`check_us_spelling.py`/`check_english_only.py`, marked warning only), completing the enforcement markers across every rule with a shipped checker.
-- Added a Checker reference table to README, replacing the prose paragraphs Adopting step 5 had accumulated across three prior releases.
-- Added `hooks/block_destructive_bash.py`, an opt-in Claude Code `PreToolUse` hook example blocking `rm -rf /`/`~`/`$HOME`, bare `git push --force`/`-f`, and `git reset --hard`.
-- Added `hooks/claude-code-settings.example.json`, the wiring example for the hook above.
-- Added a README "Claude Code hook example" section documenting both files; not referenced from AGENTS.md, which stays tool-agnostic.
+- Added checker references to the dash, ASCII, spelling, and English rules, with advisory checks marked clearly.
+- Added a consolidated README checker reference.
+- Added an opt-in Bash hook that denied root or home recursive deletion, force-push, and `git reset --hard`.
 
 ### Changed
-- Consolidated the per-PR checker bullets in README's "What's in it" into a single entry pointing at the Checker reference table.
-
-### Fixed
-- Synced all tool rule copies with `AGENTS.md`.
+- Consolidated duplicate README checker descriptions into the reference table.
 
 ## [1.6.0] (2026-08-08)
 
 ### Added
-- Added `scripts/check_branch_name.py`, backing Branch naming by validating `<type>/<kebab-description>` against the documented prefixes, exempting `main`, `master`, and detached HEAD.
-- Added `scripts/check_commit_message.py`, backing the commit-message style bullet by validating `type: description` shape, 50-character length, and no trailing period, stripping a trailing GitHub squash-merge suffix first.
-- Added `branch-name` and `commit-message` jobs to `agents-md-compliance.yml`, running on every pull request.
-- Added a `check-branch-name` pre-commit hook at the `pre-push` stage.
-- Added inline `scripts/` references to Branch naming and the commit-message style bullet.
-
-### Fixed
-- Synced all tool rule copies with `AGENTS.md`.
+- Added branch-name validation for `<type>/<kebab-description>`, exempting primary branches and detached HEAD.
+- Added commit-message shape, length, punctuation, and GitHub squash suffix validation.
+- Added both checks to pull request CI and branch validation to pre-push, with rule references.
 
 ## [1.5.0] (2026-08-08)
 
 ### Added
-- Added `scripts/check_persist_credentials.py`, backing rule 11 by scanning workflow files for `actions/checkout` steps missing `persist-credentials: false`.
-- Added `scripts/check_weak_hashing.py`, backing rule 7 by flagging MD5/SHA-1 calls with no same-line justification comment.
-- Added `scripts/check_dockerfile_root.py`, backing rule 12 by flagging Dockerfiles, compose files, and Kubernetes manifests with no non-root user configured.
-- Added `scripts/check_secrets_heuristic.py`, backing rule 8 with a heuristic match on structured secret-token prefixes and a `.env`/`.env.local` filename block.
-- Added a Rule 12 exception comment, `# runtime-root: this container <reason> (Rule 12 exception).`, mirroring rule 11's escape hatch.
-- Added a `static-checks` job to `agents-md-compliance.yml`, running all four new checkers on every push and pull request to `main`.
-- Added local pre-commit hooks for all four checkers, scoped to their relevant file globs.
-- Added inline `scripts/` references to rules 7, 8, 11, and 12, and Adopting-step guidance for propagating them.
-
-### Fixed
-- Synced all tool rule copies with `AGENTS.md`.
+- Added checkers for persisted checkout credentials, weak hashes, root containers, secrets, and environment files.
+- Added the Rule 12 exception form
+  `# runtime-root: this container <reason> (Rule 12 exception).`.
+- Added all four checkers to CI and pre-commit, with rule references and adopter guidance.
 
 ## [1.4.0] (2026-08-08)
 
 ### Added
-- Added rule 13, **Back enforcement claims with real checks**: no rule may claim CI or tooling enforcement it lacks; propose the check in the same change that adds an enforceable rule.
-- Added `scripts/check_banned_agents.py`, matching commit author, committer, and `Co-authored-by` trailer fields, plus the PR author, against a banned-agent denylist.
-- Added `.github/workflows/agents-md-compliance.yml`, running the check on every pull request.
-- Added `README.md` Adopting step 6: adopting repos may prune rules and their checks that do not apply, with user approval, without violating rule 13.
+- Added Rule 13, which prohibits enforcement claims without real checks and
+  requires proposing a check with each mechanically enforceable rule.
+- Added pull request CI that compares commit authors, committers, co-author
+  trailers, and pull request authors against the banned-agent denylist.
+- Allowed adopters to prune inapplicable rules and their checks with user
+  approval.
 
 ### Changed
-- Rewrote the Banned agents section's enforcement claim to name the real script and its limitation (cannot catch a banned agent committing under a human's own identity with no trailer).
-
-### Fixed
-- Synced all tool rule copies with `AGENTS.md`.
+- Documented that banned-agent checks cannot detect an agent using only a human
+  identity with no trailer.
 
 ## [1.3.0] (2026-08-08)
 
 ### Added
-- Added `**American English spelling**` rule banning British spelling variants (`-our`, `-ise`/`-isation`, `-re`, etc.) even though they are valid ASCII.
-- Added `**English only**` rule requiring English in code, comments, commit messages, and documentation, with comments always English and no exception for Chinese, Japanese, or Korean, even in a codebase targeting those markets.
-- Added `scripts/check_us_spelling.py`, a portable, warning-only checker for the American spelling rule, usable in any repo.
-- Added `scripts/check_english_only.py`, a portable, warning-only stopword heuristic for the English-only rule, usable in any repo.
-- Added `scripts/check_ascii.py`, a portable, blocking checker mirroring `lint_style.py`'s existing dash and ASCII checks for use outside this repo.
-- Added the two new warning-only checks to `make lint` and to the CI style-lint step.
-- Added `README.md` guidance for propagating all three new checkers into adopting repos, including each script's exit-code contract.
-
-### Fixed
-- Synced all tool rule copies with `AGENTS.md`.
+- Added American English and English-only rules for code, comments, commit
+  messages, and documentation, including projects targeting other languages.
+- Added portable warning-only spelling and English heuristics plus a portable
+  blocking dash and ASCII checker.
+- Added the warning-only checks to local lint and CI, with adopter guidance and
+  each checker's exit-code contract.
 
 ## [1.2.0] (2026-07-19)
 
 ### Added
-- Added rule requiring `persist-credentials: false` on `actions/checkout` steps that do not need the credential afterward.
-- Added rule requiring non-root Docker containers by default, with explicit user consent required before configuring runtime root.
+- Required `persist-credentials: false` on checkout steps that do not need Git
+  credentials afterward.
+- Required non-root containers by default, with explicit consent before runtime
+  root configuration.
 
 ### Fixed
 - Set `persist-credentials: false` on the `sync-check.yml` checkout step per the new rule.
-- Synced all tool rule copies with `AGENTS.md`.
 
 ## [1.1.0] (2026-07-16)
 
 ### Added
-- Added `**No suppressing checks**` rule banning `# noqa`, `type: ignore`, and disabling CI steps to force a pass.
-- Added history-safety rule forbidding force-push, rebase, amend, or reset of pushed commits on shared branches without consent.
-- Added `**No run-on sentences**` rule prohibiting clause-splicing.
-- Added `scripts/lint_style.py`, a `make lint` target, and a CI style-lint step enforcing the dash and ASCII rules on `AGENTS.md`.
+- Added rules against suppressing lint, type, test, or CI checks to force a pass.
+- Added consent requirements for force-push, rebase, amend, or reset of published
+  commits on shared branches.
+- Added the no-run-on-sentences rule and local plus CI enforcement for dash and
+  ASCII rules.
 
 ### Changed
-- Strengthened the em/en dash rule to ban hyphen substitutes (`--`, `---`, spaced ` - `) and reframed it around run-on sentences.
-- Closed self-attested loopholes: weak-hashing exception, always-draft PRs (removed the integration-tool exception), test-first mocking, retry discipline, and magic-number naming.
-- Renamed `**No extended ASCII**` to `**No non-ASCII characters**` and restricted Unicode to string literals or data.
-- Replaced incomplete-work rule to cover markers beyond `TODO`/`FIXME` (`XXX`, `HACK`, stubs, bare `pass`).
-- Required commit detail in the body rather than truncating the subject.
-- Tightened AGENTS.md prose throughout to cut needless words.
+- Expanded the dash rule to hyphen substitutes and renamed the character rule to
+  **No non-ASCII characters**, limiting Unicode to required literals or data.
+- Closed self-attested exceptions in weak hashing, draft pull requests,
+  test-first mocking, retry discipline, and magic-number naming.
+- Expanded incomplete-work markers to `XXX`, `HACK`, stubs, and bare `pass`, and
+  required excess commit detail in the body instead of a truncated subject.
 
 ### Fixed
-- Fixed `AGENTS.md` self-violations of its own dash and ASCII rules, and replaced emoji `Bad`/`Good` markers with ASCII.
-- Synced all tool rule copies with `AGENTS.md`.
+- Removed dash, ASCII, and emoji violations from `AGENTS.md` examples.
 
 ## [1.0.0] (2026-07-11)
 
 ### Added
-- Added `**Documentation and versioning**` rule specifying target README/CHANGELOG updates and Semantic Versioning (SemVer 2.0.0) requirements.
-- Added `**Imperative tone**` style rule.
-- Added `**Path traversal**` correctness and safety rule.
-- Added `.copilot-instructions` (root-level) and `.github/copilot-instructions.md` to rules sync script.
-- Added local pre-commit hook (`.pre-commit-config.yaml`) and task runner (`Makefile`) for sync checks.
-- Added GitHub Actions workflow (`.github/workflows/sync-check.yml`) running in CI with read-only permissions.
-- Added **Roo Code** and **OpenHands** compatibility instructions to `README.md`.
+- Added documentation and SemVer rules, imperative-tone guidance, and path traversal protections.
+- Added Copilot instruction files to rule synchronization.
+- Added local pre-commit and `Makefile` sync checks plus read-only GitHub Actions
+  CI.
+- Added Roo Code and OpenHands compatibility guidance.
 
 ### Changed
-- Overhauled `AGENTS.md` prose to use imperative, professional, and terse tone.
-- Excluded redundant rule copy files in `.claudeignore` to reduce context token waste.
-- Formatted example lines with double-space markdown line breaks instead of bullet lists.
-- Updated `Adopting` guidelines in `README.md` to prevent agent integration pitfalls (respecting custom rules, verifying commands, and preventing unauthorized changes).
-
-### Fixed
-- Synced all tool rule copies (`CLAUDE.md`, `GEMINI.md`, etc.) with `AGENTS.md`.
+- Reworked `AGENTS.md` into concise imperative instructions and excluded
+  redundant rule copies from Claude context.
+- Updated adopter guidance for custom rules, command verification, and
+  unauthorized-change prevention.
