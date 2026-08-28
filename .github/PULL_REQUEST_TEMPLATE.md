@@ -1,8 +1,11 @@
 ## Summary
 
-- <What changed and why, one bullet per major change.>
+<!-- What changed and why? Use one bullet per major change. -->
 
-## Test plan
+## Verification
 
-- [ ] <Verification step.>
-- [ ] <Verification step.>
+<!-- List tests or manual checks performed and their results. -->
+
+## Risks
+
+<!-- Describe known risks or state "None". -->
