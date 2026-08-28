@@ -1,25 +1,22 @@
-## What Happened
+## Issue
 
-<Describe the issue: a bug in a checker script, rule, or sync process,
-or a proposal for a new or changed AGENTS.md rule or opt-in template
-file.>
+<!-- Do not include vulnerability details in a public issue. Use the
+     repository's private security-reporting channel. -->
 
-## Expected Behavior or Proposal
+<!-- Describe the bug or proposal. -->
 
-<For a bug: what should have happened instead. For a proposal: state
-the rule or template being proposed.>
+## Expected Behavior or Outcome
+
+<!-- For a bug, state what should happen. For a proposal, state the desired outcome and rationale. -->
 
 ## Steps to Reproduce (bugs only)
 
-1. <Step.>
-2. <Step.>
+<!-- List the smallest repeatable steps. -->
 
-## Rationale (proposals only)
+## Environment (bugs only)
 
-<State the concrete problem this addresses. If mechanically checkable,
-propose the checker (Rule 13).>
+<!-- Include relevant OS, runtime, and version details. -->
 
-## Environment
+## Proposal Verification (proposals only)
 
-- OS:
-- Python version: `python --version`
+<!-- How can maintainers verify that the proposal succeeds? -->

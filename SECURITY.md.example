@@ -1,23 +1,25 @@
 # Security Policy
 
-<!-- Per-repo. Fill in supported versions before committing. Rename to
-     SECURITY.md (drop .example) so GitHub's own vulnerability-reporting
-     UI picks it up. Requires GitHub private vulnerability reporting
-     enabled on the repo (Settings, Security, Private vulnerability
-     reporting). Delete this comment before committing a filled copy. -->
+<!-- Per-repo. Fill in every placeholder before committing. Rename to
+     SECURITY.md (drop .example) so GitHub's vulnerability-reporting UI
+     picks it up. Enable private vulnerability reporting under Settings,
+     Security, Private vulnerability reporting. Delete this comment. -->
 
 ## Supported Versions
 
 | Version | Supported |
 |---------|-----------|
-| 1.x     | Yes       |
-| < 1.0   | No        |
+| `<supported version>` | Yes |
+| `<unsupported version>` | No |
 
 ## Scope
 
-In scope: code and configuration in this repository. Out of scope:
-third-party dependencies and actions (report to their own maintainers),
-social engineering, and physical attacks.
+In scope: code and configuration in this repository. Third-party
+vulnerabilities caused by this repository's selected version, pin,
+configuration, permissions, or integration also remain in scope. Route
+defects that are purely upstream to the upstream maintainers.
+
+Out of scope: social engineering and physical attacks.
 
 ## Reporting a Vulnerability
 
@@ -25,10 +27,12 @@ Report vulnerabilities through GitHub's private vulnerability reporting
 (Security tab, Report a vulnerability). Do not open a public issue for a
 vulnerability report.
 
-Response time: acknowledgment within 5 business days. Remediation
-target: 30 days from acknowledgment.
+Response timing: `<acknowledgment target>`.
+
+Remediation target: `<remediation target>`.
 
 ## Disclosure Policy
 
-Coordinated disclosure. Report stays private until a fix ships or 90
-days pass, whichever comes first.
+Use coordinated disclosure with the maintainers. Keep the report private
+until a fix ships or `<disclosure deadline>` passes, whichever comes
+first.
