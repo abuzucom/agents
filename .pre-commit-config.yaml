@@ -11,6 +11,7 @@ repos:
         name: Check persist-credentials on checkout steps (Rule 11)
         entry: python scripts/check_persist_credentials.py
         language: python
+        additional_dependencies: [PyYAML==6.0.3]
         files: ^\.github/workflows/.*\.ya?ml$
       - id: check-weak-hashing
         name: Check for unjustified MD5/SHA-1 (Rule 7)
@@ -21,6 +22,7 @@ repos:
         name: Check for non-root containers (Rule 12)
         entry: python scripts/check_dockerfile_root.py
         language: python
+        additional_dependencies: [PyYAML==6.0.3]
         files: ^(Dockerfile.*|docker-compose.*\.ya?ml|compose.*\.ya?ml)$
       - id: check-secrets-heuristic
         name: Check for likely secrets (Rule 8)
@@ -37,7 +39,8 @@ repos:
         name: Branch-name hook tests
         entry: python -m unittest discover -s tests
         language: python
-        files: ^(hooks/.*\.py|tests/.*\.py|\.claude/settings\.json|scripts/check_(branch_name|git_identity)\.py)$
+        additional_dependencies: [PyYAML==6.0.3]
+        files: ^(hooks/.*\.py|tests/.*\.py|\.claude/settings\.json|\.github/workflows/.*\.ya?ml|scripts/(sync|trusted_git|check_(banned_agents|branch_name|commit_message|compliance_tree|dockerfile_root|git_identity|persist_credentials|secrets_heuristic|weak_hashing))\.py)$
         pass_filenames: false
       - id: check-git-identity
         name: Check git identity (Rule 14)
