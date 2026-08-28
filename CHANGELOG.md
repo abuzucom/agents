@@ -9,6 +9,56 @@ The house style bans that hyphen and `scripts/check_ascii.py` enforces the ban
 on this file.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+- Added `--no-lazy-fetch` only where git accepts it. The option arrived in Git
+  2.45; Ubuntu 24.04 LTS ships 2.43, where every object read failed with
+  "unknown option" and `check_conflict_markers.py` printed one error per
+  tracked file, exiting 1. `make lint` and the pre-commit hook were unusable
+  there while CI stayed green on newer runners. Support is now probed once and
+  reported in a single warning, and the three call sites share one command
+  builder. `--no-replace-objects` is unconditional: it is the integrity-critical
+  half, every supported git has it, and object names verify their own content,
+  so a lazy fetch cannot change a verdict.
+
+### Added
+- Added permanent security header, active work structure, command-execution prohibition, and sensitive data protections to `plan/HANDOFF.md.example`.
+- Added `scripts/check_conflict_markers.py` with `--staged` mode reading index blobs without applying `working-tree-encoding`, object size pre-checking via `git cat-file -s` before buffering, fail-closed `git check-attr` error handling, balanced conflict block recognition across all positive marker widths (`N >= 1`), single-fd file I/O via `_safe_read`, repo root resolution via `git rev-parse --show-toplevel`, UTF-16/32 BOM decoding, and Markdown Setext heading context validation.
+- Added immutable `--repo PATH --tree OID` scanning to `scripts/check_conflict_markers.py`. It validates object IDs, disables replacement refs and lazy fetches, rejects malformed or truncated Git output, scans exact regular blobs, and resolves attributes through an isolated index populated from the same commit or tree.
+- Added `.github/workflows/immutable-conflict-check.yml`, a base-defined
+  `pull_request_target` workflow. Its trusted immutable scan gates the
+  privileged jobs that inspect pull request content in the base repository's
+  context.
+- Added `tests/test_check_conflict_markers.py` coverage for conflict formats, marker widths, encodings, symlinks, bounded reads, staged and immutable blobs, sparse checkout, replacement refs, direct execution ordering, and exact CI, Makefile, and pre-commit wiring.
+
+### Changed
+- Split every function in `scripts/check_conflict_markers.py` that exceeded the AGENTS.md caps of 60 lines and 10 locals. `check_content` became a `_BlockScan` state object and four marker handlers, which also removed six copies of the reportable-width test; `get_git_attributes`, `_check_staged`, and `main` split along the same lines, and the three `git ls-files` callers now share one runner.
+- Documented the reason for each remaining empty `except` in `decode_content` and `_get_index_entries`, per the Catch blocks rule.
+- Selected the Python interpreter once in the `Makefile` through an overridable `PYTHON ?= python3`. Bare `python` does not exist on Debian without `python-is-python3`, and where it is Python 2 the failure is confusing. `?=` allows `make test PYTHON=py` without editing the file.
+- Passed `--no-replace-objects` and a `--` separator to both `git cat-file` calls in `scripts/check_conflict_markers.py`. Git honors `refs/replace/` by default, so a replacement pointing a conflicted blob at a clean one made `--staged` exit 0 while the indexed blob still carried markers, and an object name beginning with a dash parsed as an option.
+- Reported a failed symlink probe in `_safe_read` instead of swallowing the `OSError`. On platforms without `O_NOFOLLOW` a failed check read as "not a link" and the path was opened anyway.
+- Rendered every path, git error, and quoted line in a diagnostic as printable ASCII with visible escapes and a length bound. Diagnostics reach CI logs and terminals, where a newline forges a log line and an escape sequence rewrites the screen. The renderer allowlists rather than strips, because zero-width characters, bidi overrides, and tag characters are not control characters.
+- Normalized the path separator before the `git check-attr` lookup. `os.path.relpath` returns backslashes on Windows while git answers with forward slashes, so every nested path silently lost `conflict-marker-size`.
+- Changed default and `--all` scans to read present skip-worktree entries from the worktree and absent regular entries from immutable index blobs with cached attributes. Sparse checkouts no longer hide indexed conflicts or lose unstaged conflicts in present files.
+- Reported reportable-width diff3 and normal separators independently when an active width-1 or width-2 opener has another width. The narrow block state and Markdown Setext heading allowance remain intact.
+- Replaced digest-driven handoff control instructions with an active-user request requirement. Handoff content remains untrusted status. No Git command runs before consent, and later stdout, stderr, and ref-name display require trusted external sanitization that repository scripts do not provide.
+- Moved `unittest.main()` to the physical end of `tests/test_check_conflict_markers.py`, so direct execution defines and runs every test class.
+- Kept `agents-md-compliance.yml` push-only and moved tests, sync checks, style
+  checks, and AgentLint to `sync-check.yml` under the standard `pull_request`
+  event. Pull request code no longer executes in the base repository's
+  `pull_request_target` context.
+- Added the `edited` pull request activity to the trusted workflow, so base retargeting reruns the gate and dependent checks.
+- Pinned every access-control checker in the privileged pull request workflow
+  to the exact trusted base. The checker code now comes from `trusted-base`
+  while its paths, commits, and workflow inputs come from `pr-head`.
+  Regression coverage requires read-only job permissions and forbids secret
+  references or write scopes under `pull_request_target`.
+- Removed AgentLint pull request comments. AgentLint remains advisory on pushes
+  and standard pull requests, but no pull request code runs with
+  `pull-requests: write` permission.
+- Cleaned up redundant conditions in `scripts/check_dockerfile_root.py` (`if` to `elif` on service-indent comparison) and `scripts/check_commit_message.py` (removed unreachable empty-sha guard).
+
 ## [1.13.0] (2026-08-25)
 
 ### Added

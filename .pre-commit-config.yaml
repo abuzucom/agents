@@ -27,6 +27,12 @@ repos:
         entry: python scripts/check_secrets_heuristic.py
         language: python
         files: ^(scripts/.*\.py|\.github/workflows/.*\.ya?ml|\.pre-commit-config\.yaml|Makefile)$
+      - id: check-conflict-markers
+        name: Check for unresolved conflict markers
+        entry: python scripts/check_conflict_markers.py --staged
+        language: python
+        pass_filenames: false
+        always_run: true
       - id: hook-tests
         name: Branch-name hook tests
         entry: python -m unittest discover -s tests

@@ -5,6 +5,7 @@ on:
     branches: [ main ]
   pull_request:
     branches: [ main ]
+    types: [opened, synchronize, reopened, ready_for_review, edited]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -12,7 +13,6 @@ concurrency:
 
 permissions:
   contents: read
-  pull-requests: write
 
 jobs:
   tests-windows:
@@ -60,83 +60,13 @@ jobs:
         run: python scripts/check_hedging.py AGENTS.md plan/HANDOFF.md.example SECURITY.md.example CONTRIBUTING.md.example .github/PULL_REQUEST_TEMPLATE.md .github/ISSUE_TEMPLATE.md
       - name: Check dashes and ASCII in template files
         run: python scripts/check_ascii.py plan/HANDOFF.md.example SECURITY.md.example CONTRIBUTING.md.example .github/PULL_REQUEST_TEMPLATE.md .github/ISSUE_TEMPLATE.md
+      - name: Check worktree conflict markers (ordinary test)
+        run: python scripts/check_conflict_markers.py
       - name: Check dashes and ASCII in this repo's own prose
         run: python scripts/check_ascii.py README.md CHANGELOG.md DRIFT.md docs/gate-threat-model.md adopters/1a2n-web-visualizer.md
       - name: AgentLint (advisory)
-        id: agentlint
         uses: 0xmariowu/AgentLint@v1.1.13
         with:
           fail-below: '0'
           format: md
           output-dir: agentlint-report
-      - name: Read AgentLint markdown report
-        if: github.event_name == 'pull_request'
-        id: agentlint_report
-        run: |
-          delimiter="AGENTLINT_EOF_$(openssl rand -hex 16)"
-          report_file=$(find agentlint-report -maxdepth 1 -name '*.md' -print -quit)
-          {
-            echo "content<<${delimiter}"
-            if [ -n "$report_file" ]; then
-              cat "$report_file"
-            fi
-            echo "${delimiter}"
-          } >> "$GITHUB_OUTPUT"
-      - name: Comment AgentLint score on PR
-        if: github.event_name == 'pull_request'
-        uses: actions/github-script@v9.0.0
-        env:
-          AGENTLINT_SCORE: ${{ steps.agentlint.outputs.score }}
-          AGENTLINT_SCOPE: ${{ steps.agentlint.outputs['score-scope'] }}
-          AGENTLINT_FINDABILITY: ${{ steps.agentlint.outputs.findability }}
-          AGENTLINT_INSTRUCTIONS: ${{ steps.agentlint.outputs.instructions }}
-          AGENTLINT_WORKABILITY: ${{ steps.agentlint.outputs.workability }}
-          AGENTLINT_CONTINUITY: ${{ steps.agentlint.outputs.continuity }}
-          AGENTLINT_SAFETY: ${{ steps.agentlint.outputs.safety }}
-          AGENTLINT_HARNESS: ${{ steps.agentlint.outputs.harness }}
-          AGENTLINT_REPORT: ${{ steps.agentlint_report.outputs.content }}
-        with:
-          script: |
-            const marker = '<!-- agentlint-report -->';
-            const report = (process.env.AGENTLINT_REPORT || '').trim();
-            const body = [
-              marker,
-              `**AgentLint score: ${process.env.AGENTLINT_SCORE}/100** (${process.env.AGENTLINT_SCOPE})`,
-              '',
-              '| Dimension | Score |',
-              '|---|---|',
-              `| Findability | ${process.env.AGENTLINT_FINDABILITY}/10 |`,
-              `| Instructions | ${process.env.AGENTLINT_INSTRUCTIONS}/10 |`,
-              `| Workability | ${process.env.AGENTLINT_WORKABILITY}/10 |`,
-              `| Continuity | ${process.env.AGENTLINT_CONTINUITY}/10 |`,
-              `| Safety | ${process.env.AGENTLINT_SAFETY}/10 |`,
-              `| Harness | ${process.env.AGENTLINT_HARNESS}/10 |`,
-              '',
-              'Advisory only. Does not block merge.',
-              '',
-              ...(report
-                ? ['<details>', '<summary>Full AgentLint report</summary>', '', report, '', '</details>']
-                : []),
-            ].join('\n');
-
-            const { data: comments } = await github.rest.issues.listComments({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.issue.number,
-            });
-            const existing = comments.find((c) => c.body.includes(marker));
-            if (existing) {
-              await github.rest.issues.updateComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                comment_id: existing.id,
-                body,
-              });
-            } else {
-              await github.rest.issues.createComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: context.issue.number,
-                body,
-              });
-            }
