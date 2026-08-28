@@ -12,6 +12,20 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ## [Unreleased]
 
 ### Fixed
+- Hardened `scripts/sync.py` against symlink traversal, repository escapes,
+  partial destination writes, and destination races. Copies now use a flushed
+  temporary file followed by an atomic replacement after path revalidation.
+- Parsed workflow, Compose, and Kubernetes YAML with duplicate-key rejection.
+  Rule 11 now requires the boolean `false`, and Rule 12 evaluates the final
+  Dockerfile user and every service and Kubernetes container independently.
+- Made weak-hash detection follow Python imports and simple aliases, recognize
+  `hashlib.new`, and require real comments that name a non-security use. Secret
+  scanning now blocks every `.env.*` variant except `.env.example` and detects
+  encrypted and PGP private-key headers.
+- Made branch, commit, banned-agent, and identity Git reads resolve an absolute
+  executable outside the repository and fail closed when Git lookup or output
+  fails. Co-author trailer keys are now case-insensitive and only the terminal
+  structured trailer block contributes identities.
 - Added `--no-lazy-fetch` only where git accepts it. The option arrived in Git
   2.45; Ubuntu 24.04 LTS ships 2.43, where every object read failed with
   "unknown option" and `check_conflict_markers.py` printed one error per
@@ -23,6 +37,15 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   so a lazy fetch cannot change a verdict.
 
 ### Added
+- Added `scripts/check_compliance_tree.py`, which dispatches trusted base
+  checkers over bounded blobs from one validated commit or tree without
+  importing pull request code. It scans regular and symlink blobs, commit
+  metadata, pull request authorship, branch names, immutable action revisions,
+  and the closed execution surface of `pull_request_target` workflows.
+- Added adversarial regression coverage for filesystem races, parser bypasses,
+  repository-local Git executables, immutable secrets, symlink blobs, workflow
+  trust boundaries, and immutable action references.
+- Added pinned `PyYAML==6.0.3` checker requirements for safe YAML parsing.
 - Added permanent security header, active work structure, command-execution prohibition, and sensitive data protections to `plan/HANDOFF.md.example`.
 - Added `scripts/check_conflict_markers.py` with `--staged` mode reading index blobs without applying `working-tree-encoding`, object size pre-checking via `git cat-file -s` before buffering, fail-closed `git check-attr` error handling, balanced conflict block recognition across all positive marker widths (`N >= 1`), single-fd file I/O via `_safe_read`, repo root resolution via `git rev-parse --show-toplevel`, UTF-16/32 BOM decoding, and Markdown Setext heading context validation.
 - Added immutable `--repo PATH --tree OID` scanning to `scripts/check_conflict_markers.py`. It validates object IDs, disables replacement refs and lazy fetches, rejects malformed or truncated Git output, scans exact regular blobs, and resolves attributes through an isolated index populated from the same commit or tree.
@@ -33,6 +56,10 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Added `tests/test_check_conflict_markers.py` coverage for conflict formats, marker widths, encodings, symlinks, bounded reads, staged and immutable blobs, sparse checkout, replacement refs, direct execution ordering, and exact CI, Makefile, and pre-commit wiring.
 
 ### Changed
+- Reduced the privileged `pull_request_target` workflow to one read-only
+  immutable compliance job. It installs dependencies from the trusted base,
+  executes no pull request-authored code, and pins every external action to an
+  approved commit SHA. Standard pull request tests remain unprivileged.
 - Split every function in `scripts/check_conflict_markers.py` that exceeded the AGENTS.md caps of 60 lines and 10 locals. `check_content` became a `_BlockScan` state object and four marker handlers, which also removed six copies of the reportable-width test; `get_git_attributes`, `_check_staged`, and `main` split along the same lines, and the three `git ls-files` callers now share one runner.
 - Documented the reason for each remaining empty `except` in `decode_content` and `_get_index_entries`, per the Catch blocks rule.
 - Selected the Python interpreter once in the `Makefile` through an overridable `PYTHON ?= python3`. Bare `python` does not exist on Debian without `python-is-python3`, and where it is Python 2 the failure is confusing. `?=` allows `make test PYTHON=py` without editing the file.

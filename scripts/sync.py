@@ -14,8 +14,11 @@ belongs in the drift record. Both need somebody to look.
 """
 import hashlib
 import json
+import os
 import shutil
+import stat
 import sys
+import tempfile
 from pathlib import Path
 
 SOURCE = "AGENTS.md"
@@ -46,17 +49,155 @@ COPIES = [
 ]
 
 
-def files_match(source: Path, target: Path) -> bool:
-    """Compare file contents, normalizing line endings."""
+def _is_within(root: Path, path: Path) -> bool:
+    """Return whether path is root or one of its descendants."""
     try:
-        if not target.is_file():
+        path.relative_to(root)
+        return True
+    except ValueError:
+        return False
+
+
+def _lexical_path(root: Path, name: str) -> Path:
+    """Return a normalized path that remains lexically beneath root."""
+    normalized_root = Path(os.path.abspath(root))
+    path = Path(os.path.abspath(root / name))
+    if not _is_within(normalized_root, path):
+        raise ValueError("path escapes root")
+    return path
+
+
+def _require_resolved_within(root: Path, path: Path) -> None:
+    """Reject paths whose existing components resolve outside root."""
+    resolved_root = root.resolve(strict=True)
+    resolved_path = path.resolve(strict=False)
+    if not _is_within(resolved_root, resolved_path):
+        raise ValueError("resolved path escapes root")
+
+
+def _directory_state(path: Path) -> tuple:
+    """Return a stable identity for a real directory found with lstat."""
+    details = path.lstat()
+    if not stat.S_ISDIR(details.st_mode):
+        raise ValueError("directory component is not a real directory")
+    return details.st_dev, details.st_ino
+
+
+def _regular_state(path: Path) -> tuple:
+    """Return state for a regular, non-symlink file found with lstat."""
+    details = path.lstat()
+    if not stat.S_ISREG(details.st_mode):
+        raise ValueError("path is not a regular file")
+    return (
+        details.st_dev,
+        details.st_ino,
+        details.st_size,
+        details.st_mtime_ns,
+    )
+
+
+def _target_state(path: Path) -> tuple | None:
+    """Return target state without following a link, or None if absent."""
+    try:
+        return _regular_state(path)
+    except FileNotFoundError:
+        return None
+
+
+def _validate_parent_tree(root: Path, parent: Path, create: bool) -> None:
+    """Validate each parent with lstat, creating absent directories safely."""
+    current = root
+    _directory_state(current)
+    for part in parent.relative_to(root).parts:
+        current = current / part
+        try:
+            _directory_state(current)
+        except FileNotFoundError:
+            if not create:
+                return
+            os.mkdir(current)
+            _directory_state(current)
+        _require_resolved_within(root, current)
+
+
+def _inspect_source(root: Path) -> tuple:
+    """Validate the source and return its path and current state."""
+    source = _lexical_path(root, SOURCE)
+    _validate_parent_tree(root, source.parent, create=False)
+    source_state = _regular_state(source)
+    _require_resolved_within(root, source)
+    return source, source_state
+
+
+def _inspect_target(root: Path, name: str, create: bool) -> tuple:
+    """Validate one destination and return its path and current state."""
+    target = _lexical_path(root, name)
+    _validate_parent_tree(root, target.parent, create=create)
+    target_state = _target_state(target)
+    _require_resolved_within(root, target)
+    return target, target_state
+
+
+def files_match(source: Path, target: Path) -> bool:
+    """Compare regular file contents, normalizing line endings."""
+    try:
+        _regular_state(source)
+        if _target_state(target) is None:
             return False
         return (
             source.read_text(encoding="utf-8").replace("\r\n", "\n")
             == target.read_text(encoding="utf-8").replace("\r\n", "\n")
         )
-    except (OSError, UnicodeDecodeError):
+    except (OSError, RuntimeError, UnicodeDecodeError, ValueError):
         return False
+
+
+def _copy_to_temp(source: Path, parent: Path) -> Path:
+    """Copy source into a flushed temporary file beside the destination."""
+    descriptor, temp_name = tempfile.mkstemp(prefix=".sync-", dir=parent)
+    temp_path = Path(temp_name)
+    complete = False
+    try:
+        os.close(descriptor)
+        shutil.copyfile(source, temp_path)
+        with temp_path.open("ab") as temp_file:
+            temp_file.flush()
+            os.fsync(temp_file.fileno())
+        temp_path.chmod(stat.S_IMODE(source.lstat().st_mode))
+        complete = True
+    finally:
+        if not complete:
+            temp_path.unlink(missing_ok=True)
+    return temp_path
+
+
+def _revalidate_destination(
+        root: Path, target: Path, target_state: tuple | None,
+        parent_state: tuple) -> None:
+    """Reject destination changes made while the temporary copy was written."""
+    if _target_state(target) != target_state:
+        raise OSError("target changed during copy")
+    _require_resolved_within(root, target)
+    _validate_parent_tree(root, target.parent, create=False)
+    if _directory_state(target.parent) != parent_state:
+        raise OSError("target parent changed during copy")
+
+
+def _atomic_copy(root: Path, source: Path, target: Path) -> None:
+    """Copy source to target without exposing a partial destination."""
+    source_state = _inspect_source(root)[1]
+    target_state = _inspect_target(
+        root, str(target.relative_to(root)), create=True)[1]
+    parent = target.parent
+    parent_state = _directory_state(parent)
+    temp_path = _copy_to_temp(source, parent)
+    try:
+        if _regular_state(source) != source_state:
+            raise OSError("source changed during copy")
+        _revalidate_destination(root, target, target_state, parent_state)
+        os.replace(temp_path, target)
+    finally:
+        temp_path.unlink(missing_ok=True)
 
 
 def sync_copies(check_only: bool) -> int:
@@ -64,17 +205,19 @@ def sync_copies(check_only: bool) -> int:
 
     Returns a process exit code: 0 on success, 1 if a check fails.
     """
-    root = Path(__file__).resolve().parent.parent
-    source = root / SOURCE
-    if not source.is_file():
-        print(f"error: {SOURCE} not found at {root}", file=sys.stderr)
+    targets = []
+    stale = []
+    try:
+        root = Path(__file__).resolve().parent.parent
+        source, _ = _inspect_source(root)
+        for name in COPIES:
+            target, _ = _inspect_target(root, name, create=False)
+            targets.append((name, target))
+            if not files_match(source, target):
+                stale.append(name)
+    except (OSError, RuntimeError, ValueError):
+        print("error: unsafe or inaccessible sync path", file=sys.stderr)
         return 1
-
-    stale = [
-        name
-        for name in COPIES
-        if not files_match(source, root / name)
-    ]
 
     if check_only:
         if stale:
@@ -84,11 +227,15 @@ def sync_copies(check_only: bool) -> int:
         print("all copies in sync")
         return 0
 
-    for name in stale:
-        target = root / name
-        target.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copyfile(source, target)
-        print(f"synced {name}")
+    try:
+        for name, target in targets:
+            if name not in stale:
+                continue
+            _atomic_copy(root, source, target)
+            print(f"synced {name}")
+    except (OSError, RuntimeError, ValueError):
+        print("error: sync copy failed", file=sys.stderr)
+        return 1
     if not stale:
         print("all copies already in sync")
     return 0

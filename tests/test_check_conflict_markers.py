@@ -633,34 +633,31 @@ class WiringTest(unittest.TestCase):
         content = IMMUTABLE_WORKFLOW_PATH.read_text(encoding="utf-8")
         self.assertEqual(_workflow_events(content), {"pull_request_target"})
         self.assertIn("edited", content)
-        self.assertIn("uses: actions/setup-python@v5", content)
+        self.assertRegex(
+            content,
+            r"uses: actions/setup-python@[0-9a-f]{40}",
+        )
         self.assertIn("ref: ${{ env.PR_BASE_SHA }}", content)
         self.assertIn("ref: ${{ env.PR_HEAD_SHA }}", content)
         self.assertIn("path: trusted-base", content)
         self.assertIn("path: pr-head", content)
-        self.assertIn("TRUSTED_CHECKER: trusted-base/scripts/", content)
+        self.assertIn(
+            "TRUSTED_CHECKER: trusted-base/scripts/check_compliance_tree.py",
+            content,
+        )
         self.assertIn('python "$TRUSTED_CHECKER"', content)
         self.assertIn('--repo "$PR_REPO" --tree "$PR_HEAD_SHA"', content)
         self.assertNotIn("python pr-head/", content)
 
-    def test_privileged_pr_jobs_depend_on_the_immutable_gate(self):
+    def test_privileged_workflow_has_one_immutable_job(self):
         content = IMMUTABLE_WORKFLOW_PATH.read_text(encoding="utf-8")
         jobs = _workflow_jobs(content)
-        gate = "immutable-conflict-check"
-        self.assertEqual(
-            set(jobs),
-            {gate, "pr-checks", "static-checks"},
-        )
-        for job_id, block in jobs.items():
-            with self.subTest(job=job_id):
-                self.assertIn(
-                    "    permissions:\n      contents: read", block)
-                if job_id != gate:
-                    self.assertTrue(_depends_on(jobs, job_id, gate))
-                    self.assertIn("ref: ${{ env.PR_HEAD_SHA }}", block)
-        self.assertIn("ref: ${{ env.PR_BASE_SHA }}", jobs["pr-checks"])
-        self.assertIn("working-directory: pr-head", jobs["pr-checks"])
-        self.assertIn("GIT_ALTERNATE_OBJECT_DIRECTORIES", jobs["pr-checks"])
+        self.assertEqual(set(jobs), {"immutable-compliance"})
+        block = jobs["immutable-compliance"]
+        self.assertIn("    permissions:\n      contents: read", block)
+        self.assertIn("ref: ${{ env.PR_BASE_SHA }}", block)
+        self.assertIn("ref: ${{ env.PR_HEAD_SHA }}", block)
+        self.assertNotIn("working-directory:", block)
         self.assertNotIn("pull-requests: write", content)
         self.assertNotIn("actions/github-script", content)
 
@@ -693,37 +690,13 @@ class WiringTest(unittest.TestCase):
         )
 
     def test_security_jobs_use_trusted_base_checkers(self):
-        jobs = _workflow_jobs(
-            IMMUTABLE_WORKFLOW_PATH.read_text(encoding="utf-8"))
-        expected = {
-            "pr-checks": (
-                "check_banned_agents.py",
-                "check_commit_message.py",
-                "check_git_identity.py",
-            ),
-            "static-checks": (
-                "check_branch_name.py",
-                "check_persist_credentials.py",
-                "check_weak_hashing.py",
-                "check_dockerfile_root.py",
-                "check_secrets_heuristic.py",
-            ),
-        }
-        for job_id, checker_names in expected.items():
-            block = jobs[job_id]
-            with self.subTest(job=job_id):
-                self.assertIn("path: trusted-base", block)
-                self.assertIn("path: pr-head", block)
-                self.assertIn("working-directory: pr-head", block)
-                for checker_name in checker_names:
-                    self.assertIn(
-                        f"python ../trusted-base/scripts/{checker_name}",
-                        block,
-                    )
-                    self.assertNotIn(
-                        f"python scripts/{checker_name}",
-                        block,
-                    )
+        content = IMMUTABLE_WORKFLOW_PATH.read_text(encoding="utf-8")
+        block = _workflow_jobs(content)["immutable-compliance"]
+        self.assertIn("path: trusted-base", block)
+        self.assertIn("path: pr-head", block)
+        self.assertIn('python "$TRUSTED_CHECKER"', block)
+        self.assertIn('--repo "$PR_REPO" --tree "$PR_HEAD_SHA"', block)
+        self.assertNotRegex(block, r"python (?:\.\./)?pr-head/")
 
     def test_untrusted_checks_use_the_standard_pull_request_event(self):
         sync_content = WORKFLOW_PATH.read_text(encoding="utf-8")
@@ -737,12 +710,10 @@ class WiringTest(unittest.TestCase):
         self.assertNotIn("actions/github-script", sync_content)
 
     def test_pr_draft_semantics_remain_explicit(self):
-        privileged_jobs = _workflow_jobs(
-            IMMUTABLE_WORKFLOW_PATH.read_text(encoding="utf-8"))
         sync_jobs = _workflow_jobs(WORKFLOW_PATH.read_text(encoding="utf-8"))
         self.assertNotIn("draft", sync_jobs["check-sync"])
-        self.assertIn("draft == false", privileged_jobs["pr-checks"])
-        self.assertIn("draft == false", privileged_jobs["static-checks"])
+        privileged = IMMUTABLE_WORKFLOW_PATH.read_text(encoding="utf-8")
+        self.assertNotIn("draft == false", privileged)
 
     def test_handoff_requires_active_user_request(self):
         for path in (AGENTS_PATH, HANDOFF_PATH, README_PATH):

@@ -25,8 +25,8 @@ Banned agents below. Copy into a repository and adapt.
   of the template, not optional tooling; see Adopting step 1.
 - **`scripts/check_*.py`** and **`.github/workflows/`**: this template's
   own mechanical enforcement of its rules, dogfooded in its own CI and
-  `.pre-commit-config.yaml`. Privileged pull request jobs run from the
-  base-defined `immutable-conflict-check.yml` after its immutable object scan.
+  `.pre-commit-config.yaml`. The privileged pull request job runs the
+  base-defined `check_compliance_tree.py` against immutable Git objects.
   Tests and PR-authored checks run from `sync-check.yml` under the standard
   `pull_request` event. Push checks also run from `sync-check.yml` and
   `agents-md-compliance.yml`, which calls the reusable
@@ -41,8 +41,8 @@ Banned agents below. Copy into a repository and adapt.
   `make test` (or `python -m unittest discover -s tests`);
   `sync-check.yml` runs it under the standard `pull_request` event, and
   `.pre-commit-config.yaml` runs it when a hook, test, settings, or
-  `check_branch_name.py` file changes. No test dependencies: `unittest` ships
-  with Python.
+  a covered checker changes. Install the pinned checker dependency from
+  `requirements-checkers.txt`; `unittest` itself ships with Python.
 - **`plan/HANDOFF.md.example`**: an opt-in per-repo handoff/progress
   template; see Handoff file example below.
 - **`SECURITY.md.example`**: an opt-in vulnerability-reporting policy
@@ -65,7 +65,11 @@ Banned agents below. Copy into a repository and adapt.
 
 ## Local checks
 
-Run before pushing. Python 3 standard library only, no install step.
+Install the checker dependency, then run the local checks before pushing:
+
+```console
+python -m pip install --requirement requirements-checkers.txt
+```
 
 | Command | Runs |
 |---|---|
@@ -77,9 +81,9 @@ Run before pushing. Python 3 standard library only, no install step.
 
 `.pre-commit-config.yaml` runs the same checks on the files each one owns.
 CI runs tests and PR-authored checker scripts through `sync-check.yml` under
-the standard `pull_request` event. Base-context jobs run trusted checkers from
-the base-defined `.github/workflows/immutable-conflict-check.yml` and depend on
-its immutable conflict scan.
+the standard `pull_request` event. The base-defined
+`.github/workflows/immutable-conflict-check.yml` uses one read-only job to scan
+the exact pull request tree and commit metadata with trusted base checkers.
 
 ## Adopting
 
@@ -105,13 +109,14 @@ its immutable conflict scan.
    dependencies unprompted (Rule 4); propose linter configuration and CI setup
    for approval first. Every other lintable rule ships a ready-made, portable
    checker instead (see the Checker reference table below): copy the relevant
-   one(s) into the target repo and point them at that repo's own globs and CI
-   rather than reimplementing from scratch. Propagating each checker, like
+    one(s) into the target repo and point them at that repo's own globs and CI
+    rather than reimplementing from scratch. Propagating each checker, like
    wiring any new CI job, is its own proposal under Rule 9. When writing custom
    CI for these checkers, default to an efficient shape: one job with
    sequential steps per checker group rather than one job per checker, a
    `concurrency: cancel-in-progress` group, and dependency caching once the
-   job installs anything beyond stdlib. A repo that wants the checks
+    job installs anything beyond stdlib. Copy `requirements-checkers.txt` when
+    adopting the YAML-based Rule 11 or Rule 12 checkers. A repo that wants the checks
    unmodified, with no per-repo CI file to maintain, can instead call this
    repo's reusable workflow directly (see Banned agents and Versioning
    below) rather than copying scripts.
@@ -241,6 +246,7 @@ its immutable conflict scan.
 | `check_dockerfile_root.py` | Rule 12 | 1, blocking | |
 | `check_secrets_heuristic.py` | Rule 8 | 1, blocking | heuristic, not entropy-based; propose gitleaks or detect-secrets (Rule 9) for that |
 | `check_conflict_markers.py` | Merge conflicts in tracked files | 1, blocking | scans files for unresolved git conflict markers (`<<<<<<<`, `=======`, `>>>>>>>`) |
+| `check_compliance_tree.py` | Rules 7, 8, 11, 12, branch, commit, identity, banned agents, and merge conflicts | 1, blocking | trusted-base orchestrator for bounded immutable Git object scans; takes `--repo` and `--tree`, with optional pull request metadata |
 | `check_branch_name.py` | Branch naming | 1, blocking | usable as a `pre-push` hook, a `pull_request` CI step, or a Claude Code hook through `hooks/enforce_branch_name.py`; no arguments needed |
 | `check_git_identity.py` | Rule 14 | 1, blocking | no arguments checks the configured identity before a commit; `--unpushed` and `--base`/`--head` apply the allowlist to commit objects; `--advise` adds `gh` and `user.useConfigOnly` notes that never change the exit code |
 | `check_commit_message.py` | Commit-message style | 0, warning only | CI-only, takes `--base`/`--head`; skips merge commits, whose subject git writes; not a drop-in `commit-msg` hook, which receives a message-file path instead |
@@ -249,8 +255,8 @@ its immutable conflict scan.
 
 AGENTS.md contains a banned-agents section (currently xAI/Grok). Instructions
 bind only compliant agents; this template's own pull request CI runs
-`scripts/check_banned_agents.py` from the base-defined
-`.github/workflows/immutable-conflict-check.yml` after the immutable gate,
+`scripts/check_banned_agents.py` through the base-defined immutable orchestrator
+in `.github/workflows/immutable-conflict-check.yml`,
 matching commit author, committer, and
 `Co-authored-by` trailer fields, plus the PR author, against a denylist. It
 cannot catch an agent committing under a human's own identity with no
