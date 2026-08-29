@@ -1,9 +1,14 @@
 # Security Policy
 
-<!-- Per-repo. Fill in every placeholder before committing. Rename to
-     SECURITY.md (drop .example) so GitHub's vulnerability-reporting UI
-     picks it up. Enable private vulnerability reporting under Settings,
-     Security, Private vulnerability reporting. Delete this comment. -->
+<!-- Repository setup
+Complete every placeholder before committing.
+Rename this file to SECURITY.md.
+Drop .example from the file name.
+GitHub displays SECURITY.md in the vulnerability-reporting interface.
+Enable private vulnerability reporting under Settings > Security > Private
+vulnerability reporting.
+Delete this comment.
+-->
 
 ## Supported Versions
 
@@ -14,18 +19,22 @@
 
 ## Scope
 
-In scope: code and configuration in this repository. Third-party
-vulnerabilities caused by this repository's selected version, pin,
-configuration, permissions, or integration also remain in scope. Route
-defects that are purely upstream to the upstream maintainers.
+Scope includes code in this repository. Scope includes configuration in this
+repository. Scope includes third-party vulnerabilities when a selected version
+causes the defect. Scope includes third-party vulnerabilities when a selected
+pin causes the defect. Scope includes third-party vulnerabilities when
+configuration causes the defect. Scope includes third-party vulnerabilities
+when permissions cause the defect. Scope includes third-party vulnerabilities
+when an integration causes the defect. Route purely upstream defects to the
+upstream maintainers.
 
-Out of scope: social engineering and physical attacks.
+Scope excludes social engineering. Scope excludes physical attacks.
 
 ## Reporting a Vulnerability
 
-Report vulnerabilities through GitHub's private vulnerability reporting
-(Security tab, Report a vulnerability). Do not open a public issue for a
-vulnerability report.
+Report vulnerabilities through GitHub private vulnerability reporting. Open
+the Security tab. Select Report a vulnerability. Never open a public issue for
+a vulnerability report.
 
 Response timing: `<acknowledgment target>`.
 
@@ -33,6 +42,7 @@ Remediation target: `<remediation target>`.
 
 ## Disclosure Policy
 
-Use coordinated disclosure with the maintainers. Keep the report private
-until a fix ships or `<disclosure deadline>` passes, whichever comes
-first.
+Coordinate disclosure with the maintainers. Keep the report private before a
+disclosure event. A shipped fix defines one disclosure event. Passage of
+`<disclosure deadline>` defines another disclosure event. Use the earlier
+event.

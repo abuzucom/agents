@@ -1,69 +1,93 @@
 # Drift
 
-The default `scripts/sync.py` operation keeps the AGENTS.md family content
-identical across its eight tool copies after line-ending normalization. Shared
-manifest modes cover the gate files described below. Other files under
-`scripts/`, `hooks/`, and `tests/` are maintained separately after adoption.
+The default `scripts/sync.py` operation normalizes line endings and keeps the
+AGENTS.md family content identical across all eight tool copies. Shared
+manifest modes cover the gate files below. Adopting repositories maintain other
+files under `scripts/`, `hooks/`, and `tests/` separately.
 
 `scripts/sync.py --check-shared` verifies each repository's local shared files
-against that repository's local `shared-files.json`. It does not inspect or
-compare another repository. A change fails only the local check while the local
-file and manifest disagree. It does not automatically fail another repository.
+against the local `shared-files.json`. The command inspects one repository.
+The command limits comparison to local files and the local manifest. A local
+file and manifest mismatch fails the local check. The mismatch leaves checks
+in other repositories unchanged.
 
 Cross-repository equality requires coordinated file and manifest updates in
 every repository that adopted the files. Deliberate differences also require
-the drift records described below. The local manifest check does not enforce
-either coordination or those records.
+the drift records below. The local manifest check enforces local equality
+alone. Repository coordination and drift records remain process requirements.
 
 ## Three categories
 
-| Category | Example | What it requires |
+| Category | Example | Requirement |
 |---|---|---|
-| Expected to differ | settings files, CODEOWNERS, CI workflows, a repo's own checkers | Record it locally. No issue. |
-| Not adopted | a repository that took the branch gate and not the identity gate | Record it locally. No issue. |
-| True drift | the same adopted file differs between repositories | Record it and open an `abuzucom/agents` issue. |
+| Expected to differ | settings files, CODEOWNERS, CI workflows, a repository's own checkers | Record the difference locally. |
+| Not adopted | a repository that took the branch gate and declined the identity gate | Record the adoption status locally. |
+| True drift | the same adopted file differs between repositories | Record true drift and open an `abuzucom/agents` issue. |
 
-Only true drift carries information this template cannot get another way. A
-file the adopter never took, or a settings file that names that repository's
-own hooks, tells the template nothing it should act on.
+Only true drift supplies new template information. A declined file records
+adoption scope. A repository-specific settings file records local hook names.
+Those categories require records without template action.
 
 A not-adopted file can produce a difference in an adopted file. Record the
-cause next to the effect.
+cause beside the effect.
 
 ## Who owns which field
 
 | File | Repository | Owns |
 |---|---|---|
-| `DRIFT.md` | `abuzucom/agents` | This policy. |
-| `adopters/<repo>.md` | `abuzucom/agents` | The adopted-at commit and what that repository took versus declined. |
-| `docs/template-drift.md` | the adopting repository | What differs locally and why. |
+| `DRIFT.md` | `abuzucom/agents` | Drift policy. |
+| `adopters/<repo>.md` | `abuzucom/agents` | Adopted-at commit and taken or declined files. |
+| `docs/template-drift.md` | the adopting repository | Local differences and reasons. |
 
-Do not restate a field outside the file that owns it. Cross-reference another
-record when it has a stable location.
+Keep each field in the owning file. Cross-reference records with stable
+locations.
 
 ## The shared-file manifest
 
 `SHARED_FILES` in `scripts/sync.py` lists files that must retain the same
-line-ending-normalized content. It includes `hooks/_gate_core.py`, both shell gates,
-`hooks/require_consent.py`, `tests/gate_corpus.py`, and both shell gate suites.
+line-ending-normalized content. The list includes `hooks/_gate_core.py`, both
+shell gates, `hooks/require_consent.py`, `tests/gate_corpus.py`, and both shell
+gate suites.
 
-After changing one, coordinate the file update across every repository holding
-it. Run `scripts/sync.py --write-shared` in each repository and commit each
-local manifest. Update the required drift records for deliberate differences.
-Line endings are normalized before hashing, so a Windows checkout does not
-report every file as drift.
+Coordinate each shared-file change across every repository holding the file.
+Run `scripts/sync.py --write-shared` in each repository. Commit each local
+manifest. Update the required drift records for deliberate differences.
+Hashing normalizes line endings before comparison. A Windows checkout therefore
+avoids false drift reports for line endings.
 
 Generic exclusions include repository-specific settings, CI, CODEOWNERS,
 repository-owned checks, declined files, and coverage baselines for suites that
-differ. Record any adopted file excluded because of local changes as true drift
-in the adopter record and the adopting repository's drift record.
+differ. When local changes exclude an adopted file, record true drift in the
+adopter record and the adopting repository's drift record.
+
+## Prose policy bundle
+
+Treat the following files as one adoption bundle:
+
+- `scripts/prose_policy.py`
+- `scripts/prose_bans.txt`
+- `scripts/check_hedging.py`
+- `scripts/check_pull_request_message.py`
+
+`scripts/prose_policy.py` supplies shared prose analysis.
+`scripts/prose_bans.txt` supplies scoped exact vocabulary entries.
+`scripts/check_hedging.py` applies the policy to supplied files.
+`scripts/check_pull_request_message.py` applies the policy to pull request
+titles and descriptions. The pull request checker also uses
+`scripts/check_commit_message.py` for title checks.
+
+New adoption snapshots must take or decline the four prose policy files as one
+unit. Subsequent policy changes require coordinated updates to all adopted
+bundle files. Historical adopter records retain explicit decisions from each
+adoption snapshot. Later bundle files remain outside an adopted snapshot until
+an explicit decision records each status.
 
 ## Opening a drift issue
 
-For true drift, open an issue in `abuzucom/agents`. Name the file, describe the
-change and its reason, link the local drift record, and state whether you
-recommend upstreaming it. The template maintainer adopts or declines it, then
-closes the issue.
+For true drift, open an issue in `abuzucom/agents`. Name the file. Describe the
+change and reason. Link the local drift record. State an upstreaming
+recommendation. The template maintainer adopts or declines the change. The
+template maintainer then closes the issue.
 
 ## Adopters
 
