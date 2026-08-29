@@ -52,7 +52,12 @@ def check_event(path: str | Path) -> int:
             findings.extend(
                 check_commit_message.find_title_violations(title)
             )
-        findings.extend(find_violations(title, "pull_request.title"))
+        findings.extend(
+            find_violations(
+                check_commit_message.mask_type_prefix(title),
+                "pull_request.title",
+            )
+        )
         findings.extend(find_violations(body, "pull_request.body"))
         for message in findings:
             print(message)

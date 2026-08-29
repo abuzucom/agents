@@ -17,6 +17,16 @@ import check_pull_request_message
 class CommitProseTest(unittest.TestCase):
     """Commit subjects and bodies share the prose policy."""
 
+    def test_required_type_prefix_has_no_prose_finding(self):
+        messages = [
+            (
+                "a" * 40,
+                "fix: reject malformed records",
+                "Reject malformed records before persistence.\n",
+            )
+        ]
+        self.assertEqual(check_commit_message.find_message_violations(messages), [])
+
     def test_subject_and_body_findings_remain_advisory(self):
         messages = [
             (
@@ -68,6 +78,26 @@ class PullRequestProseTest(unittest.TestCase):
         self.assertEqual(result, 0)
         self.assertIn("warning", output.getvalue())
         self.assertNotIn(marker, output.getvalue())
+
+    def test_required_title_prefix_has_no_prose_finding(self):
+        event = {
+            "pull_request": {
+                "title": "fix: reject malformed records",
+                "body": "Reject malformed records before persistence.",
+                "draft": True,
+                "user": {"login": "octocat"},
+            }
+        }
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            result = check_pull_request_message.check_event(
+                self._write_event(event)
+            )
+        self.assertEqual(result, 0)
+        self.assertEqual(
+            output.getvalue().strip(),
+            "no pull-request prose findings found",
+        )
 
     def test_null_body_passes(self):
         event = {

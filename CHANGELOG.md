@@ -95,6 +95,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   split prose clauses into complete sentences.
 
 ### Fixed
+- Excluded required commit and pull request type prefixes from generic colon
+  findings. Commit body loading no longer repeats the subject.
 - Hardened `scripts/sync.py` against symlink traversal, repository escapes,
   partial writes, and destination races through path revalidation and atomic
   replacement.

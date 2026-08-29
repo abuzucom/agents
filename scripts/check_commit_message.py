@@ -25,6 +25,7 @@ except ModuleNotFoundError:
     from prose_policy import find_violations as find_prose_violations
 
 SUBJECT_PATTERN = re.compile(r"^(feat|fix|chore|docs|test): \S.*$")
+TYPE_PREFIX_PATTERN = re.compile(r"^(?:feat|fix|chore|docs|test):\s+")
 SQUASH_SUFFIX = re.compile(r" \(#\d+\)$")
 MAX_LENGTH = 50
 MAX_COMMIT_COUNT = 200
@@ -36,6 +37,14 @@ FIELD_SEPARATOR = "\x1f"
 def _strip_squash_suffix(subject: str) -> str:
     """Remove a trailing GitHub squash-merge ` (#123)` suffix, if present."""
     return SQUASH_SUFFIX.sub("", subject)
+
+
+def mask_type_prefix(subject: str) -> str:
+    """Mask a valid metadata prefix while preserving diagnostic columns."""
+    match = TYPE_PREFIX_PATTERN.match(subject)
+    if not match:
+        return subject
+    return " " * match.end() + subject[match.end():]
 
 
 def find_violations(subjects: list[tuple[str, str]]) -> list[str]:
@@ -90,7 +99,10 @@ def find_message_prose_violations(
     for sha, subject, body in messages:
         short_sha = sha[:12]
         findings.extend(
-            find_prose_violations(subject, f"commit.{short_sha}.subject")
+            find_prose_violations(
+                mask_type_prefix(subject),
+                f"commit.{short_sha}.subject",
+            )
         )
         findings.extend(
             find_prose_violations(body, f"commit.{short_sha}.body")
@@ -161,7 +173,7 @@ def load_commit_messages(
             "--no-merges",
             "--no-ext-diff",
             f"--max-count={MAX_COMMIT_COUNT}",
-            f"--format=%H{FIELD_SEPARATOR}%s{FIELD_SEPARATOR}%B{RECORD_SEPARATOR}",
+            f"--format=%H{FIELD_SEPARATOR}%s{FIELD_SEPARATOR}%b{RECORD_SEPARATOR}",
             "--end-of-options",
             f"{base}..{head}",
         ],
