@@ -57,11 +57,14 @@ jobs:
       - name: Run style lint
         run: python scripts/lint_style.py
       - name: Check American spelling (warning only)
-        run: python scripts/check_us_spelling.py AGENTS.md plan/HANDOFF.md.example SECURITY.md.example CONTRIBUTING.md.example .github/PULL_REQUEST_TEMPLATE.md .github/ISSUE_TEMPLATE.md
+        run: python scripts/check_us_spelling.py AGENTS.md README.md CHANGELOG.md DRIFT.md docs/gate-threat-model.md adopters/1a2n-web-visualizer.md plan/HANDOFF.md.example SECURITY.md.example CONTRIBUTING.md.example .github/PULL_REQUEST_TEMPLATE.md .github/ISSUE_TEMPLATE.md
       - name: Check English only (warning only)
-        run: python scripts/check_english_only.py AGENTS.md plan/HANDOFF.md.example SECURITY.md.example CONTRIBUTING.md.example .github/PULL_REQUEST_TEMPLATE.md .github/ISSUE_TEMPLATE.md
-      - name: Check for hedging and fluff (warning only)
-        run: python scripts/check_hedging.py AGENTS.md plan/HANDOFF.md.example SECURITY.md.example CONTRIBUTING.md.example .github/PULL_REQUEST_TEMPLATE.md .github/ISSUE_TEMPLATE.md
+        run: python scripts/check_english_only.py AGENTS.md README.md CHANGELOG.md DRIFT.md docs/gate-threat-model.md adopters/1a2n-web-visualizer.md plan/HANDOFF.md.example SECURITY.md.example CONTRIBUTING.md.example .github/PULL_REQUEST_TEMPLATE.md .github/ISSUE_TEMPLATE.md
+      - name: Check prose policy (warning only)
+        run: python scripts/check_hedging.py AGENTS.md README.md CHANGELOG.md DRIFT.md docs/gate-threat-model.md adopters/1a2n-web-visualizer.md plan/HANDOFF.md.example SECURITY.md.example CONTRIBUTING.md.example .github/PULL_REQUEST_TEMPLATE.md .github/ISSUE_TEMPLATE.md
+      - name: Check pull request prose (warning only)
+        if: github.event_name == 'pull_request'
+        run: python scripts/check_pull_request_message.py
       - name: Check dashes and ASCII in template files
         run: python scripts/check_ascii.py plan/HANDOFF.md.example SECURITY.md.example CONTRIBUTING.md.example .github/PULL_REQUEST_TEMPLATE.md .github/ISSUE_TEMPLATE.md
       - name: Check worktree conflict markers (ordinary test)

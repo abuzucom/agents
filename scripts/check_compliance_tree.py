@@ -662,7 +662,8 @@ def _scan_metadata(
         ["--end-of-options", f"{base}..{head}"], repo)
     violations.extend(identity.find_violations(identities))
     messages = checkers["check_commit_message"]
-    warnings = messages.find_violations(messages.load_commits(base, head, repo))
+    commit_messages = messages.load_commit_messages(base, head, repo)
+    warnings = messages.find_message_violations(commit_messages)
     for warning in warnings:
         print(_sanitize(warning))
     return violations

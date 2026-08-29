@@ -40,7 +40,7 @@ repos:
         entry: python -m unittest discover -s tests
         language: python
         additional_dependencies: [PyYAML==6.0.3]
-        files: ^(hooks/.*\.py|tests/.*\.py|\.claude/settings\.json|\.github/workflows/.*\.ya?ml|scripts/(sync|trusted_git|check_(banned_agents|branch_name|commit_message|compliance_tree|dockerfile_root|git_identity|persist_credentials|secrets_heuristic|weak_hashing))\.py)$
+        files: ^(hooks/.*\.py|tests/.*\.py|\.claude/settings\.json|\.github/workflows/.*\.ya?ml|scripts/(sync|trusted_git|prose_policy|check_(banned_agents|branch_name|commit_message|compliance_tree|dockerfile_root|git_identity|hedging|persist_credentials|pull_request_message|secrets_heuristic|weak_hashing))\.py|scripts/prose_bans\.txt)$
         pass_filenames: false
       - id: check-git-identity
         name: Check git identity (Rule 14)
