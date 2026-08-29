@@ -117,6 +117,7 @@ pronouns, common passive forms, clause joins, punctuation chains, rhetorical
 contrast, discourse patterns, and exact vocabulary from
 `scripts/prose_bans.txt`. Markdown code masking excludes code from prose
 patterns. Exact vocabulary checks still inspect code spans and fenced code.
+Neutral-object forms such as `it`, `its`, and `itself` remain allowed.
 
 Commit checks inspect bounded non-merge subjects and bodies. Subject checks
 require `type: description`, a 50-character maximum, and no trailing period.

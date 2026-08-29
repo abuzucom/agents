@@ -805,7 +805,8 @@ Present incomplete work to an active human instead.
 **Impersonal active voice.** Use active voice. Omit first-person,
 second-person, and third-person personal pronouns. Name the actor or artifact
 when a sentence needs a subject. Use imperative sentences for instructions.
-Never use passive voice. Applies to all agent-authored prose.
+Allow `it`, `its`, `itself`, `it's`, `it'll`, and `it'd`. Never use passive
+voice. Applies to all agent-authored prose.
 
 Bad: `I updated the parser and sent you the results.`
 Good: `The parser now rejects empty input. The report contains the results.`

@@ -70,8 +70,12 @@ class VoiceTest(unittest.TestCase):
 
     def test_personal_pronouns_share_one_category(self):
         found = findings("I sent your report after they approved it.\n")
-        self.assertEqual(len(found), 4)
+        self.assertEqual(len(found), 3)
         self.assertTrue(all("personal pronoun" in item for item in found))
+
+    def test_neutral_object_pronouns_pass(self):
+        text = "It stores its state by itself. It's stable. It'll persist. It'd recover.\n"
+        self.assertEqual(findings(text), [])
 
     def test_pronouns_inside_examples_pass(self):
         text = "Bad: `I sent your report after they approved it.`\n"

@@ -20,14 +20,12 @@ PERSONAL_PRONOUNS = (
     "you", "your", "yours", "yourself", "yourselves",
     "he", "him", "his", "himself",
     "she", "her", "hers", "herself",
-    "it", "its", "itself",
     "they", "them", "their", "theirs", "themselves",
     "i'm", "i've", "i'll", "i'd",
     "we're", "we've", "we'll", "we'd",
     "you're", "you've", "you'll", "you'd",
     "he's", "he'll", "he'd",
     "she's", "she'll", "she'd",
-    "it's", "it'll", "it'd",
     "they're", "they've", "they'll", "they'd",
 )
 

@@ -49,6 +49,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   workflow trust boundaries.
 
 ### Changed
+- Allowed `it`, `its`, `itself`, `it's`, `it'll`, and `it'd` in advisory
+  personal-pronoun analysis.
 - Consolidated personal-pronoun, active-voice, sentence-form, discourse, and
   controlled-vocabulary rules in `AGENTS.md`. The policy now favors direct
   factual prose and one independent clause per sentence.
