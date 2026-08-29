@@ -1,11 +1,11 @@
 # Adopter: 1a2n-web-visualizer
 
-See [`../DRIFT.md`](../DRIFT.md) for policy and the adopter's
-`docs/template-drift.md` for local differences.
+See [`../DRIFT.md`](../DRIFT.md) for policy. The adopter's
+`docs/template-drift.md` records local differences.
 
 ## Adopted at
 
-Template commit `104b611`, mirrored in adopter commit `278f249`.
+Adopter commit `278f249` mirrors template commit `104b611`.
 
 ## Taken
 
@@ -27,8 +27,8 @@ Template commit `104b611`, mirrored in adopter commit `278f249`.
 
 ## Current drift
 
-- `hooks/claude-code-settings.example.json` lists only the hooks the adopter
-  runs.
+- `hooks/claude-code-settings.example.json` lists only the hooks in use at the
+  adopter.
 - `tests/test_require_consent.py` carries wiring assertions from the declined
   branch-name hook suite.
 
@@ -40,8 +40,20 @@ Template commit `104b611`, mirrored in adopter commit `278f249`.
   adopter enforces branch names in CI.
 - `scripts/check_hedging.py`
 
-## Held only by the adopter
+## Later prose support files
+
+The `scripts/check_hedging.py` decline remains the explicit prose-check
+decision for the adopted snapshot. The current bundle in
+[`../DRIFT.md`](../DRIFT.md) includes later support files. The following files
+remain outside the adopted snapshot. An explicit decision must record status
+for each file:
+
+- `scripts/prose_policy.py`
+- `scripts/prose_bans.txt`
+- `scripts/check_pull_request_message.py`
+
+## Adopter-only files
 
 - `scripts/check_action_pins.py`
-- `scripts/check_protected_files.py`, whose template adoption was declined
+- `scripts/check_protected_files.py`. The adopter declined template adoption.
 - `scripts/jira_sync.py`

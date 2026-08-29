@@ -1,13 +1,14 @@
 ## Issue
 
-<!-- Do not include vulnerability details in a public issue. Use the
-     repository's private security-reporting channel. -->
+<!-- Never include vulnerability details in a public issue. Use the private
+security-reporting channel for this repository. -->
 
 <!-- Describe the bug or proposal. -->
 
 ## Expected Behavior or Outcome
 
-<!-- For a bug, state what should happen. For a proposal, state the desired outcome and rationale. -->
+<!-- For a bug, state the expected behavior. For a proposal, state the desired
+outcome. Explain the rationale in a separate sentence. -->
 
 ## Steps to Reproduce (bugs only)
 
@@ -19,4 +20,4 @@
 
 ## Proposal Verification (proposals only)
 
-<!-- How can maintainers verify that the proposal succeeds? -->
+<!-- Describe a maintainer verification method for the proposal. -->

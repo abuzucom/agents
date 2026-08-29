@@ -19,17 +19,32 @@ import sys
 
 try:
     from scripts.trusted_git import run_git
+    from scripts.prose_policy import find_violations as find_prose_violations
 except ModuleNotFoundError:
     from trusted_git import run_git
+    from prose_policy import find_violations as find_prose_violations
 
 SUBJECT_PATTERN = re.compile(r"^(feat|fix|chore|docs|test): \S.*$")
+TYPE_PREFIX_PATTERN = re.compile(r"^(?:feat|fix|chore|docs|test):\s+")
 SQUASH_SUFFIX = re.compile(r" \(#\d+\)$")
 MAX_LENGTH = 50
+MAX_COMMIT_COUNT = 200
+MAX_METADATA_BYTES = 4 * 1024 * 1024
+RECORD_SEPARATOR = "\x1e"
+FIELD_SEPARATOR = "\x1f"
 
 
 def _strip_squash_suffix(subject: str) -> str:
     """Remove a trailing GitHub squash-merge ` (#123)` suffix, if present."""
     return SQUASH_SUFFIX.sub("", subject)
+
+
+def mask_type_prefix(subject: str) -> str:
+    """Mask a valid metadata prefix while preserving diagnostic columns."""
+    match = TYPE_PREFIX_PATTERN.match(subject)
+    if not match:
+        return subject
+    return " " * match.end() + subject[match.end():]
 
 
 def find_violations(subjects: list[tuple[str, str]]) -> list[str]:
@@ -56,6 +71,62 @@ def find_violations(subjects: list[tuple[str, str]]) -> list[str]:
         if subject.endswith("."):
             violations.append(f"warning: {prefix}subject '{raw_subject}' ends with a period")
     return violations
+
+
+def find_title_violations(subject: str) -> list[str]:
+    """Return sanitized title-format warnings for pull request metadata."""
+    title = _strip_squash_suffix(subject)
+    findings = []
+    if not SUBJECT_PATTERN.match(title):
+        findings.append(
+            "warning: pull_request.title: title format must use "
+            "'type: description'"
+        )
+        return findings
+    if len(title) > MAX_LENGTH:
+        findings.append(
+            f"warning: pull_request.title: title exceeds {MAX_LENGTH} characters"
+        )
+    if title.endswith("."):
+        findings.append("warning: pull_request.title: title ends with a period")
+    return findings
+
+
+def find_message_prose_violations(
+        messages: list[tuple[str, str, str]]) -> list[str]:
+    """Return sanitized prose findings for commit subjects and bodies."""
+    findings = []
+    for sha, subject, body in messages:
+        short_sha = sha[:12]
+        findings.extend(
+            find_prose_violations(
+                mask_type_prefix(subject),
+                f"commit.{short_sha}.subject",
+            )
+        )
+        findings.extend(
+            find_prose_violations(body, f"commit.{short_sha}.body")
+        )
+    return findings
+
+
+def check_messages(messages: list[tuple[str, str, str]]) -> int:
+    """Print format and prose findings for supplied commit messages."""
+    findings = find_message_violations(messages)
+    for message in findings:
+        print(message)
+    if not findings:
+        print("no commit-message violations found")
+    return 0
+
+
+def find_message_violations(
+        messages: list[tuple[str, str, str]]) -> list[str]:
+    """Return format and prose findings for full commit messages."""
+    subjects = [(sha, subject) for sha, subject, _body in messages]
+    findings = find_violations(subjects)
+    findings.extend(find_message_prose_violations(messages))
+    return findings
 
 
 def load_commits(base: str, head: str, repo=None) -> list[tuple[str, str]]:
@@ -91,15 +162,41 @@ def load_commits(base: str, head: str, repo=None) -> list[tuple[str, str]]:
     return commits
 
 
+def load_commit_messages(
+        base: str, head: str, repo=None) -> list[tuple[str, str, str]]:
+    """Collect bounded full commit messages for one validated range."""
+    repository = repo or os.getcwd()
+    result = run_git(
+        repository,
+        [
+            "log",
+            "--no-merges",
+            "--no-ext-diff",
+            f"--max-count={MAX_COMMIT_COUNT}",
+            f"--format=%H{FIELD_SEPARATOR}%s{FIELD_SEPARATOR}%b{RECORD_SEPARATOR}",
+            "--end-of-options",
+            f"{base}..{head}",
+        ],
+        check=True,
+        runner=subprocess.run,
+    )
+    if len(result.stdout.encode("utf-8")) > MAX_METADATA_BYTES:
+        raise ValueError("git log returned excessive commit metadata")
+    messages = []
+    for raw_record in result.stdout.split(RECORD_SEPARATOR):
+        record = raw_record.strip("\r\n")
+        if not record:
+            continue
+        fields = record.split(FIELD_SEPARATOR)
+        if len(fields) != 3 or not re.fullmatch(r"[0-9a-fA-F]{40,64}", fields[0]):
+            raise ValueError("git log returned malformed commit metadata")
+        messages.append((fields[0], fields[1], fields[2]))
+    return messages
+
+
 def check(base: str, head: str, repo=None) -> int:
     """Warn on violations in the base..head commit range. Always returns 0."""
-    violations = find_violations(load_commits(base, head, repo))
-    if violations:
-        for message in violations:
-            print(message)
-    else:
-        print("no commit-message violations found")
-    return 0
+    return check_messages(load_commit_messages(base, head, repo))
 
 
 def main() -> int:
