@@ -50,7 +50,7 @@ COLON_CLAUSE_PATTERN = re.compile(
     re.IGNORECASE,
 )
 INLINE_ENUMERATION_PATTERN = re.compile(
-    r":[^\n.!?]*(?:,[^\n.!?]*){2,}\s+(?:and|or)\b[^\n.!?]*[.!?]",
+    r":[^\n.!?,]*(?:,[^\n.!?,]*){2,}\s+(?:and|or)\b[^\n.!?]*[.!?]",
     re.IGNORECASE,
 )
 RHETORICAL_PATTERNS = (

@@ -1,10 +1,15 @@
 #!/usr/bin/env python3
 """Cover consolidated prose policy checks and category ownership."""
+import subprocess
 import sys
 import unittest
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
+ROOT = Path(__file__).resolve().parent.parent
+REDOS_TIMEOUT_SECONDS = 5
+REDOS_TOKEN_COUNT = 28
+
+sys.path.insert(0, str(ROOT / "scripts"))
 import prose_policy
 
 
@@ -123,6 +128,26 @@ class SentenceFormTest(unittest.TestCase):
 
     def test_shared_subject_predicate_passes(self):
         self.assertEqual(findings("The checker reads files and reports warnings.\n"), [])
+
+    def test_inline_enumeration_warns(self):
+        found = findings("Values: alpha, beta, and gamma.\n")
+        self.assertEqual(len(found), 1)
+        self.assertIn("punctuation chain", found[0])
+
+    def test_inline_enumeration_rejects_pathological_input_quickly(self):
+        script = (
+            "from scripts.prose_policy import find_violations\n"
+            f"text = 'Values: ' + ', '.join(['token'] * {REDOS_TOKEN_COUNT}) + '.\\n'\n"
+            "find_violations(text, 'sample.md')\n"
+        )
+        subprocess.run(
+            [sys.executable, "-c", script],
+            cwd=ROOT,
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=REDOS_TIMEOUT_SECONDS,
+        )
 
 
 class DiscourseTest(unittest.TestCase):
