@@ -32,6 +32,7 @@ SHARED_FILES = [
     "hooks/_gate_core.py",
     "hooks/block_destructive_bash.py",
     "hooks/block_destructive_powershell.py",
+    "hooks/reinject_agents_policy.py",
     "hooks/require_consent.py",
     "tests/gate_corpus.py",
     "tests/test_block_destructive_bash.py",

@@ -12,6 +12,14 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ## [Unreleased]
 
 ### Added
+- Added complete `AGENTS.md` lifecycle reinjection for Claude, Codex, Gemini,
+  and Antigravity project clients. Claude preserves built-in Explore and Plan
+  through bounded numbered chunks. Gemini and Antigravity inject the complete
+  policy before every model invocation.
+- Added strict cross-client branch preflight before every observable tool.
+  Exact recovery commands and active-human questions remain available.
+- Added regression coverage for lifecycle output, client wiring, strict branch
+  recovery, and the trusted Dependabot automation exception.
 - Added `scripts/prose_policy.py` for shared advisory prose analysis across
   authored files, commit subjects, commit bodies, pull request titles, and pull
   request bodies.
@@ -49,6 +57,12 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   workflow trust boundaries.
 
 ### Changed
+- Limited hook coverage instrumentation to hook source files. Supported
+  runtimes use local `sys.monitoring` events when the coverage tool slot remains
+  available. Other runtimes retain a scoped `sys.settrace` fallback.
+- Kept primary and detached exemptions in ordinary branch checking. Added
+  `--strict-agent-preflight` for interactive agent hooks. Immutable compliance
+  now preserves Dependabot branch names through trusted PR author metadata.
 - Allowed `it`, `its`, `itself`, `it's`, `it'll`, and `it'd` in advisory
   personal-pronoun analysis.
 - Consolidated personal-pronoun, active-voice, sentence-form, discourse, and
