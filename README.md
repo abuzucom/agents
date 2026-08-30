@@ -265,7 +265,8 @@ tooling under Rule 9. Obtain active-human approval before adding tooling.
     `hooks/reinject_agents_policy.py`. Copy the applicable `.claude/`,
     `.codex/`, `.gemini/`, or `.agents/` configuration. Preserve client wiring
     assertions in `tests/test_reinject_agents_policy.py`. Project hooks require
-    client trust and remain writable inside the repository.
+    client trust and remain writable inside the repository. Antigravity resolves
+    command paths from `.agents/`. Keep the `../hooks/` path prefix.
 
 ## Checker Reference
 

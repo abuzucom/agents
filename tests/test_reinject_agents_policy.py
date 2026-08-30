@@ -3,6 +3,7 @@
 import importlib.util
 import json
 import os
+import shlex
 import subprocess
 import sys
 import unittest
@@ -32,6 +33,24 @@ def run_hook(client: str, payload: dict, *arguments: str) -> subprocess.Complete
     environment["GEMINI_PROJECT_DIR"] = str(REPO_ROOT)
     return subprocess.run(
         [sys.executable, str(HOOK_PATH), "--client", client, *arguments],
+        input=json.dumps(payload),
+        capture_output=True,
+        text=True,
+        env=environment,
+        check=False,
+    )
+
+
+def run_configured_command(command: str, payload: dict) -> subprocess.CompletedProcess:
+    """Run one Antigravity command from its configuration directory."""
+    arguments = shlex.split(command)
+    if arguments and arguments[0] == "python":
+        arguments[0] = sys.executable
+    environment = dict(os.environ)
+    environment["GITHUB_HEAD_REF"] = "feat/valid-branch"
+    return subprocess.run(
+        arguments,
+        cwd=ANTIGRAVITY_HOOKS.parent,
         input=json.dumps(payload),
         capture_output=True,
         text=True,
@@ -115,6 +134,34 @@ class LifecycleWiringTest(unittest.TestCase):
         policy = settings["agents-policy"]
         self.assertIn("PreInvocation", policy)
         self.assertIn("PreToolUse", policy)
+
+    def test_antigravity_commands_launch_from_config_directory(self):
+        settings = json.loads(ANTIGRAVITY_HOOKS.read_text(encoding="utf-8"))
+        policy = settings["agents-policy"]
+        cases = (
+            (
+                policy["PreInvocation"][0]["command"],
+                {
+                    "conversationId": "test-conversation",
+                    "workspacePaths": [str(REPO_ROOT)],
+                    "invocationNum": 0,
+                },
+            ),
+            (
+                policy["PreToolUse"][0]["hooks"][0]["command"],
+                {
+                    "toolCall": {
+                        "name": "view_file",
+                        "args": {"AbsolutePath": "README.md"},
+                    },
+                    "workspacePaths": [str(REPO_ROOT)],
+                },
+            ),
+        )
+        for command, payload in cases:
+            with self.subTest(command=command):
+                result = run_configured_command(command, payload)
+                self.assertEqual(result.returncode, 0, result.stderr)
 
 
 if __name__ == "__main__":

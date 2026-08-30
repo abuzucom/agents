@@ -111,6 +111,9 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   split prose clauses into complete sentences.
 
 ### Fixed
+- Resolved Antigravity hook commands from the `.agents/` configuration
+  directory. Both lifecycle reinjection and strict branch recovery now reach
+  the canonical root hooks.
 - Made inline-enumeration matching linear by excluding commas from repeated
   non-comma segments.
 - Excluded required commit and pull request type prefixes from generic colon
