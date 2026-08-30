@@ -642,12 +642,13 @@ def _scan_tree(
 def _scan_metadata(
     values: dict[str, str], repo: Path, checkers: dict[str, ModuleType],
 ) -> list[str]:
-    """Run trusted commit and branch checks when workflow metadata is given."""
+    """Run trusted commit and branch checks for workflow metadata."""
     banned = checkers["check_banned_agents"]
     violations = banned.find_violations(
         [], values.get("--pr-author", ""))
     branch = values.get("--branch", "")
-    if branch:
+    author = values.get("--pr-author", "")
+    if branch and author != "dependabot[bot]":
         violations.extend(
             checkers["check_branch_name"].find_violations(branch))
     base = values.get("--base", "")
