@@ -2,7 +2,18 @@
   "hooks": {
     "SessionStart": [
       {
+        "matcher": "startup|resume|clear|compact|fork",
         "hooks": [
+          {
+            "type": "command",
+            "command": "python",
+            "args": [
+              "${CLAUDE_PROJECT_DIR}/hooks/reinject_agents_policy.py",
+              "--client",
+              "claude"
+            ],
+            "timeout": 30
+          },
           {
             "type": "command",
             "command": "python",
@@ -30,7 +41,77 @@
         ]
       }
     ],
+    "SubagentStart": [
+      {
+        "matcher": "Explore|Plan",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python",
+            "args": ["${CLAUDE_PROJECT_DIR}/hooks/reinject_agents_policy.py", "--client", "claude", "--chunk-index", "0"],
+            "timeout": 30
+          },
+          {
+            "type": "command",
+            "command": "python",
+            "args": ["${CLAUDE_PROJECT_DIR}/hooks/reinject_agents_policy.py", "--client", "claude", "--chunk-index", "1"],
+            "timeout": 30
+          },
+          {
+            "type": "command",
+            "command": "python",
+            "args": ["${CLAUDE_PROJECT_DIR}/hooks/reinject_agents_policy.py", "--client", "claude", "--chunk-index", "2"],
+            "timeout": 30
+          },
+          {
+            "type": "command",
+            "command": "python",
+            "args": ["${CLAUDE_PROJECT_DIR}/hooks/reinject_agents_policy.py", "--client", "claude", "--chunk-index", "3"],
+            "timeout": 30
+          },
+          {
+            "type": "command",
+            "command": "python",
+            "args": ["${CLAUDE_PROJECT_DIR}/hooks/reinject_agents_policy.py", "--client", "claude", "--chunk-index", "4"],
+            "timeout": 30
+          },
+          {
+            "type": "command",
+            "command": "python",
+            "args": ["${CLAUDE_PROJECT_DIR}/hooks/reinject_agents_policy.py", "--client", "claude", "--chunk-index", "5"],
+            "timeout": 30
+          },
+          {
+            "type": "command",
+            "command": "python",
+            "args": ["${CLAUDE_PROJECT_DIR}/hooks/reinject_agents_policy.py", "--client", "claude", "--chunk-index", "6"],
+            "timeout": 30
+          },
+          {
+            "type": "command",
+            "command": "python",
+            "args": ["${CLAUDE_PROJECT_DIR}/hooks/reinject_agents_policy.py", "--client", "claude", "--chunk-index", "7"],
+            "timeout": 30
+          }
+        ]
+      }
+    ],
     "PreToolUse": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python",
+            "args": [
+              "${CLAUDE_PROJECT_DIR}/hooks/enforce_branch_name.py",
+              "--client",
+              "claude"
+            ],
+            "timeout": 30
+          }
+        ]
+      },
       {
         "matcher": "Bash",
         "hooks": [
@@ -39,14 +120,6 @@
             "command": "python",
             "args": [
               "${CLAUDE_PROJECT_DIR}/hooks/block_destructive_bash.py"
-            ],
-            "timeout": 30
-          },
-          {
-            "type": "command",
-            "command": "python",
-            "args": [
-              "${CLAUDE_PROJECT_DIR}/hooks/enforce_branch_name.py"
             ],
             "timeout": 30
           },
