@@ -256,7 +256,7 @@ def _handle_invalid_branch(payload: dict, project_dir: str,
             branch = current_branch(project_dir)
         except (OSError, UnicodeDecodeError, ValueError):
             branch = ""
-        if _valid_recovery(command, branch):
+        if branch and _valid_recovery(command, branch):
             return 0
     recovery = "git switch -c" if branch in ("main", "master", "HEAD") else "git branch -m"
     return _deny(

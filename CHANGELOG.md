@@ -20,6 +20,9 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   Exact recovery commands and active-human questions remain available.
 - Added regression coverage for lifecycle output, client wiring, strict branch
   recovery, and the trusted Dependabot automation exception.
+- Added lifecycle validation coverage for malformed payloads, policy bounds,
+  client dispatch, and chunk limits. Added strict branch coverage for Git
+  metadata files and alternate tool schemas.
 - Added `scripts/prose_policy.py` for shared advisory prose analysis across
   authored files, commit subjects, commit bodies, pull request titles, and pull
   request bodies.
@@ -57,6 +60,11 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   workflow trust boundaries.
 
 ### Changed
+- Made hook coverage run test classes through four bounded workers. The checker
+  now reports starts, results, 30-second heartbeats, and 300-second per-class
+  timeouts. A timeout terminates the affected test process tree.
+- Denied branch recovery commands when unreadable Git metadata prevents current
+  branch identification.
 - Limited hook coverage instrumentation to hook source files. Supported
   runtimes use local `sys.monitoring` events when the coverage tool slot remains
   available. Other runtimes retain a scoped `sys.settrace` fallback.

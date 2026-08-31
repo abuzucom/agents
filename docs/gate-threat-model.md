@@ -195,6 +195,10 @@ reason.
   real devices or mounts.
 - `read_payload`, `resolved_under`, and `sanitize` retain defensive exceptions
   and direct-caller bounds. Hook entry points reject those states earlier.
+- `current_branch` retains the post-resolution containment check for a replaced
+  or linked `.git/HEAD`. A portable test cannot create that filesystem race.
+- `load_policy` retains the post-read size check for policy growth after
+  `lstat`. A deterministic test cannot create that filesystem race.
 - The consent entries retain cross-drive path handling, absent path fields, and
   the top-level exception boundary. Narrow OS-boundary tests cover out-of-tree
   paths and open errors. The tests also cover the hard-link budget and ordinary
@@ -205,6 +209,10 @@ CI runs `scripts/check_hook_coverage.py`. The script compares the run against
 above a function. The script fails when a function gains unreached statements.
 Such statements represent new code outside test coverage. The script also fails
 when a function loses unreached statements. Such a loss marks a stale baseline.
+The checker runs each test class in a separate process. Up to four workers run
+concurrently. Start notices, completion notices, and 30-second heartbeats expose
+progress. A 300-second per-class timeout terminates that process tree and fails
+the check. Coverage comparison starts only after every worker succeeds.
 
 Every baseline entry requires a reason in this document. An unexplained entry
 represents untested code. A recorded exception requires an explanation.

@@ -6,8 +6,11 @@ import os
 import shlex
 import subprocess
 import sys
+import tempfile
 import unittest
+from argparse import Namespace
 from pathlib import Path
+from unittest.mock import patch
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 HOOK_PATH = REPO_ROOT / "hooks" / "reinject_agents_policy.py"
@@ -105,6 +108,119 @@ class PolicyContentTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         message = json.loads(result.stdout)["injectSteps"][0]["ephemeralMessage"]
         self.assertTrue(message.endswith(self.policy))
+
+    def test_claude_emits_session_context_and_numbered_chunks(self):
+        session = run_hook("claude", {"hook_event_name": "SessionStart"})
+        self.assertEqual(session.returncode, 0, session.stderr)
+        session_output = json.loads(session.stdout)["hookSpecificOutput"]
+        self.assertEqual(session_output["hookEventName"], "SessionStart")
+        self.assertIn("SHA-256", session_output["additionalContext"])
+
+        subagent = run_hook(
+            "claude", {"hook_event_name": "SubagentStart"},
+            "--chunk-index", "0")
+        self.assertEqual(subagent.returncode, 0, subagent.stderr)
+        context = json.loads(subagent.stdout)["hookSpecificOutput"]
+        self.assertIn("CHUNK 1/8", context["additionalContext"])
+
+    def test_gemini_session_receives_complete_policy(self):
+        payload = {"hook_event_name": "SessionStart", "cwd": str(REPO_ROOT)}
+        result = run_hook("gemini", payload)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        context = json.loads(result.stdout)["hookSpecificOutput"]
+        self.assertTrue(context["additionalContext"].endswith(self.policy))
+
+
+class PolicyValidationTest(unittest.TestCase):
+    """Malformed roots, files, payloads, and chunk requests fail closed."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.hook = load_hook_module()
+
+    def make_project(self, policy: bytes = b"policy\n") -> Path:
+        """Create a temporary project with synchronized policy copies."""
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        root = Path(directory.name)
+        (root / ".git").mkdir()
+        (root / "AGENTS.md").write_bytes(policy)
+        (root / "CLAUDE.md").write_bytes(policy)
+        return root
+
+    def test_root_search_rejects_files_and_missing_projects(self):
+        root = self.make_project()
+        nested = root / "nested"
+        nested.mkdir()
+        self.assertEqual(self.hook.find_project_root(str(nested)), root)
+        with self.assertRaises(ValueError):
+            self.hook.find_project_root(str(root / "AGENTS.md"))
+
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        with self.assertRaises(ValueError):
+            self.hook.find_project_root(directory.name)
+
+    def test_client_root_validation_rejects_missing_locations(self):
+        with self.assertRaises(ValueError):
+            self.hook.project_root("antigravity", {"workspacePaths": []})
+        with self.assertRaises(ValueError):
+            self.hook.project_root("codex", {"cwd": ""})
+
+    def test_policy_validation_rejects_size_and_encoding(self):
+        oversized = self.make_project(
+            b"x" * (self.hook.MAX_POLICY_BYTES + 1))
+        with self.assertRaises(ValueError):
+            self.hook.load_policy(oversized)
+        non_ascii = self.make_project(b"\xc3\xa9\n")
+        with self.assertRaises(UnicodeEncodeError):
+            self.hook.load_policy(non_ascii)
+
+    def test_chunk_validation_rejects_invalid_policy_shapes(self):
+        long_line = "x" * (self.hook.MAX_CHUNK_CHARS + 1)
+        with self.assertRaises(ValueError):
+            self.hook.split_policy(long_line, self.hook.CLAUDE_CHUNK_COUNT)
+        two_chunks = ("x" * 5000 + "\n") * 2
+        with self.assertRaises(ValueError):
+            self.hook.split_policy(two_chunks, 1)
+
+    def test_claude_rejects_an_unsynchronized_policy_copy(self):
+        root = self.make_project()
+        (root / "CLAUDE.md").write_text("different\n", encoding="utf-8")
+        args = Namespace(client="claude", chunk_index=0)
+        with patch.dict(os.environ, {"CLAUDE_PROJECT_DIR": ""}):
+            with self.assertRaises(ValueError):
+                self.hook.run_hook(args, {"cwd": str(root)})
+
+    def test_cli_rejects_malformed_json(self):
+        result = subprocess.run(
+            [sys.executable, str(HOOK_PATH), "--client", "codex"],
+            input="{", capture_output=True, text=True, check=False)
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("Restore readable AGENTS.md", result.stderr)
+
+    def test_cli_rejects_non_object_payload(self):
+        result = subprocess.run(
+            [sys.executable, str(HOOK_PATH), "--client", "codex"],
+            input="[]", capture_output=True, text=True, check=False)
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("payload is not an object", result.stderr)
+
+    def test_claude_rejects_an_invalid_chunk_index(self):
+        payload = {"hook_event_name": "SubagentStart"}
+        result = run_hook("claude", payload, "--chunk-index", "8")
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("chunk index is outside", result.stderr)
+
+    def test_gemini_rejects_malformed_model_messages(self):
+        payload = {
+            "hook_event_name": "BeforeModel",
+            "cwd": str(REPO_ROOT),
+            "llm_request": {"messages": "invalid"},
+        }
+        result = run_hook("gemini", payload)
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("malformed messages", result.stderr)
 
 
 class LifecycleWiringTest(unittest.TestCase):
