@@ -235,9 +235,10 @@ tooling under Rule 9. Obtain active-human approval before adding tooling.
      refreshed manifest. Adapt `SHARED_FILES` and the manifest under the same
      approval process when an adopter has an approved subset.
 16. Adopt hook coverage with `scripts/check_hook_coverage.py`,
-     `tools/hook-trace/sitecustomize.py`, and
-     `hook-coverage-baseline.json`. After the adopted hook tests pass, create
-     the initial baseline as a non-root user with
+      `tools/hook-trace/sitecustomize.py`, and
+      `hook-coverage-baseline.json`. Copy `tests/test_hook_coverage_runner.py`
+      with the runner. After the adopted hook tests pass, create the initial
+      baseline as a non-root user with
      `python scripts/check_hook_coverage.py --write-baseline`. Review and
      document each recorded limit. Run
      `python scripts/check_hook_coverage.py` in CI.
@@ -301,7 +302,10 @@ skips merge commits. The commit checker does not implement a `commit-msg` hook.
 `check_hook_coverage.py --write-baseline` creates or refreshes
 `hook-coverage-baseline.json`. Python 3.12 and newer use local
 `sys.monitoring` events when the coverage tool slot remains available. Other
-runtimes use a target-scoped `sys.settrace` fallback.
+runtimes use a target-scoped `sys.settrace` fallback. The checker runs up to
+four test classes concurrently. It reports class starts, class results, and
+30-second progress heartbeats. Each class has a 300-second timeout. A timeout
+terminates its test process tree and fails the check.
 `check_secrets_heuristic.py` is not an entropy-based scanner.
 `check_english_only.py` and `check_hedging.py` use keyword heuristics rather
 than language models.
