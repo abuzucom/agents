@@ -12,6 +12,15 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ## [Unreleased]
 
 ### Added
+- Added `scripts/read_git_state.py` for bounded structured branch, revision,
+  remote, and status output. The reader renders control characters and redacts
+  remote URL user information.
+- Added repository-only orientation markers and adoptable policy output through
+  `python scripts/sync.py --print-adoptable`.
+- Added regression coverage for safe Git state output and repository-only
+  policy filtering.
+- Added `scripts/run_tests.py` for validated class-sharded execution. The runner
+  compares shard IDs with standard discovery before running four workers.
 - Added complete `AGENTS.md` lifecycle reinjection for Claude, Codex, Gemini,
   and Antigravity project clients. Claude preserves built-in Explore and Plan
   through bounded numbered chunks. Gemini and Antigravity inject the complete
@@ -60,6 +69,18 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   workflow trust boundaries.
 
 ### Changed
+- Rewrote `AGENTS.md` for concise policy prose without changing lifecycle
+  reinjection. Explicit execution requests now authorize named non-destructive
+  acts and bounded read-only verification. Rule-specific gates still require
+  act-specific confirmation.
+- Replaced universal test-first language with validation-first paths for
+  executable behavior, executable configuration, policy, and documentation.
+  Existing-test consent and behavioral regression requirements remain active.
+- Required full commit SHAs for GitHub Actions dependencies. Added release
+  version comments when the version remains known.
+- Replaced sequential full-suite commands in CI, pre-commit, and `make test`
+  with validated four-worker execution. Single-module `unittest` commands
+  remain available.
 - Made hook coverage run test classes through four bounded workers. The checker
   now reports starts, results, 30-second heartbeats, and 300-second per-class
   timeouts. A timeout terminates the affected test process tree.

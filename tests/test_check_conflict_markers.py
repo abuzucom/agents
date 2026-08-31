@@ -722,7 +722,7 @@ class WiringTest(unittest.TestCase):
                 self.assertNotIn("acknowledged digest", content)
                 self.assertIn("active-user request", content)
                 self.assertNotIn("git --no-pager branch", content)
-                self.assertIn("trusted external sanitization", content)
+                self.assertIn("scripts/read_git_state.py", content)
 
     def test_handoff_prescribes_no_pre_consent_git_command(self):
         for path in (AGENTS_PATH, HANDOFF_PATH, README_PATH):
@@ -730,7 +730,7 @@ class WiringTest(unittest.TestCase):
             with self.subTest(path=path.name):
                 self.assertNotIn("git --no-pager --no-replace-objects", content)
                 self.assertIn("Do not run Git commands before consent", content)
-                self.assertIn("trusted external sanitization", content)
+                self.assertIn("scripts/read_git_state.py", content)
 
     def test_makefile_wires_exact_lint_recipe(self):
         content = MAKEFILE_PATH.read_text(encoding="utf-8")
