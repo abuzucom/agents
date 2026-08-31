@@ -57,6 +57,15 @@ include the following actions:
   push in a chained command. The checks also inspect every alias that resolves
   to either operation. A possible alias creates ambiguity for an unknown
   subcommand. Unavailable alias sources preserve that ambiguity.
+- Strict branch preflight reads bounded Git `HEAD` metadata without launching
+  Git. The gate blocks every observable ordinary tool on an invalid branch.
+  Active-human question tools remain available. One exact correction command
+  remains available. Chaining, wrappers, substitutions, and redirects prevent
+  correction clearance.
+- Lifecycle hooks read bounded canonical `AGENTS.md` content. Claude injects
+  numbered chunks into built-in Explore and Plan agents. Codex injects complete
+  context at session and subagent lifecycle events. Gemini and Antigravity
+  inject complete context before each model invocation.
 - The gates classify commands that one shell passes to another shell. Each
   gate reads both interpreter names. The Bash gate denies `powershell -Command
   'Remove-Item -Recurse -Force /etc'`. The PowerShell gate denies `bash -c 'rm
@@ -119,6 +128,12 @@ those controls.
   "N deletions in M minutes" and correlation with an anomalous login. Each gate
   reads one command shape.
 - Gate registration defines tool coverage. Unregistered tools bypass the gates.
+- Codex hosted tools bypass local `PreToolUse` hooks. Claude does not document
+  aggregate ordering for parallel subagent policy chunks. Gemini and
+  Antigravity do not document hook inheritance for every subagent
+  implementation.
+- Project hooks require client trust where supported. Client controls can
+  disable project hooks. Repository writers can modify every committed hook.
 - Hooks cannot enforce Rule 4. A hook sees the proposed action. The hook
   receives the action without a scope statement. The missing scope prevents
   classification of in-scope and out-of-scope changes.
@@ -148,9 +163,11 @@ Coverage lacks an exercised live PowerShell tool call.
 ## Coverage baseline
 
 The suites run each gate as a subprocess. Tracing uses a `sitecustomize` module
-on `PYTHONPATH`. The module measures function-owned statements outside full
-suite coverage. The baseline records those statements by function. Each entry
-requires a reason.
+on `PYTHONPATH`. Supported runtimes use local `sys.monitoring` line events when
+the coverage tool slot remains available. Other runtimes use a target-scoped
+`sys.settrace` fallback. Both implementations record only hook source lines.
+The baseline records unreached statements by function. Each entry requires a
+reason.
 
 - The `_bash_parser` entries and the Bash and PowerShell parser entries retain
   malformed branches and missing-operand branches. The entries also retain
@@ -178,6 +195,10 @@ requires a reason.
   real devices or mounts.
 - `read_payload`, `resolved_under`, and `sanitize` retain defensive exceptions
   and direct-caller bounds. Hook entry points reject those states earlier.
+- `current_branch` retains the post-resolution containment check for a replaced
+  or linked `.git/HEAD`. A portable test cannot create that filesystem race.
+- `load_policy` retains the post-read size check for policy growth after
+  `lstat`. A deterministic test cannot create that filesystem race.
 - The consent entries retain cross-drive path handling, absent path fields, and
   the top-level exception boundary. Narrow OS-boundary tests cover out-of-tree
   paths and open errors. The tests also cover the hard-link budget and ordinary
@@ -188,6 +209,10 @@ CI runs `scripts/check_hook_coverage.py`. The script compares the run against
 above a function. The script fails when a function gains unreached statements.
 Such statements represent new code outside test coverage. The script also fails
 when a function loses unreached statements. Such a loss marks a stale baseline.
+The checker runs each test class in a separate process. Up to four workers run
+concurrently. Start notices, completion notices, and 30-second heartbeats expose
+progress. A 300-second per-class timeout terminates that process tree and fails
+the check. Coverage comparison starts only after every worker succeeds.
 
 Every baseline entry requires a reason in this document. An unexplained entry
 represents untested code. A recorded exception requires an explanation.

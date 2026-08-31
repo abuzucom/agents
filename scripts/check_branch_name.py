@@ -1,11 +1,9 @@
 #!/usr/bin/env python3
 """Enforce the <type>/<kebab-description> branch naming convention.
 
-A portable, path-generic checker: copy this file into any repo and use
-it as a pre-push hook or CI step on `pull_request` events. Never flags
-`main`, `master`, or a detached HEAD (`git rev-parse --abbrev-ref HEAD`
-reports the literal string "HEAD" in that state). Blocking: exits 1 on
-a mismatch.
+Copy this portable checker into any repository. Use it as a pre-push hook or
+CI step on `pull_request` events. Default checks exempt `main`, `master`, and a
+detached HEAD. Strict agent preflight rejects those states. A mismatch exits 1.
 """
 import argparse
 import os
@@ -28,9 +26,13 @@ def _pattern(prefixes: tuple[str, ...]) -> re.Pattern:
     return re.compile(rf"^(?:{prefix_group})/[a-z0-9]+(?:-[a-z0-9]+)*$")
 
 
-def find_violations(branch: str, prefixes: tuple[str, ...] = DEFAULT_PREFIXES) -> list[str]:
+def find_violations(
+    branch: str,
+    prefixes: tuple[str, ...] = DEFAULT_PREFIXES,
+    strict: bool = False,
+) -> list[str]:
     """Return a violation message if `branch` breaks the naming convention."""
-    if not branch or branch in EXEMPT_BRANCHES:
+    if not strict and (not branch or branch in EXEMPT_BRANCHES):
         return []
     if _pattern(prefixes).match(branch):
         return []
@@ -71,15 +73,27 @@ def main() -> int:
         default=",".join(DEFAULT_PREFIXES),
         help="comma-separated allowed prefixes",
     )
+    parser.add_argument(
+        "--strict-agent-preflight",
+        action="store_true",
+        help="reject primary branches and detached HEAD for agent preflight",
+    )
     args = parser.parse_args()
     try:
         branch = args.branch or _current_branch(args.repo)
     except (OSError, subprocess.CalledProcessError, ValueError) as error:
-        print(f"error: branch lookup failed: {error}", file=sys.stderr)
+        print(
+            f"Error. Branch lookup failed. Restore readable Git metadata and retry. {error}",
+            file=sys.stderr,
+        )
         return 1
     prefixes = tuple(prefix.strip() for prefix in args.prefixes.split(",") if prefix.strip())
 
-    violations = find_violations(branch, prefixes)
+    violations = find_violations(
+        branch,
+        prefixes,
+        strict=args.strict_agent_preflight,
+    )
     if violations:
         for message in violations:
             print(message, file=sys.stderr)

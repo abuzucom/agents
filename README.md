@@ -190,9 +190,10 @@ tooling under Rule 9. Obtain active-human approval before adding tooling.
      checker at `pre-push` with `stages: [pre-push]`. For Claude Code, copy
      `hooks/enforce_branch_name.py`, `hooks/_gate_core.py`,
      `hooks/_bash_parser.py`, and `hooks/claude-code-settings.example.json`.
-     Merge the hook's `SessionStart` and `PreToolUse` entries into
-      `.claude/settings.json`. Copy `tests/test_enforce_branch_name.py` and run
-      the test in CI.
+     Merge the hook's `SessionStart` and wildcard `PreToolUse` entries into
+     `.claude/settings.json`. The default checker preserves primary and detached
+     operational exemptions. Agent hooks use strict preflight. Copy
+     `tests/test_enforce_branch_name.py` and run the test in CI.
 11. Wire git-identity checks in the same change. Copy
       `scripts/check_git_identity.py` and `scripts/trusted_git.py`. Register the
       default mode at `pre-commit`, `--unpushed` at `pre-push`, and `--base` with
@@ -234,9 +235,10 @@ tooling under Rule 9. Obtain active-human approval before adding tooling.
      refreshed manifest. Adapt `SHARED_FILES` and the manifest under the same
      approval process when an adopter has an approved subset.
 16. Adopt hook coverage with `scripts/check_hook_coverage.py`,
-     `tools/hook-trace/sitecustomize.py`, and
-     `hook-coverage-baseline.json`. After the adopted hook tests pass, create
-     the initial baseline as a non-root user with
+      `tools/hook-trace/sitecustomize.py`, and
+      `hook-coverage-baseline.json`. Copy `tests/test_hook_coverage_runner.py`
+      with the runner. After the adopted hook tests pass, create the initial
+      baseline as a non-root user with
      `python scripts/check_hook_coverage.py --write-baseline`. Review and
      document each recorded limit. Run
      `python scripts/check_hook_coverage.py` in CI.
@@ -258,8 +260,14 @@ tooling under Rule 9. Obtain active-human approval before adding tooling.
       lint and CI. Register commit and pull request metadata checks on
       `pull_request` events. Keep every prose finding advisory. Preserve draft
       coverage for advisory jobs. Pass refs through environment variables.
-      Read title and body text only from `GITHUB_EVENT_PATH`. Preserve exit 1
-      for infrastructure failures.
+       Read title and body text only from `GITHUB_EVENT_PATH`. Preserve exit 1
+       for infrastructure failures.
+20. Adopt lifecycle policy reinjection with
+    `hooks/reinject_agents_policy.py`. Copy the applicable `.claude/`,
+    `.codex/`, `.gemini/`, or `.agents/` configuration. Preserve client wiring
+    assertions in `tests/test_reinject_agents_policy.py`. Project hooks require
+    client trust and remain writable inside the repository. Antigravity resolves
+    command paths from `.agents/`. Keep the `../hooks/` path prefix.
 
 ## Checker Reference
 
@@ -292,9 +300,15 @@ Advice never changes the exit code. `check_commit_message.py` targets CI and
 skips merge commits. The commit checker does not implement a `commit-msg` hook.
 
 `check_hook_coverage.py --write-baseline` creates or refreshes
-`hook-coverage-baseline.json`. `check_secrets_heuristic.py` is not an
-entropy-based scanner. `check_english_only.py` and `check_hedging.py` use
-keyword heuristics rather than language models.
+`hook-coverage-baseline.json`. Python 3.12 and newer use local
+`sys.monitoring` events when the coverage tool slot remains available. Other
+runtimes use a target-scoped `sys.settrace` fallback. The checker runs up to
+four test classes concurrently. It reports class starts, class results, and
+30-second progress heartbeats. Each class has a 300-second timeout. A timeout
+terminates its test process tree and fails the check.
+`check_secrets_heuristic.py` is not an entropy-based scanner.
+`check_english_only.py` and `check_hedging.py` use keyword heuristics rather
+than language models.
 
 `scripts/prose_policy.py` contains the shared advisory analysis.
 `scripts/prose_bans.txt` contains case-insensitive exact entries under
@@ -335,10 +349,11 @@ edit. Use `make check` or `python scripts/sync.py --check` for drift.
 
 | Tool | Reads | Integration |
 |---|---|---|
-| ChatGPT and Codex | `AGENTS.md` | Native |
+| ChatGPT and Codex | `AGENTS.md` | Native with Codex lifecycle reinjection |
 | Cursor | `AGENTS.md`, `.cursorrules` | Native with synchronized fallback |
-| Claude Code | `CLAUDE.md` | Synchronized copy |
-| Gemini CLI | `GEMINI.md` | Synchronized copy, or set `contextFileName` to `AGENTS.md` |
+| Claude Code | `CLAUDE.md` | Synchronized copy plus lifecycle validation |
+| Gemini CLI | `GEMINI.md` | Synchronized copy plus per-model reinjection |
+| Antigravity | `AGENTS.md` | Ephemeral per-invocation reinjection |
 | Cline and Roo Code | `.clinerules` | Synchronized copy |
 | Windsurf | `.windsurfrules` | Synchronized copy |
 | Aider and local OpenHands | `CONVENTIONS.md` | Load with `--read CONVENTIONS.md` |
@@ -348,6 +363,30 @@ edit. Use `make check` or `python scripts/sync.py --check` for drift.
 | xAI and Grok | None | Banned, with no pointer files |
 
 Verify current tool documentation before adoption because conventions change.
+
+## Lifecycle Policy Hooks
+
+`hooks/reinject_agents_policy.py` reads bounded canonical `AGENTS.md` content.
+The hook requires a regular non-symlink file. The hook emits client-native JSON
+and includes a SHA-256 digest.
+
+Claude loads synchronized `CLAUDE.md` natively. Session lifecycle hooks add a
+digest notice. Built-in Explore and Plan remain enabled. Both skip
+`CLAUDE.md`. `SubagentStart` therefore injects eight numbered policy chunks
+below the 10,000-character per-hook limit. Claude runs matching hooks in
+parallel. Its documentation does not promise aggregate chunk ordering.
+
+Codex receives complete policy context on startup, resume, clear, compact, and
+subagent startup. `.codex/config.toml` raises native instruction capacity.
+`additionalContextLimit: 0` prevents context spilling. Repository-local command
+paths require Codex to start from the repository root. Codex project hooks
+require trust. Hosted tools do not pass through `PreToolUse`.
+
+Gemini receives complete policy context at `SessionStart` and before every
+model request. Antigravity receives complete policy context as an ephemeral
+message before every model invocation. Both clients permit project hook
+disablement. Client documentation does not promise hook inheritance for every
+subagent implementation.
 
 ## Claude Code Hooks
 
@@ -387,11 +426,17 @@ destructive-shell guidance. The report excludes other registered hooks.
 
 ### Branch Gate
 
-`hooks/enforce_branch_name.py` runs `scripts/check_branch_name.py` at
-`SessionStart` and injects a stop-and-rename message on failure. At
-`PreToolUse` for `Bash`, the hook exits 2 before recognized `git commit` or
-`git push` commands on a nonconforming branch. The recovery command remains
-`git branch -m <type>/<kebab-description>`.
+`hooks/enforce_branch_name.py` reads bounded `.git/HEAD` metadata without
+launching Git. Session startup injects recovery guidance on strict failure.
+Wildcard pre-tool registration blocks every observable ordinary tool until
+strict preflight passes. The only tool exceptions are active-human questions
+and one exact recovery command. Invalid named branches use `git branch -m`.
+Primary branches and detached HEAD use `git switch -c`.
+
+The portable checker keeps primary and detached operational exemptions by
+default. `--strict-agent-preflight` removes those exemptions for agent hooks.
+Dependabot keeps its branch-shape exception through trusted pull request author
+metadata. A branch name cannot claim the automation exception.
 
 ### Identity Gate
 
@@ -418,12 +463,13 @@ and missing required gate components deny rather than pass.
 | Deny | Exits 2 and prevents the tool call |
 | Session context | Exits 0 after returning `additionalContext` and a `systemMessage` |
 
-The live `Bash` matcher registers the destructive-command, branch-name, and
-git-identity hooks. The live `PowerShell` matcher registers the destructive
-command hook. The live edit matcher registers the consent gate. `SessionStart`
-registers branch-name, git-identity, and consent guidance. Hook tests verify
-the tested corpus. This repository's wiring suites verify the complete hook
-matrix in both settings files.
+The wildcard matcher registers strict branch preflight. The live `Bash`
+matcher registers destructive-command and git-identity hooks. The live
+`PowerShell` matcher registers the destructive command hook. The live edit
+matcher registers the consent gate. `SessionStart` registers policy,
+branch-name, git-identity, and consent guidance. Hook tests verify the tested
+corpus. This repository's wiring suites verify the complete hook matrix in both
+settings files.
 
 The gates classify command shape. The gates provide no sandboxing, telemetry,
 tamper resistance, or protection from repository writers changing hooks and

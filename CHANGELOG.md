@@ -12,6 +12,17 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ## [Unreleased]
 
 ### Added
+- Added complete `AGENTS.md` lifecycle reinjection for Claude, Codex, Gemini,
+  and Antigravity project clients. Claude preserves built-in Explore and Plan
+  through bounded numbered chunks. Gemini and Antigravity inject the complete
+  policy before every model invocation.
+- Added strict cross-client branch preflight before every observable tool.
+  Exact recovery commands and active-human questions remain available.
+- Added regression coverage for lifecycle output, client wiring, strict branch
+  recovery, and the trusted Dependabot automation exception.
+- Added lifecycle validation coverage for malformed payloads, policy bounds,
+  client dispatch, and chunk limits. Added strict branch coverage for Git
+  metadata files and alternate tool schemas.
 - Added `scripts/prose_policy.py` for shared advisory prose analysis across
   authored files, commit subjects, commit bodies, pull request titles, and pull
   request bodies.
@@ -49,6 +60,19 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   workflow trust boundaries.
 
 ### Changed
+- Made hook coverage run test classes through four bounded workers. The checker
+  now reports starts, results, 30-second heartbeats, and 300-second per-class
+  timeouts. A timeout terminates the affected test process tree.
+- Denied branch recovery commands when unreadable Git metadata prevents current
+  branch identification.
+- Made lifecycle root and branch metadata tests independent of Windows path
+  aliases and pull request branch environment variables.
+- Limited hook coverage instrumentation to hook source files. Supported
+  runtimes use local `sys.monitoring` events when the coverage tool slot remains
+  available. Other runtimes retain a scoped `sys.settrace` fallback.
+- Kept primary and detached exemptions in ordinary branch checking. Added
+  `--strict-agent-preflight` for interactive agent hooks. Immutable compliance
+  now preserves Dependabot branch names through trusted PR author metadata.
 - Allowed `it`, `its`, `itself`, `it's`, `it'll`, and `it'd` in advisory
   personal-pronoun analysis.
 - Consolidated personal-pronoun, active-voice, sentence-form, discourse, and
@@ -97,6 +121,9 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   split prose clauses into complete sentences.
 
 ### Fixed
+- Resolved Antigravity hook commands from the `.agents/` configuration
+  directory. Both lifecycle reinjection and strict branch recovery now reach
+  the canonical root hooks.
 - Made inline-enumeration matching linear by excluding commas from repeated
   non-comma segments.
 - Excluded required commit and pull request type prefixes from generic colon

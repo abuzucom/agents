@@ -20,6 +20,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 HOOK_PATH = REPO_ROOT / "hooks" / "enforce_branch_name.py"
@@ -43,13 +44,13 @@ def _load_hook_module():
 hook = _load_hook_module()
 
 
-def run_hook(payload, branch: str) -> subprocess.CompletedProcess:
+def run_hook(payload, branch: str, client: str = "claude") -> subprocess.CompletedProcess:
     """Run the hook as the harness does: JSON on stdin, branch from the env."""
     environment = dict(os.environ)
     environment["GITHUB_HEAD_REF"] = branch
     environment["CLAUDE_PROJECT_DIR"] = str(REPO_ROOT)
     return subprocess.run(
-        [sys.executable, str(HOOK_PATH)],
+        [sys.executable, str(HOOK_PATH), "--client", client],
         input=json.dumps(payload) if payload is not None else "",
         capture_output=True,
         text=True,
@@ -100,6 +101,16 @@ class CheckerContractTest(unittest.TestCase):
                 )
                 self.assertEqual(result.returncode, 0, result.stderr)
 
+    def test_default_checker_keeps_operational_exemptions(self):
+        for branch in ("main", "master", "HEAD"):
+            with self.subTest(branch=branch):
+                self.assertEqual(hook.check_branch(branch, strict=False), "")
+
+    def test_agent_preflight_rejects_operational_exemptions(self):
+        for branch in ("main", "master", "HEAD", ""):
+            with self.subTest(branch=branch):
+                self.assertTrue(hook.check_branch(branch, strict=True))
+
 
 class SessionStartTest(unittest.TestCase):
     """SessionStart informs; it never blocks, since Claude Code ignores its exit."""
@@ -113,6 +124,7 @@ class SessionStartTest(unittest.TestCase):
         self.assertIn(VIOLATING_BRANCH, specific["additionalContext"])
         self.assertIn("STOP", specific["additionalContext"])
         self.assertIn("git branch -m", specific["additionalContext"])
+        self.assertNotIn("sign-off", specific["additionalContext"])
         self.assertEqual(output["systemMessage"], specific["additionalContext"])
 
     def test_conforming_branch_stays_silent(self):
@@ -143,7 +155,7 @@ class SessionStartTest(unittest.TestCase):
 
 
 class PreToolUseTest(unittest.TestCase):
-    """PreToolUse is the blocking half: exit 2 stops the tool call."""
+    """PreToolUse blocks every ordinary tool until branch preflight passes."""
 
     def test_commit_on_violating_branch_is_blocked(self):
         result = run_hook(bash_payload('git commit -m "feat: x"'), VIOLATING_BRANCH)
@@ -169,24 +181,97 @@ class PreToolUseTest(unittest.TestCase):
         result = run_hook(bash_payload("git branch -m feat/x"), VIOLATING_BRANCH)
         self.assertEqual(result.returncode, 0, result.stderr)
 
-    def test_read_only_git_command_is_allowed(self):
+    def test_read_only_git_command_is_blocked(self):
         for command in ("git status", "git log --oneline -5", "git branch --show-current"):
             with self.subTest(command=command):
                 result = run_hook(bash_payload(command), VIOLATING_BRANCH)
-                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(result.returncode, BLOCKING_EXIT_CODE)
 
-    def test_non_git_command_is_allowed(self):
+    def test_non_git_command_is_blocked(self):
         result = run_hook(bash_payload("ls -la"), VIOLATING_BRANCH)
-        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.returncode, BLOCKING_EXIT_CODE)
 
-    def test_non_bash_tool_is_ignored(self):
+    def test_non_bash_tool_is_blocked(self):
         payload = {
             "hook_event_name": "PreToolUse",
             "tool_name": "Read",
             "tool_input": {"file_path": "/tmp/x"},
         }
         result = run_hook(payload, VIOLATING_BRANCH)
+        self.assertEqual(result.returncode, BLOCKING_EXIT_CODE)
+
+    def test_question_tool_is_allowed(self):
+        payload = {
+            "hook_event_name": "PreToolUse",
+            "tool_name": "AskUserQuestion",
+            "tool_input": {"questions": []},
+        }
+        result = run_hook(payload, VIOLATING_BRANCH)
         self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_primary_branch_allows_only_new_topic_branch(self):
+        blocked = run_hook(bash_payload("git branch -m feat/x"), "main")
+        allowed = run_hook(bash_payload("git switch -c feat/x"), "main")
+        self.assertEqual(blocked.returncode, BLOCKING_EXIT_CODE)
+        self.assertEqual(allowed.returncode, 0, allowed.stderr)
+
+    def test_correction_command_rejects_chaining(self):
+        result = run_hook(
+            bash_payload("git branch -m feat/x && python build.py"),
+            VIOLATING_BRANCH,
+        )
+        self.assertEqual(result.returncode, BLOCKING_EXIT_CODE)
+
+    def test_codex_uses_blocking_exit(self):
+        result = run_hook(bash_payload("git status"), VIOLATING_BRANCH, "codex")
+        self.assertEqual(result.returncode, BLOCKING_EXIT_CODE)
+
+    def test_gemini_returns_native_deny(self):
+        payload = {
+            "hook_event_name": "BeforeTool",
+            "tool_name": "read_file",
+            "tool_input": {"file_path": "README.md"},
+            "cwd": str(REPO_ROOT),
+        }
+        result = run_hook(payload, VIOLATING_BRANCH, "gemini")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(json.loads(result.stdout)["decision"], "deny")
+
+    def test_antigravity_returns_native_deny(self):
+        payload = {
+            "toolCall": {"name": "view_file", "args": {"AbsolutePath": "README.md"}},
+            "workspacePaths": [str(REPO_ROOT)],
+        }
+        result = run_hook(payload, VIOLATING_BRANCH, "antigravity")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(json.loads(result.stdout)["decision"], "deny")
+
+    def test_powershell_command_line_allows_exact_recovery(self):
+        payload = {
+            "hook_event_name": "PreToolUse",
+            "tool_name": "PowerShell",
+            "tool_input": {"CommandLine": "git branch -m feat/recovered"},
+        }
+        result = run_hook(payload, VIOLATING_BRANCH)
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_shell_tool_without_command_passes_on_valid_branch(self):
+        payload = {
+            "hook_event_name": "PreToolUse",
+            "tool_name": "Bash",
+            "tool_input": {},
+        }
+        result = run_hook(payload, CONFORMING_BRANCH)
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_malformed_antigravity_tool_call_denies(self):
+        payload = {
+            "toolCall": "invalid",
+            "workspacePaths": [str(REPO_ROOT)],
+        }
+        result = run_hook(payload, VIOLATING_BRANCH, "antigravity")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(json.loads(result.stdout)["decision"], "deny")
 
     def test_chained_command_containing_push_is_blocked(self):
         result = run_hook(bash_payload("make lint && git push"), VIOLATING_BRANCH)
@@ -309,10 +394,81 @@ class BlockedCommandTest(unittest.TestCase):
 
 
 class FindViolationTest(unittest.TestCase):
-    """A repo without the checker has no convention for the hook to enforce."""
+    """A repo without the checker cannot clear strict preflight."""
 
-    def test_absent_checker_yields_no_violation(self):
-        self.assertEqual(hook.find_violation(str(Path(__file__).parent)), "")
+    def test_absent_checker_yields_violation(self):
+        with patch.dict(os.environ, {"GITHUB_HEAD_REF": ""}):
+            self.assertTrue(hook.find_violation(str(Path(__file__).parent)))
+
+    def test_explicit_project_without_checker_fails_closed(self):
+        with tempfile.TemporaryDirectory() as directory:
+            violation = hook.check_branch(
+                CONFORMING_BRANCH, project_dir=directory)
+        self.assertEqual(violation, "branch checker is missing")
+
+
+class GitMetadataTest(unittest.TestCase):
+    """Bounded Git metadata resolves branches without launching Git."""
+
+    def make_repository(self, create_git_dir: bool = True) -> tuple[Path, Path]:
+        """Create a temporary repository root and Git directory."""
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        root = Path(directory.name)
+        git_dir = root / ".git"
+        if create_git_dir:
+            git_dir.mkdir()
+        return root, git_dir
+
+    def test_symbolic_detached_and_empty_heads(self):
+        root, git_dir = self.make_repository()
+        head = git_dir / "HEAD"
+        head.write_text("ref: refs/heads/feat/metadata\n", encoding="utf-8")
+        self.assertEqual(
+            hook.current_branch(str(root), allow_environment=False),
+            "feat/metadata")
+        head.write_text("0123456789abcdef\n", encoding="utf-8")
+        self.assertEqual(
+            hook.current_branch(str(root), allow_environment=False), "HEAD")
+        head.write_text("", encoding="utf-8")
+        with self.assertRaises(OSError):
+            hook.current_branch(str(root), allow_environment=False)
+
+    def test_gitfile_resolves_and_rejects_invalid_targets(self):
+        root, pointer = self.make_repository(create_git_dir=False)
+        admin = root / "admin"
+        admin.mkdir()
+        (admin / "HEAD").write_text(
+            "ref: refs/heads/fix/gitfile\n", encoding="utf-8")
+        pointer.write_text("gitdir: admin\n", encoding="utf-8")
+        self.assertEqual(
+            hook.current_branch(str(root), allow_environment=False),
+            "fix/gitfile")
+        pointer.write_text("invalid\n", encoding="utf-8")
+        with self.assertRaises(OSError):
+            hook.current_branch(str(root), allow_environment=False)
+        pointer.write_text("gitdir: absent\n", encoding="utf-8")
+        with self.assertRaises(OSError):
+            hook.current_branch(str(root), allow_environment=False)
+
+    def test_regular_metadata_reader_rejects_invalid_files(self):
+        root, git_dir = self.make_repository()
+        with self.assertRaises(OSError):
+            hook._read_regular(str(git_dir), hook.MAX_HEAD_BYTES)
+        oversized = root / "oversized"
+        oversized.write_text(
+            "x" * (hook.MAX_HEAD_BYTES + 1), encoding="utf-8")
+        with self.assertRaises(OSError):
+            hook._read_regular(str(oversized), hook.MAX_HEAD_BYTES)
+
+    def test_invalid_branch_handles_unreadable_repository_metadata(self):
+        root, git_dir = self.make_repository()
+        (git_dir / "HEAD").write_text("", encoding="utf-8")
+        payload = bash_payload("git branch -m feat/recovered")
+        with patch.dict(os.environ, {"GITHUB_HEAD_REF": ""}):
+            result = hook._handle_invalid_branch(
+                payload, str(root), "claude", "invalid branch")
+        self.assertEqual(result, BLOCKING_EXIT_CODE)
 
 
 class SettingsWiringTest(unittest.TestCase):
@@ -349,7 +505,7 @@ class SettingsWiringTest(unittest.TestCase):
     HOOK_MATCHERS = {
         "block_destructive_bash.py": {"Bash"},
         "block_destructive_powershell.py": {"PowerShell"},
-        "enforce_branch_name.py": {"Bash"},
+        "enforce_branch_name.py": {"*"},
         "enforce_git_identity.py": {"Bash"},
         "require_consent.py": {"Edit|Write|MultiEdit|NotebookEdit"},
     }

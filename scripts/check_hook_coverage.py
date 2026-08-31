@@ -14,13 +14,19 @@ fail is the failure mode this whole check exists to avoid.
 Regenerate with --write-baseline and commit the result.
 """
 import ast
+import concurrent.futures
 import io
 import json
+import operator
 import os
+import signal
 import shutil
 import subprocess
 import sys
 import tempfile
+import time
+import unittest
+from dataclasses import dataclass
 
 BASELINE = "hook-coverage-baseline.json"
 TARGET = "hooks"
@@ -29,6 +35,21 @@ TARGET = "hooks"
 # adopting repository, which leaves the gate reporting every statement
 # as unreached.
 TRACER_DIR = os.path.join("tools", "hook-trace")
+DEFAULT_WORKERS = 4
+TEST_SHARD_TIMEOUT_SECONDS = 300
+PROGRESS_INTERVAL_SECONDS = 30
+
+
+@dataclass(frozen=True)
+class TestShardResult:
+    """Store one traced test class result."""
+
+    name: str
+    elapsed: float
+    returncode: int
+    stdout: str
+    stderr: str
+    timed_out: bool
 
 
 def is_docstring(node, parent) -> bool:
@@ -97,6 +118,129 @@ def unreached_counts(root: str, hit: set) -> dict:
     return counts
 
 
+def discover_test_shards(root: str) -> list[tuple[str, str]]:
+    """Return display labels and import names for discovered test classes."""
+    tests = os.path.join(root, "tests")
+    loader = unittest.TestLoader()
+    suite = loader.discover(tests, pattern="test_*.py")
+    stack = [suite]
+    shards = {}
+    while stack:
+        item = stack.pop()
+        if isinstance(item, unittest.TestSuite):
+            stack.extend(reversed(list(item)))
+            continue
+        test_class = item.__class__
+        import_name = "%s.%s" % (
+            test_class.__module__, test_class.__qualname__)
+        module_path = test_class.__module__.replace(".", "/") + ".py"
+        shards[import_name] = "%s::%s" % (
+            module_path, test_class.__qualname__)
+    return sorted((label, name) for name, label in shards.items())
+
+
+def terminate_process_tree(process: subprocess.Popen) -> None:
+    """Stop a timed-out test process and all descendants."""
+    if os.name == "nt":
+        subprocess.run(
+            ["taskkill", "/PID", str(process.pid), "/T", "/F"],
+            capture_output=True, check=False, text=True)
+    else:
+        os.killpg(process.pid, signal.SIGTERM)
+    try:
+        process.wait(timeout=5)
+    except subprocess.TimeoutExpired:
+        if os.name == "nt":
+            process.kill()
+        else:
+            os.killpg(process.pid, signal.SIGKILL)
+        process.wait()
+
+
+def run_test_shard(root: str, environment: dict, label: str,
+                   import_name: str, timeout: float) -> TestShardResult:
+    """Run one test class with a timeout and return its captured result."""
+    print("hook coverage: started %s" % label, file=sys.stderr, flush=True)
+    started = time.monotonic()
+    creationflags = 0
+    if os.name == "nt":
+        creationflags = subprocess.CREATE_NEW_PROCESS_GROUP
+    process = subprocess.Popen(
+        [sys.executable, "-m", "unittest", import_name],
+        cwd=root, env=environment, stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE, text=True,
+        start_new_session=os.name != "nt", creationflags=creationflags)
+    try:
+        stdout, stderr = process.communicate(timeout=timeout)
+        timed_out = False
+    except subprocess.TimeoutExpired:
+        terminate_process_tree(process)
+        stdout, stderr = process.communicate()
+        timed_out = True
+    elapsed = operator.sub(time.monotonic(), started)
+    return TestShardResult(
+        label, elapsed, process.returncode, stdout, stderr, timed_out)
+
+
+def result_problem(result: TestShardResult, timeout: float) -> str:
+    """Return an actionable problem for a failed worker."""
+    if result.timed_out:
+        return "%s timed out after %.1f seconds" % (result.name, timeout)
+    output = result.stderr or result.stdout
+    return "%s failed with exit code %d:\n%s" % (
+        result.name, result.returncode, output[-2000:])
+
+
+def record_result(result: TestShardResult, timeout: float,
+                  problems: list[str]) -> None:
+    """Report one completed shard and retain any problem."""
+    status = "passed"
+    if result.timed_out:
+        status = "timed out"
+        problems.append(result_problem(result, timeout))
+    elif result.returncode != 0:
+        status = "failed"
+        problems.append(result_problem(result, timeout))
+    print("hook coverage: %s %s (%.1fs)"
+          % (status, result.name, result.elapsed),
+          file=sys.stderr, flush=True)
+
+
+def run_test_shards(root: str, environment: dict,
+                    workers: int = DEFAULT_WORKERS,
+                    timeout: float = TEST_SHARD_TIMEOUT_SECONDS) -> list[str]:
+    """Run traced test classes concurrently and return worker problems."""
+    test_shards = discover_test_shards(root)
+    worker_count = min(workers, len(test_shards))
+    if worker_count < 1 or timeout <= 0:
+        raise ValueError("coverage workers and timeout must be positive")
+    print("hook coverage: starting %d test shards with %d workers"
+          % (len(test_shards), worker_count), file=sys.stderr, flush=True)
+    environment = dict(environment)
+    test_path = os.path.join(root, "tests")
+    environment["PYTHONPATH"] = os.pathsep.join(filter(None, (
+        environment.get("PYTHONPATH", ""), test_path)))
+    problems = []
+    with concurrent.futures.ThreadPoolExecutor(worker_count) as executor:
+        futures = {
+            executor.submit(
+                run_test_shard, root, environment, label, import_name, timeout)
+            for label, import_name in test_shards
+        }
+        while futures:
+            done, futures = concurrent.futures.wait(
+                futures, timeout=PROGRESS_INTERVAL_SECONDS,
+                return_when=concurrent.futures.FIRST_COMPLETED)
+            if not done:
+                print("hook coverage: %d test shards remain"
+                      % len(futures), file=sys.stderr, flush=True)
+                continue
+            for future in done:
+                result = future.result()
+                record_result(result, timeout, problems)
+    return problems
+
+
 def measure(root: str) -> dict:
     """Run the suite under the tracer and return the unreached counts."""
     out_dir = tempfile.mkdtemp(prefix="hook-coverage-")
@@ -105,14 +249,12 @@ def measure(root: str) -> dict:
         environment["PYTHONPATH"] = os.path.join(root, TRACER_DIR)
         environment["HOOK_COVERAGE_TARGET"] = os.path.join(root, TARGET)
         environment["HOOK_COVERAGE_OUT"] = out_dir
-        result = subprocess.run(
-            [sys.executable, "-m", "unittest", "discover", "-s", "tests"],
-            cwd=root, env=environment, capture_output=True, text=True,
-            check=False)
-        if result.returncode != 0:
+        problems = run_test_shards(root, environment)
+        if problems:
             print("the suite failed under tracing, so coverage says nothing:",
                   file=sys.stderr)
-            print(result.stderr[-2000:], file=sys.stderr)
+            for problem in problems:
+                print(problem, file=sys.stderr)
             raise SystemExit(1)
         return unreached_counts(root, traced_lines(out_dir))
     finally:

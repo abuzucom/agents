@@ -551,9 +551,11 @@ tooling. Propose new tooling for active-human approval first under Rule 9.
 
 ## Branch naming conventions
 
-Check the current branch before committing. On a primary branch named `main`
-or `master`, create and switch to a feature branch. Never commit directly to a
-primary branch.
+Run strict branch preflight before every repository action. Repository actions
+include reads, searches, edits, commands, web access, and subagent tool calls.
+On a primary branch named `main` or `master`, create and switch to a feature
+branch. On a detached HEAD, create and switch to a feature branch. Never work
+directly on a primary branch or detached HEAD.
 
 Use the format `<type>/<short-kebab-description>`:
 
@@ -578,22 +580,32 @@ prefixes are:
 `scripts/check_branch_name.py` backs this rule.
 
 A harness, dispatcher, or task description can assign a branch name. Such an
-assignment receives no exception. Rename the branch before the first commit
-with `git branch -m <type>/<kebab-description>`. Alternatively, get explicit
-active-human sign-off to keep the branch name. Rule 10 applies. Verify the
-current branch. Never assume prior validation against this file.
+assignment receives no exception. An active human cannot waive an invalid
+interactive-agent branch. Ask for consent before running the applicable exact
+recovery command:
+- Invalid named branch. `git branch -m <type>/<kebab-description>`
+- Primary branch or detached HEAD. `git switch -c <type>/<kebab-description>`
+
+Until correction succeeds, stop every ordinary repository tool. A question to
+the active human remains allowed. The exact recovery command remains allowed
+through normal permission handling. Never chain another command to a recovery
+command. Rule 10 applies. Never assume prior validation against this file.
 
 Install the check instead of relying on agent memory. A CI step starts only
 after pull request creation. Pre-push enforcement must occur earlier. When
 adopting these conventions in a repository, wire the branch check into the
 repository in the same change that adds this file. Copy
-`scripts/check_branch_name.py`. Register the script as a `pre-push` hook. For
-Claude Code, also copy `hooks/enforce_branch_name.py`. Register the hook in
-`.claude/settings.json` under `SessionStart`. The `SessionStart` hook warns
-before any Git work. Register the hook under `PreToolUse` on the `Bash`
-matcher. The `PreToolUse` hook exits 2 on `git commit` or `git push` from a
-non-conforming branch. Adding a hook or CI job adds tooling. Propose new
-tooling for active-human approval first under Rule 9.
+`scripts/check_branch_name.py`. Register the script as a `pre-push` hook. The
+default checker exempts `main`, `master`, and detached HEAD for ordinary CI and
+pre-push use. Agent hooks invoke `--strict-agent-preflight` instead.
+
+For supported agent clients, also copy `hooks/enforce_branch_name.py`,
+`hooks/_gate_core.py`, and `hooks/_bash_parser.py`. Register the hook for every
+observable pre-tool event. The hook reads bounded Git `HEAD` metadata without
+launching Git. The hook blocks every ordinary observable tool until strict
+preflight passes. Client tool coverage remains limited by each hook API.
+Adding a hook or CI job adds tooling. Propose new tooling for active-human
+approval first under Rule 9.
 
 Copy `tests/test_enforce_branch_name.py` with the hook. Run the test in CI and
 on pre-commit. The suite covers both hook events. The suite covers the rename
@@ -604,7 +616,43 @@ nothing. The suite asserts the wiring. The suite uses standard-library
 
 Automated dependency-update tools such as Dependabot receive an exemption from
 branch-name and commit-message conventions. Dependabot does not permit branch
-and commit format configuration.
+and commit format configuration. CI identifies Dependabot through trusted pull
+request author metadata. A branch prefix cannot claim this exemption.
+
+## Lifecycle policy re-adoption
+
+Re-adopt the complete canonical `AGENTS.md` policy at session startup, resume,
+clear, compaction, fork, and subagent startup. Repeat full policy injection
+before every Gemini and Antigravity model invocation. Repository hook files
+provide defense in depth only. Project hooks remain reviewable, disableable,
+and writable by repository contributors.
+
+Claude loads the synchronized `CLAUDE.md` copy natively for the main agent and
+reloads instructions after compaction. Built-in Explore and Plan agents skip
+`CLAUDE.md`. Preserve both agents. Inject numbered `AGENTS.md` chunks through
+`SubagentStart`. Keep every chunk below Claude's 10,000-character hook-output
+limit. Parallel hook ordering remains undocumented.
+
+Codex loads `AGENTS.md` natively. Set `project_doc_max_bytes` above the bounded
+canonical policy size. Inject complete policy context through `SessionStart`
+and `SubagentStart`. Set `additionalContextLimit` to `0` to prevent spilling.
+Codex project hooks require trust. Codex pre-tool hooks do not observe hosted
+tools.
+
+Gemini injects complete policy context through `SessionStart` and every
+`BeforeModel` request. Gemini project hooks require fingerprint trust. Gemini
+permits hook disablement. Gemini documentation does not promise project-hook
+inheritance for every subagent implementation.
+
+Antigravity injects complete policy context as an ephemeral `PreInvocation`
+message. Antigravity workspace hooks remain disableable. Antigravity
+documentation does not promise workspace-hook inheritance for every subagent
+implementation.
+
+Copy `hooks/reinject_agents_policy.py` with the client configuration. Keep the
+policy byte bound and client wiring tests active. A repository cannot create a
+tamper-resistant authorization boundary. Managed policy or an external harness
+must provide that boundary.
 
 Never rewrite pushed history on a shared branch. Never force-push, rebase,
 amend, or reset published commits without explicit human consent. Add new
