@@ -397,7 +397,8 @@ class FindViolationTest(unittest.TestCase):
     """A repo without the checker cannot clear strict preflight."""
 
     def test_absent_checker_yields_violation(self):
-        self.assertTrue(hook.find_violation(str(Path(__file__).parent)))
+        with patch.dict(os.environ, {"GITHUB_HEAD_REF": ""}):
+            self.assertTrue(hook.find_violation(str(Path(__file__).parent)))
 
     def test_explicit_project_without_checker_fails_closed(self):
         with tempfile.TemporaryDirectory() as directory:

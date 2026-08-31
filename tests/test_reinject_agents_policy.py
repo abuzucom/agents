@@ -152,7 +152,7 @@ class PolicyValidationTest(unittest.TestCase):
         root = self.make_project()
         nested = root / "nested"
         nested.mkdir()
-        self.assertEqual(self.hook.find_project_root(str(nested)), root)
+        self.assertEqual(self.hook.find_project_root(str(nested)), root.resolve())
         with self.assertRaises(ValueError):
             self.hook.find_project_root(str(root / "AGENTS.md"))
 

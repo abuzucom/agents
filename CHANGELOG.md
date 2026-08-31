@@ -65,6 +65,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   timeouts. A timeout terminates the affected test process tree.
 - Denied branch recovery commands when unreadable Git metadata prevents current
   branch identification.
+- Made lifecycle root and branch metadata tests independent of Windows path
+  aliases and pull request branch environment variables.
 - Limited hook coverage instrumentation to hook source files. Supported
   runtimes use local `sys.monitoring` events when the coverage tool slot remains
   available. Other runtimes retain a scoped `sys.settrace` fallback.
