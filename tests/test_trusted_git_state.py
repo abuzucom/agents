@@ -38,6 +38,13 @@ class GitStateTextTest(unittest.TestCase):
             "<redacted>@example.com:organization/repository.git",
         )
 
+    def test_scp_style_account_before_path_at_sign_is_redacted(self):
+        url = "user@host:path/with@symbol"
+        self.assertEqual(
+            read_git_state.redact_remote_url(url),
+            "<redacted>@host:path/with@symbol",
+        )
+
 
 class GitStateParsingTest(unittest.TestCase):
     """Structured state excludes raw paths and diagnostics."""
