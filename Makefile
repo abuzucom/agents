@@ -23,7 +23,7 @@ lint:
 	$(PYTHON) scripts/check_conflict_markers.py
 
 test:
-	$(PYTHON) -m unittest discover -s tests -v
+	$(PYTHON) scripts/run_tests.py
 
 identity:
 	$(PYTHON) scripts/check_git_identity.py --advise

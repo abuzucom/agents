@@ -121,6 +121,9 @@ def unreached_counts(root: str, hit: set) -> dict:
 def discover_test_shards(root: str) -> list[tuple[str, str]]:
     """Return display labels and import names for discovered test classes."""
     tests = os.path.join(root, "tests")
+    resolved_root = os.path.abspath(root)
+    if resolved_root not in sys.path:
+        sys.path.insert(0, resolved_root)
     loader = unittest.TestLoader()
     suite = loader.discover(tests, pattern="test_*.py")
     stack = [suite]
@@ -208,9 +211,11 @@ def record_result(result: TestShardResult, timeout: float,
 
 def run_test_shards(root: str, environment: dict,
                     workers: int = DEFAULT_WORKERS,
-                    timeout: float = TEST_SHARD_TIMEOUT_SECONDS) -> list[str]:
+                    timeout: float = TEST_SHARD_TIMEOUT_SECONDS,
+                    test_shards: list[tuple[str, str]] | None = None) -> list[str]:
     """Run traced test classes concurrently and return worker problems."""
-    test_shards = discover_test_shards(root)
+    if test_shards is None:
+        test_shards = discover_test_shards(root)
     worker_count = min(workers, len(test_shards))
     if worker_count < 1 or timeout <= 0:
         raise ValueError("coverage workers and timeout must be positive")

@@ -23,6 +23,8 @@ from pathlib import Path
 
 SOURCE = "AGENTS.md"
 SHARED_MANIFEST = "shared-files.json"
+REPOSITORY_ONLY_START = "<!-- repository-only:start -->"
+REPOSITORY_ONLY_END = "<!-- repository-only:end -->"
 # Files that must be byte-identical wherever these gates are installed. A
 # decision reached by one gate and not the other is the failure the whole
 # design exists to prevent, so the files carrying decisions are listed here
@@ -48,6 +50,31 @@ COPIES = [
     ".copilot-instructions",
     ".github/copilot-instructions.md",
 ]
+
+
+def adoptable_content(content: str) -> str:
+    """Return policy content without source-repository orientation."""
+    if content.count(REPOSITORY_ONLY_START) != 1:
+        raise ValueError("repository-only start marker must occur once")
+    if content.count(REPOSITORY_ONLY_END) != 1:
+        raise ValueError("repository-only end marker must occur once")
+    prefix, remainder = content.split(REPOSITORY_ONLY_START, 1)
+    _, suffix = remainder.split(REPOSITORY_ONLY_END, 1)
+    if prefix.endswith("\n") and suffix.startswith("\n"):
+        suffix = suffix[1:]
+    return prefix + suffix
+
+
+def print_adoptable(root: Path) -> int:
+    """Print adoptable policy content without changing files."""
+    try:
+        source, _ = _inspect_source(root)
+        content = source.read_text(encoding="utf-8")
+        print(adoptable_content(content), end="")
+    except (OSError, UnicodeDecodeError, ValueError):
+        print("error: adoptable policy generation failed", file=sys.stderr)
+        return 1
+    return 0
 
 
 def _is_within(root: Path, path: Path) -> bool:
@@ -334,6 +361,8 @@ def write_shared(root: Path) -> int:
 def main(argv: list) -> int:
     """Dispatch on the mode flag and return a process exit code."""
     root = Path(__file__).resolve().parent.parent
+    if "--print-adoptable" in argv:
+        return print_adoptable(root)
     if "--check-shared" in argv:
         return check_shared(root)
     if "--write-shared" in argv:
