@@ -69,6 +69,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   workflow trust boundaries.
 
 ### Changed
+- Covered SCP-style remote credential redaction when the path contains an at
+  sign.
 - Rewrote `AGENTS.md` for concise policy prose without changing lifecycle
   reinjection. Explicit execution requests now authorize named non-destructive
   acts and bounded read-only verification. Rule-specific gates still require
