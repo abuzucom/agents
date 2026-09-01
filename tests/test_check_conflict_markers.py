@@ -11,6 +11,11 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch, MagicMock
 
+try:
+    from tests.persistent_main_worker import MainWorker
+except ImportError:
+    from persistent_main_worker import MainWorker
+
 REPO_ROOT = Path(__file__).resolve().parent.parent
 CHECKER_PATH = REPO_ROOT / "scripts" / "check_conflict_markers.py"
 WORKFLOW_PATH = (
@@ -27,6 +32,20 @@ PRE_COMMIT_CONFIG_PATH = REPO_ROOT / ".pre-commit-config.yaml"
 AGENTS_PATH = REPO_ROOT / "AGENTS.md"
 HANDOFF_PATH = REPO_ROOT / "plan" / "HANDOFF.md.example"
 README_PATH = REPO_ROOT / "README.md"
+_CHECKER_WORKER = None
+
+
+def checker_worker() -> MainWorker:
+    """Return the process-local persistent conflict checker worker."""
+    global _CHECKER_WORKER
+    if _CHECKER_WORKER is None:
+        _CHECKER_WORKER = MainWorker(CHECKER_PATH)
+    return _CHECKER_WORKER
+
+
+def run_checker(arguments: list[str], cwd: Path) -> subprocess.CompletedProcess:
+    """Run the real conflict checker entrypoint in the persistent worker."""
+    return checker_worker().invoke(arguments, None, cwd, dict(os.environ))
 
 
 def _load_checker_module():
@@ -575,13 +594,7 @@ class CliExecutionTest(unittest.TestCase):
             )
             tmp_path = Path(tmp.name)
         try:
-            proc = subprocess.run(
-                [sys.executable, str(CHECKER_PATH), str(tmp_path)],
-                cwd=REPO_ROOT,
-                capture_output=True,
-                text=True,
-                check=False,
-            )
+            proc = run_checker([str(tmp_path)], REPO_ROOT)
             self.assertEqual(proc.returncode, 1)
             self.assertIn(
                 "unresolved conflict block", proc.stderr
@@ -591,26 +604,34 @@ class CliExecutionTest(unittest.TestCase):
 
     def test_cli_from_subdirectory_exits_zero(self):
         """Repo root is resolved; all tracked files are checked."""
-        proc = subprocess.run(
-            [sys.executable, str(CHECKER_PATH)],
-            cwd=REPO_ROOT / "scripts",
-            capture_output=True,
-            text=True,
-            check=False,
-        )
+        with tempfile.TemporaryDirectory() as temporary:
+            repo = Path(temporary)
+            nested = repo / "nested"
+            nested.mkdir()
+            subprocess.run(
+                ["git", "init", "-q", "-b", "main"], cwd=repo,
+                capture_output=True, check=True)
+            (repo / "clean.txt").write_text("clean\n", encoding="utf-8")
+            subprocess.run(
+                ["git", "add", "clean.txt"], cwd=repo,
+                capture_output=True, check=True)
+            proc = run_checker([], nested)
         self.assertEqual(
             proc.returncode, 0,
             f"stdout: {proc.stdout}, stderr: {proc.stderr}",
         )
 
     def test_staged_flag_exits_zero_on_clean_repo(self):
-        proc = subprocess.run(
-            [sys.executable, str(CHECKER_PATH), "--staged"],
-            cwd=REPO_ROOT,
-            capture_output=True,
-            text=True,
-            check=False,
-        )
+        with tempfile.TemporaryDirectory() as temporary:
+            repo = Path(temporary)
+            subprocess.run(
+                ["git", "init", "-q", "-b", "main"], cwd=repo,
+                capture_output=True, check=True)
+            (repo / "staged.txt").write_text("clean\n", encoding="utf-8")
+            subprocess.run(
+                ["git", "add", "staged.txt"], cwd=repo,
+                capture_output=True, check=True)
+            proc = run_checker(["--staged"], repo)
         self.assertEqual(
             proc.returncode, 0,
             f"stdout: {proc.stdout}, stderr: {proc.stderr}",
@@ -1128,9 +1149,16 @@ class GitOptionSupportTest(unittest.TestCase):
 
     def test_the_checker_reads_objects_on_this_git(self):
         """Whatever git runs here, --staged must reach a verdict."""
-        result = subprocess.run(
-            [sys.executable, str(CHECKER_PATH), "--staged"],
-            cwd=REPO_ROOT, capture_output=True, text=True, check=False)
+        with tempfile.TemporaryDirectory() as temporary:
+            repo = Path(temporary)
+            subprocess.run(
+                ["git", "init", "-q", "-b", "main"], cwd=repo,
+                capture_output=True, check=True)
+            (repo / "object.txt").write_text("clean\n", encoding="utf-8")
+            subprocess.run(
+                ["git", "add", "object.txt"], cwd=repo,
+                capture_output=True, check=True)
+            result = run_checker(["--staged"], repo)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertNotIn("unknown option", result.stderr)
 

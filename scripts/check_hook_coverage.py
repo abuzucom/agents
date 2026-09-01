@@ -38,6 +38,21 @@ TRACER_DIR = os.path.join("tools", "hook-trace")
 DEFAULT_WORKERS = 4
 TEST_SHARD_TIMEOUT_SECONDS = 300
 PROGRESS_INTERVAL_SECONDS = 30
+PRIORITY_TEST_SHARDS = (
+    "test_enforce_git_identity.py::PreToolUseTest",
+    "test_immutable_compliance.py::ImmutableComplianceScannerTest",
+    "test_check_conflict_markers.py::CliExecutionTest",
+    "test_check_conflict_markers.py::GitOptionSupportTest",
+    "test_enforce_git_identity.py::CheckerContractTest",
+    "test_enforce_git_identity.py::SessionStartTest",
+    "test_block_destructive_bash.py::RepoExecutesOnReadTest",
+    "test_enforce_branch_name.py::PreToolUseTest",
+    "test_check_commit_message.py::MergeCommitTest",
+    "test_enforce_git_identity.py::CommitRangeTest",
+    "test_check_conflict_markers.py::SecurityHardeningTest",
+    "test_check_conflict_markers.py::SparseCheckoutTest",
+)
+RESOURCE_HEAVY_TEST_SHARDS = frozenset(PRIORITY_TEST_SHARDS[:4])
 
 
 @dataclass(frozen=True)
@@ -142,6 +157,17 @@ def discover_test_shards(root: str) -> list[tuple[str, str]]:
     return sorted((label, name) for name, label in shards.items())
 
 
+def prioritize_test_shards(
+        test_shards: list[tuple[str, str]]) -> list[tuple[str, str]]:
+    """Return measured slow shards first and all other shards lexically."""
+    priority = {label: index for index, label in enumerate(PRIORITY_TEST_SHARDS)}
+    ordinary = len(priority)
+    return sorted(
+        test_shards,
+        key=lambda shard: (priority.get(shard[0], ordinary), shard[0], shard[1]),
+    )
+
+
 def terminate_process_tree(process: subprocess.Popen) -> None:
     """Stop a timed-out test process and all descendants."""
     if os.name == "nt":
@@ -195,7 +221,7 @@ def result_problem(result: TestShardResult, timeout: float) -> str:
 
 
 def record_result(result: TestShardResult, timeout: float,
-                  problems: list[str]) -> None:
+                   problems: list[str]) -> None:
     """Report one completed shard and retain any problem."""
     status = "passed"
     if result.timed_out:
@@ -209,6 +235,16 @@ def record_result(result: TestShardResult, timeout: float,
           file=sys.stderr, flush=True)
 
 
+def run_test_shard_sequence(
+        root: str, environment: dict, test_shards: list[tuple[str, str]],
+        timeout: float) -> list[TestShardResult]:
+    """Run resource-heavy shards serially with their individual bounds."""
+    return [
+        run_test_shard(root, environment, label, import_name, timeout)
+        for label, import_name in test_shards
+    ]
+
+
 def run_test_shards(root: str, environment: dict,
                     workers: int = DEFAULT_WORKERS,
                     timeout: float = TEST_SHARD_TIMEOUT_SECONDS,
@@ -216,7 +252,13 @@ def run_test_shards(root: str, environment: dict,
     """Run traced test classes concurrently and return worker problems."""
     if test_shards is None:
         test_shards = discover_test_shards(root)
-    worker_count = min(workers, len(test_shards))
+    test_shards = prioritize_test_shards(test_shards)
+    heavy = [shard for shard in test_shards
+             if shard[0] in RESOURCE_HEAVY_TEST_SHARDS]
+    ordinary = [shard for shard in test_shards
+                if shard[0] not in RESOURCE_HEAVY_TEST_SHARDS]
+    job_count = len(ordinary) + (1 if heavy else 0)
+    worker_count = min(workers, job_count)
     if worker_count < 1 or timeout <= 0:
         raise ValueError("coverage workers and timeout must be positive")
     print("hook coverage: starting %d test shards with %d workers"
@@ -227,22 +269,31 @@ def run_test_shards(root: str, environment: dict,
         environment.get("PYTHONPATH", ""), test_path)))
     problems = []
     with concurrent.futures.ThreadPoolExecutor(worker_count) as executor:
-        futures = {
-            executor.submit(
+        future_sizes = {}
+        if heavy:
+            future = executor.submit(
+                run_test_shard_sequence, root, environment, heavy, timeout)
+            future_sizes[future] = len(heavy)
+        for label, import_name in ordinary:
+            future = executor.submit(
                 run_test_shard, root, environment, label, import_name, timeout)
-            for label, import_name in test_shards
-        }
-        while futures:
-            done, futures = concurrent.futures.wait(
-                futures, timeout=PROGRESS_INTERVAL_SECONDS,
+            future_sizes[future] = 1
+        pending = set(future_sizes)
+        while pending:
+            done, pending = concurrent.futures.wait(
+                pending, timeout=PROGRESS_INTERVAL_SECONDS,
                 return_when=concurrent.futures.FIRST_COMPLETED)
             if not done:
                 print("hook coverage: %d test shards remain"
-                      % len(futures), file=sys.stderr, flush=True)
+                      % sum(future_sizes[future] for future in pending),
+                      file=sys.stderr, flush=True)
                 continue
             for future in done:
-                result = future.result()
-                record_result(result, timeout, problems)
+                results = future.result()
+                if isinstance(results, TestShardResult):
+                    results = [results]
+                for result in results:
+                    record_result(result, timeout, problems)
     return problems
 
 
