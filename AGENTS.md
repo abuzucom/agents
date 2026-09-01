@@ -208,6 +208,19 @@ enforces these procedural requirements.
 - `crontab -r`
 - recovery destruction through `vssadmin`, `wbadmin`, `wmic`, or `bcdedit`
 - `gh repo delete`
+- PowerShell arbitrary execution through command payloads, encoded payloads,
+  `Invoke-Expression`, `Add-Type`, dynamic command names, or high-risk .NET APIs
+- PowerShell remote execution through sessions, remoting, or remote
+  `Invoke-Command`
+- PowerShell security tampering against execution policy, Defender, firewall,
+  audit, event log, boot, BitLocker, proxy, route, adapter, or trust controls
+- PowerShell credential extraction, secret retrieval, certificate export, or
+  security-hive access
+- PowerShell persistence through scheduled tasks, services, event
+  subscriptions, profiles, autorun keys, or WMI event subscriptions
+- PowerShell data transfer through upload utilities, mail, UNC output targets,
+  request bodies, state-changing HTTP methods, or executable downloads
+- PowerShell writes to system paths or dynamic modules and process targets
 
 **Route for active-human approval.** The hooks route:
 - every other recursive delete regardless of target
@@ -224,6 +237,12 @@ enforces these procedural requirements.
   for Git to run
 - any write that reaches a test file
 - a redirect that reaches a test file
+- fixed local PowerShell scripts, executable paths, process launches, and local
+  `Invoke-Command`
+- PowerShell module discovery, import, installation, or update
+- bounded PowerShell service, account, group, registry, and identity operations
+- broad PowerShell file operations through recursion, wildcards, or archives
+- PowerShell credential prompts, web reads, and network enumeration
 
 An unattended session converts every prompt into a refusal. The gates read
 command shape. The gates lack event-stream, rate, volume, and login-correlation
@@ -231,6 +250,9 @@ telemetry. These mechanisms can hide commands:
 - an alias to a shell function
 - a wrapper script on `PATH`
 - a variable holding a program name
+
+PowerShell policy matching uses normalized command families, aliases,
+parameter forms, and path properties. Filename examples grant no exception.
 
 Repository-controlled hooks provide defense-in-depth prompts. A repository
 writer can alter hooks and `.claude/settings.json`. Tamper resistance requires:

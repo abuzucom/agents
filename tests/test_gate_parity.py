@@ -12,16 +12,30 @@ still asserts that both gates read it identically.
 """
 import importlib.util
 import json
+import os
 import tempfile
 import subprocess
 import sys
 import unittest
 from pathlib import Path
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import gate_corpus
+
 REPO_ROOT = Path(__file__).resolve().parent.parent
 BASH_HOOK = REPO_ROOT / "hooks" / "block_destructive_bash.py"
 POWERSHELL_HOOK = REPO_ROOT / "hooks" / "block_destructive_powershell.py"
 CORE_PATH = REPO_ROOT / "hooks" / "_gate_core.py"
+_HOOK_WORKERS = {}
+
+
+def hook_worker(hook: Path):
+    """Return one process-local persistent worker for `hook`."""
+    worker = _HOOK_WORKERS.get(hook)
+    if worker is None:
+        worker = gate_corpus.HookWorker(hook)
+        _HOOK_WORKERS[hook] = worker
+    return worker
 
 
 def _decision(hook: Path, tool: str, command, mode: str = "default",
@@ -35,11 +49,9 @@ def _decision(hook: Path, tool: str, command, mode: str = "default",
     }
     if cwd:
         payload["cwd"] = cwd
-    result = subprocess.run(
-        [sys.executable, str(hook)],
-        input=json.dumps(payload), capture_output=True, text=True, check=False)
+    _code, stdout, _stderr = hook_worker(hook).invoke(payload)
     try:
-        return json.loads(result.stdout)["hookSpecificOutput"]["permissionDecision"]
+        return json.loads(stdout)["hookSpecificOutput"]["permissionDecision"]
     except (ValueError, KeyError):
         return ""
 
@@ -153,6 +165,30 @@ class BoundaryParityTest(unittest.TestCase):
         for bash_command, powershell_command in self.PAIRS:
             with self.subTest(bash=bash_command):
                 self.assertEqual(bash(bash_command), powershell(powershell_command))
+
+
+class PowerShellPolicyParityTest(unittest.TestCase):
+    """Shared high-risk program decisions apply through either shell gate."""
+
+    CASES = (
+        ("Invoke-Expression 'Get-Date'", "deny"),
+        ("pwsh -Command 'Get-ChildItem'", "deny"),
+        ("Add-Type -TypeDefinition 'public class X {}'", "deny"),
+        ("Set-MpPreference -DisableRealtimeMonitoring true", "deny"),
+        ("Register-ScheduledTask -TaskName x -Action y", "deny"),
+        ("Copy-Item source.database '\\\\server\\share'", "deny"),
+        ("Start-Process notepad.exe", "ask"),
+        ("Import-Module Pester", "ask"),
+        ("Get-Credential", "ask"),
+        ("Invoke-WebRequest https://example.test/data.json", "ask"),
+        ("Get-ChildItem .", ""),
+    )
+
+    def test_shared_policy_commands_match_expected_verdicts(self):
+        for command, expected in self.CASES:
+            with self.subTest(command=command):
+                self.assertEqual(bash(command), expected)
+                self.assertEqual(powershell(command), expected)
 
 
 class CoreOwnershipTest(unittest.TestCase):

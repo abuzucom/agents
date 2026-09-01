@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Tests for hooks/block_destructive_bash.py.
 
-Runs the hook as a subprocess against synthetic Claude Code payloads, the
-same path the harness uses, rather than asserting on mocks.
+Runs the hook in a persistent subprocess against synthetic Claude Code
+payloads. Every payload enters the real hook entrypoint without mocks.
 
 Two outcomes carry different weight. A `deny` is a command the hook refuses
 outright; it exits 2 so the block holds even where stdout JSON is ignored.
@@ -29,6 +29,15 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 HOOK_PATH = REPO_ROOT / "hooks" / "block_destructive_bash.py"
 CORE_PATH = REPO_ROOT / "hooks" / "_gate_core.py"
 BLOCKING_EXIT_CODE = 2
+_HOOK_WORKER = None
+
+
+def hook_worker():
+    """Return the process-local persistent Bash hook worker."""
+    global _HOOK_WORKER
+    if _HOOK_WORKER is None:
+        _HOOK_WORKER = gate_corpus.HookWorker(HOOK_PATH)
+    return _HOOK_WORKER
 
 
 def run_hook(command: str, permission_mode: str = "default") -> tuple:
@@ -39,17 +48,11 @@ def run_hook(command: str, permission_mode: str = "default") -> tuple:
         "permission_mode": permission_mode,
         "tool_input": {"command": command},
     }
-    result = subprocess.run(
-        [sys.executable, str(HOOK_PATH)],
-        input=json.dumps(payload),
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+    code, stdout, _stderr = hook_worker().invoke(payload)
     decision = ""
-    if result.stdout.strip():
-        decision = json.loads(result.stdout)["hookSpecificOutput"]["permissionDecision"]
-    return result.returncode, decision
+    if stdout.strip():
+        decision = json.loads(stdout)["hookSpecificOutput"]["permissionDecision"]
+    return code, decision
 
 
 def load_core_module(name: str):

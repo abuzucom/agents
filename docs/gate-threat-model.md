@@ -77,9 +77,20 @@ include the following actions:
   the bound deny.
 - The PowerShell gate classifies `EncodedCommand` under every supported
   abbreviation and alias. Base64 decoding applies strict validation. UTF-16LE
-  decoding also applies strict validation. Decoded commands re-enter the
-  bounded classifier. Missing payloads deny. Malformed payloads deny.
-  Over-nested payloads deny.
+  decoding also applies strict validation. Every encoded payload denies.
+  Missing payloads deny. Malformed payloads deny. Command payloads deny.
+- The shared PowerShell policy classifier normalizes recognized aliases and
+  parameter forms. File verdicts use path roots, destinations, UNC locations,
+  ambiguity, wildcard use, and recursion. Tests vary names and extensions.
+  Fixture basenames have no policy meaning.
+- The PowerShell policy denies recognized arbitrary execution, remote
+  execution, security tampering, credential extraction, persistence, sensitive
+  system writes, executable transfer, and outbound data transfer forms.
+- The PowerShell policy asks for fixed local scripts and process launches.
+  It also asks for module operations, bounded administration, broad file
+  operations, web reads, credential prompts, and network enumeration.
+- The shared classifier applies through Bash and PowerShell entry points. The
+  strongest nested verdict wins.
 
 Editor-tool handling resolves the named target with `realpath`. The handler
 checks the raw name and resolved name. The handler also checks hard-linked test
@@ -116,6 +127,11 @@ Repository hooks operate inside the writable repository. A repository writer
 can alter hook source and registration. Tamper resistance requires an external
 harness, filesystem isolation, or server-side controls. The template omits
 those controls.
+
+Windows Defender Application Control or AppLocker can place PowerShell in
+Constrained Language Mode. That operating-system control can restrict dynamic
+.NET and COM access outside these hooks. This repository does not configure or
+enforce Constrained Language Mode.
 
 - The classifier lacks visibility into commands behind aliases to shell
   functions. The classifier also lacks visibility into wrapper scripts on
@@ -210,9 +226,16 @@ above a function. The script fails when a function gains unreached statements.
 Such statements represent new code outside test coverage. The script also fails
 when a function loses unreached statements. Such a loss marks a stale baseline.
 The checker runs each test class in a separate process. Up to four workers run
-concurrently. Start notices, completion notices, and 30-second heartbeats expose
-progress. A 300-second per-class timeout terminates that process tree and fails
-the check. Coverage comparison starts only after every worker succeeds.
+concurrently. Measured long-running shards start first. This ordering overlaps
+long-running execution with shorter shards. One worker serializes measured
+Git-heavy shards. Other workers continue ordinary shards without Git process and
+filesystem contention. Classifier-heavy suites reuse one hook process within
+each isolated class process. Selected CLI suites reuse one loaded entrypoint and
+restore argv, stdin, cwd, and environment after every request. Fresh-process
+smoke cases retain process-entrypoint coverage. Start notices, completion
+notices, and 30-second heartbeats expose progress. A 300-second per-class timeout
+terminates that process tree and fails the check. Coverage comparison starts
+only after every worker succeeds.
 
 Every baseline entry requires a reason in this document. An unexplained entry
 represents untested code. A recorded exception requires an explanation.

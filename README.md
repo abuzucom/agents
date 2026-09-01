@@ -424,6 +424,20 @@ classifies known shell writers targeting test-shaped paths, `hooks/`,
 `hooks/block_destructive_powershell.py` handles `PreToolUse` calls matched as
 `PowerShell`. For the synthetic tested corpus, the hook applies the shared deny
 and ask decisions to recognized PowerShell command forms and known writers.
+The classifier normalizes cmdlet aliases and parameter forms. File decisions
+use destination class, path root, recursion, wildcard use, ambiguity, and
+network location. Fixture filenames never define a verdict.
+
+| PowerShell tier | Covered command families |
+|---|---|
+| Deny | Arbitrary code, remote execution, security tampering, credential extraction, persistence, sensitive paths, and outbound transfer |
+| Ask | Fixed scripts and processes, modules, bounded administration, broad file operations, web reads, and enumeration |
+| Allow | Routine local reads and fixed ordinary local file operations |
+
+Use Windows Defender Application Control or AppLocker with PowerShell
+Constrained Language Mode for host-level restrictions. Those controls can
+restrict dynamic .NET access and unsigned code outside repository hooks. The
+repository does not configure or enforce those operating-system controls.
 
 ### Consent Gate
 
