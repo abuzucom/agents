@@ -210,8 +210,8 @@ enforces these procedural requirements.
 - `gh repo delete`
 - PowerShell arbitrary execution through command payloads, encoded payloads,
   `Invoke-Expression`, `Add-Type`, dynamic command names, or high-risk .NET APIs
-- PowerShell remote execution through sessions, remoting, or remote
-  `Invoke-Command`
+- PowerShell remote execution through sessions, remoting, remote
+  `Invoke-Command`, or UNC command paths
 - PowerShell security tampering against execution policy, Defender, firewall,
   audit, event log, boot, BitLocker, proxy, route, adapter, or trust controls
 - PowerShell credential extraction, secret retrieval, certificate export, or

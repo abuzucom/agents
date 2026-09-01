@@ -427,6 +427,9 @@ and ask decisions to recognized PowerShell command forms and known writers.
 The classifier normalizes cmdlet aliases and parameter forms. File decisions
 use destination class, path root, recursion, wildcard use, ambiguity, and
 network location. Fixture filenames never define a verdict.
+UNC command paths deny without depending on a basename or file extension.
+Upload decisions use operation flags and transfer direction. Source names and
+remote endpoints never define those verdicts.
 
 | PowerShell tier | Covered command families |
 |---|---|

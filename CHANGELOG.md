@@ -70,6 +70,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Added synthetic PowerShell policy coverage for aliases, abbreviated
   parameters, varied filenames, dynamic execution, security controls,
   persistence, credentials, network access, and bounded administration.
+- Added platform-independent cross-drive coverage for protected hook paths.
 
 ### Changed
 - Rewrote `AGENTS.md` for concise policy prose without changing lifecycle
@@ -97,6 +98,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Expanded shared PowerShell classification with deny, approval, and allow
   tiers. Command families and path properties now determine file verdicts.
   Encoded and direct command payloads now deny regardless of decoded content.
+- Denied UNC command paths independently of basenames and file extensions.
+  Covered attached curl upload arguments and explicit BITS uploads.
 - Started measured long-running test shards before ordinary shards. Reused one
   isolated Python entrypoint within high-volume hook and CLI test classes.
   Serialized Git-heavy shards to avoid process and filesystem contention.

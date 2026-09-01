@@ -178,6 +178,80 @@ class EncodedCommandTest(unittest.TestCase):
 class PowerShellPolicyTest(unittest.TestCase):
     """High-risk PowerShell families receive the configured policy tier."""
 
+    UNCONDITIONAL_DENY_PROGRAMS = (
+        "add-mppreference", "add-type", "clear-disk", "connect-pssession",
+        "disable-bitlocker", "disable-netadapter", "enable-netadapter",
+        "enable-psremoting", "enter-pssession", "export-pfxcertificate",
+        "format-volume", "get-secret", "import-certificate",
+        "import-pfxcertificate", "invoke-expression", "new-netfirewallrule",
+        "new-netroute", "new-pssession", "new-selfsignedcertificate",
+        "new-service", "new-vpnconnection", "register-objectevent",
+        "register-scheduledtask", "remove-mppreference",
+        "remove-netfirewallrule", "remove-netroute", "remove-service",
+        "remove-scheduledtask", "remove-vpnconnection", "send-mailmessage",
+        "set-authenticodesignature", "set-dnsclientserveraddress",
+        "set-executionpolicy", "set-mppreference", "set-netadapter",
+        "set-netfirewallprofile", "set-netfirewallrule", "set-netroute",
+        "set-scheduledtask", "set-vpnconnection", "set-wsmanquickconfig",
+        "start-job", "unregister-scheduledtask", "unlock-bitlocker",
+    )
+    UNRELATED_OPERANDS = (
+        "",
+        "opaque-value",
+        "-Path Z:\\unrelated-location\\random.data",
+        "\\\\unrelated-host\\unrelated-share\\random.object",
+    )
+    REMOTE_COMMAND_PATHS = (
+        "'\\\\alpha-host\\first-share\\no-extension'",
+        "'\\\\beta-host\\second-share\\arbitrary.object'",
+        "'\\\\gamma-host\\third-share\\different-name.ps1'",
+        "'//delta-host/fourth-share/another-name.exe'",
+    )
+    TRANSFER_CASES = (
+        "scp first.random first-user@first-host:/first-location",
+        "scp second.data second-user@second-host:/second-location",
+        "sftp third.object third-user@third-host:/third-location",
+        "ftp fourth.payload fourth-host:/fourth-location",
+        "azcopy fifth.opaque https://fifth-host.test/fifth-location",
+        "rclone sixth.content sixth-remote:sixth-location",
+        "curl -T seventh.random https://seventh-host.test/seventh-location",
+        "curl --upload-file eighth.data https://eighth-host.test/eighth-location",
+        "curl -Tninth.object https://ninth-host.test/ninth-location",
+        "curl --upload-file=tenth.payload https://tenth-host.test/tenth-location",
+        "Start-BitsTransfer -TransferType Upload eleventh.random"
+        " https://eleventh-host.test/eleventh-location",
+        "Start-BitsTransfer -TransferT:Upload twelfth.data"
+        " https://twelfth-host.test/twelfth-location",
+    )
+    MUTATION_CASES = (
+        "Format-Volume -DriveLetter D",
+        "Format-Volume -DriveLetter X",
+        "Format-Volume -Path Z:\\mounted-volume",
+        "Disable-BitLocker -MountPoint C:",
+        "Disable-BitLocker -MountPoint X:",
+        "Disable-BitLocker -MountPoint Z:\\encrypted-volume",
+        "secedit /configure /db first-policy.sdb",
+        "secedit /configure /db Z:\\second-location\\second-policy.data",
+        "auditpol /set /category:* /success:disable",
+        "auditpol /clear /y",
+        "wevtutil cl Security",
+        "wevtutil clear-log Application",
+        "bcdedit /set recoveryenabled no",
+        "bcdedit /deletevalue safeboot",
+        "route add 10.20.0.0 mask 255.255.0.0 10.0.0.1",
+        "route delete 192.0.2.0",
+        "reg save HKLM\\SAM first.backup",
+        "reg export HKLM\\SECURITY Z:\\second-location\\second.data",
+    )
+    WEB_TRANSFER_CASES = (
+        "Invoke-WebRequest https://first-host.test/first.exe -OutFile first.data",
+        "Invoke-WebRequest https://second-host.test/second.ps1 -OutFile second.object",
+        "Invoke-RestMethod https://third-host.test/third -Method Delete",
+        "Invoke-WebRequest https://fourth-host.test/fourth -Method:Put",
+        "Invoke-RestMethod https://fifth-host.test/fifth -Body fifth.data",
+        "Invoke-WebRequest https://sixth-host.test/sixth -InFile sixth.object",
+    )
+
     DENY = (
         "Invoke-Expression 'Get-Date'",
         "iex 'Get-Date'",
@@ -339,6 +413,33 @@ class PowerShellPolicyTest(unittest.TestCase):
 
     def test_deny_families_are_refused(self):
         for command in self.DENY:
+            with self.subTest(command=command):
+                self.assertEqual(run_hook(command)[1], "deny")
+
+    def test_unconditional_deny_families_ignore_operands(self):
+        for program in self.UNCONDITIONAL_DENY_PROGRAMS:
+            for operands in self.UNRELATED_OPERANDS:
+                command = " ".join(value for value in (program, operands) if value)
+                with self.subTest(program=program, operands=operands):
+                    self.assertEqual(run_hook(command)[1], "deny")
+
+    def test_remote_command_paths_ignore_fixture_names(self):
+        for command in self.REMOTE_COMMAND_PATHS:
+            with self.subTest(command=command):
+                self.assertEqual(run_hook(command)[1], "deny")
+
+    def test_transfer_rules_ignore_sources_and_endpoints(self):
+        for command in self.TRANSFER_CASES:
+            with self.subTest(command=command):
+                self.assertEqual(run_hook(command)[1], "deny")
+
+    def test_mutation_rules_ignore_fixture_operands(self):
+        for command in self.MUTATION_CASES:
+            with self.subTest(command=command):
+                self.assertEqual(run_hook(command)[1], "deny")
+
+    def test_web_transfer_rules_ignore_fixture_endpoints(self):
+        for command in self.WEB_TRANSFER_CASES:
             with self.subTest(command=command):
                 self.assertEqual(run_hook(command)[1], "deny")
 

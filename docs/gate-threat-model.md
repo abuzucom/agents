@@ -86,6 +86,11 @@ include the following actions:
 - The PowerShell policy denies recognized arbitrary execution, remote
   execution, security tampering, credential extraction, persistence, sensitive
   system writes, executable transfer, and outbound data transfer forms.
+- A UNC path in command position denies from its remote location. The verdict
+  does not depend on the command basename or file extension.
+- Upload utilities deny from the selected operation. Curl upload flags support
+  separate and attached values. BITS transfer direction distinguishes uploads
+  from downloads. Source names and remote endpoints have no policy meaning.
 - The PowerShell policy asks for fixed local scripts and process launches.
   It also asks for module operations, bounded administration, broad file
   operations, web reads, credential prompts, and network enumeration.
@@ -202,13 +207,15 @@ reason.
   handlers retain malformed global options. The same functions retain
   alias-depth variants and shell-alias variants. Absent config sources and
   error-reporting arms also remain.
-- `_protected_path`, `_is_system_root`, `_mentions_device`,
+- `_is_system_root`, `_mentions_device`,
   `_segment_program`, `device_write_verdict`, `forge_verdict`,
   `logging_verdict`, `mass_operation_verdict`, `posix_delete_verdict`,
   `remote_execution_verdict`, `schedule_verdict`, `unparseable_verdict`, and
   `volume_verdict` retain platform, device, mount, and uncommon-program arms.
   Corpus rows exercise representative outcomes. The corpus avoids building
   real devices or mounts.
+- `_protected_path` uses an explicit `ntpath` cross-drive case. Linux and
+  Windows therefore reach the same defensive `ValueError` branch.
 - `read_payload`, `resolved_under`, and `sanitize` retain defensive exceptions
   and direct-caller bounds. Hook entry points reject those states earlier.
 - `current_branch` retains the post-resolution containment check for a replaced

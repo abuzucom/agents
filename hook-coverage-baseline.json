@@ -47,7 +47,7 @@
     "block_destructive_bash.py::classify": 1,
     "block_destructive_powershell.py::_argument_list_verdict": 2,
     "block_destructive_powershell.py::_payload_verdict": 1,
-    "block_destructive_powershell.py::_program_verdict": 2,
+    "block_destructive_powershell.py::_program_verdict": 1,
     "block_destructive_powershell.py::classify": 2,
     "block_destructive_powershell.py::main": 1,
     "enforce_branch_name.py::_blocks_invocation": 2,

@@ -1132,6 +1132,10 @@ class WindowsPathModuleTest(unittest.TestCase):
             with self.subTest(target=target):
                 self.assertFalse(self.core.is_root_target(target))
 
+    def test_protected_path_rejects_a_different_ntpath_drive(self):
+        self.assertFalse(
+            self.core._protected_path("D:\\outside", "C:\\repository"))
+
 
 class ShellProfileTest(unittest.TestCase):
     """A shell rc file runs on every future session."""

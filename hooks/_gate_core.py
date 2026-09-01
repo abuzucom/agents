@@ -683,6 +683,16 @@ def _powershell_parameter(token: str, name: str, minimum: int) -> bool:
     return len(candidate) >= minimum and name.startswith(candidate)
 
 
+def _is_curl_upload_argument(token: str) -> bool:
+    """Return True when one curl argument selects an upload source."""
+    lowered = token.lower()
+    if lowered in {"-t", "--upload-file"}:
+        return True
+    if lowered.startswith("--upload-file="):
+        return True
+    return token.startswith("-") and not token.startswith("--") and "T" in token
+
+
 def _powershell_interpreter_policy(name: str, args: list) -> tuple:
     """Gate PowerShell launch options that hide or inject executable code."""
     if name not in {"powershell", "pwsh"}:
@@ -793,8 +803,7 @@ def _powershell_indirect_policy(name: str, text: str, args: list) -> tuple:
         return "deny", f"{sanitize(name)} belongs to a denied PowerShell family"
     if name in {"scp", "sftp", "ftp", "azcopy", "rclone"}:
         return "deny", "a transfer utility can send local data to a remote system"
-    if name == "curl" and any(token.lower() in {"-t", "--upload-file"}
-                               for token in args):
+    if name == "curl" and any(_is_curl_upload_argument(token) for token in args):
         return "deny", "curl uploads local data to a remote endpoint"
     if name == "curl":
         return "ask", "curl accesses an external network endpoint"
@@ -839,6 +848,13 @@ def _powershell_web_policy(name: str, args: list) -> tuple:
             return "deny", "a network operation transfers executable content"
         for index, value in enumerate(args):
             flag, separator, attached = value.lower().partition(":")
+            if (name == "start-bitstransfer"
+                    and _powershell_parameter(flag, "transfertype", 9)):
+                transfer_type = attached if separator else ""
+                if not transfer_type and index + 1 < len(args):
+                    transfer_type = args[index + 1].lower()
+                if transfer_type == "upload":
+                    return "deny", "BITS uploads local data to a remote endpoint"
             if flag in {"-body", "-form", "-infile"}:
                 return "deny", "a web request can send local data to a remote endpoint"
             if flag == "-method":
@@ -852,14 +868,14 @@ def _powershell_web_policy(name: str, args: list) -> tuple:
 
 def _powershell_script_policy(program: str, name: str, args: list) -> tuple:
     """Classify direct script and local executable paths."""
+    raw = program.strip().strip('"').strip("'").lower()
+    if raw.startswith(("//", "\\\\")):
+        return "deny", "a command path reaches a remote UNC location"
     if name.endswith((".ps1", ".psm1")) or name == ".":
         if any(is_ambiguous(arg) for arg in args):
             return "deny", "a dynamic script path bypasses static inspection"
         return "ask", "a script path executes code outside static inspection"
-    raw = program.strip().strip('"').strip("'").lower()
     if ("/" in raw or "\\" in raw) and raw.endswith(POWERSHELL_EXECUTABLE_SUFFIXES):
-        if raw.startswith(("//", "\\\\")):
-            return "deny", "an executable path reaches a remote UNC location"
         return "ask", "a local executable path runs code outside static inspection"
     assignment = "=" in program and program.lower().startswith(("$env:", "${env:"))
     if is_ambiguous(program) and not assignment:
