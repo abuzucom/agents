@@ -244,37 +244,40 @@ def _named_program_verdict(program: str, args: list, depth: int) -> tuple:
 
 def _program_verdict(tokens: list, redirects: list, depth: int) -> tuple:
     """Return (decision, reason) for the cmdlet this statement runs."""
+    policy = (core.powershell_policy_verdict(tokens[0], tokens[1:], redirects)
+              if tokens else ("", ""))
     stripped = _strip_wrappers(tokens)
     if len(stripped) < len(tokens) and len(stripped) == 1 and " " in stripped[0]:
         # Invoke-Expression and the call operator take a command as one
         # string. Reading it as a program name sees the whole statement.
         if depth >= core.MAX_COMMAND_DEPTH:
             return "deny", "PowerShell command nesting exceeds the inspection limit"
-        return classify(stripped[0], depth + 1)
+        return core.strongest(policy, classify(stripped[0], depth + 1))
     tokens = [token for token in stripped if token not in REDIRECTIONS]
     if not tokens:
-        return core.test_write_verdict("", [], redirects)
+        return core.strongest(
+            policy, core.test_write_verdict("", [], redirects))
     program = os.path.basename(tokens[0]).lower()
     args = tokens[1:]
     named = _named_program_verdict(program, args, depth)
     if named is not None:
-        return named
-    for verdict in (core.destruction_verdict(program, args),
-                    core.alias_verdict(program, args),
-                    core.mode_change_verdict(program, args),
-                    core.truncation_verdict(program, args, redirects),
-                    core.process_verdict(program, args),
-                    core.schedule_verdict(program, args),
-                    core.forge_verdict(program, args),
-                    core.filesystem_repair_verdict(program, args),
-                    core.profile_verdict(program, args, redirects),
-                    core.protected_write_verdict(
-                        program, args, redirects, _CWD[0]),
-                    core.cmd_delete_verdict(program, args),
-                    core.test_write_verdict(program, args, redirects)):
-        if verdict[0]:
-            return verdict
-    return "", ""
+        return core.strongest(policy, named)
+    verdict = policy
+    for candidate in (core.destruction_verdict(program, args),
+                      core.alias_verdict(program, args),
+                      core.mode_change_verdict(program, args),
+                      core.truncation_verdict(program, args, redirects),
+                      core.process_verdict(program, args),
+                      core.schedule_verdict(program, args),
+                      core.forge_verdict(program, args),
+                      core.filesystem_repair_verdict(program, args),
+                      core.profile_verdict(program, args, redirects),
+                      core.protected_write_verdict(
+                          program, args, redirects, _CWD[0]),
+                      core.cmd_delete_verdict(program, args),
+                      core.test_write_verdict(program, args, redirects)):
+        verdict = core.strongest(verdict, candidate)
+    return verdict
 
 
 def classify(command, depth: int = 0) -> tuple:

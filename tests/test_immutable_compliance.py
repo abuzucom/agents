@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Regression coverage for trusted immutable compliance scanning."""
+import os
 import re
 import subprocess
 import sys
@@ -7,12 +8,41 @@ import tempfile
 import unittest
 from pathlib import Path
 
+try:
+    from tests.persistent_main_worker import MainWorker
+except ImportError:
+    from persistent_main_worker import MainWorker
+
 REPO_ROOT = Path(__file__).resolve().parent.parent
 CHECKER_PATH = REPO_ROOT / "scripts" / "check_compliance_tree.py"
 WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "immutable-conflict-check.yml"
 WORKFLOW_ROOT = REPO_ROOT / ".github" / "workflows"
 SYNTHETIC_SECRET = "ghp_" + ("A" * 36)
 FULL_SHA = re.compile(r"[0-9a-fA-F]{40}")
+_SCANNER_WORKER = None
+
+
+def scanner_worker() -> MainWorker:
+    """Return the process-local persistent immutable scanner worker."""
+    global _SCANNER_WORKER
+    if _SCANNER_WORKER is None:
+        _SCANNER_WORKER = MainWorker(CHECKER_PATH)
+    return _SCANNER_WORKER
+
+
+def _git_environment() -> dict[str, str]:
+    """Return isolated test-only author and config state."""
+    environment = dict(os.environ)
+    environment.update({
+        "GIT_AUTHOR_NAME": "compliance test",
+        "GIT_AUTHOR_EMAIL": "1234567+compliance-test@users.noreply.github.com",
+        "GIT_COMMITTER_NAME": "compliance test",
+        "GIT_COMMITTER_EMAIL": "1234567+compliance-test@users.noreply.github.com",
+        "GIT_CONFIG_GLOBAL": os.devnull,
+        "GIT_CONFIG_NOSYSTEM": "1",
+        "GIT_CONFIG_SYSTEM": os.devnull,
+    })
+    return environment
 
 
 def _run_git(repo: Path, *args: str, input_text: str | None = None) -> str:
@@ -24,6 +54,7 @@ def _run_git(repo: Path, *args: str, input_text: str | None = None) -> str:
         capture_output=True,
         text=True,
         check=True,
+        env=_git_environment(),
     )
     return result.stdout.strip()
 
@@ -31,11 +62,6 @@ def _run_git(repo: Path, *args: str, input_text: str | None = None) -> str:
 def _initialize_repo(repo: Path) -> None:
     """Initialize an isolated repository with a test-only identity."""
     _run_git(repo, "init", "-q", "-b", "main")
-    _run_git(repo, "config", "user.name", "compliance test")
-    _run_git(
-        repo, "config", "user.email",
-        "1234567+compliance-test@users.noreply.github.com",
-    )
 
 
 def _write_file(repo: Path, relative_path: str, content: str) -> None:
@@ -55,7 +81,16 @@ def _commit_all(repo: Path, message: str) -> str:
 def _scan_tree(
     repo: Path, tree: str, *metadata: str,
 ) -> subprocess.CompletedProcess[str]:
-    """Run the repository's trusted checker against one fixture tree."""
+    """Run the trusted scanner entrypoint in the persistent worker."""
+    arguments = ["--repo", str(repo), "--tree", tree, *metadata]
+    return scanner_worker().invoke(
+        arguments, None, REPO_ROOT, dict(os.environ))
+
+
+def _scan_tree_process(
+    repo: Path, tree: str, *metadata: str,
+) -> subprocess.CompletedProcess[str]:
+    """Run one fresh scanner process for CLI integration coverage."""
     return subprocess.run(
         [
             sys.executable, str(CHECKER_PATH), "--repo", str(repo),
@@ -273,7 +308,7 @@ class ImmutableComplianceScannerTest(unittest.TestCase):
             _run_git(repo, "commit", "-qm", "test: add Dockerfile symlink")
             tree = _run_git(repo, "rev-parse", "HEAD")
 
-            result = _scan_tree(repo, tree)
+            result = _scan_tree_process(repo, tree)
             self.assertEqual(result.returncode, 0, _scan_output(result))
 
     def test_unsafe_pull_request_target_command_is_rejected(self):

@@ -214,25 +214,29 @@ def _program_verdict(tokens: list, redirects: list,
             core.test_write_verdict("", [], redirects))
     program = os.path.basename(tokens[0])
     args = tokens[1:]
+    policy = (core.powershell_policy_verdict(program, args, redirects)
+              if core.powershell_policy_applies_in_bash(program) else ("", ""))
     named = _named_program_verdict(program, args, environment, depth)
     if named is not None:
-        return named
-    for verdict in (core.destruction_verdict(program, args),
-                    core.alias_verdict(program, args),
-                    core.environment_assignment_verdict(program, args),
-                    core.mode_change_verdict(program, args),
-                    core.truncation_verdict(program, args, redirects),
-                    core.process_verdict(program, args),
-                    core.schedule_verdict(program, args),
-                    core.forge_verdict(program, args),
-                    core.filesystem_repair_verdict(program, args),
-                    core.profile_verdict(program, args, redirects),
-                    core.protected_write_verdict(
-                        program, args, redirects, _CWD[0]),
-                    core.cmd_delete_verdict(program, args),
-                    core.test_write_verdict(program, args, redirects)):
-        if verdict[0]:
-            return verdict
+        return core.strongest(policy, named)
+    verdict = policy
+    for candidate in (core.destruction_verdict(program, args),
+                      core.alias_verdict(program, args),
+                      core.environment_assignment_verdict(program, args),
+                      core.mode_change_verdict(program, args),
+                      core.truncation_verdict(program, args, redirects),
+                      core.process_verdict(program, args),
+                      core.schedule_verdict(program, args),
+                      core.forge_verdict(program, args),
+                      core.filesystem_repair_verdict(program, args),
+                      core.profile_verdict(program, args, redirects),
+                      core.protected_write_verdict(
+                          program, args, redirects, _CWD[0]),
+                      core.cmd_delete_verdict(program, args),
+                      core.test_write_verdict(program, args, redirects)):
+        verdict = core.strongest(verdict, candidate)
+    if verdict[0]:
+        return verdict
     if core.is_ambiguous(program):
         return "ask", ("the command name contains an expansion the gate "
                        "cannot inspect")

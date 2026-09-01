@@ -21,6 +21,7 @@ through.
 import base64
 import binascii
 import json
+import ntpath
 import os
 import posixpath
 import re
@@ -551,6 +552,363 @@ def powershell_payload(args: list) -> tuple:
     return "", ""
 
 
+POWERSHELL_POLICY_ALIASES = {
+    "ac": "add-content", "clc": "clear-content", "cp": "copy-item",
+    "cpi": "copy-item", "gci": "get-childitem", "icm": "invoke-command",
+    "iex": "invoke-expression",
+    "ii": "invoke-item", "ipmo": "import-module",
+    "irm": "invoke-restmethod", "iwr": "invoke-webrequest", "mi": "move-item",
+    "mv": "move-item", "ri": "remove-item", "rm": "remove-item",
+    "sajb": "start-job", "saps": "start-process", "start": "start-process",
+}
+POWERSHELL_POLICY_DENY = frozenset({
+    "add-mppreference", "add-type", "clear-disk", "connect-pssession",
+    "disable-bitlocker", "disable-netadapter", "enable-netadapter",
+    "enable-psremoting", "enter-pssession", "export-pfxcertificate", "format-volume",
+    "get-secret", "import-certificate", "import-pfxcertificate",
+    "invoke-expression", "new-netfirewallrule", "new-pssession",
+    "new-netroute", "new-selfsignedcertificate", "new-service",
+    "new-vpnconnection", "register-objectevent",
+    "register-scheduledtask", "remove-mppreference",
+    "remove-netfirewallrule", "remove-netroute", "remove-service",
+    "remove-scheduledtask", "remove-vpnconnection", "send-mailmessage",
+    "set-authenticodesignature", "set-dnsclientserveraddress",
+    "set-executionpolicy", "set-mppreference", "set-netadapter",
+    "set-netfirewallprofile", "set-netfirewallrule", "set-netroute",
+    "set-scheduledtask", "set-vpnconnection", "set-wsmanquickconfig", "start-job",
+    "unregister-scheduledtask", "unlock-bitlocker",
+})
+POWERSHELL_POLICY_ASK = frozenset({
+    "add-adgroupmember", "add-localgroupmember", "connect-msolservice",
+    "connect-mggraph", "connect-azaccount", "disable-adaccount",
+    "disable-localuser", "enable-adaccount", "enable-localuser",
+    "expand-archive", "export-csv", "find-module", "get-adcomputer",
+    "get-adgroup", "get-adgroupmember", "get-aduser", "get-credential",
+    "export-clixml", "get-ciminstance", "get-dnsclientcache",
+    "get-dnsclientserveraddress",
+    "get-localgroup", "get-localgroupmember", "get-localuser",
+    "get-netadapter", "get-netipconfiguration", "get-netroute",
+    "get-netipaddress", "get-netipinterface", "get-netneighbor", "get-netnat",
+    "get-nettcpconnection", "get-netudpendpoint", "get-psdrive",
+    "get-smbconnection", "get-smbmapping", "get-smbshare",
+    "get-vpnconnection", "get-wmiobject", "import-module", "install-module",
+    "invoke-command",
+    "invoke-item", "invoke-restmethod", "invoke-webrequest", "new-aduser",
+    "new-localgroup", "new-localuser", "new-psdrive", "remove-aduser",
+    "remove-localgroup", "remove-localgroupmember", "remove-localuser",
+    "restart-service", "set-adaccountpassword", "set-aduser",
+    "set-localuser", "set-service", "start-bitstransfer", "start-process",
+    "resolve-dnsname", "stop-service", "test-connection", "test-netconnection",
+    "update-module", "whoami", "nltest", "quser", "qwinsta",
+})
+POWERSHELL_FILE_WRITERS = frozenset({
+    "add-content", "clear-content", "copy-item", "export-clixml",
+    "export-csv", "move-item", "out-file", "rename-item", "set-content",
+})
+POWERSHELL_REGISTRY_WRITERS = frozenset({
+    "clear-itemproperty", "new-itemproperty", "remove-itemproperty",
+    "rename-itemproperty", "set-itemproperty",
+})
+POWERSHELL_MODULE_PROGRAMS = frozenset({
+    "find-module", "import-module", "install-module", "update-module",
+})
+POWERSHELL_EXECUTABLE_SUFFIXES = (
+    ".bat", ".cmd", ".com", ".dll", ".exe", ".msi", ".ps1", ".psm1",
+    ".scr", ".vbs",
+)
+POWERSHELL_STATIC_API_MARKERS = (
+    "diagnostics.process", "system.diagnostics.process", "system.net.http.httpclient",
+    "system.net.mail.smtpclient",
+    "system.net.sockets", "system.net.webclient", "system.reflection",
+    "reflection.assembly", "]::load", "]::loadfrom", "]::loadfile",
+    "credentialmanager", "lsaunprotect", "protecteddata", "windowsidentity",
+)
+POWERSHELL_SECURITY_BYPASS_MARKERS = (
+    "amsiinitfailed", "amsiutils", "etwprovider", "scriptblocklogging",
+    "transcriptionenabled",
+)
+POWERSHELL_NETWORK_API_MARKERS = (
+    "system.net.dns", "system.net.networkinformation", "networkinterface]::",
+    "windowsidentity",
+)
+POWERSHELL_WMI_PERSISTENCE_MARKERS = (
+    "root\\subscription", "commandlineeventconsumer", "__eventfilter",
+)
+POWERSHELL_SENSITIVE_REGISTRY_MARKERS = (
+    "hkey_local_machine", "hklm:", "hkey_classes_root", "hkcr:",
+    "currentversion\\run", "currentversion/run", "\\sam", "/sam",
+    "\\security", "/security", "\\system", "/system", "internet settings",
+)
+POWERSHELL_NETWORK_ENUMERATION_PROGRAMS = frozenset({
+    "arp", "ipconfig", "net", "netstat", "nslookup", "ping", "query",
+    "route", "ssh", "tracert",
+})
+POWERSHELL_CROSS_SHELL_ALIASES = frozenset({
+    "ac", "clc", "cpi", "gci", "icm", "iex", "ii", "ipmo", "irm",
+    "iwr", "mi", "ri", "sajb", "saps",
+})
+POWERSHELL_NATIVE_SECURITY_PROGRAMS = frozenset({
+    "auditpol", "bcdedit", "manage-bde", "netsh", "reg", "schtasks",
+    "secedit", "wevtutil", "winrs",
+})
+
+
+def normalize_program_name(program: str) -> str:
+    """Return a case-insensitive Windows command name without `.exe`."""
+    name = ntpath.basename(program.strip().strip('"').strip("'")).lower()
+    name = name.removesuffix(".exe")
+    return POWERSHELL_POLICY_ALIASES.get(name, name)
+
+
+def powershell_policy_applies_in_bash(program: str) -> bool:
+    """Return True when Bash launches a recognizable PowerShell policy form."""
+    raw = ntpath.basename(program.strip().strip('"').strip("'")).lower()
+    raw = raw.removesuffix(".exe")
+    return (raw in {"powershell", "pwsh", "."}
+            or raw in POWERSHELL_CROSS_SHELL_ALIASES
+            or raw in POWERSHELL_NATIVE_SECURITY_PROGRAMS
+            or "-" in raw
+            or raw.startswith("[")
+            or raw.endswith((".ps1", ".psm1")))
+
+
+def _powershell_argument_text(program: str, args: list) -> str:
+    """Return normalized command text for marker checks."""
+    return " ".join([program, *args]).lower().replace("/", "\\")
+
+
+def _powershell_parameter(token: str, name: str, minimum: int) -> bool:
+    """Return True for an unambiguous prefix of a PowerShell parameter."""
+    candidate = token.lower().split(":", 1)[0].lstrip("-")
+    return len(candidate) >= minimum and name.startswith(candidate)
+
+
+def _is_curl_upload_argument(token: str) -> bool:
+    """Return True when one curl argument selects an upload source."""
+    lowered = token.lower()
+    if lowered in {"-t", "--upload-file"}:
+        return True
+    if lowered.startswith("--upload-file="):
+        return True
+    return token.startswith("-") and not token.startswith("--") and "T" in token
+
+
+def _powershell_interpreter_policy(name: str, args: list) -> tuple:
+    """Gate PowerShell launch options that hide or inject executable code."""
+    if name not in {"powershell", "pwsh"}:
+        return "", ""
+    for index, token in enumerate(args):
+        lowered = token.lower().split(":", 1)[0]
+        if lowered in POWERSHELL_ENCODED_FLAGS or lowered in {
+                "-c", "-command", "--command"}:
+            return "deny", "PowerShell receives an arbitrary command payload"
+        if lowered in {"-windowstyle", "-w"} and index + 1 < len(args):
+            if args[index + 1].lower() == "hidden":
+                return "deny", "PowerShell starts with a hidden window"
+        if lowered in {"-executionpolicy", "-ex", "-ep"}:
+            if index + 1 < len(args):
+                policy = args[index + 1].lower()
+                if policy in {"bypass", "unrestricted"}:
+                    return "deny", "PowerShell disables execution policy controls"
+            return "ask", "PowerShell overrides the process execution policy"
+        if lowered in {"-file", "-f"}:
+            if index + 1 < len(args) and is_ambiguous(args[index + 1]):
+                return "deny", "PowerShell receives a dynamic script path"
+            return "ask", "PowerShell executes a script file"
+        if lowered in {"-noprofile", "-nop"}:
+            return "ask", "PowerShell bypasses the configured profile"
+    return "", ""
+
+
+def _powershell_cli_policy(name: str, args: list) -> tuple:
+    """Classify native administration tools by operation instead of operands."""
+    lowered = [token.lower() for token in args]
+    if name == "auditpol":
+        return (("deny", "audit policy modification weakens security controls")
+                if any(token.startswith(("/set", "/clear", "/remove"))
+                       for token in lowered) else ("", ""))
+    if name == "wevtutil":
+        return (("deny", "event log modification removes security evidence")
+                if lowered and lowered[0] in {"cl", "clear-log", "sl", "set-log"}
+                else ("", ""))
+    if name == "manage-bde":
+        if lowered and all(token == "-status" or token.startswith("-") is False
+                           for token in lowered):
+            return "", ""
+        return "deny", "BitLocker modification changes storage protection"
+    if name == "bcdedit":
+        markers = {"/set", "/delete", "/deletevalue", "/create", "/copy",
+                   "/import", "/export", "/sysstore"}
+        return (("deny", "boot policy modification changes host security")
+                if markers.intersection(lowered) else ("", ""))
+    if name == "secedit":
+        if any(token in {"/configure", "/import", "/export"} for token in lowered):
+            return "deny", "local security policy modification changes host controls"
+        return "ask", "local security policy inspection accesses privileged state"
+    if name == "netsh":
+        return "deny", "netsh changes firewall, proxy, or network configuration"
+    if name == "route":
+        if lowered and lowered[0] in {"add", "change", "delete"}:
+            return "deny", "route changes network egress configuration"
+        return "ask", "route enumerates network topology"
+    if name == "reg":
+        text = " ".join(lowered).replace("/", "\\")
+        sensitive = ("hklm\\sam", "hklm\\security", "hklm\\system")
+        if any(marker in text for marker in sensitive):
+            return "deny", "registry access reaches credential or security hives"
+    if name in {"winrs", "schtasks"}:
+        return "deny", f"{sanitize(name)} enables remote execution or persistence"
+    return "", ""
+
+
+def _powershell_path_policy(name: str, args: list, redirects: list) -> tuple:
+    """Classify file operations from path properties rather than basenames."""
+    if name not in POWERSHELL_FILE_WRITERS:
+        return "", ""
+    targets = _known_write_targets(name, args, redirects)
+    for value in targets:
+        cleaned = value.strip().strip('"').strip("'")
+        normalized = cleaned.lower().replace("\\", "/")
+        if normalized.startswith("//"):
+            return "deny", "a file operation reaches a remote UNC path"
+        if re.match(r"^[a-z]:/(windows|program files|programdata)(/|$)", normalized):
+            return "deny", "a file operation reaches a protected system path"
+    if any(is_ambiguous(value) for value in targets):
+        return "ask", "a file path contains an expansion the gate cannot resolve"
+    broad_values = list(targets)
+    if name in {"copy-item", "move-item", "rename-item"}:
+        broad_values.extend(token for token in args if not token.startswith("-"))
+    if any(is_ambiguous(value) for value in broad_values):
+        return "ask", "a file path contains an expansion the gate cannot resolve"
+    if any("*" in value or "?" in value for value in broad_values):
+        return "ask", "a file operation uses a broad wildcard path"
+    if any(token.lower() in RECURSE_PREFIXES for token in args):
+        return "ask", "a file operation recursively changes a directory tree"
+    if name == "clear-content":
+        return "ask", "Clear-Content removes all data from a file"
+    return "", ""
+
+
+def _powershell_indirect_policy(name: str, text: str, args: list) -> tuple:
+    """Classify indirect execution, security bypass, and persistence."""
+    if any(marker in text for marker in POWERSHELL_STATIC_API_MARKERS):
+        return "deny", "a static .NET API enables indirect code or network access"
+    if any(marker in text for marker in POWERSHELL_SECURITY_BYPASS_MARKERS):
+        return "deny", "the command targets a PowerShell security or logging control"
+    if any(marker in text for marker in POWERSHELL_WMI_PERSISTENCE_MARKERS):
+        return "deny", "the command targets WMI event persistence"
+    if "$profile" in text and name in POWERSHELL_FILE_WRITERS:
+        return "deny", "a file write targets a PowerShell profile"
+    if name in POWERSHELL_POLICY_DENY:
+        return "deny", f"{sanitize(name)} belongs to a denied PowerShell family"
+    if name in {"scp", "sftp", "ftp", "azcopy", "rclone"}:
+        return "deny", "a transfer utility can send local data to a remote system"
+    if name == "curl" and any(_is_curl_upload_argument(token) for token in args):
+        return "deny", "curl uploads local data to a remote endpoint"
+    if name == "curl":
+        return "ask", "curl accesses an external network endpoint"
+    if name == "new-object":
+        if "-comobject" in text or "wscript.shell" in text:
+            return "deny", "a COM object enables indirect process or script execution"
+        return "ask", "New-Object constructs a type outside static inspection"
+    if name == "invoke-command":
+        remote = (("computername", 3), ("session", 4),
+                  ("connectionuri", 4), ("hostname", 2))
+        if any(_powershell_parameter(token, parameter, minimum)
+               for token in args for parameter, minimum in remote):
+            return "deny", "Invoke-Command executes on a remote session"
+    if name in POWERSHELL_MODULE_PROGRAMS and any(is_ambiguous(arg) for arg in args):
+        return "deny", "a dynamic module reference hides executable code"
+    if name in {"start-process", "invoke-item"} and any(
+            is_ambiguous(arg) for arg in args):
+        return "deny", "a dynamic process target bypasses static inspection"
+    return "", ""
+
+
+def _powershell_state_policy(name: str, text: str) -> tuple:
+    """Classify persistent state, certificate, and mapped-drive operations."""
+    if name in POWERSHELL_REGISTRY_WRITERS:
+        if any(marker in text for marker in POWERSHELL_SENSITIVE_REGISTRY_MARKERS):
+            return "deny", "a registry write reaches a security-sensitive hive or key"
+        return "ask", "a registry write changes persistent machine state"
+    if name == "remove-item" and "cert:\\" in text:
+        return "deny", "certificate removal changes trust or identity material"
+    if name == "get-childitem" and "cert:\\" in text:
+        return "ask", "certificate enumeration accesses identity material"
+    if name == "new-psdrive" and "\\\\" in text:
+        return "deny", "a mapped drive reaches a remote UNC path"
+    return "", ""
+
+
+def _powershell_web_policy(name: str, args: list) -> tuple:
+    """Classify executable downloads and request bodies without basename literals."""
+    if name in {"invoke-webrequest", "invoke-restmethod", "start-bitstransfer"}:
+        values = [value.lower().split("?", 1)[0] for value in args]
+        if any(value.endswith(POWERSHELL_EXECUTABLE_SUFFIXES) for value in values):
+            return "deny", "a network operation transfers executable content"
+        for index, value in enumerate(args):
+            flag, separator, attached = value.lower().partition(":")
+            if (name == "start-bitstransfer"
+                    and _powershell_parameter(flag, "transfertype", 9)):
+                transfer_type = attached if separator else ""
+                if not transfer_type and index + 1 < len(args):
+                    transfer_type = args[index + 1].lower()
+                if transfer_type == "upload":
+                    return "deny", "BITS uploads local data to a remote endpoint"
+            if flag in {"-body", "-form", "-infile"}:
+                return "deny", "a web request can send local data to a remote endpoint"
+            if flag == "-method":
+                method = attached if separator else ""
+                if not method and index + 1 < len(args):
+                    method = args[index + 1].lower()
+                if method in {"connect", "delete", "patch", "post", "put"}:
+                    return "deny", "a web request uses a state-changing HTTP method"
+    return "", ""
+
+
+def _powershell_script_policy(program: str, name: str, args: list) -> tuple:
+    """Classify direct script and local executable paths."""
+    raw = program.strip().strip('"').strip("'").lower()
+    if raw.startswith(("//", "\\\\")):
+        return "deny", "a command path reaches a remote UNC location"
+    if name.endswith((".ps1", ".psm1")) or name == ".":
+        if any(is_ambiguous(arg) for arg in args):
+            return "deny", "a dynamic script path bypasses static inspection"
+        return "ask", "a script path executes code outside static inspection"
+    if ("/" in raw or "\\" in raw) and raw.endswith(POWERSHELL_EXECUTABLE_SUFFIXES):
+        return "ask", "a local executable path runs code outside static inspection"
+    assignment = "=" in program and program.lower().startswith(("$env:", "${env:"))
+    if is_ambiguous(program) and not assignment:
+        return "deny", "a dynamic command name bypasses static inspection"
+    return "", ""
+
+
+def powershell_policy_verdict(program: str, args: list,
+                              redirects: list = None) -> tuple:
+    """Return the durable PowerShell policy verdict for one named command."""
+    redirects = redirects or []
+    name = normalize_program_name(program)
+    text = _powershell_argument_text(program, args)
+    for verdict in (_powershell_interpreter_policy(name, args),
+                    _powershell_cli_policy(name, args),
+                    _powershell_indirect_policy(name, text, args),
+                    _powershell_state_policy(name, text),
+                    _powershell_web_policy(name, args),
+                    _powershell_path_policy(name, args, redirects),
+                    _powershell_script_policy(program, name, args)):
+        if verdict[0]:
+            return verdict
+    if name in {"compress-archive", "expand-archive"}:
+        return "ask", "archive operations read or write a broad file collection"
+    if name in POWERSHELL_POLICY_ASK:
+        return "ask", f"{sanitize(name)} requires bounded administration approval"
+    if name in POWERSHELL_NETWORK_ENUMERATION_PROGRAMS:
+        return "ask", f"{sanitize(name)} accesses network or identity state"
+    if any(marker in text for marker in POWERSHELL_NETWORK_API_MARKERS):
+        return "ask", "a .NET API enumerates network state"
+    return "", ""
+
+
 def cmd_delete_verdict(program: str, args: list) -> tuple:
     """Return (decision, reason) for a CMD deletion verb.
 
@@ -582,16 +940,21 @@ WRITE_PROGRAMS = {
     "tee": 0, "sed": -1, "cp": -1, "mv": -1,
     "set-content": 0, "sc": 0, "add-content": 0, "ac": 0,
     "out-file": 0, "copy-item": -1, "cpi": -1, "move-item": -1,
-    "mi": -1,
+    "mi": -1, "clear-content": 0, "export-clixml": 0,
+    "export-csv": 0, "rename-item": -1,
 }
 # (canonical name, shortest valid unambiguous prefix, names an output target).
 CONTENT_PARAMETERS = (
     ("path", 3, True), ("literalpath", 1, True), ("value", 2, False),
 )
 OUTPUT_PARAMETERS = (("filepath", 2, True), ("inputobject", 3, False))
+PATH_PARAMETERS = (("path", 3, True), ("literalpath", 1, True))
 COPY_PARAMETERS = (
     ("path", 3, False), ("literalpath", 1, False),
     ("destination", 3, True),
+)
+RENAME_PARAMETERS = (
+    ("path", 3, False), ("literalpath", 1, False), ("newname", 2, True),
 )
 POWERSHELL_WRITE_PARAMETERS = {
     "set-content": CONTENT_PARAMETERS, "sc": CONTENT_PARAMETERS,
@@ -599,6 +962,8 @@ POWERSHELL_WRITE_PARAMETERS = {
     "out-file": OUTPUT_PARAMETERS,
     "copy-item": COPY_PARAMETERS, "cpi": COPY_PARAMETERS,
     "move-item": COPY_PARAMETERS, "mi": COPY_PARAMETERS,
+    "clear-content": PATH_PARAMETERS, "export-clixml": CONTENT_PARAMETERS,
+    "export-csv": CONTENT_PARAMETERS, "rename-item": RENAME_PARAMETERS,
 }
 PROTECTED_PATH_PARTS = frozenset({"hooks", ".claude", "scripts"})
 

@@ -67,6 +67,10 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Added adversarial coverage for filesystem races, parser bypasses, local Git
   executable substitution, immutable secrets and actions, symlink blobs, and
   workflow trust boundaries.
+- Added synthetic PowerShell policy coverage for aliases, abbreviated
+  parameters, varied filenames, dynamic execution, security controls,
+  persistence, credentials, network access, and bounded administration.
+- Added platform-independent cross-drive coverage for protected hook paths.
 
 ### Changed
 - Covered SCP-style remote credential redaction when the path contains an at
@@ -93,6 +97,15 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Limited hook coverage instrumentation to hook source files. Supported
   runtimes use local `sys.monitoring` events when the coverage tool slot remains
   available. Other runtimes retain a scoped `sys.settrace` fallback.
+- Expanded shared PowerShell classification with deny, approval, and allow
+  tiers. Command families and path properties now determine file verdicts.
+  Encoded and direct command payloads now deny regardless of decoded content.
+- Denied UNC command paths independently of basenames and file extensions.
+  Covered attached curl upload arguments and explicit BITS uploads.
+- Started measured long-running test shards before ordinary shards. Reused one
+  isolated Python entrypoint within high-volume hook and CLI test classes.
+  Serialized Git-heavy shards to avoid process and filesystem contention.
+  Fresh-process smoke cases retain process-boundary coverage.
 - Kept primary and detached exemptions in ordinary branch checking. Added
   `--strict-agent-preflight` for interactive agent hooks. Immutable compliance
   now preserves Dependabot branch names through trusted PR author metadata.
