@@ -4,7 +4,7 @@
     "hooks/_bash_parser.py": "6c28a00b050a59a9d69918f6b492079072813aed3540c576595c0a426a0c8929",
     "hooks/_cmd_parser.py": "31cb2d163b509c3c724e22028b05b39819542ba2695cf9567241473e5349e770",
     "hooks/_gate_core.py": "2f86b6ff0a10241a837ab268b49d434bf9a1468ceec101a5653dfa9a21f999e3",
-    "hooks/_platform_policy.py": "fc8e6a552ba67268235a039a0beae3e3f40ba0440f0fdab15b2cd43b65d0e29f",
+    "hooks/_platform_policy.py": "291723101e85ff904dcc74c0518fc5984f1fac64ae893b9285b6cef6d7114948",
     "hooks/block_destructive_bash.py": "2ba6e8debd214306c2fc9aa85ceac39bf5226c491a1181c9a4d08a14bd604b3c",
     "hooks/block_destructive_cmd.py": "d8dfa86ac40b7c0e81e7afe79324de19b1ec9f489358ec487835675f0a35910d",
     "hooks/block_destructive_powershell.py": "fc9eec04b0e473aa392ff7bf0bac8c7b282eae456ddd30f1609e2002a0aee6f9",

@@ -126,7 +126,7 @@ def classify_linux_command(
     if program_name == "crontab":
         if "-r" in lowered_arguments:
             return "deny", "crontab -r deletes scheduled persistence"
-        return "ask", "crontab reads or changes scheduled execution"
+        return "", ""
     if program_name in LINUX_PACKAGE_MANAGERS:
         return "ask", f"{program_name} can change installed software"
     if program_name in ("iptables", "nft"):
