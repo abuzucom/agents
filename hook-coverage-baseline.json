@@ -46,7 +46,6 @@
     "_gate_core.py::su_target_verdict": 9,
     "_gate_core.py::unparseable_verdict": 1,
     "_gate_core.py::volume_verdict": 8,
-    "_platform_policy.py::classify_linux_command": 7,
     "_platform_policy.py::classify_macos_command": 3,
     "_platform_policy.py::classify_transfer_direction": 1,
     "_platform_policy.py::is_remote_endpoint": 2,
