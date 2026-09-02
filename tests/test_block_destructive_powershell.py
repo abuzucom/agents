@@ -109,7 +109,7 @@ class WrapperTest(unittest.TestCase):
         ("Start-Process Remove-Item -Recurse C:\\work\\build", "ask"),
         ("powershell -Command 'Remove-Item -Recurse C:\\work\\build'", "deny"),
         ("pwsh -c 'Remove-Item -Recurse C:\\work\\build'", "deny"),
-        ("cmd /c rd /s /q C:\\work\\build", "ask"),
+        ("cmd /c rd /s /q C:\\work\\build", "deny"),
         ("Invoke-Expression 'Remove-Item -Recurse C:\\work\\build'", "deny"),
     )
 

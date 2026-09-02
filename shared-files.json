@@ -2,13 +2,20 @@
   "note": "SHA-256 of every file that must stay byte-identical across the repositories adopting these gates. Line endings are normalized before hashing. Regenerate with scripts/sync.py --write-shared and commit the result in every one of them.",
   "shared": {
     "hooks/_bash_parser.py": "6c28a00b050a59a9d69918f6b492079072813aed3540c576595c0a426a0c8929",
-    "hooks/_gate_core.py": "bbd9c0e20f63ed834c74c9596c5d5c201494d61ab5a65c30e45e1cbbf9bfd01c",
-    "hooks/block_destructive_bash.py": "d0b6ba346f45945ea689b41afd4aaafde88ed6600a04c85d32ff5eb6e5d7ade0",
-    "hooks/block_destructive_powershell.py": "c3aef994b1715eff29540942caa71816bebaedb47c30eb5f8e1e52342f60ec16",
+    "hooks/_cmd_parser.py": "31cb2d163b509c3c724e22028b05b39819542ba2695cf9567241473e5349e770",
+    "hooks/_gate_core.py": "2f86b6ff0a10241a837ab268b49d434bf9a1468ceec101a5653dfa9a21f999e3",
+    "hooks/_platform_policy.py": "fc8e6a552ba67268235a039a0beae3e3f40ba0440f0fdab15b2cd43b65d0e29f",
+    "hooks/block_destructive_bash.py": "2ba6e8debd214306c2fc9aa85ceac39bf5226c491a1181c9a4d08a14bd604b3c",
+    "hooks/block_destructive_cmd.py": "d8dfa86ac40b7c0e81e7afe79324de19b1ec9f489358ec487835675f0a35910d",
+    "hooks/block_destructive_powershell.py": "fc9eec04b0e473aa392ff7bf0bac8c7b282eae456ddd30f1609e2002a0aee6f9",
     "hooks/reinject_agents_policy.py": "013aca692fce42ead349071231d04344adb76bae27d43dec2e41d7c1152c6dc2",
     "hooks/require_consent.py": "6f11efa1a90267eea49f410addb7ef7edb1b727dbddb483ac109dbbe2441dc60",
-    "tests/gate_corpus.py": "eb3a2f77995901049901703e81c06f0cd9e138707b318d727d8ceacd97d78897",
-    "tests/test_block_destructive_bash.py": "9e4b64e65fc61acbed5f1577f7db4d8c058e397da36b650dbb239ef4c0b334d0",
-    "tests/test_block_destructive_powershell.py": "3301657f15fa95eac6b2e9ac4ab5772b64c6d83353c95c48231d6d362ae57dbf"
+    "tests/gate_corpus.py": "9f5165447718e27531f61559ff275192c2247a7cdb8ce561ce0051ba2a044ba4",
+    "tests/json_line_worker.py": "b75beff1cf903817fbee88fb9fa80ccabad0eb25fc319d16c8c297a6df7236cd",
+    "tests/json_line_worker_child.py": "bad155acd0f37cf37e0ed12ac6c35755a27b987a541977c48d52076912d0e83c",
+    "tests/test_block_destructive_bash.py": "eebd50d50280842fe954342c651da23dfba841ffdd046667761714c549338b5b",
+    "tests/test_block_destructive_cmd.py": "a0912734d3497991111b017fc90e50b4f6354f05d22601b0bd86d504f42716e5",
+    "tests/test_block_destructive_powershell.py": "a1395e9227866937daab8d18cd605df7b8fa532aafee00b7e3fd160eaaf1c58c",
+    "tests/test_platform_policy.py": "96d9059f840a2630ce3ba04ae9435c493301279af2355b84cfc30a85aaadc32d"
   }
 }

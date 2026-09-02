@@ -54,6 +54,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 try:
     import _gate_core as core
     import _bash_parser as bash_parser
+    import _platform_policy as platform_policy
 except ImportError as error:  # pragma: no cover
     # The adoption test exercises this import failure.
     # Fail closed. Claude Code treats any non-zero exit other than 2 as a
@@ -119,7 +120,7 @@ def _powershell_interpreter_verdict(program: str, args: list,
     if kind == "deny":
         return "deny", value
     if kind == "command":
-        return _nested_command_verdict(value, depth, "PowerShell")
+        return "deny", "PowerShell executes a command-string payload"
     return None
 
 
@@ -128,15 +129,12 @@ def _interpreter_argument_verdict(token: str, rest: list, depth: int):
     lowered = token.lower()
     if lowered in INTERPRETER_PAYLOAD_FLAGS:
         if not rest:
-            return "", ""
-        # A POSIX shell takes one string after -c. CMD takes the whole
-        # remainder of the line after /c or /k.
-        payload = " ".join(rest) if lowered.startswith("/") else rest[0]
-        return _nested_command_verdict(payload, depth, "shell")
+            return "deny", "a shell command-string flag has no payload"
+        return "deny", "a shell interpreter executes a command-string payload"
     if token.startswith("-") and not token.startswith("--") and "c" in token:
         if not rest:
-            return "", ""
-        return _nested_command_verdict(rest[0], depth, "shell")
+            return "deny", "a shell command-string flag has no payload"
+        return "deny", "a shell interpreter executes a command-string payload"
     return None
 
 
@@ -159,7 +157,15 @@ def _interpreter_verdict(program: str, args: list, depth: int) -> tuple:
         lowered = token.lower()
         if not token.startswith(("-", "/")) and lowered in INTERPRETERS:
             return _interpreter_verdict(lowered, rest, depth)
-    return "", ""
+    if any(argument.casefold() == "--version" for argument in args):
+        return "", ""
+    fixed_script = next(
+        (argument for argument in args if not argument.startswith(("-", "/"))),
+        "",
+    )
+    if fixed_script:
+        return "ask", "a fixed local script executes code outside inspection"
+    return "ask", "a shell invocation changes the active interpreter"
 
 
 def _eval_verdict(args: list, depth: int) -> tuple:
@@ -182,6 +188,7 @@ def _segment_verdict(tokens: list, depth: int) -> tuple:
     tokens, environment, complete = bash_parser.strip_prefixes(tokens)
     if not complete:
         return "ask", "env -S command text could not be inspected"
+    privileged = core.strongest(privileged, core.privilege_verdict(tokens))
     return core.strongest(
         privileged, _program_verdict(tokens, redirects, environment, depth))
 
@@ -220,7 +227,9 @@ def _program_verdict(tokens: list, redirects: list,
     if named is not None:
         return core.strongest(policy, named)
     verdict = policy
-    for candidate in (core.destruction_verdict(program, args),
+    for candidate in (platform_policy.classify_platform_command(
+                          sys.platform, program, args),
+                      core.destruction_verdict(program, args),
                       core.alias_verdict(program, args),
                       core.environment_assignment_verdict(program, args),
                       core.mode_change_verdict(program, args),

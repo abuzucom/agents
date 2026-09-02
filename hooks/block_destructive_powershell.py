@@ -133,14 +133,8 @@ def _argument_list_verdict(program: str, rest: list, depth: int) -> tuple:
 def _payload_verdict(flag: str, rest: list, depth: int) -> tuple:
     """Return the verdict for a command string handed to an interpreter."""
     if not rest:
-        return "", ""
-    if depth >= core.MAX_COMMAND_DEPTH:
-        return "deny", "shell command nesting exceeds the inspection limit"
-    # cmd takes the remainder of the line; PowerShell takes one string
-    # after -Command.
-    if flag.startswith("/"):
-        return classify(" ".join(rest), depth + 1)
-    return classify(rest[0], depth + 1)
+        return "deny", "a shell command-string flag has no payload"
+    return "deny", "a shell interpreter executes a command-string payload"
 
 
 def _interpreter_verdict(program: str, args: list, depth: int = 0) -> tuple:
@@ -157,7 +151,7 @@ def _interpreter_verdict(program: str, args: list, depth: int = 0) -> tuple:
         if kind == "deny":
             return "deny", value
         if kind == "command":
-            return classify(value, depth + 1)
+            return "deny", "PowerShell executes a command-string payload"
     for index, token in enumerate(args):
         lowered = token.lower()
         if lowered in ARGUMENT_LIST_FLAGS:

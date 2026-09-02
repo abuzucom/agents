@@ -24,7 +24,6 @@ import json
 import ntpath
 import os
 import posixpath
-import re
 import shlex
 import sys
 
@@ -32,7 +31,7 @@ INTERACTIVE_MODES = frozenset({"default", "plan", "acceptEdits", "auto"})
 AMBIGUOUS_MARKERS = ("$", "`")
 FILESYSTEM_ROOTS = frozenset({"/", "//", "/*"})
 # A UNC share root is \\\\server\\share, so at most two components; a drive
-# root is two characters, C:. Both name a whole volume, not a path in one.
+# root includes a separator, such as C:\\. Both name a whole volume.
 UNC_SHARE_ROOT_PARTS = 2
 DRIVE_ROOT_LENGTH = 2
 MAX_GIT_CONFIG_COUNT = 1000
@@ -91,17 +90,19 @@ def is_short_group(token: str) -> bool:
 def _is_drive_root(token: str) -> bool:
     """Return True for the root of any drive or share.
 
-    C:\\, D:/, \\\\server\\share, and the bare drive letter C: all name a
-    whole volume. No workflow deletes one, so these deny rather than ask:
-    an agent has no business putting that choice in front of a person.
+    C:\\, D:/, and \\\\server\\share name a whole volume. A bare C: names
+    the current directory on that drive and is not a volume root.
     """
     candidate = token.strip().strip('"').strip("'")
     if candidate.startswith("\\\\") or candidate.startswith("//"):
         parts = [part for part in candidate.replace("\\", "/").split("/") if part]
         return len(parts) <= UNC_SHARE_ROOT_PARTS
-    stripped = candidate.rstrip("\\/")
-    return (len(stripped) == DRIVE_ROOT_LENGTH and stripped[1] == ":"
-            and stripped[0].isalpha())
+    return (
+        len(candidate) == DRIVE_ROOT_LENGTH + 1
+        and candidate[0].isalpha()
+        and candidate[1] == ":"
+        and candidate[2] in "\\/"
+    )
 
 
 def _is_system_root(token: str) -> bool:
@@ -508,7 +509,7 @@ def any_delete_verdict(program: str, args: list) -> tuple:
 # Interpreters reach one shell from the other. A gate that knows only its
 # own leaves `powershell -Command` and `bash -c` as holes in the other.
 SHELL_INTERPRETERS = frozenset({
-    "bash", "sh", "zsh", "dash", "ksh", "busybox",
+    "bash", "sh", "zsh", "dash", "ksh", "fish", "csh", "tcsh", "busybox",
     "cmd", "cmd.exe", "powershell", "powershell.exe", "pwsh", "pwsh.exe",
 })
 SHELL_PAYLOAD_FLAGS = frozenset({"-c", "--command", "-command", "/c", "/k"})
@@ -771,7 +772,7 @@ def _powershell_path_policy(name: str, args: list, redirects: list) -> tuple:
         normalized = cleaned.lower().replace("\\", "/")
         if normalized.startswith("//"):
             return "deny", "a file operation reaches a remote UNC path"
-        if re.match(r"^[a-z]:/(windows|program files|programdata)(/|$)", normalized):
+        if is_protected_windows_path(normalized):
             return "deny", "a file operation reaches a protected system path"
     if any(is_ambiguous(value) for value in targets):
         return "ask", "a file path contains an expansion the gate cannot resolve"
@@ -787,6 +788,16 @@ def _powershell_path_policy(name: str, args: list, redirects: list) -> tuple:
     if name == "clear-content":
         return "ask", "Clear-Content removes all data from a file"
     return "", ""
+
+
+def is_protected_windows_path(normalized_path: str) -> bool:
+    """Return whether a normalized path enters a protected Windows tree."""
+    if len(normalized_path) < 4:
+        return False
+    if not normalized_path[0].isalpha() or normalized_path[1:3] != ":/":
+        return False
+    first_component = normalized_path[3:].split("/", 1)[0]
+    return first_component in {"program files", "programdata", "windows"}
 
 
 def _powershell_indirect_policy(name: str, text: str, args: list) -> tuple:
@@ -929,11 +940,14 @@ def cmd_delete_verdict(program: str, args: list) -> tuple:
 
 
 TEST_DIR_PARTS = frozenset({"tests", "test", "__tests__", "spec"})
-TEST_NAME = re.compile(
-    r"^test_.+\.(py|js|mjs|cjs|ts|jsx|tsx|ipynb)$"
-    r"|_test\.(py|js|mjs|cjs|ts|go|rb)$"
-    r"|\.(test|spec)\.(js|mjs|cjs|jsx|ts|tsx)$",
-    re.IGNORECASE,
+TEST_PREFIX_SUFFIXES = (
+    ".cjs", ".ipynb", ".js", ".jsx", ".mjs", ".py", ".ts", ".tsx",
+)
+TEST_NAME_SUFFIXES = (
+    "_test.cjs", "_test.go", "_test.js", "_test.mjs", "_test.py",
+    "_test.rb", "_test.ts", ".spec.cjs", ".spec.js", ".spec.jsx",
+    ".spec.mjs", ".spec.ts", ".spec.tsx", ".test.cjs", ".test.js",
+    ".test.jsx", ".test.mjs", ".test.ts", ".test.tsx",
 )
 # Commands whose named operand is a file they overwrite in place.
 WRITE_PROGRAMS = {
@@ -984,7 +998,15 @@ def is_test_path(path: str) -> bool:
     parts = [part.lower() for part in normalized.split("/")]
     if TEST_DIR_PARTS.intersection(parts[:-1]):
         return True
-    return bool(TEST_NAME.search(strip_windows_decorations(parts[-1])))
+    file_name = strip_windows_decorations(parts[-1])
+    if file_name.endswith(TEST_NAME_SUFFIXES):
+        return True
+    if not file_name.startswith("test_"):
+        return False
+    for suffix in TEST_PREFIX_SUFFIXES:
+        if file_name.endswith(suffix):
+            return len(file_name) > len("test_") + len(suffix)
+    return False
 
 
 def test_write_verdict(program: str, args: list, redirect_targets: list) -> tuple:
@@ -1513,7 +1535,7 @@ def git_read_verdict(args: list, cwd: str, assignments: list) -> tuple:
 
 
 def _shell_alias_write_label(expansion: str, entries: dict,
-                             depth: int) -> tuple:
+                             depth: int, visited: frozenset) -> tuple:
     """Return a write label found inside a Git shell alias."""
     try:
         shell_tokens = shlex.split(expansion[1:])
@@ -1524,7 +1546,7 @@ def _shell_alias_write_label(expansion: str, entries: dict,
             continue
         nested, nested_rest = git_subcommand(shell_tokens[index + 1:])
         label, reason = _alias_write_label(
-            nested, nested_rest, entries, depth + 1)
+            nested, nested_rest, entries, depth + 1, visited)
         if label or reason:
             return label, reason
         return "", "git shell alias may hide a Git write"
@@ -1532,23 +1554,30 @@ def _shell_alias_write_label(expansion: str, entries: dict,
 
 
 def _alias_write_label(subcommand: str, rest: list,
-                       entries: dict, depth: int = 0) -> tuple:
+                       entries: dict, depth: int = 0,
+                       visited: frozenset = frozenset()) -> tuple:
     """Return a resolved write label and an alias-resolution error."""
-    if subcommand in ("commit", "push"):
-        return f"git {subcommand}", ""
-    expansion = entries.get(f"alias.{subcommand.lower()}", "")
-    if not expansion:
-        return "", ""
     if depth >= MAX_GIT_ALIAS_DEPTH:
         return "", "git alias expansion exceeds the inspection limit"
+    if subcommand in ("commit", "push"):
+        return f"git {subcommand}", ""
+    normalized_subcommand = subcommand.lower()
+    if normalized_subcommand in visited:
+        return "", "git alias expansion contains a cycle"
+    expansion = entries.get(f"alias.{normalized_subcommand}", "")
+    if not expansion:
+        return "", ""
+    next_visited = visited | {normalized_subcommand}
     if expansion.startswith("!"):
-        return _shell_alias_write_label(expansion, entries, depth)
+        return _shell_alias_write_label(
+            expansion, entries, depth, next_visited)
     try:
         expanded = shlex.split(expansion)
     except ValueError:
         return "", "git alias could not be inspected"
     nested, nested_rest = git_subcommand(expanded + rest)
-    return _alias_write_label(nested, nested_rest, entries, depth + 1)
+    return _alias_write_label(
+        nested, nested_rest, entries, depth + 1, next_visited)
 
 
 def _git_write_context(state: dict, environment: dict, assignments: list,
@@ -1966,12 +1995,59 @@ def disguised_destruction_verdict(program: str, args: list) -> tuple:
 # judged separately and the stronger verdict wins.
 PRIVILEGE_PROGRAMS = frozenset({"sudo", "su", "doas", "pkexec", "runas",
                                 "gsudo", "please"})
+SU_COMMAND_OPTIONS = frozenset({"-c", "--command"})
+SU_VALUE_OPTIONS = frozenset({
+    "-g",
+    "-G",
+    "-s",
+    "-w",
+    "--group",
+    "--shell",
+    "--supp-group",
+    "--whitelist-environment",
+})
+
+
+def su_target_verdict(arguments: list) -> tuple:
+    """Classify the effective target and command payload of one su call."""
+    argument_index = 0
+    target_user = "root"
+    while argument_index < len(arguments):
+        argument = arguments[argument_index]
+        lowered_argument = argument.casefold()
+        if lowered_argument in SU_COMMAND_OPTIONS:
+            return "deny", "su executes a command-string payload"
+        if argument.startswith("-") and not argument.startswith("--"):
+            if "c" in argument[1:]:
+                return "deny", "su executes a command-string payload"
+        if argument in SU_VALUE_OPTIONS:
+            argument_index += 2
+            continue
+        if argument in ("-", "-l", "--login", "-m", "-p", "--preserve-environment"):
+            argument_index += 1
+            continue
+        if argument == "--":
+            argument_index += 1
+            if argument_index < len(arguments):
+                target_user = arguments[argument_index]
+            break
+        if not argument.startswith("-"):
+            target_user = argument
+            break
+        argument_index += 1
+    if is_ambiguous(target_user):
+        return "deny", "su uses a dynamic target account"
+    if target_user.casefold() == "root":
+        return "deny", "su targets root explicitly or through its default"
+    return "ask", f"su changes identity to {sanitize(target_user)}"
 
 
 def privilege_verdict(tokens: list) -> tuple:
     """Return (decision, reason) when a statement escalates privilege."""
-    for token in tokens:
+    for token_index, token in enumerate(tokens):
         name = os.path.basename(token).lower().removesuffix(".exe")
+        if name == "su":
+            return su_target_verdict(tokens[token_index + 1:])
         if name in PRIVILEGE_PROGRAMS:
             return "ask", (f"{name}: running as another user is the user's "
                            "call, whatever the command does")
