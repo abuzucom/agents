@@ -203,9 +203,10 @@ tooling under Rule 9. Obtain active-human approval before adding tooling.
      `stages: [pre-push]`. For Claude Code, copy
      `hooks/enforce_branch_name.py`, `hooks/_gate_core.py`,
      `hooks/_bash_parser.py`, and `hooks/claude-code-settings.example.json`.
-     Merge the hook's `SessionStart` and wildcard `PreToolUse` entries into
-     `.claude/settings.json`. The default checker preserves primary and detached
-     operational exemptions. Agent hooks use strict preflight. Copy
+      Merge the hook's `SessionStart`, `UserPromptSubmit`, wildcard
+      `PreToolUse`, `Stop`, and `SubagentStop` entries into
+      `.claude/settings.json`. The default checker preserves primary and
+      detached operational exemptions. Agent hooks use strict preflight. Copy
      `tests/test_enforce_branch_name.py` and `tests/test_trusted_git_state.py`.
      Run both tests in CI.
 11. Wire git-identity checks in the same change. Copy
@@ -227,14 +228,17 @@ tooling under Rule 9. Obtain active-human approval before adding tooling.
      without a `python` executable. A missing core denies with exit 2. The
      installation remains incomplete.
 13. Unless active-human approval pruned Rule 2 and associated enforcement, wire
-     both shell gates. Copy `hooks/block_destructive_bash.py`,
-     `hooks/block_destructive_powershell.py`, `hooks/_gate_core.py`, and
-     `hooks/_bash_parser.py`. Merge the `Bash` and `PowerShell` entries from
-     `hooks/claude-code-settings.example.json`. Copy `tests/gate_corpus.py`,
+     all command gates. Copy `hooks/block_destructive_bash.py`,
+     `hooks/block_destructive_powershell.py`, `hooks/block_destructive_cmd.py`,
+     `hooks/_gate_core.py`, `hooks/_bash_parser.py`, `hooks/_cmd_parser.py`, and
+     `hooks/_platform_policy.py`. Merge the `Bash`, `PowerShell`, and available
+     CMD entries from `hooks/claude-code-settings.example.json`. Copy
+     `tests/gate_corpus.py`, `tests/json_line_worker.py`,
+     `tests/json_line_worker_child.py`, `tests/test_block_destructive_cmd.py`,
      `tests/test_block_destructive_bash.py`,
-     `tests/test_block_destructive_powershell.py`, and
-     `tests/test_gate_parity.py`. Read Rule 2 before adoption. The parity test
-     requires both shell gates to use the shared decision core.
+     `tests/test_block_destructive_powershell.py`, `tests/test_platform_policy.py`,
+     and `tests/test_gate_parity.py`. Read Rule 2 before adoption. The parity
+     test requires shell gates to use the shared decision core.
 14. Adapt settings and wiring assertions when adopting a subset. Remove
      registrations for hooks that were not copied from both settings files.
      This repository's branch, identity, and consent wiring suites assert the
@@ -409,8 +413,8 @@ The example settings file carries the same registrations for adopters.
 2. In unattended modes, gated actions deny because no user can answer.
 
 The tested command corpus and known command writers bound these claims. A
-writer or command form outside those sets can pass. PowerShell tests use
-synthetic hook payloads only. The tests do not launch native PowerShell
+writer or command form outside those sets can pass. PowerShell and CMD tests
+use synthetic hook payloads only. The tests do not launch native shell
 commands.
 
 ### Destructive Shell Gates
@@ -430,6 +434,19 @@ network location. Fixture filenames never define a verdict.
 UNC command paths deny without depending on a basename or file extension.
 Upload decisions use operation flags and transfer direction. Source names and
 remote endpoints never define those verdicts.
+
+`hooks/block_destructive_cmd.py` handles synthetic `PreToolUse` calls matched
+as `Cmd`, `CMD`, or `CommandPrompt`. Client tool availability determines whether
+a direct matcher fires. Nested CMD command strings still reach the Bash and
+PowerShell gates. The CMD parser handles caret escaping, quoting, command
+boundaries, dynamic expansion, interpreters, storage operations, services,
+scheduled tasks, discovery, and transfer direction. It never launches CMD.
+
+`hooks/_platform_policy.py` classifies macOS and Linux command families through
+an explicit platform argument. Tests exercise every platform on every host.
+The policy covers storage destruction, persistence, security controls,
+credentials, packages, orchestration, discovery, and local or remote transfer
+direction. It does not invoke native discovery commands or access endpoints.
 
 | PowerShell tier | Covered command families |
 |---|---|
@@ -459,9 +476,14 @@ destructive-shell guidance. The report excludes other registered hooks.
 `hooks/enforce_branch_name.py` reads bounded `.git/HEAD` metadata without
 launching Git. Session startup injects recovery guidance on strict failure.
 Wildcard pre-tool registration blocks every observable ordinary tool until
-strict preflight passes. The only tool exceptions are active-human questions
-and one exact recovery command. Invalid named branches use `git branch -m`.
-Primary branches and detached HEAD use `git switch -c`.
+strict preflight passes. The agent selects a compliant replacement from task
+intent. The exact recovery command receives a native authorization prompt.
+Invalid named branches use `git branch -m`. Primary branches and detached HEAD
+use `git switch -c`. The hook denies creation and publication of a `claude/`
+target from a conforming branch. `Stop` and `SubagentStop` block completion while
+strict preflight fails. Repository aliases and direct Git metadata writes cannot
+create a `claude/` target. Harness instructions cannot authorize an invalid
+name.
 
 The portable checker keeps primary and detached operational exemptions by
 default. `--strict-agent-preflight` removes those exemptions for agent hooks.
@@ -481,6 +503,7 @@ The identity hook does not match commit-writing forms of `git merge`,
 
 `hooks/_gate_core.py` owns shared gate decisions.
 `hooks/_bash_parser.py` parses shell and nested interpreter commands.
+`hooks/_cmd_parser.py` parses CMD command boundaries without regular expressions.
 `tests/test_gate_parity.py` requires Bash and PowerShell to reach matching
 decisions for the shared corpus. The settings use executable plus argument
 arrays. Project paths with spaces remain one argument. Malformed gated input
@@ -496,8 +519,10 @@ and missing required gate components deny rather than pass.
 The wildcard matcher registers strict branch preflight. The live `Bash`
 matcher registers destructive-command and git-identity hooks. The live
 `PowerShell` matcher registers the destructive command hook. The live edit
-matcher registers the consent gate. `SessionStart` registers policy,
-branch-name, git-identity, and consent guidance. Hook tests verify the tested
+matcher registers the consent gate. The CMD matcher registers the dedicated
+CMD hook for clients that expose such a tool. `SessionStart` registers policy,
+branch-name, git-identity, and consent guidance. Branch enforcement also runs
+on `UserPromptSubmit`, `Stop`, and `SubagentStop`. Hook tests verify the tested
 corpus. This repository's wiring suites verify the complete hook matrix in both
 settings files.
 

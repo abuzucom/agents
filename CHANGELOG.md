@@ -71,8 +71,26 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   parameters, varied filenames, dynamic execution, security controls,
   persistence, credentials, network access, and bounded administration.
 - Added platform-independent cross-drive coverage for protected hook paths.
+- Added a dedicated bounded CMD parser and synthetic CMD command gate for
+  expansion, command boundaries, storage, persistence, discovery, and transfer
+  behavior.
+- Added explicit macOS and Linux command-family policy with cross-host tests.
+- Added fixed JSON-line worker transport with request deadlines and no dynamic
+  Python command-string execution.
+- Added Claude prompt and stop-event branch enforcement for prohibited
+  `claude/` harness assignments.
 
 ### Changed
+- Blocked creation and publication of `claude/` branch targets even when the
+  current branch conforms. Compliant recovery commands now request native
+  execution authorization.
+- Blocked repository aliases and direct Git metadata writes that create a
+  `claude/` branch target.
+- Changed shell command-string payloads to deny. Plain shell transitions and
+  fixed local scripts now ask. Missing or root-targeted `su` now denies.
+- Changed hook test scheduling to bounded incremental submission with
+  fail-fast process termination and 10-second progress notices.
+- Added a macOS CI job and removed the duplicate Ubuntu full-suite execution.
 - Covered SCP-style remote credential redaction when the path contains an at
   sign.
 - Rewrote `AGENTS.md` for concise policy prose without changing lifecycle

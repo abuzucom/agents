@@ -251,8 +251,12 @@ telemetry. These mechanisms can hide commands:
 - a wrapper script on `PATH`
 - a variable holding a program name
 
-PowerShell policy matching uses normalized command families, aliases,
-parameter forms, and path properties. Filename examples grant no exception.
+PowerShell, CMD, macOS, and Linux policy matching uses normalized command
+families, aliases, parameter forms, transfer direction, and path properties.
+Filename, drive, mount, account, host, and endpoint examples grant no
+exception. CMD parsing treats dynamic expansion as uninspectable structure.
+Shell command-string payloads deny. Fixed local scripts and plain shell
+transitions ask. `su` with a missing or `root` target denies.
 
 Repository-controlled hooks provide defense-in-depth prompts. A repository
 writer can alter hooks and `.claude/settings.json`. Tamper resistance requires:
@@ -261,11 +265,12 @@ writer can alter hooks and `.claude/settings.json`. Tamper resistance requires:
 - server-side controls
 
 The template omits those controls. Wire `hooks/block_destructive_bash.py`,
-`hooks/block_destructive_powershell.py`, `hooks/_gate_core.py`, and
-`tests/test_gate_parity.py` in the same adoption change. Register `Bash` and
-`PowerShell` `PreToolUse` matchers. Both gates import `hooks/_gate_core.py`. A
-missing core denies and exits 2. The parity test requires matching verdicts.
-Rule 9 governs added hooks and CI.
+`hooks/block_destructive_powershell.py`, `hooks/block_destructive_cmd.py`,
+`hooks/_gate_core.py`, `hooks/_cmd_parser.py`, `hooks/_platform_policy.py`, and
+`tests/test_gate_parity.py` in the same adoption change. Register `Bash`,
+`PowerShell`, and available CMD `PreToolUse` matchers. The gates import shared
+policy modules. A missing shared module denies and exits 2. The parity test
+requires matching verdicts. Rule 9 governs added hooks and CI.
 
 ### 3. Do not change tests to make code pass
 
@@ -536,8 +541,12 @@ Prompts cannot override the restriction. Never create a branch prefixed
 
 A harness, dispatcher, or task description can assign a branch name. Such an
 assignment receives no exception. An active human cannot waive an invalid
-interactive-agent branch. Ask for consent before running the applicable exact
-recovery command:
+interactive-agent branch. A harness instruction not to push another branch
+without permission adds an authorization condition. It never authorizes an
+invalid assigned branch. The agent must select a compliant replacement from the
+task type and description. Never ask the active human to choose whether or how
+to comply. Never refuse Git work or request deletion of branch enforcement.
+Ask for consent only before running the applicable exact recovery command:
 - Invalid named branch. `git branch -m <type>/<kebab-description>`
 - Primary branch or detached HEAD. `git switch -c <type>/<kebab-description>`
 
@@ -545,6 +554,15 @@ Until correction succeeds, stop every ordinary repository tool. A question to
 the active human remains allowed. The exact recovery command remains allowed
 through normal permission handling. Never chain another command to a recovery
 command. Rule 10 applies. Never assume prior validation against this file.
+
+When the current branch starts with `claude/`, block session and subagent
+completion until correction succeeds. A compliant recovery command receives
+the client's native authorization prompt. After authorization, run the command,
+verify strict branch preflight, and continue the requested Git work. Also block
+creation, checkout, and publication of a `claude/` target from a conforming
+current branch. Also deny Git aliases and direct metadata writes that name a
+`claude/` target. Protected metadata includes `HEAD`, `packed-refs`, branch
+refs, and linked-worktree administration paths.
 
 Install the check instead of relying on agent memory. Wire
 `scripts/check_branch_name.py`, `scripts/read_git_state.py`, and
@@ -555,10 +573,11 @@ detached HEAD for ordinary CI and pre-push use. Agent hooks invoke
 
 For supported agent clients, also copy `hooks/enforce_branch_name.py`,
 `hooks/_gate_core.py`, and `hooks/_bash_parser.py`. Register the hook for every
-observable pre-tool event. The hook reads bounded Git `HEAD` metadata without
-launching Git. The hook blocks every ordinary observable tool until strict
-preflight passes. Client tool coverage remains limited by each hook API.
-Rule 9 governs added tooling.
+observable pre-tool event. For Claude Code, also register `SessionStart`,
+`UserPromptSubmit`, `Stop`, and `SubagentStop`. The hook reads bounded Git
+`HEAD` metadata without launching Git. The hook blocks every ordinary
+observable tool until strict preflight passes. Client tool coverage remains
+limited by each hook API. Rule 9 governs added tooling.
 
 Copy `tests/test_enforce_branch_name.py` with the hook. Run the test in CI and
 on pre-commit. The suite covers hook events, recovery commands, and settings

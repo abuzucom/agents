@@ -59,9 +59,14 @@ include the following actions:
   subcommand. Unavailable alias sources preserve that ambiguity.
 - Strict branch preflight reads bounded Git `HEAD` metadata without launching
   Git. The gate blocks every observable ordinary tool on an invalid branch.
-  Active-human question tools remain available. One exact correction command
-  remains available. Chaining, wrappers, substitutions, and redirects prevent
-  correction clearance.
+  Active-human question tools remain available. The agent selects one compliant
+  correction command. The client requests execution authorization for that
+  command. Chaining, wrappers, substitutions, and redirects prevent correction
+  clearance. Creation and publication of a `claude/` target also deny from a
+  conforming current branch. Bounded repository alias expansion and direct
+  writes to `HEAD`, `packed-refs`, branch refs, or linked-worktree metadata also
+  deny when the command names that target. Claude stop events block completion on
+  strict failure.
 - Lifecycle hooks read bounded canonical `AGENTS.md` content. Claude injects
   numbered chunks into built-in Explore and Plan agents. Codex injects complete
   context at session and subagent lifecycle events. Gemini and Antigravity
@@ -96,6 +101,15 @@ include the following actions:
   operations, web reads, credential prompts, and network enumeration.
 - The shared classifier applies through Bash and PowerShell entry points. The
   strongest nested verdict wins.
+- The dedicated CMD parser uses a bounded linear scan for quoting, caret
+  escapes, expansion, tokens, and command boundaries. Dynamic expansion and
+  malformed syntax deny. The policy covers storage destruction, recursive
+  deletion, services, scheduled tasks, interpreters, discovery, and transfer
+  direction. Tests use synthetic payloads and never launch CMD.
+- The platform classifier covers macOS and Linux command families. Tests pass
+  the platform explicitly. Each host executes every policy branch. Covered
+  operations include storage destruction, persistence, security controls,
+  credentials, packages, orchestration, discovery, and transfer direction.
 
 Editor-tool handling resolves the named target with `realpath`. The handler
 checks the raw name and resolved name. The handler also checks hard-linked test
@@ -178,8 +192,8 @@ result conservatively. Directory traversal errors also return an incomplete
 result. Candidate stat errors produce the same result. An incomplete result
 prevents write clearance.
 
-The Python classifier receives synthetic hook payloads for PowerShell coverage.
-Coverage lacks an exercised live PowerShell tool call.
+The Python classifiers receive synthetic hook payloads for PowerShell and CMD
+coverage. Coverage lacks exercised live PowerShell and CMD tool calls.
 
 ## Coverage baseline
 
@@ -216,6 +230,29 @@ reason.
   real devices or mounts.
 - `_protected_path` uses an explicit `ntpath` cross-drive case. Linux and
   Windows therefore reach the same defensive `ValueError` branch.
+- `is_test_path` retains alternate Windows path-component and drive-relative
+  arms. Representative test-shaped and ordinary paths cover each verdict.
+- `su_target_verdict` retains malformed option sequences, unsupported option
+  operands, and direct-caller token shapes. Corpus rows cover missing, root,
+  fixed non-root, dynamic, and command-payload targets.
+- `_cmd_parser` functions retain empty-segment, terminal-caret, unmatched
+  expansion, size-bound, and malformed direct-caller arms. Synthetic CMD rows
+  cover complete, dynamic, malformed, empty, and bounded command parsing.
+- `_platform_policy` functions retain alternate endpoint syntax and uncommon
+  macOS or Linux program-family arms. Cross-host tests cover every verdict and
+  representative programs without invoking native platform tools.
+- `block_destructive_cmd` classifiers retain missing operands, alternate curl
+  flags, service query forms, and direct-caller parse states. Synthetic payloads
+  cover destructive, persistence, discovery, transfer, and interpreter paths.
+- The PowerShell `_interpreter_verdict` retains an uncommon parser state after
+  a recognized interpreter. Shared corpus rows cover fixed scripts, command
+  payloads, dynamic targets, and plain shell transitions.
+- Branch enforcement retains malformed lifecycle payloads, alternate recovery
+  schemas, and uncommon Git target positions in
+  `alias_names_prohibited_branch`, `command_names_prohibited_branch`,
+  `command_names_prohibited_metadata`, `handle_context_event`, `main`, and
+  `request_recovery_authorization`. Hook tests cover every lifecycle event.
+  Tests also cover exact recovery, aliases, metadata, and branch publication.
 - `read_payload`, `resolved_under`, and `sanitize` retain defensive exceptions
   and direct-caller bounds. Hook entry points reject those states earlier.
 - `current_branch` retains the post-resolution containment check for a replaced
@@ -233,16 +270,17 @@ above a function. The script fails when a function gains unreached statements.
 Such statements represent new code outside test coverage. The script also fails
 when a function loses unreached statements. Such a loss marks a stale baseline.
 The checker runs each test class in a separate process. Up to four workers run
-concurrently. Measured long-running shards start first. This ordering overlaps
-long-running execution with shorter shards. One worker serializes measured
-Git-heavy shards. Other workers continue ordinary shards without Git process and
-filesystem contention. Classifier-heavy suites reuse one hook process within
-each isolated class process. Selected CLI suites reuse one loaded entrypoint and
-restore argv, stdin, cwd, and environment after every request. Fresh-process
-smoke cases retain process-entrypoint coverage. Start notices, completion
-notices, and 30-second heartbeats expose progress. A 300-second per-class timeout
-terminates that process tree and fails the check. Coverage comparison starts
-only after every worker succeeds.
+concurrently. The scheduler submits only enough shards to fill active workers.
+It stops submission after the first failure. It terminates active process trees
+before joining workers. Measured long-running shards start first. Resource-heavy
+shards run alone. Ordinary shards use every worker after that lane completes.
+Classifier-heavy suites reuse one hook process within each isolated class
+process. Selected CLI suites reuse one loaded entrypoint and restore argv,
+stdin, cwd, and environment after every request. Fresh-process smoke cases
+retain process-entrypoint coverage. Start notices, completion notices, and
+10-second heartbeats expose progress. A 30-second ordinary per-class timeout
+and a 180-second resource-heavy timeout terminate the process tree and fail the
+check. Coverage comparison starts only after every worker succeeds.
 
 Every baseline entry requires a reason in this document. An unexplained entry
 represents untested code. A recorded exception requires an explanation.
