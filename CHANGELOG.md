@@ -81,6 +81,15 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `claude/` harness assignments.
 
 ### Changed
+- Closed CMD boundary bypasses for quoted carets, PATHEXT command names,
+  Windows command paths, output redirects, known file writers, recursive tree
+  copies, abbreviated PowerShell payload flags, and shared Git policy.
+- Restored drive-root normalization for repeated separators and dot segments.
+  Trailing `su -c` payloads now deny after an explicit target account.
+- Added Bash, PowerShell, and CMD parity coverage for shared Git and destructive
+  behavior. Read-only Git commands may inspect prohibited branch refs.
+- Bounded Claude stop-hook retries without clearing strict pre-tool branch
+  enforcement.
 - Blocked creation and publication of `claude/` branch targets even when the
   current branch conforms. Compliant recovery commands now request native
   execution authorization.

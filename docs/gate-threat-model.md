@@ -65,8 +65,9 @@ include the following actions:
   clearance. Creation and publication of a `claude/` target also deny from a
   conforming current branch. Bounded repository alias expansion and direct
   writes to `HEAD`, `packed-refs`, branch refs, or linked-worktree metadata also
-  deny when the command names that target. Claude stop events block completion on
-  strict failure.
+  deny when the command names that target. Claude stop events block one
+  completion attempt on strict failure. An active stop-hook retry allows
+  termination without clearing any repository tool.
 - Lifecycle hooks read bounded canonical `AGENTS.md` content. Claude injects
   numbered chunks into built-in Explore and Plan agents. Codex injects complete
   context at session and subagent lifecycle events. Gemini and Antigravity
@@ -99,13 +100,15 @@ include the following actions:
 - The PowerShell policy asks for fixed local scripts and process launches.
   It also asks for module operations, bounded administration, broad file
   operations, web reads, credential prompts, and network enumeration.
-- The shared classifier applies through Bash and PowerShell entry points. The
-  strongest nested verdict wins.
+- The shared classifier applies through Bash, PowerShell, and CMD entry points.
+  The strongest nested verdict wins.
 - The dedicated CMD parser uses a bounded linear scan for quoting, caret
   escapes, expansion, tokens, and command boundaries. Dynamic expansion and
-  malformed syntax deny. The policy covers storage destruction, recursive
-  deletion, services, scheduled tasks, interpreters, discovery, and transfer
-  direction. Tests use synthetic payloads and never launch CMD.
+  malformed syntax deny. Carets inside quotes remain literal. The policy covers
+  storage destruction, recursive deletion, redirects, known file writers, Git,
+  services, scheduled tasks, interpreters, discovery, and transfer direction.
+  PATHEXT names and Windows command paths normalize before classification.
+  Tests use synthetic payloads and never launch CMD.
 - The platform classifier covers macOS and Linux command families. Tests pass
   the platform explicitly. Each host executes every policy branch. Covered
   operations include storage destruction, persistence, security controls,

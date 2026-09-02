@@ -439,8 +439,10 @@ remote endpoints never define those verdicts.
 as `Cmd`, `CMD`, or `CommandPrompt`. Client tool availability determines whether
 a direct matcher fires. Nested CMD command strings still reach the Bash and
 PowerShell gates. The CMD parser handles caret escaping, quoting, command
-boundaries, dynamic expansion, interpreters, storage operations, services,
-scheduled tasks, discovery, and transfer direction. It never launches CMD.
+boundaries, dynamic expansion, redirects, known file writers, Git,
+interpreters, storage operations, services, scheduled tasks, discovery, and
+transfer direction. PATHEXT names and Windows command paths normalize before
+classification. It never launches CMD.
 
 `hooks/_platform_policy.py` classifies macOS and Linux command families through
 an explicit platform argument. Tests exercise every platform on every host.
@@ -481,9 +483,10 @@ intent. The exact recovery command receives a native authorization prompt.
 Invalid named branches use `git branch -m`. Primary branches and detached HEAD
 use `git switch -c`. The hook denies creation and publication of a `claude/`
 target from a conforming branch. `Stop` and `SubagentStop` block completion while
-strict preflight fails. Repository aliases and direct Git metadata writes cannot
-create a `claude/` target. Harness instructions cannot authorize an invalid
-name.
+strict preflight fails. An active stop-hook retry permits bounded termination.
+The retry does not clear any repository tool. Repository aliases and direct Git
+metadata writes cannot create a `claude/` target. Harness instructions cannot
+authorize an invalid name.
 
 The portable checker keeps primary and detached operational exemptions by
 default. `--strict-agent-preflight` removes those exemptions for agent hooks.
@@ -504,10 +507,10 @@ The identity hook does not match commit-writing forms of `git merge`,
 `hooks/_gate_core.py` owns shared gate decisions.
 `hooks/_bash_parser.py` parses shell and nested interpreter commands.
 `hooks/_cmd_parser.py` parses CMD command boundaries without regular expressions.
-`tests/test_gate_parity.py` requires Bash and PowerShell to reach matching
-decisions for the shared corpus. The settings use executable plus argument
-arrays. Project paths with spaces remain one argument. Malformed gated input
-and missing required gate components deny rather than pass.
+`tests/test_gate_parity.py` requires Bash, PowerShell, and CMD to reach matching
+Git and destructive behavior decisions. The settings use executable plus
+argument arrays. Project paths with spaces remain one argument. Malformed gated
+input and missing required gate components deny rather than pass.
 
 | Hook outcome | Observable behavior |
 |---|---|
