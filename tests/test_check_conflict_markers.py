@@ -13,8 +13,10 @@ from unittest.mock import patch, MagicMock
 
 try:
     from tests.persistent_main_worker import MainWorker
+    from tests.retrying_temp_directory import RetryingTemporaryDirectory
 except ImportError:
     from persistent_main_worker import MainWorker
+    from retrying_temp_directory import RetryingTemporaryDirectory
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 CHECKER_PATH = REPO_ROOT / "scripts" / "check_conflict_markers.py"
@@ -454,7 +456,7 @@ class FileCheckingTest(unittest.TestCase):
             tmp_path.unlink()
 
     def test_symlink_is_ignored(self):
-        with tempfile.TemporaryDirectory() as tmp_dir:
+        with RetryingTemporaryDirectory() as tmp_dir:
             target = Path(tmp_dir) / "target.txt"
             target.write_text(
                 "<<<<<<< HEAD\na\n=======\n"
@@ -488,7 +490,7 @@ class FileCheckingTest(unittest.TestCase):
         self.assertIn("file not found", err)
 
     def test_safe_read_symlink_skipped(self):
-        with tempfile.TemporaryDirectory() as tmp_dir:
+        with RetryingTemporaryDirectory() as tmp_dir:
             target = Path(tmp_dir) / "target.txt"
             target.write_text("content", encoding="utf-8")
             link = Path(tmp_dir) / "link.txt"
@@ -513,7 +515,7 @@ class FileCheckingTest(unittest.TestCase):
 
     def test_staged_utf16_working_tree_encoding_not_applied(self):
         """Staged blob in index is decoded as UTF-8 without working-tree-encoding."""
-        with tempfile.TemporaryDirectory() as tmp_dir:
+        with RetryingTemporaryDirectory() as tmp_dir:
             repo_path = Path(tmp_dir)
             # Simulate index entry with conflict text in UTF-8
             sha = "fake_sha_1234"
@@ -604,7 +606,7 @@ class CliExecutionTest(unittest.TestCase):
 
     def test_cli_from_subdirectory_exits_zero(self):
         """Repo root is resolved; all tracked files are checked."""
-        with tempfile.TemporaryDirectory() as temporary:
+        with RetryingTemporaryDirectory() as temporary:
             repo = Path(temporary)
             nested = repo / "nested"
             nested.mkdir()
@@ -622,7 +624,7 @@ class CliExecutionTest(unittest.TestCase):
         )
 
     def test_staged_flag_exits_zero_on_clean_repo(self):
-        with tempfile.TemporaryDirectory() as temporary:
+        with RetryingTemporaryDirectory() as temporary:
             repo = Path(temporary)
             subprocess.run(
                 ["git", "init", "-q", "-b", "main"], cwd=repo,
@@ -827,7 +829,7 @@ class SecurityHardeningTest(unittest.TestCase):
         blob, so without --no-replace-objects the checker reads the
         replacement and reports the tree as clean.
         """
-        with tempfile.TemporaryDirectory() as tmp:
+        with RetryingTemporaryDirectory() as tmp:
             _init_repo(tmp)
             target = Path(tmp) / "merged.txt"
             target.write_text(
@@ -851,7 +853,7 @@ class SecurityHardeningTest(unittest.TestCase):
             violations, "a replacement ref hid conflict markers in the index")
 
     def test_replacement_ref_does_not_hide_a_tree_conflict(self):
-        with tempfile.TemporaryDirectory() as tmp:
+        with RetryingTemporaryDirectory() as tmp:
             _init_repo(tmp)
             target = Path(tmp) / "merged.txt"
             target.write_text(
@@ -883,7 +885,7 @@ class SecurityHardeningTest(unittest.TestCase):
         self.assertIn("unresolved conflict block", result.stderr)
 
     def test_tree_mode_rejects_malformed_object_id(self):
-        with tempfile.TemporaryDirectory() as tmp:
+        with RetryingTemporaryDirectory() as tmp:
             _init_repo(tmp)
             result = subprocess.run(
                 [sys.executable, str(CHECKER_PATH), "--repo", tmp,
@@ -905,7 +907,7 @@ class SecurityHardeningTest(unittest.TestCase):
                     checker._parse_tree_entries(raw)
 
     def test_tree_mode_reads_content_and_attributes_from_the_tree(self):
-        with tempfile.TemporaryDirectory() as tmp:
+        with RetryingTemporaryDirectory() as tmp:
             _init_repo(tmp)
             target = Path(tmp) / "marker.txt"
             attributes = Path(tmp) / ".gitattributes"
@@ -956,7 +958,7 @@ class SecurityHardeningTest(unittest.TestCase):
 
     def test_symlink_probe_reports_a_failed_check(self):
         """Swallowing the probe error opens the path without knowing."""
-        with tempfile.TemporaryDirectory() as tmp:
+        with RetryingTemporaryDirectory() as tmp:
             plain = Path(tmp) / "plain.txt"
             plain.write_text("clean\n", encoding="utf-8")
             link = Path(tmp) / "link.txt"
@@ -989,7 +991,7 @@ class WindowsPathHandlingTest(unittest.TestCase):
         Keying the result on the backslash spelling loses every attribute
         for a nested path, so conflict-marker-size is silently dropped.
         """
-        with tempfile.TemporaryDirectory() as tmp:
+        with RetryingTemporaryDirectory() as tmp:
             nested = Path(tmp) / "nested"
             nested.mkdir()
             target = nested / "file.txt"
@@ -1016,7 +1018,7 @@ class SparseCheckoutTest(unittest.TestCase):
     """Scan skip-worktree content from its authoritative source."""
 
     def test_skip_worktree_entry_does_not_fail_the_check(self):
-        with tempfile.TemporaryDirectory() as tmp:
+        with RetryingTemporaryDirectory() as tmp:
             _init_repo(tmp)
             target = Path(tmp) / "sparse.txt"
             target.write_text("clean content\n", encoding="utf-8")
@@ -1038,7 +1040,7 @@ class SparseCheckoutTest(unittest.TestCase):
             f"a valid sparse checkout failed: {result.stderr}")
 
     def test_present_skip_worktree_entry_uses_unstaged_content(self):
-        with tempfile.TemporaryDirectory() as tmp:
+        with RetryingTemporaryDirectory() as tmp:
             _init_repo(tmp)
             target = Path(tmp) / "present.txt"
             target.write_text("clean content\n", encoding="utf-8")
@@ -1062,7 +1064,7 @@ class SparseCheckoutTest(unittest.TestCase):
         self.assertIn("unresolved conflict block", result.stderr)
 
     def test_sparse_checkout_scans_absent_index_blob_with_cached_attributes(self):
-        with tempfile.TemporaryDirectory() as tmp:
+        with RetryingTemporaryDirectory() as tmp:
             _init_repo(tmp)
             target = Path(tmp) / "sparse.txt"
             present = Path(tmp) / "present.txt"
@@ -1149,7 +1151,7 @@ class GitOptionSupportTest(unittest.TestCase):
 
     def test_the_checker_reads_objects_on_this_git(self):
         """Whatever git runs here, --staged must reach a verdict."""
-        with tempfile.TemporaryDirectory() as temporary:
+        with RetryingTemporaryDirectory() as temporary:
             repo = Path(temporary)
             subprocess.run(
                 ["git", "init", "-q", "-b", "main"], cwd=repo,

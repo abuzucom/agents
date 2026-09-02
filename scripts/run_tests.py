@@ -72,13 +72,41 @@ def _sharded_ids(shards: list[tuple[str, str]]) -> collections.Counter:
     return identifiers
 
 
+def _test_module_names(root: str) -> set[str]:
+    """Return import names that test discovery can load below root."""
+    tests = os.path.join(root, "tests")
+    names = set()
+    for directory, _, files in os.walk(tests):
+        relative = os.path.relpath(directory, tests)
+        package = [] if relative == "." else relative.split(os.sep)
+        for filename in files:
+            if filename.startswith("test_") and filename.endswith(".py"):
+                stem = filename[:-3]
+                names.add(".".join(package + [stem]))
+                names.add(".".join(["tests"] + package + [stem]))
+    return names
+
+
 def validated_test_shards(root: str) -> list[tuple[str, str]]:
     """Return shards only when sharding preserves exact discovery."""
-    expected, shards = _discovered_tests(root)
-    actual = _sharded_ids(shards)
-    if not expected or actual != expected:
-        raise RuntimeError("class sharding changed the discovered test set")
-    return shards
+    module_names = _test_module_names(root)
+    saved_modules = {
+        name: sys.modules.pop(name)
+        for name in module_names
+        if name in sys.modules
+    }
+    original_path = list(sys.path)
+    try:
+        expected, shards = _discovered_tests(root)
+        actual = _sharded_ids(shards)
+        if not expected or actual != expected:
+            raise RuntimeError("class sharding changed the discovered test set")
+        return shards
+    finally:
+        sys.path[:] = original_path
+        for name in module_names:
+            sys.modules.pop(name, None)
+        sys.modules.update(saved_modules)
 
 
 def _safe_diagnostic(problem: str) -> str:

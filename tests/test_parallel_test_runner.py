@@ -72,6 +72,11 @@ class ParallelTestRunnerTest(unittest.TestCase):
         self.assertIn("$(PYTHON) scripts/run_tests.py", makefile)
         self.assertIn(f"entry: {command}", pre_commit)
         self.assertEqual(workflow.count(f"run: {command}"), 2)
+        self.assertEqual(
+            workflow.count("run: python scripts/check_hook_coverage.py"),
+            1,
+        )
+        self.assertIn("runs-on: macos-latest", workflow)
         self.assertNotIn("unittest discover", workflow)
 
 

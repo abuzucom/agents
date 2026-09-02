@@ -17,7 +17,6 @@ import ast
 import concurrent.futures
 import io
 import json
-import operator
 import os
 import signal
 import shutil
@@ -26,7 +25,9 @@ import sys
 import tempfile
 import time
 import unittest
+from collections import deque
 from dataclasses import dataclass
+from threading import Lock
 
 BASELINE = "hook-coverage-baseline.json"
 TARGET = "hooks"
@@ -36,8 +37,10 @@ TARGET = "hooks"
 # as unreached.
 TRACER_DIR = os.path.join("tools", "hook-trace")
 DEFAULT_WORKERS = 4
-TEST_SHARD_TIMEOUT_SECONDS = 300
-PROGRESS_INTERVAL_SECONDS = 30
+TEST_SHARD_TIMEOUT_SECONDS = 30
+RESOURCE_SHARD_TIMEOUT_SECONDS = 180
+PROGRESS_INTERVAL_SECONDS = 10
+PROCESS_SHUTDOWN_TIMEOUT_SECONDS = 5
 PRIORITY_TEST_SHARDS = (
     "test_enforce_git_identity.py::PreToolUseTest",
     "test_immutable_compliance.py::ImmutableComplianceScannerTest",
@@ -52,7 +55,8 @@ PRIORITY_TEST_SHARDS = (
     "test_check_conflict_markers.py::SecurityHardeningTest",
     "test_check_conflict_markers.py::SparseCheckoutTest",
 )
-RESOURCE_HEAVY_TEST_SHARDS = frozenset(PRIORITY_TEST_SHARDS[:4])
+RESOURCE_HEAVY_TEST_SHARDS = frozenset(PRIORITY_TEST_SHARDS)
+EXCLUSIVE_TEST_SHARDS = RESOURCE_HEAVY_TEST_SHARDS
 
 
 @dataclass(frozen=True)
@@ -65,6 +69,32 @@ class TestShardResult:
     stdout: str
     stderr: str
     timed_out: bool
+
+
+class ActiveProcessRegistry:
+    """Track active shard processes for fail-fast process-tree termination."""
+
+    def __init__(self) -> None:
+        self.processes: dict[str, subprocess.Popen] = {}
+        self.lock = Lock()
+
+    def register_process(self, label: str, process: subprocess.Popen) -> None:
+        """Register one active test process by shard label."""
+        with self.lock:
+            self.processes[label] = process
+
+    def unregister_process(self, label: str) -> None:
+        """Remove one completed test process."""
+        with self.lock:
+            self.processes.pop(label, None)
+
+    def terminate_all_processes(self) -> None:
+        """Terminate every active process tree from a stable snapshot."""
+        with self.lock:
+            active_processes = tuple(self.processes.values())
+        for active_process in active_processes:
+            if active_process.poll() is None:
+                terminate_process_tree(active_process)
 
 
 def is_docstring(node, parent) -> bool:
@@ -139,6 +169,7 @@ def discover_test_shards(root: str) -> list[tuple[str, str]]:
     resolved_root = os.path.abspath(root)
     if resolved_root not in sys.path:
         sys.path.insert(0, resolved_root)
+    remove_stale_test_modules(tests)
     loader = unittest.TestLoader()
     suite = loader.discover(tests, pattern="test_*.py")
     stack = [suite]
@@ -157,14 +188,50 @@ def discover_test_shards(root: str) -> list[tuple[str, str]]:
     return sorted((label, name) for name, label in shards.items())
 
 
+def remove_stale_test_modules(tests_directory: str) -> None:
+    """Remove temporary test modules imported from a previous test root."""
+    resolved_tests_directory = os.path.realpath(tests_directory)
+    for module_name, module in tuple(sys.modules.items()):
+        module_path = getattr(module, "__file__", "")
+        if not module_name.startswith("test_") or not module_path:
+            continue
+        resolved_module_path = os.path.realpath(module_path)
+        if not resolved_module_path.startswith(resolved_tests_directory + os.sep):
+            sys.modules.pop(module_name, None)
+
+
 def prioritize_test_shards(
         test_shards: list[tuple[str, str]]) -> list[tuple[str, str]]:
     """Return measured slow shards first and all other shards lexically."""
-    priority = {label: index for index, label in enumerate(PRIORITY_TEST_SHARDS)}
-    ordinary = len(priority)
-    return sorted(
-        test_shards,
-        key=lambda shard: (priority.get(shard[0], ordinary), shard[0], shard[1]),
+    ordinary_priority = len(PRIORITY_TEST_SHARDS)
+    decorated_shards = [
+        (
+            shard_priority(label, ordinary_priority),
+            label,
+            import_name,
+        )
+        for label, import_name in test_shards
+    ]
+    decorated_shards.sort()
+    return [
+        (label, import_name)
+        for _priority, label, import_name in decorated_shards
+    ]
+
+
+def shard_priority(label: str, ordinary_priority: int) -> int:
+    """Return the configured priority for one class or method label."""
+    for index, priority_label in enumerate(PRIORITY_TEST_SHARDS):
+        if label == priority_label or label.startswith(priority_label + "."):
+            return index
+    return ordinary_priority
+
+
+def is_resource_heavy(label: str) -> bool:
+    """Return whether a class or method label receives the resource timeout."""
+    return any(
+        label == resource_label or label.startswith(resource_label + ".")
+        for resource_label in RESOURCE_HEAVY_TEST_SHARDS
     )
 
 
@@ -177,7 +244,7 @@ def terminate_process_tree(process: subprocess.Popen) -> None:
     else:
         os.killpg(process.pid, signal.SIGTERM)
     try:
-        process.wait(timeout=5)
+        process.wait(timeout=PROCESS_SHUTDOWN_TIMEOUT_SECONDS)
     except subprocess.TimeoutExpired:
         if os.name == "nt":
             process.kill()
@@ -186,8 +253,14 @@ def terminate_process_tree(process: subprocess.Popen) -> None:
         process.wait()
 
 
-def run_test_shard(root: str, environment: dict, label: str,
-                   import_name: str, timeout: float) -> TestShardResult:
+def run_test_shard(
+    root: str,
+    environment: dict,
+    label: str,
+    import_name: str,
+    timeout: float,
+    process_registry: ActiveProcessRegistry | None = None,
+) -> TestShardResult:
     """Run one test class with a timeout and return its captured result."""
     print("hook coverage: started %s" % label, file=sys.stderr, flush=True)
     started = time.monotonic()
@@ -199,6 +272,8 @@ def run_test_shard(root: str, environment: dict, label: str,
         cwd=root, env=environment, stdout=subprocess.PIPE,
         stderr=subprocess.PIPE, text=True,
         start_new_session=os.name != "nt", creationflags=creationflags)
+    if process_registry is not None:
+        process_registry.register_process(label, process)
     try:
         stdout, stderr = process.communicate(timeout=timeout)
         timed_out = False
@@ -206,7 +281,10 @@ def run_test_shard(root: str, environment: dict, label: str,
         terminate_process_tree(process)
         stdout, stderr = process.communicate()
         timed_out = True
-    elapsed = operator.sub(time.monotonic(), started)
+    finally:
+        if process_registry is not None:
+            process_registry.unregister_process(label)
+    elapsed = time.monotonic() - started
     return TestShardResult(
         label, elapsed, process.returncode, stdout, stderr, timed_out)
 
@@ -220,29 +298,77 @@ def result_problem(result: TestShardResult, timeout: float) -> str:
         result.name, result.returncode, output[-2000:])
 
 
-def record_result(result: TestShardResult, timeout: float,
-                   problems: list[str]) -> None:
-    """Report one completed shard and retain any problem."""
+def record_result(result: TestShardResult, timeout: float) -> str:
+    """Report one completed shard and return its actionable problem."""
     status = "passed"
+    problem = ""
     if result.timed_out:
         status = "timed out"
-        problems.append(result_problem(result, timeout))
+        problem = result_problem(result, timeout)
     elif result.returncode != 0:
         status = "failed"
-        problems.append(result_problem(result, timeout))
+        problem = result_problem(result, timeout)
     print("hook coverage: %s %s (%.1fs)"
           % (status, result.name, result.elapsed),
           file=sys.stderr, flush=True)
+    return problem
 
 
-def run_test_shard_sequence(
-        root: str, environment: dict, test_shards: list[tuple[str, str]],
-        timeout: float) -> list[TestShardResult]:
-    """Run resource-heavy shards serially with their individual bounds."""
-    return [
-        run_test_shard(root, environment, label, import_name, timeout)
-        for label, import_name in test_shards
-    ]
+def submit_available_shards(
+    executor: concurrent.futures.ThreadPoolExecutor,
+    active_futures: dict,
+    ordinary_shards: deque,
+    exclusive_shards: deque,
+    worker_count: int,
+    shard_arguments: tuple,
+) -> None:
+    """Fill workers while keeping exclusive work isolated."""
+    exclusive_is_active = any(details[2] for details in active_futures.values())
+    if exclusive_is_active:
+        return
+    while len(active_futures) < worker_count:
+        is_exclusive = False
+        if exclusive_shards and not active_futures:
+            label, import_name = exclusive_shards.popleft()
+            is_exclusive = True
+        elif ordinary_shards:
+            label, import_name = ordinary_shards.popleft()
+        else:
+            return
+        shard_timeout = shard_arguments[2]
+        if is_resource_heavy(label):
+            shard_timeout = max(shard_timeout, RESOURCE_SHARD_TIMEOUT_SECONDS)
+        future = executor.submit(
+            run_test_shard,
+            shard_arguments[0],
+            shard_arguments[1],
+            label,
+            import_name,
+            shard_timeout,
+            shard_arguments[3],
+        )
+        active_futures[future] = (
+            label, import_name, is_exclusive, shard_timeout)
+        if is_exclusive:
+            return
+
+
+def collect_completed_results(
+    completed_futures: set,
+    active_futures: dict,
+) -> str:
+    """Record completed futures and return the first actionable failure."""
+    for completed_future in completed_futures:
+        details = active_futures.pop(completed_future)
+        label, _import_name, _is_exclusive, shard_timeout = details
+        try:
+            shard_result = completed_future.result()
+        except Exception as error:
+            return f"{label} worker failed before reporting a result: {error}"
+        problem = record_result(shard_result, shard_timeout)
+        if problem:
+            return problem
+    return ""
 
 
 def run_test_shards(root: str, environment: dict,
@@ -250,51 +376,63 @@ def run_test_shards(root: str, environment: dict,
                     timeout: float = TEST_SHARD_TIMEOUT_SECONDS,
                     test_shards: list[tuple[str, str]] | None = None) -> list[str]:
     """Run traced test classes concurrently and return worker problems."""
+    if workers <= 0:
+        raise ValueError("coverage workers must be positive")
+    if timeout <= 0:
+        raise ValueError("coverage timeout must be positive")
     if test_shards is None:
         test_shards = discover_test_shards(root)
     test_shards = prioritize_test_shards(test_shards)
-    heavy = [shard for shard in test_shards
-             if shard[0] in RESOURCE_HEAVY_TEST_SHARDS]
-    ordinary = [shard for shard in test_shards
-                if shard[0] not in RESOURCE_HEAVY_TEST_SHARDS]
-    job_count = len(ordinary) + (1 if heavy else 0)
-    worker_count = min(workers, job_count)
-    if worker_count < 1 or timeout <= 0:
-        raise ValueError("coverage workers and timeout must be positive")
+    if not test_shards:
+        raise ValueError("coverage test discovery returned no shards")
+    exclusive_shards = deque(
+        shard for shard in test_shards
+        if shard[0] in EXCLUSIVE_TEST_SHARDS)
+    ordinary_shards = deque(
+        shard for shard in test_shards
+        if shard[0] not in EXCLUSIVE_TEST_SHARDS)
+    worker_count = min(workers, len(test_shards))
     print("hook coverage: starting %d test shards with %d workers"
           % (len(test_shards), worker_count), file=sys.stderr, flush=True)
     environment = dict(environment)
     test_path = os.path.join(root, "tests")
     environment["PYTHONPATH"] = os.pathsep.join(filter(None, (
         environment.get("PYTHONPATH", ""), test_path)))
-    problems = []
-    with concurrent.futures.ThreadPoolExecutor(worker_count) as executor:
-        future_sizes = {}
-        if heavy:
-            future = executor.submit(
-                run_test_shard_sequence, root, environment, heavy, timeout)
-            future_sizes[future] = len(heavy)
-        for label, import_name in ordinary:
-            future = executor.submit(
-                run_test_shard, root, environment, label, import_name, timeout)
-            future_sizes[future] = 1
-        pending = set(future_sizes)
-        while pending:
-            done, pending = concurrent.futures.wait(
-                pending, timeout=PROGRESS_INTERVAL_SECONDS,
+    process_registry = ActiveProcessRegistry()
+    active_futures = {}
+    executor = concurrent.futures.ThreadPoolExecutor(worker_count)
+    try:
+        shard_arguments = (root, environment, timeout, process_registry)
+        submit_available_shards(
+            executor, active_futures, ordinary_shards,
+            exclusive_shards, worker_count, shard_arguments)
+        while active_futures:
+            completed_futures, _pending_futures = concurrent.futures.wait(
+                set(active_futures), timeout=PROGRESS_INTERVAL_SECONDS,
                 return_when=concurrent.futures.FIRST_COMPLETED)
-            if not done:
+            if not completed_futures:
+                remaining_count = (
+                    len(active_futures)
+                    + len(ordinary_shards)
+                    + len(exclusive_shards)
+                )
                 print("hook coverage: %d test shards remain"
-                      % sum(future_sizes[future] for future in pending),
+                      % remaining_count,
                       file=sys.stderr, flush=True)
                 continue
-            for future in done:
-                results = future.result()
-                if isinstance(results, TestShardResult):
-                    results = [results]
-                for result in results:
-                    record_result(result, timeout, problems)
-    return problems
+            problem = collect_completed_results(
+                completed_futures, active_futures)
+            if problem:
+                process_registry.terminate_all_processes()
+                for active_future in active_futures:
+                    active_future.cancel()
+                return [problem]
+            submit_available_shards(
+                executor, active_futures, ordinary_shards,
+                exclusive_shards, worker_count, shard_arguments)
+    finally:
+        executor.shutdown(wait=True, cancel_futures=True)
+    return []
 
 
 def measure(root: str) -> dict:

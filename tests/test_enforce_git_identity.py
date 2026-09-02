@@ -27,14 +27,15 @@ import os
 import shutil
 import subprocess
 import sys
-import tempfile
 import unittest
 from pathlib import Path
 
 try:
     from tests.persistent_main_worker import MainWorker
+    from tests.retrying_temp_directory import RetryingTemporaryDirectory
 except ImportError:
     from persistent_main_worker import MainWorker
+    from retrying_temp_directory import RetryingTemporaryDirectory
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 HOOK_PATH = REPO_ROOT / "hooks" / "enforce_git_identity.py"
@@ -66,7 +67,7 @@ def hook_worker() -> MainWorker:
     """Return the process-local persistent identity hook worker."""
     global _HOOK_WORKER
     if _HOOK_WORKER is None:
-        _HOOK_WORKER = MainWorker(HOOK_PATH)
+        _HOOK_WORKER = MainWorker(HOOK_PATH, change_directory=False)
     return _HOOK_WORKER
 
 
@@ -99,7 +100,7 @@ class IdentityRepo(unittest.TestCase):
     """A throwaway git repo carrying a copy of the checker, like an adopting repo."""
 
     def setUp(self):
-        self._tmp = tempfile.TemporaryDirectory()
+        self._tmp = RetryingTemporaryDirectory()
         self.addCleanup(self._tmp.cleanup)
         root = Path(self._tmp.name)
         self.repo = root / "repo"

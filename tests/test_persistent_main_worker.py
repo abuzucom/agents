@@ -13,6 +13,7 @@ MODULE_SOURCE = """\
 import json
 import os
 import sys
+import time
 
 invocations = 0
 
@@ -20,6 +21,7 @@ def main():
     global invocations
     invocations += 1
     payload = json.load(sys.stdin)
+    time.sleep(payload.get("sleep", 0))
     print(json.dumps({
         "argv": sys.argv[1:],
         "cwd": os.getcwd(),
@@ -69,6 +71,21 @@ class MainWorkerTest(unittest.TestCase):
         self.assertEqual(first_output["payload"], {"code": 3})
         self.assertEqual(second_output["value"], "second")
         self.assertEqual(first.stderr, "worker diagnostic\n")
+
+    def test_request_timeout_terminates_worker(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            repository_root = Path(temporary)
+            module_path = repository_root / "slow_cli.py"
+            module_path.write_text(MODULE_SOURCE, encoding="utf-8")
+            worker = MainWorker(module_path, request_timeout=0.05)
+            self.addCleanup(worker.close)
+            with self.assertRaisesRegex(RuntimeError, "timed out"):
+                worker.invoke(
+                    [],
+                    {"code": 0, "sleep": 1},
+                    repository_root,
+                    dict(os.environ),
+                )
 
 
 if __name__ == "__main__":
