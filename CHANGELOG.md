@@ -71,8 +71,49 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   parameters, varied filenames, dynamic execution, security controls,
   persistence, credentials, network access, and bounded administration.
 - Added platform-independent cross-drive coverage for protected hook paths.
+- Added a dedicated bounded CMD parser and synthetic CMD command gate for
+  expansion, command boundaries, storage, persistence, discovery, and transfer
+  behavior.
+- Added explicit macOS and Linux command-family policy with cross-host tests.
+- Added fixed JSON-line worker transport with request deadlines and no dynamic
+  Python command-string execution.
+- Added Claude prompt and stop-event branch enforcement for prohibited
+  `claude/` harness assignments.
+- Added a trusted authenticated GitHub CLI wrapper with bounded account
+  metadata and repository-local identity proposals.
+- Added a dedicated infrastructure file-tool gate for credentials, Terraform
+  files, and Kubernetes or Helm manifests.
+- Added cross-shell GitHub routing, hosted mutation, infrastructure command,
+  and protected path parity coverage.
 
 ### Changed
+- Closed CMD boundary bypasses for quoted carets, PATHEXT command names,
+  Windows command paths, output redirects, known file writers, recursive tree
+  copies, abbreviated PowerShell payload flags, and shared Git policy.
+- Restored drive-root normalization for repeated separators and dot segments.
+  Trailing `su -c` payloads now deny after an explicit target account.
+- Added Bash, PowerShell, and CMD parity coverage for shared Git and destructive
+  behavior. Read-only Git commands may inspect prohibited branch refs.
+- Bounded Claude stop-hook retries without clearing strict pre-tool branch
+  enforcement.
+- Raised the persistent worker request deadline from five seconds to 30 seconds.
+  The deadline remains bounded and covers observed Windows CI startup time.
+- Routed hosted GitHub operations through trusted `gh`. Direct CLI lookup and
+  clear Git or HTTP substitutes now deny. A marked fallback asks for consent.
+- Derived unset Git identities from authenticated GitHub account metadata after
+  explicit confirmation. Bounded local history candidates provide a fallback.
+- Denied cloud, infrastructure-as-code, orchestration, direct remote-shell,
+  file-transfer, and firewall command families on every shell platform.
+- Blocked creation and publication of `claude/` branch targets even when the
+  current branch conforms. Compliant recovery commands now request native
+  execution authorization.
+- Blocked repository aliases and direct Git metadata writes that create a
+  `claude/` branch target.
+- Changed shell command-string payloads to deny. Plain shell transitions and
+  fixed local scripts now ask. Missing or root-targeted `su` now denies.
+- Changed hook test scheduling to bounded incremental submission with
+  fail-fast process termination and 10-second progress notices.
+- Added a macOS CI job and removed the duplicate Ubuntu full-suite execution.
 - Covered SCP-style remote credential redaction when the path contains an at
   sign.
 - Rewrote `AGENTS.md` for concise policy prose without changing lifecycle

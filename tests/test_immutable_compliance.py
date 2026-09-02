@@ -4,14 +4,15 @@ import os
 import re
 import subprocess
 import sys
-import tempfile
 import unittest
 from pathlib import Path
 
 try:
     from tests.persistent_main_worker import MainWorker
+    from tests.retrying_temp_directory import RetryingTemporaryDirectory
 except ImportError:
     from persistent_main_worker import MainWorker
+    from retrying_temp_directory import RetryingTemporaryDirectory
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 CHECKER_PATH = REPO_ROOT / "scripts" / "check_compliance_tree.py"
@@ -19,6 +20,7 @@ WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "immutable-conflict-check.
 WORKFLOW_ROOT = REPO_ROOT / ".github" / "workflows"
 SYNTHETIC_SECRET = "ghp_" + ("A" * 36)
 FULL_SHA = re.compile(r"[0-9a-fA-F]{40}")
+SCANNER_REQUEST_TIMEOUT_SECONDS = 60.0
 _SCANNER_WORKER = None
 
 
@@ -26,7 +28,10 @@ def scanner_worker() -> MainWorker:
     """Return the process-local persistent immutable scanner worker."""
     global _SCANNER_WORKER
     if _SCANNER_WORKER is None:
-        _SCANNER_WORKER = MainWorker(CHECKER_PATH)
+        _SCANNER_WORKER = MainWorker(
+            CHECKER_PATH,
+            request_timeout=SCANNER_REQUEST_TIMEOUT_SECONDS,
+        )
     return _SCANNER_WORKER
 
 
@@ -216,7 +221,7 @@ class ImmutableComplianceScannerTest(unittest.TestCase):
         self.assertIn(term, output.lower())
 
     def test_docs_secret_survives_a_pr_checker_that_exits_zero(self):
-        with tempfile.TemporaryDirectory() as temporary:
+        with RetryingTemporaryDirectory() as temporary:
             repo = Path(temporary)
             _initialize_repo(repo)
             _write_file(repo, "docs/security.md", f"token: {SYNTHETIC_SECRET}\n")
@@ -232,7 +237,7 @@ class ImmutableComplianceScannerTest(unittest.TestCase):
             self._assert_detected(repo, violating_tree, "docs/security.md", "secret")
 
     def test_workflow_secret_is_read_from_the_requested_tree(self):
-        with tempfile.TemporaryDirectory() as temporary:
+        with RetryingTemporaryDirectory() as temporary:
             repo = Path(temporary)
             _initialize_repo(repo)
             path = ".github/workflows/test.yaml"
@@ -244,7 +249,7 @@ class ImmutableComplianceScannerTest(unittest.TestCase):
             self._assert_detected(repo, violating_tree, path, "secret")
 
     def test_production_env_file_is_read_from_the_requested_tree(self):
-        with tempfile.TemporaryDirectory() as temporary:
+        with RetryingTemporaryDirectory() as temporary:
             repo = Path(temporary)
             _initialize_repo(repo)
             _write_file(repo, ".env.production", "APP_MODE=production\n")
@@ -255,7 +260,7 @@ class ImmutableComplianceScannerTest(unittest.TestCase):
             self._assert_detected(repo, violating_tree, ".env.production", "env")
 
     def test_symlink_blob_is_read_from_the_requested_tree(self):
-        with tempfile.TemporaryDirectory() as temporary:
+        with RetryingTemporaryDirectory() as temporary:
             repo = Path(temporary)
             _initialize_repo(repo)
             link_blob = _run_git(
@@ -272,7 +277,7 @@ class ImmutableComplianceScannerTest(unittest.TestCase):
             self._assert_detected(repo, violating_tree, "docs-link", "secret")
 
     def test_javascript_weak_hash_is_read_from_the_requested_tree(self):
-        with tempfile.TemporaryDirectory() as temporary:
+        with RetryingTemporaryDirectory() as temporary:
             repo = Path(temporary)
             _initialize_repo(repo)
             _write_file(
@@ -284,7 +289,7 @@ class ImmutableComplianceScannerTest(unittest.TestCase):
             self._assert_detected(repo, violating_tree, "src/hash.js", "sha-1")
 
     def test_bomless_utf16_secret_is_detected(self):
-        with tempfile.TemporaryDirectory() as temporary:
+        with RetryingTemporaryDirectory() as temporary:
             repo = Path(temporary)
             _initialize_repo(repo)
             path = repo / "docs" / "encoded.txt"
@@ -295,7 +300,7 @@ class ImmutableComplianceScannerTest(unittest.TestCase):
             self._assert_detected(repo, violating_tree, "encoded.txt", "secret")
 
     def test_symlink_named_dockerfile_is_not_parsed_as_dockerfile(self):
-        with tempfile.TemporaryDirectory() as temporary:
+        with RetryingTemporaryDirectory() as temporary:
             repo = Path(temporary)
             _initialize_repo(repo)
             link_blob = _run_git(
@@ -312,7 +317,7 @@ class ImmutableComplianceScannerTest(unittest.TestCase):
             self.assertEqual(result.returncode, 0, _scan_output(result))
 
     def test_unsafe_pull_request_target_command_is_rejected(self):
-        with tempfile.TemporaryDirectory() as temporary:
+        with RetryingTemporaryDirectory() as temporary:
             repo = Path(temporary)
             _initialize_repo(repo)
             path = ".github/workflows/unsafe.yml"
@@ -328,7 +333,7 @@ class ImmutableComplianceScannerTest(unittest.TestCase):
             self._assert_detected(repo, tree, path, "pull_request_target")
 
     def test_unpinned_action_in_yaml_workflow_is_rejected(self):
-        with tempfile.TemporaryDirectory() as temporary:
+        with RetryingTemporaryDirectory() as temporary:
             repo = Path(temporary)
             _initialize_repo(repo)
             path = ".github/workflows/unsafe.yaml"
@@ -344,7 +349,7 @@ class ImmutableComplianceScannerTest(unittest.TestCase):
             self._assert_detected(repo, tree, path, "commit sha")
 
     def test_branch_and_pr_author_are_checked_without_base(self):
-        with tempfile.TemporaryDirectory() as temporary:
+        with RetryingTemporaryDirectory() as temporary:
             repo = Path(temporary)
             _initialize_repo(repo)
             _write_file(repo, "README.md", "clean\n")
@@ -361,7 +366,7 @@ class ImmutableComplianceScannerTest(unittest.TestCase):
             self.assertIn("banned-agent", _scan_output(author_result))
 
     def test_commit_metadata_is_checked_from_the_requested_range(self):
-        with tempfile.TemporaryDirectory() as temporary:
+        with RetryingTemporaryDirectory() as temporary:
             repo = Path(temporary)
             _initialize_repo(repo)
             _write_file(repo, "README.md", "base\n")
@@ -385,7 +390,7 @@ class ImmutableComplianceScannerTest(unittest.TestCase):
             self.assertIn("banned-agent co-author", _scan_output(result))
 
     def test_current_privileged_workflow_policy_passes(self):
-        with tempfile.TemporaryDirectory() as temporary:
+        with RetryingTemporaryDirectory() as temporary:
             repo = Path(temporary)
             _initialize_repo(repo)
             _write_file(
@@ -398,7 +403,7 @@ class ImmutableComplianceScannerTest(unittest.TestCase):
             self.assertEqual(result.returncode, 0, _scan_output(result))
 
     def test_privileged_checkout_cannot_redirect_trusted_base(self):
-        with tempfile.TemporaryDirectory() as temporary:
+        with RetryingTemporaryDirectory() as temporary:
             repo = Path(temporary)
             _initialize_repo(repo)
             content = WORKFLOW_PATH.read_text(encoding="utf-8").replace(
@@ -413,7 +418,7 @@ class ImmutableComplianceScannerTest(unittest.TestCase):
             self._assert_detected(repo, tree, path, "job schema")
 
     def test_privileged_scan_cannot_continue_on_error(self):
-        with tempfile.TemporaryDirectory() as temporary:
+        with RetryingTemporaryDirectory() as temporary:
             repo = Path(temporary)
             _initialize_repo(repo)
             content = WORKFLOW_PATH.read_text(encoding="utf-8").replace(
@@ -428,7 +433,7 @@ class ImmutableComplianceScannerTest(unittest.TestCase):
             self._assert_detected(repo, tree, path, "job schema")
 
     def test_critical_checker_path_cannot_be_a_symlink(self):
-        with tempfile.TemporaryDirectory() as temporary:
+        with RetryingTemporaryDirectory() as temporary:
             repo = Path(temporary)
             _initialize_repo(repo)
             link_blob = _run_git(
@@ -446,7 +451,7 @@ class ImmutableComplianceScannerTest(unittest.TestCase):
                 repo, tree, "scripts/trusted_git.py", "symlink")
 
     def test_composite_action_requires_pinned_checkout(self):
-        with tempfile.TemporaryDirectory() as temporary:
+        with RetryingTemporaryDirectory() as temporary:
             repo = Path(temporary)
             _initialize_repo(repo)
             path = ".github/actions/test/action.yml"

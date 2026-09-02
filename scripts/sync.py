@@ -31,14 +31,21 @@ REPOSITORY_ONLY_END = "<!-- repository-only:end -->"
 # and their hashes are committed in every repository holding them.
 SHARED_FILES = [
     "hooks/_bash_parser.py",
+    "hooks/_cmd_parser.py",
     "hooks/_gate_core.py",
+    "hooks/_platform_policy.py",
     "hooks/block_destructive_bash.py",
+    "hooks/block_destructive_cmd.py",
     "hooks/block_destructive_powershell.py",
     "hooks/reinject_agents_policy.py",
     "hooks/require_consent.py",
     "tests/gate_corpus.py",
+    "tests/json_line_worker.py",
+    "tests/json_line_worker_child.py",
     "tests/test_block_destructive_bash.py",
+    "tests/test_block_destructive_cmd.py",
     "tests/test_block_destructive_powershell.py",
+    "tests/test_platform_policy.py",
 ]
 COPIES = [
     "CLAUDE.md",

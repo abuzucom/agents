@@ -32,22 +32,23 @@ class ShardPriorityTest(unittest.TestCase):
             ("test_zeta.py::Zeta", "test_zeta.Zeta"),
         ])
 
-    def test_resource_heavy_shards_never_overlap(self):
+    def test_exclusive_shards_never_overlap(self):
         shards = [
             ("test_enforce_git_identity.py::PreToolUseTest", "identity"),
-            ("test_immutable_compliance.py::ImmutableComplianceScannerTest",
-             "immutable"),
+            ("test_enforce_git_identity.py::CheckerContractTest", "checker"),
             ("test_alpha.py::Alpha", "alpha"),
         ]
         lock = threading.Lock()
         active_heavy = 0
         maximum_heavy = 0
+        observed_timeouts = {}
 
-        def run_shard(_root, _environment, label, _name, _timeout):
+        def run_shard(_root, _environment, label, _name, timeout, _registry):
             nonlocal active_heavy, maximum_heavy
             heavy = label in shard_runner.RESOURCE_HEAVY_TEST_SHARDS
-            if heavy:
-                with lock:
+            with lock:
+                observed_timeouts[label] = timeout
+                if heavy:
                     active_heavy += 1
                     maximum_heavy = max(maximum_heavy, active_heavy)
             time.sleep(0.02)
@@ -56,12 +57,22 @@ class ShardPriorityTest(unittest.TestCase):
                     active_heavy -= 1
             return shard_runner.TestShardResult(label, 0.02, 0, "", "", False)
 
-        with patch.object(shard_runner, "run_test_shard", side_effect=run_shard):
+        exclusive_shards = frozenset(label for label, _name in shards[:2])
+        with patch.object(
+            shard_runner,
+            "EXCLUSIVE_TEST_SHARDS",
+            exclusive_shards,
+        ), patch.object(shard_runner, "run_test_shard", side_effect=run_shard):
             problems = shard_runner.run_test_shards(
                 ".", {}, workers=3, timeout=1, test_shards=shards)
 
         self.assertEqual(problems, [])
         self.assertEqual(maximum_heavy, 1)
+        self.assertEqual(observed_timeouts["test_alpha.py::Alpha"], 1)
+        self.assertEqual(
+            observed_timeouts["test_enforce_git_identity.py::PreToolUseTest"],
+            shard_runner.RESOURCE_SHARD_TIMEOUT_SECONDS,
+        )
 
 
 if __name__ == "__main__":

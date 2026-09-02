@@ -27,14 +27,15 @@ import os
 import shutil
 import subprocess
 import sys
-import tempfile
 import unittest
 from pathlib import Path
 
 try:
     from tests.persistent_main_worker import MainWorker
+    from tests.retrying_temp_directory import RetryingTemporaryDirectory
 except ImportError:
     from persistent_main_worker import MainWorker
+    from retrying_temp_directory import RetryingTemporaryDirectory
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 HOOK_PATH = REPO_ROOT / "hooks" / "enforce_git_identity.py"
@@ -66,7 +67,7 @@ def hook_worker() -> MainWorker:
     """Return the process-local persistent identity hook worker."""
     global _HOOK_WORKER
     if _HOOK_WORKER is None:
-        _HOOK_WORKER = MainWorker(HOOK_PATH)
+        _HOOK_WORKER = MainWorker(HOOK_PATH, change_directory=False)
     return _HOOK_WORKER
 
 
@@ -99,7 +100,7 @@ class IdentityRepo(unittest.TestCase):
     """A throwaway git repo carrying a copy of the checker, like an adopting repo."""
 
     def setUp(self):
-        self._tmp = tempfile.TemporaryDirectory()
+        self._tmp = RetryingTemporaryDirectory()
         self.addCleanup(self._tmp.cleanup)
         root = Path(self._tmp.name)
         self.repo = root / "repo"
@@ -248,6 +249,25 @@ class CheckerContractTest(IdentityRepo):
         self.assertIn("git config user.email", result.stderr)
         self.assertIn("gh is not a git identity", result.stderr)
 
+    def test_history_candidates_require_allowed_noreply_addresses(self):
+        self.commit(ALLOWED_NAME, ALLOWED_EMAIL)
+        self.commit(ALLOWED_NAME, LEGACY_EMAIL)
+        module = _load_checker_module()
+        candidates = module.history_identity_candidates(self.repo)
+        self.assertEqual(candidates, [(ALLOWED_NAME, ALLOWED_EMAIL)])
+
+    def test_authenticated_account_derives_numbered_noreply_identity(self):
+        module = _load_checker_module()
+        candidate = module.account_identity_candidate(
+            {"id": 1234567, "login": "octocat"}, "")
+        self.assertEqual(candidate, (ALLOWED_NAME, ALLOWED_EMAIL))
+
+    def test_existing_name_is_preserved_for_authenticated_account(self):
+        module = _load_checker_module()
+        candidate = module.account_identity_candidate(
+            {"id": 1234567, "login": "octocat"}, "Octo Cat")
+        self.assertEqual(candidate, ("Octo Cat", ALLOWED_EMAIL))
+
 
 def _load_checker_module():
     """Import the checker by path for the pure-function tests."""
@@ -345,6 +365,10 @@ class SessionStartTest(IdentityRepo):
     def test_advisory_note_reaches_the_context(self):
         result = self.run_hook(session_start_payload(str(self.repo)))
         self.assertIn("useConfigOnly", json.loads(result.stdout)["systemMessage"])
+
+    def test_startup_requires_identity_candidate_confirmation(self):
+        result = self.run_hook(session_start_payload(str(self.repo)))
+        self.assertIn("Confirm", json.loads(result.stdout)["systemMessage"])
 
 
 class PreToolUseTest(IdentityRepo):
