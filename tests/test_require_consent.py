@@ -185,6 +185,19 @@ class GateTest(TestFileFixture):
         _, parsed = run_hook(payload)
         self.assertEqual(decision_of(parsed), "ask")
 
+    def test_direct_git_metadata_edit_asks(self):
+        git_dir = Path(self.tmp.name) / ".git"
+        git_dir.mkdir()
+        head = git_dir / "HEAD"
+        head.write_text("ref: refs/heads/feat/example\n", encoding="utf-8")
+        payload = edit_payload(
+            str(head),
+            "ref: refs/heads/feat/example",
+            "ref: refs/heads/feat/renamed",
+        )
+        _, parsed = run_hook(payload)
+        self.assertEqual(decision_of(parsed), "ask")
+
     def test_multiedit_asks_when_any_edit_is_not_additive(self):
         payload = {
             "hook_event_name": "PreToolUse",

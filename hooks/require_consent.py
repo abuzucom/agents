@@ -74,7 +74,7 @@ except ImportError as error:  # pragma: no cover (exercised by the adoption test
 
 GATED_TOOLS = frozenset({"Edit", "Write", "MultiEdit", "NotebookEdit"})
 PATH_KEYS = ("file_path", "notebook_path")
-PROTECTED_PARTS = ("hooks", ".claude")
+PROTECTED_PARTS = ("hooks", ".claude", ".git")
 SKIP_WALK_DIRS = frozenset({".git", "node_modules", ".venv", "__pycache__"})
 MAX_INODE_WALK = 20000
 
@@ -84,7 +84,7 @@ Every edit to a test file that already exists routes to the user for a
 decision at the act (AGENTS.md Rule 3), in any language. Creating a new test
 file is not gated, so the test-first workflow keeps its exemption where it is
 verifiable. Destructive and history rewriting Bash commands route the same way
-(Rule 2). Writes to hooks/ and .claude/ route the same way, because they
+(Rule 2). Writes to hooks/, .claude/, and .git/ route the same way, because they
 decide whether these gates run at all.
 
 These repository-controlled hooks are best-effort prompts for compliant

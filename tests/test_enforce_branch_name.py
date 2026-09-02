@@ -279,6 +279,48 @@ class PreToolUseTest(unittest.TestCase):
                 self.assertEqual(result.returncode, BLOCKING_EXIT_CODE)
                 self.assertIn("prohibited", result.stderr)
 
+    def test_quote_split_metadata_path_is_blocked(self):
+        command = "touch .git/refs/heads/cl''aude/x"
+        result = run_hook(bash_payload(command), CONFORMING_BRANCH)
+        self.assertEqual(result.returncode, BLOCKING_EXIT_CODE)
+        self.assertIn("prohibited", result.stderr)
+
+    def test_cmd_tools_block_prohibited_branch_targets(self):
+        for tool_name in ("Cmd", "CMD", "CommandPrompt"):
+            with self.subTest(tool_name=tool_name):
+                payload = {
+                    "hook_event_name": "PreToolUse",
+                    "tool_name": tool_name,
+                    "tool_input": {"command": f"git branch {VIOLATING_BRANCH}"},
+                }
+                result = run_hook(payload, CONFORMING_BRANCH)
+                self.assertEqual(result.returncode, BLOCKING_EXIT_CODE)
+
+    def test_file_tools_block_prohibited_metadata_writes(self):
+        payloads = (
+            {
+                "hook_event_name": "PreToolUse",
+                "tool_name": "Write",
+                "tool_input": {
+                    "file_path": ".git/refs/heads/claude/x",
+                    "content": "0123456789abcdef\n",
+                },
+            },
+            {
+                "hook_event_name": "PreToolUse",
+                "tool_name": "Edit",
+                "tool_input": {
+                    "file_path": ".git/HEAD",
+                    "old_string": "ref: refs/heads/feat/x",
+                    "new_string": "ref: refs/heads/claude/x",
+                },
+            },
+        )
+        for payload in payloads:
+            with self.subTest(tool_name=payload["tool_name"]):
+                result = run_hook(payload, CONFORMING_BRANCH)
+                self.assertEqual(result.returncode, BLOCKING_EXIT_CODE)
+
     def test_repository_alias_target_is_blocked(self):
         with tempfile.TemporaryDirectory() as temporary:
             project_dir = Path(temporary)
@@ -303,6 +345,37 @@ class PreToolUseTest(unittest.TestCase):
             )
         self.assertEqual(result.returncode, BLOCKING_EXIT_CODE)
         self.assertIn("prohibited", result.stderr)
+
+    def test_uninspectable_aliases_fail_closed(self):
+        aliases = (
+            (("alias.first", "second"), ("alias.second", "first")),
+            (("alias.first", "switch -c 'unterminated"),),
+        )
+        for alias_rows in aliases:
+            with self.subTest(aliases=alias_rows):
+                with tempfile.TemporaryDirectory() as temporary:
+                    project_dir = Path(temporary)
+                    scripts_dir = project_dir / "scripts"
+                    scripts_dir.mkdir()
+                    shutil.copy(CHECKER_PATH, scripts_dir / CHECKER_PATH.name)
+                    shutil.copy(TRUSTED_GIT_PATH, scripts_dir / TRUSTED_GIT_PATH.name)
+                    subprocess.run(
+                        ["git", "init", "-q", "-b", "main"],
+                        cwd=project_dir,
+                        check=True,
+                    )
+                    for key, value in alias_rows:
+                        subprocess.run(
+                            ["git", "config", key, value],
+                            cwd=project_dir,
+                            check=True,
+                        )
+                    result = run_hook(
+                        bash_payload("git first"),
+                        CONFORMING_BRANCH,
+                        project_dir=project_dir,
+                    )
+                self.assertEqual(result.returncode, BLOCKING_EXIT_CODE)
 
     def test_correction_command_rejects_chaining(self):
         result = run_hook(
@@ -631,6 +704,9 @@ class SettingsWiringTest(unittest.TestCase):
         self._assert_registers_required_events(EXAMPLE_SETTINGS)
 
     HOOK_MATCHERS = {
+        "block_infrastructure_access.py": {
+            "Edit|Write|MultiEdit|NotebookEdit|Read|Glob|Grep"
+        },
         "block_destructive_bash.py": {"Bash"},
         "block_destructive_cmd.py": {"Cmd|CMD|CommandPrompt"},
         "block_destructive_powershell.py": {"PowerShell"},

@@ -96,10 +96,7 @@ def classify_macos_command(
     if program_name == "tccutil":
         return "deny", "tccutil changes privacy authorization state"
     if program_name == "diskutil":
-        destructive_markers = {"deletevolume", "erasedisk", "erasevolume", "partitiondisk"}
-        if any(argument in destructive_markers for argument in lowered_arguments):
-            return "deny", "diskutil erases or repartitions storage"
-        return "ask", "diskutil reads storage topology"
+        return "deny", "diskutil access is prohibited for agents"
     if program_name == "tmutil" and "delete" in lowered_arguments:
         return "deny", "tmutil deletes backup data"
     if program_name == "security":

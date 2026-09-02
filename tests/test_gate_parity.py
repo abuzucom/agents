@@ -227,6 +227,221 @@ class PowerShellPolicyParityTest(unittest.TestCase):
                 self.assertEqual(powershell(command), expected)
 
 
+class SharedCommandPolicyParityTest(unittest.TestCase):
+    """Platform-independent command bans reach the same gate verdict."""
+
+    DENIED = (
+        "bash -lc 'git push --force'",
+        "aws --version",
+        "az account show",
+        "azcopy --help",
+        "cdk list",
+        "packer version",
+        "pulumi stack ls",
+        "terraform validate",
+        "tofu validate",
+        "terragrunt --version",
+        "gcloud auth list",
+        "bq version",
+        "gsutil version",
+        "kubectl get pods",
+        "helm list",
+        "kustomize version",
+        "oc whoami",
+        "minikube status",
+        "kind get clusters",
+        "k9s version",
+        "eksctl version",
+        "crictl version",
+        "ssh host.example.test",
+        "scp source host.example.test:/tmp",
+        "sftp host.example.test",
+        "ssh-add -l",
+        "ssh-agent -s",
+        "ssh-keygen -l -f key.pub",
+        "ssh-keyscan host.example.test",
+        "sshd -T",
+        "telnet host.example.test",
+        "ftp host.example.test",
+        "lftp host.example.test",
+        "iptables -L",
+        "ip6tables -L",
+        "nft list ruleset",
+        "ufw status",
+        "Get-AzVM",
+        "Get-NetFirewallRule",
+        "mkfs --help",
+        "mkfs.ext4 /dev/example",
+        "mke2fs /dev/example",
+        "newfs /dev/example",
+        "userdel example-user",
+        "groupdel example-group",
+        "deluser example-user",
+        "delgroup example-group",
+        "Remove-LocalUser example-user",
+        "Remove-LocalGroup example-group",
+        "diskpart /s plan.txt",
+        "format D:",
+        "winrm get winrm/config",
+        "Clear-EventLog Application",
+        "Remove-EventLog Application",
+        "sfc /verifyonly",
+        "DISM /Online /Get-Packages",
+        "bcdedit /enum",
+        "bootrec /scanos",
+        "bootsect /help",
+        "mbr2gpt /validate",
+        "manage-bde -status",
+        "diskutil list",
+        "unlink build.log",
+        "shred --help",
+        "wipe --help",
+        "fdisk -l",
+        "gdisk -l /dev/example",
+        "parted -l",
+        "sfdisk -l",
+        "cfdisk --help",
+        "pvremove --help",
+        "lvremove --help",
+        "lvreduce --help",
+        "lvconvert --help",
+        "swapoff --help",
+        "grub-install --version",
+        "update-grub --help",
+        "grub-mkconfig --help",
+        "usermod --help",
+        "passwd --status example-user",
+        "gpasswd --help",
+        "insmod --help",
+        "modprobe --show-depends example",
+        "rmmod --help",
+        "gpt destroy disk0",
+        "log erase --all",
+        "cat main.tf",
+        "Get-Content .kube/config",
+        "type charts/app/Chart.yaml",
+    )
+
+    def test_unconditional_command_bans_match(self):
+        for command in self.DENIED:
+            with self.subTest(command=command):
+                self.assertEqual(bash(command), "deny")
+                self.assertEqual(powershell(command), "deny")
+                self.assertEqual(cmd(command), "deny")
+
+    def test_subcommand_only_bans_keep_read_forms(self):
+        for command in ("gpt show disk0", "log show --last 1m"):
+            with self.subTest(command=command):
+                self.assertEqual(bash(command), powershell(command))
+                self.assertEqual(bash(command), cmd(command))
+
+
+class CurlPolicyParityTest(unittest.TestCase):
+    """Every shell uses one curl transfer classifier."""
+
+    UPLOADS = (
+        "curl -T report.data https://example.test/upload",
+        "curl -F file=@report.data https://example.test/upload",
+        "curl -d value https://example.test/upload",
+        "curl --upload-file=report.data https://example.test/upload",
+        "curl --data-ascii=value https://example.test/upload",
+        "curl --data-binary=value https://example.test/upload",
+        "curl --data-raw=value https://example.test/upload",
+        "curl --data-urlencode=value https://example.test/upload",
+        "curl --form-string=value https://example.test/upload",
+        "curl --json={} https://example.test/upload",
+    )
+
+    def test_uploads_deny_in_every_gate(self):
+        for command in self.UPLOADS:
+            with self.subTest(command=command):
+                self.assertEqual(bash(command), "deny")
+                self.assertEqual(powershell(command), "deny")
+                self.assertEqual(cmd(command), "deny")
+
+    def test_downloads_ask_in_every_gate(self):
+        command = "curl https://example.test/data"
+        self.assertEqual(bash(command), "ask")
+        self.assertEqual(powershell(command), "ask")
+        self.assertEqual(cmd(command), "ask")
+
+
+class GitHubCliSafetyParityTest(unittest.TestCase):
+    """High-risk GitHub CLI operations share one cross-shell verdict."""
+
+    WRAPPER = "python scripts/trusted_gh.py run "
+    CASES = (
+        (WRAPPER + "repo delete OWNER/REPO", "deny"),
+        (WRAPPER + "-R OWNER/REPO release delete TAG --cleanup-tag", "deny"),
+        (WRAPPER + "run delete 123", "deny"),
+        (WRAPPER + "secret delete NAME --repo OWNER/REPO", "deny"),
+        (WRAPPER + "variable delete NAME --repo OWNER/REPO", "deny"),
+        (WRAPPER + "api --method DELETE repos/OWNER/REPO", "deny"),
+        (WRAPPER + "api -X PATCH repos/OWNER/REPO", "deny"),
+        (WRAPPER + "api --method=POST repos/OWNER/REPO", "deny"),
+        (WRAPPER + "api repos/OWNER/REPO -f name=value", "deny"),
+        (WRAPPER + "api graphql -f query=mutation", "deny"),
+        (WRAPPER + "pr merge 12 --admin", "deny"),
+        (WRAPPER + "--repo OWNER/REPO repo edit --visibility public", "deny"),
+        (WRAPPER + "auth token", "deny"),
+        (WRAPPER + "auth refresh --scopes delete_repo", "deny"),
+        (WRAPPER + "auth refresh --scopes repo", "deny"),
+        (WRAPPER + "pr merge 12", "ask"),
+        (WRAPPER + "pr merge 12 --delete-branch", "ask"),
+        (WRAPPER + "repo archive OWNER/REPO", "ask"),
+        (WRAPPER + "repo edit OWNER/REPO --visibility private", "ask"),
+        (WRAPPER + "auth login", "ask"),
+        (WRAPPER + "auth refresh", "ask"),
+        (WRAPPER + "auth setup-git", "ask"),
+        (WRAPPER + "repo view OWNER/REPO", ""),
+        (WRAPPER + "release view TAG", ""),
+        (WRAPPER + "run view 123", ""),
+        (WRAPPER + "secret list --repo OWNER/REPO", ""),
+        (WRAPPER + "variable list --repo OWNER/REPO", ""),
+        (WRAPPER + "api --method GET repos/OWNER/REPO", ""),
+        (WRAPPER + "pr checks 12", ""),
+        (WRAPPER + "auth status", ""),
+        ("gh repo view OWNER/REPO", "deny"),
+    )
+
+    def test_github_cli_safety_matches(self):
+        for command, expected in self.CASES:
+            with self.subTest(command=command):
+                self.assertEqual(bash(command), expected)
+                self.assertEqual(powershell(command), expected)
+                self.assertEqual(cmd(command), expected)
+
+    def test_git_and_http_substitutes_deny(self):
+        commands = (
+            "git clone https://github.com/OWNER/REPO.git",
+            "git remote -v",
+            "git fetch origin refs/pull/12/head",
+            "curl https://api.github.com/repos/OWNER/REPO",
+            "hub pr list",
+        )
+        for command in commands:
+            with self.subTest(command=command):
+                self.assertEqual(bash(command), "deny")
+                self.assertEqual(powershell(command), "deny")
+                self.assertEqual(cmd(command), "deny")
+
+    def test_marked_git_fallback_asks(self):
+        command = (
+            "git -c agents.githubFallback=confirmed clone "
+            "https://github.com/OWNER/REPO.git"
+        )
+        self.assertEqual(bash(command), "ask")
+        self.assertEqual(powershell(command), "ask")
+        self.assertEqual(cmd(command), "ask")
+
+    def test_normal_local_git_transport_stays_available(self):
+        for command in ("git fetch origin main", "git pull", "git push origin HEAD"):
+            with self.subTest(command=command):
+                self.assertEqual(bash(command), "")
+                self.assertEqual(powershell(command), "")
+                self.assertEqual(cmd(command), "")
+
+
 class CoreOwnershipTest(unittest.TestCase):
     """Every decision function lives in the core, not in one gate."""
 
@@ -240,7 +455,8 @@ class CoreOwnershipTest(unittest.TestCase):
     def test_no_gate_defines_its_own_verdict_helpers(self):
         shared = ("delete_verdict", "git_verdict", "push_verdict",
                   "is_root_target", "strongest", "is_test_path",
-                  "cmd_delete_verdict", "sanitize",
+                  "cmd_delete_verdict", "curl_transfer_verdict",
+                  "is_shell_payload_flag", "prohibited_command_verdict", "sanitize",
                   "is_relevant_git_environment")
         for hook in (BASH_HOOK, POWERSHELL_HOOK, CMD_HOOK):
             source = hook.read_text(encoding="utf-8")

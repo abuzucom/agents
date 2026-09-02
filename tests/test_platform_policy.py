@@ -38,6 +38,7 @@ class MacOSPolicyTest(unittest.TestCase):
         for command in (
             "diskutil eraseDisk APFS disk4",
             "diskutil apfs deleteVolume disk5s1",
+            "diskutil list",
             "tmutil delete /Volumes/Backup",
         ):
             with self.subTest(command=command):
@@ -47,7 +48,6 @@ class MacOSPolicyTest(unittest.TestCase):
         for command in (
             "system_profiler SPHardwareDataType",
             "security find-generic-password -a account",
-            "diskutil list",
         ):
             with self.subTest(command=command):
                 self.assert_verdict(command, "ask")

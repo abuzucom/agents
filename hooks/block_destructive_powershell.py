@@ -67,7 +67,6 @@ WRAPPERS = frozenset({"&", "start-process", "invoke-expression", "iex",
 # interpreters leaves `bash -c 'rm -rf /etc'` as a hole, and on a Windows box
 # carrying Git Bash that line runs.
 INTERPRETERS = core.SHELL_INTERPRETERS
-INTERPRETER_PAYLOAD_FLAGS = core.SHELL_PAYLOAD_FLAGS
 REDIRECTIONS = frozenset({">", ">>", "2>", "2>>", "*>", "*>>", "3>", "4>",
                           "5>", "6>"})
 # Start-Process hands its target a plain argument list rather than a command
@@ -156,7 +155,7 @@ def _interpreter_verdict(program: str, args: list, depth: int = 0) -> tuple:
         lowered = token.lower()
         if lowered in ARGUMENT_LIST_FLAGS:
             return _argument_list_verdict(program, args[index + 1:], depth)
-        if lowered in INTERPRETER_PAYLOAD_FLAGS:
+        if core.is_shell_payload_flag(token):
             return _payload_verdict(lowered, args[index + 1:], depth)
     return "", ""
 
@@ -227,6 +226,12 @@ def _named_program_verdict(program: str, args: list, depth: int) -> tuple:
     None means the name is not one of the three the gate reads whole, so
     the caller runs it past every other check instead.
     """
+    prohibited = core.prohibited_command_verdict(program, args)
+    if prohibited[0]:
+        return prohibited
+    curl_verdict = core.curl_transfer_verdict(program, args)
+    if curl_verdict[0]:
+        return curl_verdict
     if program in INTERPRETERS:
         return _interpreter_verdict(program, args, depth)
     if program in core.DELETE_PROGRAMS:
@@ -253,6 +258,11 @@ def _program_verdict(tokens: list, redirects: list, depth: int) -> tuple:
             policy, core.test_write_verdict("", [], redirects))
     program = os.path.basename(tokens[0]).lower()
     args = tokens[1:]
+    policy = core.strongest(
+        core.strongest(
+            policy, core.github_routing_verdict(program, args, _CWD[0])),
+        core.forge_verdict(program, args, _CWD[0]),
+    )
     named = _named_program_verdict(program, args, depth)
     if named is not None:
         return core.strongest(policy, named)
@@ -263,8 +273,11 @@ def _program_verdict(tokens: list, redirects: list, depth: int) -> tuple:
                       core.truncation_verdict(program, args, redirects),
                       core.process_verdict(program, args),
                       core.schedule_verdict(program, args),
-                      core.forge_verdict(program, args),
+                      core.forge_verdict(program, args, _CWD[0]),
                       core.filesystem_repair_verdict(program, args),
+                      core.infrastructure_path_verdict(
+                          program, args, redirects, _CWD[0]),
+                      core.github_routing_verdict(program, args, _CWD[0]),
                       core.profile_verdict(program, args, redirects),
                       core.protected_write_verdict(
                           program, args, redirects, _CWD[0]),

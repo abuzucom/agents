@@ -20,6 +20,7 @@ through.
 """
 import base64
 import binascii
+import fnmatch
 import json
 import ntpath
 import os
@@ -526,6 +527,14 @@ MAX_COMMAND_DEPTH = 4
 CMD_RECURSIVE_FLAGS = frozenset({"/s"})
 
 
+def is_shell_payload_flag(token: str) -> bool:
+    """Return whether one shell option introduces a command payload."""
+    lowered = token.casefold()
+    if lowered in SHELL_PAYLOAD_FLAGS:
+        return True
+    return lowered.startswith("-") and not lowered.startswith("--") and "c" in lowered
+
+
 def normalize_windows_command_name(program: str) -> str:
     """Return a Windows command basename without a PATHEXT suffix."""
     name = ntpath.basename(program.strip().strip('"').strip("'")).casefold()
@@ -533,6 +542,169 @@ def normalize_windows_command_name(program: str) -> str:
         if name.endswith(suffix):
             return name[:-len(suffix)]
     return name
+
+
+PROHIBITED_COMMANDS = frozenset({
+    "arptables", "aws", "aws-vault", "az", "azcopy", "bcdedit", "bicep",
+    "bootrec", "bootsect", "bq", "cfdisk", "clear-eventlog", "crictl",
+    "cdk", "delgroup", "deluser", "dism", "diskpart", "diskutil", "dsrm", "eb",
+    "ebtables", "eksctl", "fdisk", "firewall-cmd", "format", "format-volume",
+    "ftp", "func", "gcloud", "gdisk", "gke-gcloud-auth-plugin", "gpasswd",
+    "groupdel", "grub-install", "grub-mkconfig", "gsutil", "helm", "insmod",
+    "ip6tables", "ip6tables-restore", "ip6tables-save", "iptables",
+    "iptables-restore", "iptables-save", "k9s", "kind", "kubectl", "kustomize",
+    "lftp", "lvconvert", "lvreduce", "lvremove", "makefs", "manage-bde",
+    "mbr2gpt", "mke2fs", "minikube", "mkfs", "modprobe", "ncftp", "newfs",
+    "nft", "oc", "packer", "parted", "passwd", "plink", "pscp", "psftp",
+    "pulumi", "putty",
+    "pvremove", "remove-adgroup", "remove-aduser", "remove-eventlog",
+    "remove-localgroup", "remove-localuser", "rmmod", "rmuser", "sam", "scp",
+    "sfc", "sfdisk", "sftp", "shred", "ssh", "ssh-add", "ssh-agent", "ssh-keygen",
+    "ssh-keyscan", "sshd", "swapoff", "telnet", "terraform", "terragrunt",
+    "tftp", "tofu", "ufw", "unlink", "update-grub", "userdel", "usermod",
+    "winrm", "wipe",
+})
+PROHIBITED_COMMAND_PREFIXES = ("mkfs.", "newfs_")
+INFRASTRUCTURE_PATH_MARKERS = (
+    "/.aws/", "/.azure/", "/.boto", "/.config/gcloud/", "/.gsutil/",
+    "/.kube/", "/.lftp/", "/.pulumi/", "/.ssh/", "/.terraform/",
+    "/.terraform.d/",
+    "/etc/ssh/",
+)
+KUBERNETES_DIRECTORY_MARKERS = ("/charts/", "/helm/", "/k8s/", "/kubernetes/")
+KUBERNETES_FILENAMES = frozenset({
+    "chart.yaml", "chart.yml", "helmfile.yaml", "helmfile.yml",
+    "kustomization.yaml", "kustomization.yml", "values.yaml", "values.yml",
+})
+INFRASTRUCTURE_SCAN_SKIP = frozenset({".git", ".venv", "node_modules", "__pycache__"})
+MAX_INFRASTRUCTURE_FILE_BYTES = 65536
+MAX_INFRASTRUCTURE_SCAN_FILES = 20000
+
+
+def _account_delete_command(name: str, args: list) -> bool:
+    """Return whether a multipurpose account tool deletes a user or group."""
+    lowered = [token.casefold() for token in args]
+    if name == "pw":
+        return bool(lowered and lowered[0] in {"userdel", "groupdel"})
+    if name == "net":
+        return bool(lowered and lowered[0] in {"user", "localgroup"}
+                    and "/delete" in lowered)
+    if name == "sysadminctl":
+        return "-deleteuser" in lowered
+    if name == "dscl":
+        text = " ".join(lowered).replace("\\", "/")
+        return "-delete" in lowered and any(
+            marker in text for marker in ("/users/", "/groups/"))
+    if name == "wmic":
+        return bool(lowered and lowered[0] in {"useraccount", "group"}
+                    and "delete" in lowered)
+    return False
+
+
+def prohibited_command_verdict(program: str, args: list) -> tuple:
+    """Deny commands prohibited on every host and through every shell."""
+    name = normalize_windows_command_name(program)
+    if name in PROHIBITED_COMMANDS or name.startswith(PROHIBITED_COMMAND_PREFIXES):
+        return "deny", f"{sanitize(name)} is prohibited for agent execution"
+    _verb, separator, noun = name.partition("-")
+    if separator and (noun.startswith("az") or "netfirewall" in noun):
+        return "deny", f"{sanitize(name)} is prohibited for agent execution"
+    lowered = [token.casefold() for token in args]
+    if name == "gpt" and lowered and lowered[0] == "destroy":
+        return "deny", "gpt destroy removes partition metadata"
+    if name == "log" and lowered and lowered[0] == "erase":
+        return "deny", "log erase removes system log records"
+    if _account_delete_command(name, args):
+        return "deny", "account and group deletion is prohibited for agents"
+    return "", ""
+
+
+def _infrastructure_manifest_text(path: str) -> str:
+    """Return a bounded manifest prefix without exposing it to the caller."""
+    try:
+        details = os.stat(path)
+        if not os.path.isfile(path) or details.st_size > MAX_INFRASTRUCTURE_FILE_BYTES:
+            return ""
+        with open(path, encoding="utf-8") as handle:
+            return handle.read(MAX_INFRASTRUCTURE_FILE_BYTES)
+    except (OSError, UnicodeError):
+        return ""
+
+
+def is_protected_infrastructure_path(path: str, cwd: str = "", content: str = "") -> bool:
+    """Return whether a path reaches protected infrastructure configuration."""
+    candidate = path.strip().strip('"').strip("'")
+    if not candidate or candidate.startswith("-"):
+        return False
+    absolute = candidate if os.path.isabs(candidate) else os.path.join(cwd or os.getcwd(), candidate)
+    resolved = os.path.realpath(os.path.abspath(absolute))
+    normalized = "/" + resolved.replace("\\", "/").casefold().strip("/")
+    padded = normalized + ("/" if not normalized.endswith("/") else "")
+    basename = normalized.rsplit("/", 1)[-1]
+    if any(marker in padded for marker in INFRASTRUCTURE_PATH_MARKERS):
+        return True
+    if any(marker in padded for marker in KUBERNETES_DIRECTORY_MARKERS):
+        return True
+    if basename in KUBERNETES_FILENAMES or basename.startswith(("values-", "values.")):
+        return True
+    terraform_suffixes = (".tf", ".tf.json", ".tfvars", ".tfvars.json")
+    if basename.endswith(terraform_suffixes):
+        return True
+    if basename.startswith("terraform.tfstate") or basename == ".terraform.lock.hcl":
+        return True
+    if basename in {".netrc", "_netrc", ".terraformrc", "terraform.rc"}:
+        return True
+    if basename in {"cdk.json", "samconfig.toml"}:
+        return True
+    if basename.endswith((".bicep", ".bicepparam", ".pkr.hcl", ".pkr.json")):
+        return True
+    if basename.startswith("pulumi.") and basename.endswith((".yaml", ".yml", ".json")):
+        return True
+    if basename.endswith((".yaml", ".yml", ".json")):
+        manifest = content or _infrastructure_manifest_text(resolved)
+        lowered = manifest.casefold()
+        return (("apiversion:" in lowered and "kind:" in lowered)
+                or ('"apiversion"' in lowered and '"kind"' in lowered))
+    return False
+
+
+def tree_contains_protected_infrastructure(root: str, include: str = "") -> bool:
+    """Return whether a bounded search root contains protected files."""
+    seen = 0
+    try:
+        for current, directories, filenames in os.walk(root):
+            directories[:] = [name for name in directories
+                               if name not in INFRASTRUCTURE_SCAN_SKIP]
+            for filename in filenames:
+                seen += 1
+                if seen > MAX_INFRASTRUCTURE_SCAN_FILES:
+                    return True
+                candidate = os.path.join(current, filename)
+                relative = os.path.relpath(candidate, root).replace("\\", "/")
+                matches = (not include or fnmatch.fnmatch(relative, include)
+                           or fnmatch.fnmatch(filename, include))
+                if matches and is_protected_infrastructure_path(candidate, root):
+                    return True
+    except OSError:
+        return True
+    return False
+
+
+def infrastructure_path_verdict(program: str, args: list,
+                                redirects: list, cwd: str) -> tuple:
+    """Deny shell access to protected infrastructure files and trees."""
+    candidates = [program, *args, *redirects]
+    if any(is_protected_infrastructure_path(candidate, cwd)
+           for candidate in candidates):
+        return "deny", "infrastructure credentials and configuration are protected"
+    name = normalize_windows_command_name(program)
+    broad_readers = {"dir", "find", "get-childitem", "grep", "ls", "rg"}
+    if name in broad_readers:
+        roots = [token for token in args if not token.startswith("-")]
+        if any(token in {".", "./", ".\\"} and
+               tree_contains_protected_infrastructure(cwd) for token in roots):
+            return "deny", "a broad search includes protected infrastructure files"
+    return "", ""
 
 
 def decode_powershell_command(value: str) -> tuple:
@@ -696,14 +868,26 @@ def _powershell_parameter(token: str, name: str, minimum: int) -> bool:
     return len(candidate) >= minimum and name.startswith(candidate)
 
 
-def _is_curl_upload_argument(token: str) -> bool:
-    """Return True when one curl argument selects an upload source."""
-    lowered = token.lower()
-    if lowered in {"-t", "--upload-file"}:
-        return True
-    if lowered.startswith("--upload-file="):
-        return True
-    return token.startswith("-") and not token.startswith("--") and "T" in token
+CURL_UPLOAD_LONG_OPTIONS = frozenset({
+    "--data", "--data-ascii", "--data-binary", "--data-raw",
+    "--data-urlencode", "--form", "--form-string", "--json", "--upload-file",
+})
+CURL_UPLOAD_SHORT_OPTIONS = ("-T", "-F", "-d")
+
+
+def curl_transfer_verdict(program: str, args: list) -> tuple:
+    """Return one shared verdict for curl network transfer direction."""
+    if normalize_windows_command_name(program) != "curl":
+        return "", ""
+    for token in args:
+        if any(token == option or token.startswith(option)
+               for option in CURL_UPLOAD_SHORT_OPTIONS):
+            return "deny", "curl uploads local data to a remote endpoint"
+        lowered = token.casefold()
+        if any(lowered == option or lowered.startswith(option + "=")
+               for option in CURL_UPLOAD_LONG_OPTIONS):
+            return "deny", "curl uploads local data to a remote endpoint"
+    return "ask", "curl accesses an external network endpoint"
 
 
 def _powershell_interpreter_policy(name: str, args: list) -> tuple:
@@ -826,10 +1010,8 @@ def _powershell_indirect_policy(name: str, text: str, args: list) -> tuple:
         return "deny", f"{sanitize(name)} belongs to a denied PowerShell family"
     if name in {"scp", "sftp", "ftp", "azcopy", "rclone"}:
         return "deny", "a transfer utility can send local data to a remote system"
-    if name == "curl" and any(_is_curl_upload_argument(token) for token in args):
-        return "deny", "curl uploads local data to a remote endpoint"
     if name == "curl":
-        return "ask", "curl accesses an external network endpoint"
+        return curl_transfer_verdict(name, args)
     if name == "new-object":
         if "-comobject" in text or "wscript.shell" in text:
             return "deny", "a COM object enables indirect process or script execution"
@@ -2226,16 +2408,205 @@ def filesystem_repair_verdict(program: str, args: list) -> tuple:
 # that is not in any local clone.
 FORGE_PROGRAMS = frozenset({"gh", "glab", "hub", "tea"})
 FORGE_DELETE_NOUNS = frozenset({"repo", "repository", "release", "project",
-                                "org", "organization", "gist", "secret",
-                                "environment", "cache", "run"})
+                                 "org", "organization", "gist", "secret",
+                                 "environment", "cache", "run", "variable"})
+GH_GLOBAL_VALUE_OPTIONS = frozenset({"-R", "--repo", "--hostname"})
+GH_BROAD_AUTH_SCOPES = frozenset({"admin:org", "admin:public_key",
+                                  "admin:repo_hook", "delete_repo", "gist",
+                                  "project", "repo", "user", "workflow",
+                                  "write:discussion", "write:org",
+                                  "write:packages"})
+GH_FALLBACK_CONFIG = "agents.githubfallback=confirmed"
 
 
-def forge_verdict(program: str, args: list) -> tuple:
+def _github_command_args(args: list) -> list:
+    """Return gh arguments after supported global options."""
+    index = 0
+    while index < len(args):
+        token = args[index]
+        lowered = token.lower()
+        if token in GH_GLOBAL_VALUE_OPTIONS:
+            index += 2
+            continue
+        if any(lowered.startswith(option.lower() + "=")
+               for option in GH_GLOBAL_VALUE_OPTIONS):
+            index += 1
+            continue
+        if lowered.startswith("-r") and token != "-R":
+            index += 1
+            continue
+        if not token.startswith("-"):
+            break
+        index += 1
+    return args[index:]
+
+
+def _option_value(args: list, names: frozenset) -> str:
+    """Return a command option value in separate or joined form."""
+    for index, token in enumerate(args):
+        lowered = token.lower()
+        if lowered in names:
+            return args[index + 1] if index + 1 < len(args) else ""
+        for name in names:
+            prefix = name + "="
+            if lowered.startswith(prefix):
+                return token[len(prefix):]
+            if len(name) == 2 and lowered.startswith(name) and len(token) > 2:
+                return token[2:]
+    return ""
+
+
+def _github_api_verdict(args: list) -> tuple:
+    """Deny state-changing REST and GraphQL API requests."""
+    lowered = [token.lower() for token in args]
+    method = _option_value(args, frozenset({"--method", "-x"})).upper()
+    if method and method != "GET":
+        return "deny", "gh api can mutate hosted GitHub resources"
+    if any(token in {"-f", "-F", "--field", "--raw-field", "--input"}
+           or token.startswith(("-f=", "-F=", "--field=", "--raw-field=",
+                                "--input=")) for token in args):
+        if method != "GET":
+            return "deny", "gh api fields default to a state-changing request"
+    if "graphql" in lowered and any("mutation" in token for token in lowered):
+        return "deny", "GraphQL mutations can change hosted GitHub resources"
+    return "", ""
+
+
+def _github_auth_verdict(args: list) -> tuple:
+    """Protect GitHub credentials and broad authorization scopes."""
+    action = args[1].lower() if len(args) > 1 else ""
+    if action == "token":
+        return "deny", "gh auth token exposes an authentication credential"
+    scopes = _option_value(args, frozenset({"--scopes", "-s"}))
+    scope_set = {scope.strip().lower() for scope in scopes.split(",") if scope}
+    if scope_set & GH_BROAD_AUTH_SCOPES:
+        return "deny", "gh auth requests a broad write or deletion scope"
+    if action in {"login", "logout", "refresh", "setup-git", "switch"}:
+        return "ask", "gh auth changes authentication state or Git integration"
+    return "", ""
+
+
+def github_cli_verdict(args: list) -> tuple:
+    """Return the safety verdict for one GitHub CLI invocation."""
+    command = _github_command_args(args)
+    if not command:
+        return "", ""
+    words = [token.lower() for token in command if not token.startswith("-")]
+    noun = words[0] if words else ""
+    action = words[1] if len(words) > 1 else ""
+    if noun == "api":
+        return _github_api_verdict(command[1:])
+    if noun == "auth":
+        return _github_auth_verdict(command)
+    if noun == "pr" and action == "merge":
+        if "--admin" in command:
+            return "deny", "an administrative pull request merge bypasses protections"
+        return "ask", "a pull request merge changes the hosted repository"
+    if noun == "repo" and action == "edit":
+        visibility = _option_value(command, frozenset({"--visibility"})).lower()
+        if visibility == "public" or is_ambiguous(visibility):
+            return "deny", "public repository visibility can expose private content"
+        return "ask", "repository edits change hosted settings"
+    if noun == "repo" and action == "archive":
+        return "ask", "repository archiving disables hosted development"
+    return "", ""
+
+
+def trusted_gh_arguments(program: str, args: list, cwd: str) -> list:
+    """Return GitHub CLI arguments carried by the trusted wrapper."""
+    name = normalize_windows_command_name(program)
+    if name not in {"py", "python", "python3"}:
+        return []
+    script_index = 1 if args and args[0].startswith("-") else 0
+    if len(args) <= script_index + 1 or args[script_index + 1] != "run":
+        return []
+    script = args[script_index]
+    candidate = script if os.path.isabs(script) else os.path.join(cwd, script)
+    expected = os.path.join(cwd, "scripts", "trusted_gh.py")
+    if os.path.normcase(os.path.abspath(candidate)) != os.path.normcase(expected):
+        return []
+    return args[script_index + 2:]
+
+
+def _git_subcommand(args: list) -> tuple:
+    """Return a Git subcommand and its remaining arguments."""
+    index = 0
+    while index < len(args):
+        token = args[index]
+        lowered = token.lower()
+        if lowered in {"-c", "-C", "--git-dir", "--work-tree"}:
+            index += 2
+            continue
+        if lowered.startswith(("-c", "--git-dir=", "--work-tree=")):
+            index += 1
+            continue
+        if token.startswith("-"):
+            index += 1
+            continue
+        return lowered, args[index + 1:]
+    return "", []
+
+
+def _is_github_target(tokens: list) -> bool:
+    """Return whether arguments name GitHub or a pull request ref."""
+    text = " ".join(tokens).casefold()
+    return ("github.com" in text or "api.github.com" in text
+            or "refs/pull/" in text or "pull/" in text)
+
+
+def _github_git_substitute(args: list) -> bool:
+    """Return whether Git substitutes for a selected hosted GitHub operation."""
+    subcommand, remaining = _git_subcommand(args)
+    if subcommand == "remote":
+        return True
+    if subcommand == "config":
+        text = " ".join(remaining).casefold()
+        return "remote." in text and ".url" in text
+    if subcommand in {"clone", "ls-remote"}:
+        return _is_github_target(remaining)
+    if subcommand in {"checkout", "diff", "fetch", "log", "show", "switch"}:
+        return _is_github_target(remaining)
+    return False
+
+
+def github_routing_verdict(program: str, args: list, cwd: str) -> tuple:
+    """Require the trusted authenticated wrapper for hosted GitHub operations."""
+    wrapped = trusted_gh_arguments(program, args, cwd)
+    if wrapped:
+        return "", ""
+    name = normalize_windows_command_name(program)
+    if name == "gh":
+        return "deny", "direct gh lookup is untrusted; use scripts/trusted_gh.py run"
+    if name == "hub":
+        return "deny", "hub bypasses the trusted authenticated GitHub CLI path"
+    if name == "git" and _github_git_substitute(args):
+        lowered = [token.casefold() for token in args]
+        if GH_FALLBACK_CONFIG in lowered:
+            return "ask", "a marked one-time Git fallback follows a failed gh operation"
+        return "deny", "this hosted GitHub operation must use trusted authenticated gh"
+    if name in {"curl", "wget"} and _is_github_target(args):
+        return "deny", "GitHub HTTP operations must use trusted authenticated gh"
+    return "", ""
+
+
+def forge_verdict(program: str, args: list, cwd: str = "") -> tuple:
     """Return (decision, reason) for a destructive forge command."""
     name = os.path.basename(program).lower().removesuffix(".exe")
+    wrapped = trusted_gh_arguments(program, args, cwd or os.getcwd())
+    if wrapped:
+        decision, reason = github_cli_verdict(wrapped)
+        if decision:
+            return decision, reason
+        name = "gh"
+        args = wrapped
     if name not in FORGE_PROGRAMS:
         return "", ""
-    words = [token.lower() for token in args if not token.startswith("-")]
+    if name == "gh":
+        decision, reason = github_cli_verdict(args)
+        if decision:
+            return decision, reason
+    command = _github_command_args(args) if name == "gh" else args
+    words = [token.lower() for token in command if not token.startswith("-")]
     if len(words) < FORGE_DELETE_MIN_WORDS or "delete" not in words[:3]:
         return "", ""
     noun = words[0]

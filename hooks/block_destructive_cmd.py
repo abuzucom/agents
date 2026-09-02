@@ -55,27 +55,6 @@ def normalize_cmd_program(program_token: str) -> str:
     return core.normalize_windows_command_name(program_name)
 
 
-def classify_curl_transfer(arguments: tuple[str, ...]) -> tuple[str, str]:
-    """Classify curl transfer direction from behavior flags."""
-    upload_long_options = (
-        "--upload-file",
-        "--form",
-        "--data",
-        "--data-binary",
-        "--json",
-    )
-    for argument in arguments:
-        if argument in ("-T", "-F", "-d"):
-            return "deny", "curl uploads local data to a remote endpoint"
-        lowered_argument = argument.casefold()
-        for option_name in upload_long_options:
-            if lowered_argument == option_name:
-                return "deny", "curl uploads local data to a remote endpoint"
-            if lowered_argument.startswith(option_name + "="):
-                return "deny", "curl uploads local data to a remote endpoint"
-    return "ask", "curl accesses an external network endpoint"
-
-
 def classify_interpreter(
     program_name: str,
     arguments: tuple[str, ...],
@@ -88,9 +67,7 @@ def classify_interpreter(
         )
         if powershell_verdict[0]:
             return powershell_verdict
-    lowered_arguments = tuple(argument.casefold() for argument in arguments)
-    payload_flags = frozenset({"/c", "/k", "-c", "-command", "-encodedcommand"})
-    if any(argument in payload_flags for argument in lowered_arguments):
+    if any(core.is_shell_payload_flag(argument) for argument in arguments):
         return "deny", f"{program_name} executes a command-string payload"
     return "ask", f"{program_name} changes the active command interpreter"
 
@@ -118,6 +95,9 @@ def classify_named_program(
     arguments: tuple[str, ...],
 ) -> tuple[str, str]:
     """Return the direct policy verdict for one normalized CMD program."""
+    prohibited = core.prohibited_command_verdict(program_name, list(arguments))
+    if prohibited[0]:
+        return prohibited
     if program_name in STORAGE_DESTRUCTION_PROGRAMS:
         return "deny", f"{program_name} partitions or formats storage"
     if program_name in core.DELETE_PROGRAMS:
@@ -129,7 +109,7 @@ def classify_named_program(
     if program_name in SENSITIVE_DISCOVERY_PROGRAMS:
         return "ask", f"{program_name} enumerates sensitive host state"
     if program_name == "curl":
-        return classify_curl_transfer(arguments)
+        return core.curl_transfer_verdict(program_name, list(arguments))
     if program_name in INTERPRETER_PROGRAMS:
         return classify_interpreter(program_name, arguments)
     if program_name in ("call", "for"):
@@ -170,8 +150,12 @@ def classify_cmd_segment(command_tokens: tuple[str, ...]) -> tuple[str, str]:
         core.truncation_verdict(program_name, list(arguments), redirects),
         core.process_verdict(program_name, list(arguments)),
         core.schedule_verdict(program_name, list(arguments)),
-        core.forge_verdict(program_name, list(arguments)),
+        core.forge_verdict(program_name, list(arguments), _CWD[0]),
         core.filesystem_repair_verdict(program_name, list(arguments)),
+        core.infrastructure_path_verdict(
+            program_name, list(arguments), redirects, _CWD[0]),
+        core.github_routing_verdict(
+            program_name, list(arguments), _CWD[0]),
         core.protected_write_verdict(
             program_name, list(arguments), redirects, _CWD[0]),
         core.test_write_verdict(program_name, list(arguments), redirects),

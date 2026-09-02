@@ -13,6 +13,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 try:
     import _gate_core as core
     import _bash_parser as bash_parser
+    import _cmd_parser as cmd_parser
 except ImportError as error:  # pragma: no cover (exercised by the adoption test)
     print(f"shared hook parser or core import failed ({error}). Restore both files.",
           file=sys.stderr)
@@ -26,7 +27,12 @@ MAX_HEAD_BYTES = 1024
 MAX_ALIAS_DEPTH = 8
 PROHIBITED_AGENT_PREFIX = "claude/"
 QUESTION_TOOLS = frozenset({"AskUserQuestion", "ask_question"})
-SHELL_TOOLS = frozenset({"Bash", "PowerShell", "run_shell_command", "run_command"})
+SHELL_TOOLS = frozenset({
+    "Bash", "CMD", "Cmd", "CommandPrompt", "PowerShell",
+    "run_command", "run_shell_command",
+})
+CMD_TOOLS = frozenset({"CMD", "Cmd", "CommandPrompt"})
+FILE_WRITE_TOOLS = frozenset({"Edit", "MultiEdit", "NotebookEdit", "Write"})
 BRANCH_MUTATION_SUBCOMMANDS = frozenset({
     "branch",
     "checkout",
@@ -174,7 +180,7 @@ def alias_names_prohibited_branch(
     """Return whether a bounded Git alias expansion names a prohibited ref."""
     normalized_subcommand = subcommand.casefold()
     if depth >= MAX_ALIAS_DEPTH or normalized_subcommand in visited:
-        return False
+        return True
     expansion = core.resolve_alias(project_dir, normalized_subcommand)
     if not expansion:
         return False
@@ -183,7 +189,7 @@ def alias_names_prohibited_branch(
     try:
         expanded_arguments = shlex.split(expansion) + arguments
     except ValueError:
-        return False
+        return True
     nested_subcommand, nested_arguments = core.git_subcommand(expanded_arguments)
     normalized_nested = nested_subcommand.casefold()
     if normalized_nested in BRANCH_MUTATION_SUBCOMMANDS:
@@ -201,18 +207,31 @@ def alias_names_prohibited_branch(
 
 def command_names_prohibited_metadata(command_text: str) -> bool:
     """Return whether a command writes a prohibited ref through Git metadata."""
-    normalized_command = command_text.casefold().replace("\\", "/")
-    if PROHIBITED_AGENT_PREFIX not in normalized_command:
-        return False
-    return any(marker in normalized_command for marker in PROTECTED_GIT_METADATA)
+    command_segments, parsed_completely = bash_parser.command_segments(command_text)
+    fragments = [command_text]
+    if parsed_completely:
+        fragments = [token for segment in command_segments for token in segment]
+    normalized = " ".join(fragments).casefold().replace("\\", "/")
+    return (PROHIBITED_AGENT_PREFIX in normalized
+            and any(marker in normalized for marker in PROTECTED_GIT_METADATA))
+
+
+def _parsed_command_segments(command_text: str, tool_name: str) -> tuple:
+    """Return command segments parsed for the active shell tool."""
+    if tool_name not in CMD_TOOLS:
+        return bash_parser.command_segments(command_text)
+    result = cmd_parser.parse_cmd_command(command_text)
+    return [list(segment) for segment in result.segments], result.status == "complete"
 
 
 def command_names_prohibited_branch(
     command_text: str,
     project_dir: str = "",
+    tool_name: str = "Bash",
 ) -> bool:
     """Return whether a Git branch mutation names a prohibited branch."""
-    command_segments, parsed_completely = bash_parser.command_segments(command_text)
+    command_segments, parsed_completely = _parsed_command_segments(
+        command_text, tool_name)
     if not parsed_completely:
         return PROHIBITED_AGENT_PREFIX in command_text.casefold()
     for command_segment in command_segments:
@@ -221,8 +240,8 @@ def command_names_prohibited_branch(
         )
         if not prefixes_complete or not executable_tokens:
             continue
-        program_name = os.path.basename(executable_tokens[0]).casefold()
-        if program_name.removesuffix(".exe") != "git":
+        program_name = core.normalize_windows_command_name(executable_tokens[0])
+        if program_name != "git":
             continue
         git_arguments = executable_tokens[1:]
         subcommand, remaining_arguments = core.git_subcommand(git_arguments)
@@ -237,6 +256,36 @@ def command_names_prohibited_branch(
                 project_dir, subcommand, remaining_arguments):
             return True
     return False
+
+
+def _write_content(tool_input: dict) -> str:
+    """Return text introduced by one supported file-write tool call."""
+    values = []
+    for key in ("content", "new_string", "new_source"):
+        value = tool_input.get(key)
+        if isinstance(value, str):
+            values.append(value)
+    edits = tool_input.get("edits", [])
+    if isinstance(edits, list):
+        for edit in edits:
+            if isinstance(edit, dict) and isinstance(edit.get("new_string"), str):
+                values.append(edit["new_string"])
+    return " ".join(values)
+
+
+def file_write_names_prohibited_metadata(tool_input: dict, project_dir: str) -> bool:
+    """Return whether a file tool writes a prohibited Git metadata ref."""
+    raw_path = tool_input.get("file_path", tool_input.get("notebook_path", ""))
+    if not isinstance(raw_path, str) or not raw_path:
+        return False
+    candidate = raw_path if os.path.isabs(raw_path) else os.path.join(project_dir, raw_path)
+    normalized_path = os.path.abspath(candidate).casefold().replace("\\", "/")
+    normalized_root = os.path.abspath(project_dir).casefold().replace("\\", "/")
+    if normalized_path.startswith(normalized_root + "/"):
+        normalized_path = normalized_path[len(normalized_root) + 1:]
+    combined = f"{normalized_path} {_write_content(tool_input)}".casefold()
+    return (PROHIBITED_AGENT_PREFIX in combined
+            and any(marker in combined for marker in PROTECTED_GIT_METADATA))
 
 
 def arguments_name_prohibited_branch(arguments: list) -> bool:
@@ -461,11 +510,15 @@ def _handle_pre_tool_use(payload: dict, project_dir: str, client: str) -> int:
             branch_name,
         )
     tool_name, tool_input = _tool_call(payload, client)
+    if tool_name in FILE_WRITE_TOOLS and isinstance(tool_input, dict):
+        if file_write_names_prohibited_metadata(tool_input, project_dir):
+            return _deny(client, "file write targets a prohibited claude/ Git ref")
     if tool_name not in SHELL_TOOLS or not isinstance(tool_input, dict):
         return 0
     command_text = _command_text(tool_name, tool_input)
     if command_names_prohibited_branch(
-            command_text, project_dir) or command_names_prohibited_metadata(command_text):
+            command_text, project_dir, tool_name) or command_names_prohibited_metadata(
+                command_text):
         return _deny(client, "Git operation targets a prohibited claude/ branch")
     for invocation in blocked_command(command_text, project_dir):
         if _blocks_invocation(project_dir, invocation):

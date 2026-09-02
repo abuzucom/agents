@@ -59,6 +59,10 @@ BASH_CASES = (
     ("sudo -u root rm -rf /tmp/x", ASK,
      "an option argument was read as the wrapped command"),
     ("sudo -n rm -rf /", DENY, "the wrapped command still decides the verdict"),
+    ("su -s /bin/sh deploy", ASK, "an option value precedes a fixed account"),
+    ("su -- root", DENY, "the option terminator still leaves a root target"),
+    ("su -m deploy", ASK, "preserving the environment does not hide the target"),
+    ('su "$TARGET"', DENY, "a dynamic account target cannot be inspected"),
     ("git myalias", ASK,
      "an alias hid its subcommand; unresolvable ones ask"),
     ("powershell -Command 'Remove-Item -Recurse -Force /etc'", DENY,
@@ -138,7 +142,7 @@ BASH_CASES = (
     ("kill 1234", ASK, "what a termination loses is not a gate's to weigh"),
     ("echo 'export X=1' >> ~/.bashrc", ASK, "runs at the start of every session"),
     ("find . -name '*.tmp' -delete", ASK, "find deletes without naming rm"),
-    ("shred -u secret.txt", ASK, "overwrites before unlinking"),
+    ("shred -u secret.txt", DENY, "agents may not overwrite and unlink files"),
 
     # Allowed. A gate that fires on these gets switched off.
     ("ls -la", ALLOW, "reading"),

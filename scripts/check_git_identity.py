@@ -42,6 +42,14 @@ except ModuleNotFoundError:
         resolve_git = None
         run_git = None
 
+try:
+    from scripts.trusted_gh import authenticated_account
+except ModuleNotFoundError:
+    try:
+        from trusted_gh import authenticated_account
+    except ModuleNotFoundError:
+        authenticated_account = None
+
 NOREPLY = re.compile(
     r"\A(?:[0-9]+\+)?[A-Za-z0-9-]+(?:\[bot\])?@users\.noreply\.github\.com\Z",
     re.IGNORECASE,
@@ -67,14 +75,19 @@ EMAIL_SOURCES = (
     ("env", "EMAIL"),
 )
 
-GH_TIMEOUT_SECONDS = 5
+HISTORY_CANDIDATE_LIMIT = 5
+HISTORY_COMMIT_LIMIT = 50
 
 FIX_MESSAGE = (
-    "fix: ask the user which name and email to commit under, then set them:\n"
+    "fix: derive or list identity candidates, then request explicit confirmation:\n"
     "  git config user.name  '<login>'\n"
     "  git config user.email '<id>+<login>@users.noreply.github.com'\n"
-    "Do not invent an identity, and do not copy one out of this repository's\n"
-    "history. An authenticated gh is not a git identity."
+    "Set the confirmed identity only in this repository. Never auto-select a\n"
+    "history candidate. An authenticated gh is not a git identity."
+)
+NUMBERED_NOREPLY = re.compile(
+    r"\A[0-9]+\+[A-Za-z0-9-]+@users\.noreply\.github\.com\Z",
+    re.IGNORECASE,
 )
 
 
@@ -278,6 +291,47 @@ def unpushed_identities(repo=None) -> list:
     return log_identities(revisions, repository)
 
 
+def account_identity_candidate(account: dict, configured_name: str) -> tuple:
+    """Derive a repository-local identity from authenticated GitHub metadata."""
+    account_id = account.get("id")
+    login = account.get("login", "")
+    if not isinstance(account_id, int) or account_id < 1:
+        raise ValueError("GitHub account ID is invalid")
+    if not isinstance(login, str) or not re.fullmatch(r"[A-Za-z0-9-]{1,39}", login):
+        raise ValueError("GitHub account login is invalid")
+    name = configured_name.strip() or login
+    return name, f"{account_id}+{login}@users.noreply.github.com"
+
+
+def history_identity_candidates(repo=None) -> list:
+    """Return bounded noreply identity candidates from local commit metadata."""
+    repository = repo or os.getcwd()
+    result = run_git(
+        repository,
+        ["log", "--no-ext-diff", f"-n{HISTORY_COMMIT_LIMIT}",
+         "--format=%an%x00%ae%x00%cn%x00%ce", "--all", "--"],
+        check=True,
+        runner=subprocess.run,
+    )
+    candidates = []
+    seen = set()
+    for line in result.stdout.splitlines():
+        fields = line.split("\x00")
+        if len(fields) != 4:
+            raise ValueError("git log returned malformed identity candidates")
+        for name, email in ((fields[0], fields[1]), (fields[2], fields[3])):
+            candidate = (name.strip(), email.strip())
+            if not candidate[0] or not NUMBERED_NOREPLY.fullmatch(candidate[1]):
+                continue
+            if candidate in seen:
+                continue
+            seen.add(candidate)
+            candidates.append(candidate)
+            if len(candidates) >= HISTORY_CANDIDATE_LIMIT:
+                return candidates
+    return candidates
+
+
 def _allowed(email: str, pattern: re.Pattern) -> bool:
     """Return True when `email` matches the allowlist pattern."""
     return bool(pattern.match(email.strip()))
@@ -313,21 +367,15 @@ def find_violations(identities: list, pattern: re.Pattern = NOREPLY) -> list:
     return violations
 
 
-def gh_advisory(email: str) -> str:
+def gh_advisory(email: str, repo=None) -> str:
     """Return a note about the gh-authenticated account. Never blocks."""
+    if authenticated_account is None:
+        return "note: trusted gh support is unavailable, so the configured account is unverified"
     try:
-        result = subprocess.run(
-            ["gh", "api", "user", "--jq", ".login"],
-            capture_output=True,
-            text=True,
-            check=False,
-            timeout=GH_TIMEOUT_SECONDS,
-        )
-    except (OSError, subprocess.TimeoutExpired):
+        account = authenticated_account(repo or os.getcwd())
+    except (OSError, subprocess.TimeoutExpired, ValueError):
         return "note: gh is unavailable, so the account behind this identity is unverified"
-    login = result.stdout.strip()
-    if result.returncode != 0 or not login:
-        return "note: gh is not authenticated, so the account behind this identity is unverified"
+    login = account["login"]
     match = NOREPLY_LOGIN.match(email.strip())
     if not match:
         return (
@@ -337,6 +385,30 @@ def gh_advisory(email: str) -> str:
     if match.group("login").lower() != login.lower():
         return f"note: gh is authenticated as '{login}' but commits would be authored as '{email}'"
     return ""
+
+
+def bootstrap_identity_advisory(repo=None) -> str:
+    """Return one confirmation-first identity proposal or history fallback."""
+    repository = repo or os.getcwd()
+    if authenticated_account is not None:
+        try:
+            account = authenticated_account(repository)
+            name = _config("user.name", repository)
+            candidate = account_identity_candidate(account, name)
+            return (
+                "identity candidate from authenticated gh for explicit confirmation: "
+                f"repository-local name '{candidate[0]}', email '{candidate[1]}'"
+            )
+        except (OSError, subprocess.TimeoutExpired, ValueError):
+            pass
+    candidates = history_identity_candidates(repository)
+    if not candidates:
+        return "identity candidate unavailable; ask for a repository-local name and email"
+    rendered = "; ".join(f"'{name}' <{email}>" for name, email in candidates)
+    return (
+        "local history candidates for explicit confirmation only; never auto-select: "
+        f"{rendered}"
+    )
 
 
 def config_only_advisory(repo=None) -> str:
@@ -380,7 +452,11 @@ def build_parser() -> argparse.ArgumentParser:
 def _print_advisories(identities: list, repo=None) -> None:
     """Print the non-blocking machine and account notes."""
     email = identities[0]["author_email"] if identities else ""
-    for note in (config_only_advisory(repo), gh_advisory(email)):
+    notes = [config_only_advisory(repo), gh_advisory(email, repo)]
+    if any(identity["unset_name"] or identity["unset_email"]
+           for identity in identities):
+        notes.append(bootstrap_identity_advisory(repo))
+    for note in notes:
         if note:
             print(note)
 

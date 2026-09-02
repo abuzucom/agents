@@ -79,7 +79,6 @@ GATED_KEYWORDS = core.gated_keywords()
 # interpreters leaves `powershell -Command 'Remove-Item -Recurse -Force /etc'`
 # as a hole, and on Windows that line runs.
 INTERPRETERS = core.SHELL_INTERPRETERS
-INTERPRETER_PAYLOAD_FLAGS = core.SHELL_PAYLOAD_FLAGS
 IMPLAUSIBLE_PROGRAM_CHARS = frozenset("<>&|;")
 
 
@@ -126,12 +125,7 @@ def _powershell_interpreter_verdict(program: str, args: list,
 
 def _interpreter_argument_verdict(token: str, rest: list, depth: int):
     """Return a command-payload verdict for one interpreter argument."""
-    lowered = token.lower()
-    if lowered in INTERPRETER_PAYLOAD_FLAGS:
-        if not rest:
-            return "deny", "a shell command-string flag has no payload"
-        return "deny", "a shell interpreter executes a command-string payload"
-    if token.startswith("-") and not token.startswith("--") and "c" in token:
+    if core.is_shell_payload_flag(token):
         if not rest:
             return "deny", "a shell command-string flag has no payload"
         return "deny", "a shell interpreter executes a command-string payload"
@@ -201,6 +195,12 @@ def _named_program_verdict(program: str, args: list,
     so the caller runs it past every other check instead.
     """
     lowered = program.lower()
+    prohibited = core.prohibited_command_verdict(program, args)
+    if prohibited[0]:
+        return prohibited
+    curl_verdict = core.curl_transfer_verdict(program, args)
+    if curl_verdict[0]:
+        return curl_verdict
     if lowered == "eval":
         return _eval_verdict(args, depth)
     if lowered in INTERPRETERS:
@@ -223,6 +223,11 @@ def _program_verdict(tokens: list, redirects: list,
     args = tokens[1:]
     policy = (core.powershell_policy_verdict(program, args, redirects)
               if core.powershell_policy_applies_in_bash(program) else ("", ""))
+    policy = core.strongest(
+        core.strongest(
+            policy, core.github_routing_verdict(program, args, _CWD[0])),
+        core.forge_verdict(program, args, _CWD[0]),
+    )
     named = _named_program_verdict(program, args, environment, depth)
     if named is not None:
         return core.strongest(policy, named)
@@ -236,8 +241,11 @@ def _program_verdict(tokens: list, redirects: list,
                       core.truncation_verdict(program, args, redirects),
                       core.process_verdict(program, args),
                       core.schedule_verdict(program, args),
-                      core.forge_verdict(program, args),
+                      core.forge_verdict(program, args, _CWD[0]),
                       core.filesystem_repair_verdict(program, args),
+                      core.infrastructure_path_verdict(
+                          program, args, redirects, _CWD[0]),
+                      core.github_routing_verdict(program, args, _CWD[0]),
                       core.profile_verdict(program, args, redirects),
                       core.protected_write_verdict(
                           program, args, redirects, _CWD[0]),
