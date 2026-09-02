@@ -18,6 +18,7 @@ except ModuleNotFoundError:
 
 DEFAULT_PREFIXES = ("feat", "fix", "chore", "docs", "test")
 EXEMPT_BRANCHES = ("main", "master", "HEAD")
+PROHIBITED_AGENT_PREFIX = "claude/"
 
 
 def _pattern(prefixes: tuple[str, ...]) -> re.Pattern:
@@ -32,6 +33,10 @@ def find_violations(
     strict: bool = False,
 ) -> list[str]:
     """Return a violation message if `branch` breaks the naming convention."""
+    if branch.casefold().startswith(PROHIBITED_AGENT_PREFIX):
+        return [
+            f"branch '{branch}' uses the prohibited claude/ agent prefix"
+        ]
     if not strict and (not branch or branch in EXEMPT_BRANCHES):
         return []
     if _pattern(prefixes).match(branch):
