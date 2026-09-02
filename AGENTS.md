@@ -270,7 +270,8 @@ The template omits those controls. Wire `hooks/block_destructive_bash.py`,
 `tests/test_gate_parity.py` in the same adoption change. Register `Bash`,
 `PowerShell`, and available CMD `PreToolUse` matchers. The gates import shared
 policy modules. A missing shared module denies and exits 2. The parity test
-requires matching verdicts. Rule 9 governs added hooks and CI.
+requires matching shared Git and destructive behavior verdicts across all
+three gates. Rule 9 governs added hooks and CI.
 
 ### 3. Do not change tests to make code pass
 
@@ -555,9 +556,12 @@ the active human remains allowed. The exact recovery command remains allowed
 through normal permission handling. Never chain another command to a recovery
 command. Rule 10 applies. Never assume prior validation against this file.
 
-When the current branch starts with `claude/`, block session and subagent
-completion until correction succeeds. A compliant recovery command receives
-the client's native authorization prompt. After authorization, run the command,
+When the current branch starts with `claude/`, block the first session and
+subagent completion attempt. Allow a Claude Code retry with
+`stop_hook_active` set to true to terminate the turn. This bound prevents an
+unbounded hook loop. Keep every ordinary repository tool blocked until
+correction succeeds. A compliant recovery command receives the client's native
+authorization prompt. After authorization, run the command,
 verify strict branch preflight, and continue the requested Git work. Also block
 creation, checkout, and publication of a `claude/` target from a conforming
 current branch. Also deny Git aliases and direct metadata writes that name a
