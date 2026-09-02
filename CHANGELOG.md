@@ -87,6 +87,10 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   and protected path parity coverage.
 
 ### Changed
+- Clarified that adoption does not apply this repository's BSD-3-Clause license
+  to a target repository. Third-party obligations remain attached to copied
+  material. An unlicensed target now requires explicit approval for the exact
+  license before adoption adds one.
 - Closed CMD boundary bypasses for quoted carets, PATHEXT command names,
   Windows command paths, output redirects, known file writers, recursive tree
   copies, abbreviated PowerShell payload flags, and shared Git policy.
