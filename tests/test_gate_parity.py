@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Assert the Bash and PowerShell gates reach the same verdicts.
+"""Assert the Bash, PowerShell, and CMD gates reach the same verdicts.
 
 Parity is a promise unless something checks it. This session watched
 scripts/check_commit_message.py diverge between two repositories until a
@@ -25,6 +25,7 @@ import gate_corpus
 REPO_ROOT = Path(__file__).resolve().parent.parent
 BASH_HOOK = REPO_ROOT / "hooks" / "block_destructive_bash.py"
 POWERSHELL_HOOK = REPO_ROOT / "hooks" / "block_destructive_powershell.py"
+CMD_HOOK = REPO_ROOT / "hooks" / "block_destructive_cmd.py"
 CORE_PATH = REPO_ROOT / "hooks" / "_gate_core.py"
 _HOOK_WORKERS = {}
 
@@ -64,6 +65,10 @@ def powershell(command, mode: str = "default") -> str:
     return _decision(POWERSHELL_HOOK, "PowerShell", command, mode)
 
 
+def cmd(command, mode: str = "default", cwd: str = "") -> str:
+    return _decision(CMD_HOOK, "Cmd", command, mode, cwd)
+
+
 class GitParityTest(unittest.TestCase):
     """git decisions come from the shared core, so they cannot differ."""
 
@@ -88,10 +93,11 @@ class GitParityTest(unittest.TestCase):
         "git push -u origin feat/x",
     )
 
-    def test_both_gates_agree_on_git(self):
+    def test_all_gates_agree_on_git(self):
         for command in self.COMMANDS:
             with self.subTest(command=command):
                 self.assertEqual(bash(command), powershell(command))
+                self.assertEqual(bash(command), cmd(command))
 
     def test_inline_config_and_repo_location_forms_agree(self):
         with tempfile.TemporaryDirectory() as root:
@@ -112,15 +118,20 @@ class GitParityTest(unittest.TestCase):
                         _decision(BASH_HOOK, "Bash", command, cwd=root),
                         _decision(POWERSHELL_HOOK, "PowerShell", command, cwd=root),
                     )
+                    self.assertEqual(
+                        _decision(BASH_HOOK, "Bash", command, cwd=root),
+                        cmd(command, cwd=root),
+                    )
 
 
 class MalformedParityTest(unittest.TestCase):
-    """Both gates must fail closed on the same malformed inputs."""
+    """All gates must fail closed on the same malformed inputs."""
 
     def test_non_string_commands_agree(self):
         for value in (None, 5, ["rm"], {"a": 1}):
             with self.subTest(value=value):
                 self.assertEqual(bash(value), powershell(value))
+                self.assertEqual(bash(value), cmd(value))
 
     def test_unattended_modes_agree(self):
         for mode in ("bypassPermissions", "dontAsk", "", "unknown-mode"):
@@ -128,6 +139,31 @@ class MalformedParityTest(unittest.TestCase):
                 self.assertEqual(
                     bash("git push --force-with-lease", mode),
                     powershell("git push --force-with-lease", mode))
+                self.assertEqual(
+                    bash("git push --force-with-lease", mode),
+                    cmd("git push --force-with-lease", mode))
+
+
+class CmdParityTest(unittest.TestCase):
+    """Shared destructive behavior reaches one verdict in all three gates."""
+
+    CASES = (
+        ("rm -rf build", "Remove-Item -Recurse build", "rd /s /q build", "ask"),
+        ("rm -rf C:\\", "Remove-Item -Recurse C:\\", "rd /s /q C:\\", "deny"),
+        (
+            "echo x > tests/test_auth.py",
+            "Write-Output x > tests/test_auth.py",
+            "echo x > tests\\test_auth.py",
+            "ask",
+        ),
+    )
+
+    def test_shared_behavior_agrees(self):
+        for bash_command, powershell_command, cmd_command, expected in self.CASES:
+            with self.subTest(command=cmd_command):
+                self.assertEqual(bash(bash_command), expected)
+                self.assertEqual(powershell(powershell_command), expected)
+                self.assertEqual(cmd(cmd_command), expected)
 
 
 class BoundaryParityTest(unittest.TestCase):
@@ -201,19 +237,19 @@ class CoreOwnershipTest(unittest.TestCase):
         self.assertTrue(core.is_relevant_git_environment("GIT_DIR"))
         self.assertFalse(core.is_relevant_git_environment("PATH"))
 
-    def test_neither_gate_defines_its_own_verdict_helpers(self):
+    def test_no_gate_defines_its_own_verdict_helpers(self):
         shared = ("delete_verdict", "git_verdict", "push_verdict",
                   "is_root_target", "strongest", "is_test_path",
                   "cmd_delete_verdict", "sanitize",
                   "is_relevant_git_environment")
-        for hook in (BASH_HOOK, POWERSHELL_HOOK):
+        for hook in (BASH_HOOK, POWERSHELL_HOOK, CMD_HOOK):
             source = hook.read_text(encoding="utf-8")
             for name in shared:
                 with self.subTest(hook=hook.name, function=name):
                     self.assertNotIn(
                         f"def {name}(", source,
                         f"{hook.name} redefines {name}; it belongs to the core "
-                        f"so both gates cannot drift")
+                        "so the gates cannot drift")
 
 
 if __name__ == "__main__":

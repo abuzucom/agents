@@ -178,17 +178,18 @@ def alias_names_prohibited_branch(
     expansion = core.resolve_alias(project_dir, normalized_subcommand)
     if not expansion:
         return False
-    if PROHIBITED_AGENT_PREFIX in expansion.casefold():
-        return True
     if expansion.startswith("!"):
-        return False
+        return PROHIBITED_AGENT_PREFIX in expansion.casefold()
     try:
         expanded_arguments = shlex.split(expansion) + arguments
     except ValueError:
         return False
     nested_subcommand, nested_arguments = core.git_subcommand(expanded_arguments)
-    if arguments_name_prohibited_branch(nested_arguments):
-        return True
+    normalized_nested = nested_subcommand.casefold()
+    if normalized_nested in BRANCH_MUTATION_SUBCOMMANDS:
+        return arguments_name_prohibited_branch(nested_arguments)
+    if normalized_nested in core.KNOWN_SUBCOMMANDS:
+        return False
     return alias_names_prohibited_branch(
         project_dir,
         nested_subcommand,
@@ -224,8 +225,6 @@ def command_names_prohibited_branch(
         if program_name.removesuffix(".exe") != "git":
             continue
         git_arguments = executable_tokens[1:]
-        if arguments_name_prohibited_branch(git_arguments):
-            return True
         subcommand, remaining_arguments = core.git_subcommand(git_arguments)
         normalized_subcommand = subcommand.casefold()
         if normalized_subcommand in BRANCH_MUTATION_SUBCOMMANDS:
@@ -474,8 +473,10 @@ def _handle_pre_tool_use(payload: dict, project_dir: str, client: str) -> int:
     return 0
 
 
-def handle_stop_event(project_dir: str) -> int:
-    """Block completion while strict branch preflight still fails."""
+def handle_stop_event(payload: dict, project_dir: str) -> int:
+    """Block one completion attempt while strict branch preflight fails."""
+    if payload.get("stop_hook_active") is True:
+        return 0
     branch_name, branch_violation = read_branch_preflight(project_dir)
     if not branch_violation:
         return 0
@@ -523,7 +524,7 @@ def main() -> int:
     if event in ("PreToolUse", "BeforeTool") or args.client == "antigravity":
         return _handle_pre_tool_use(payload, project_dir, args.client)
     if event in ("Stop", "SubagentStop"):
-        return handle_stop_event(project_dir)
+        return handle_stop_event(payload, project_dir)
     if event == "UserPromptSubmit":
         return handle_context_event(project_dir, event)
     return _handle_session_start(project_dir)

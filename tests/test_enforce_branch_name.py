@@ -260,6 +260,12 @@ class PreToolUseTest(unittest.TestCase):
                 self.assertEqual(result.returncode, BLOCKING_EXIT_CODE)
                 self.assertIn("prohibited", result.stderr)
 
+    def test_read_only_prohibited_branch_references_are_allowed(self):
+        for command in ("git log claude/old-branch", "git diff claude/x"):
+            with self.subTest(command=command):
+                result = run_hook(bash_payload(command), CONFORMING_BRANCH)
+                self.assertEqual(result.returncode, 0, result.stderr)
+
     def test_direct_metadata_writes_are_blocked(self):
         commands = (
             "printf 'ref: refs/heads/claude/x' > .git/HEAD",
@@ -363,6 +369,17 @@ class PreToolUseTest(unittest.TestCase):
         result = run_hook(payload, CONFORMING_BRANCH)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(result.stdout.strip(), "")
+
+    def test_active_stop_hook_allows_bounded_completion(self):
+        for event_name in ("Stop", "SubagentStop"):
+            with self.subTest(event_name=event_name):
+                payload = {
+                    "hook_event_name": event_name,
+                    "stop_hook_active": True,
+                }
+                result = run_hook(payload, VIOLATING_BRANCH)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(result.stdout.strip(), "")
 
     def test_shell_tool_without_command_passes_on_valid_branch(self):
         payload = {

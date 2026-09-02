@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Gate CMD commands through behavior-based operation policies."""
 import json
+import ntpath
 import os
 import sys
 
@@ -31,7 +32,7 @@ SENSITIVE_DISCOVERY_PROGRAMS = frozenset({
     "whoami",
 })
 REMOTE_EXECUTION_PROGRAMS = frozenset({"psexec", "winrs"})
-SCRIPT_SUFFIXES = (".bat", ".cmd")
+SCRIPT_SUFFIXES = (".bat", ".cmd", ".ps1")
 INTERPRETER_PROGRAMS = frozenset({
     "bash",
     "cmd",
@@ -45,12 +46,13 @@ INTERPRETER_PROGRAMS = frozenset({
     "tcsh",
     "zsh",
 })
+_CWD = [""]
 
 
 def normalize_cmd_program(program_token: str) -> str:
     """Return a case-insensitive CMD executable name."""
-    program_name = os.path.basename(program_token).casefold()
-    return program_name.removesuffix(".exe")
+    program_name = ntpath.basename(program_token)
+    return core.normalize_windows_command_name(program_name)
 
 
 def classify_curl_transfer(arguments: tuple[str, ...]) -> tuple[str, str]:
@@ -79,6 +81,13 @@ def classify_interpreter(
     arguments: tuple[str, ...],
 ) -> tuple[str, str]:
     """Classify shell transitions, command strings, and fixed scripts."""
+    if program_name in ("powershell", "pwsh"):
+        powershell_verdict = core.powershell_policy_verdict(
+            program_name,
+            list(arguments),
+        )
+        if powershell_verdict[0]:
+            return powershell_verdict
     lowered_arguments = tuple(argument.casefold() for argument in arguments)
     payload_flags = frozenset({"/c", "/k", "-c", "-command", "-encodedcommand"})
     if any(argument in payload_flags for argument in lowered_arguments):
@@ -105,30 +114,53 @@ def classify_service_or_task(
 
 def classify_cmd_segment(command_tokens: tuple[str, ...]) -> tuple[str, str]:
     """Return the strongest policy verdict for one CMD command segment."""
+    command_tokens, redirects = cmd_parser.split_output_redirects(command_tokens)
     if not command_tokens:
-        return "", ""
+        return core.strongest(
+            core.truncation_verdict("", [], redirects),
+            core.test_write_verdict("", [], redirects),
+        )
     program_token = command_tokens[0]
     program_name = normalize_cmd_program(program_token)
     arguments = command_tokens[1:]
+    verdict = core.privilege_verdict(list(command_tokens))
     if program_name in STORAGE_DESTRUCTION_PROGRAMS:
-        return "deny", f"{program_name} partitions or formats storage"
-    if program_name in ("del", "erase", "rd", "rmdir"):
-        return core.cmd_delete_verdict(program_name, list(arguments))
-    if program_name in ("sc", "schtasks"):
-        return classify_service_or_task(program_name, arguments)
-    if program_name in REMOTE_EXECUTION_PROGRAMS:
-        return "deny", f"{program_name} enables remote command execution"
-    if program_name in SENSITIVE_DISCOVERY_PROGRAMS:
-        return "ask", f"{program_name} enumerates sensitive host state"
-    if program_name == "curl":
-        return classify_curl_transfer(arguments)
-    if program_name in INTERPRETER_PROGRAMS:
-        return classify_interpreter(program_name, arguments)
-    if program_name in ("call", "for"):
-        return "deny", f"{program_name} can hide nested command execution"
-    if program_token.casefold().endswith(SCRIPT_SUFFIXES):
-        return "ask", "a fixed local batch script executes code"
-    return "", ""
+        verdict = "deny", f"{program_name} partitions or formats storage"
+    elif program_name in core.DELETE_PROGRAMS:
+        verdict = core.any_delete_verdict(program_name, list(arguments))
+    elif program_name in ("sc", "schtasks"):
+        verdict = classify_service_or_task(program_name, arguments)
+    elif program_name in REMOTE_EXECUTION_PROGRAMS:
+        verdict = "deny", f"{program_name} enables remote command execution"
+    elif program_name in SENSITIVE_DISCOVERY_PROGRAMS:
+        verdict = "ask", f"{program_name} enumerates sensitive host state"
+    elif program_name == "curl":
+        verdict = classify_curl_transfer(arguments)
+    elif program_name in INTERPRETER_PROGRAMS:
+        verdict = classify_interpreter(program_name, arguments)
+    elif program_name in ("call", "for"):
+        verdict = "deny", f"{program_name} can hide nested command execution"
+    elif program_token.casefold().endswith(SCRIPT_SUFFIXES):
+        verdict = "ask", "a fixed local batch script executes code"
+    if program_name == "git":
+        git_verdict = core.git_verdict(list(arguments), _CWD[0])
+        verdict = core.strongest(verdict, git_verdict)
+    policies = (
+        core.destruction_verdict(program_name, list(arguments)),
+        core.alias_verdict(program_name, list(arguments)),
+        core.mode_change_verdict(program_name, list(arguments)),
+        core.truncation_verdict(program_name, list(arguments), redirects),
+        core.process_verdict(program_name, list(arguments)),
+        core.schedule_verdict(program_name, list(arguments)),
+        core.forge_verdict(program_name, list(arguments)),
+        core.filesystem_repair_verdict(program_name, list(arguments)),
+        core.protected_write_verdict(
+            program_name, list(arguments), redirects, _CWD[0]),
+        core.test_write_verdict(program_name, list(arguments), redirects),
+    )
+    for policy in policies:
+        verdict = core.strongest(verdict, policy)
+    return verdict
 
 
 def classify_cmd_command(command_text: str) -> tuple[str, str]:
@@ -164,6 +196,7 @@ def main() -> int:
     command_text = core.require_str(tool_input.get("command", ""))
     if command_text is None:
         return core.emit(GATE, "deny", "the CMD command field is not a string")
+    _CWD[0] = core.project_dir(payload)
     decision, decision_reason = classify_cmd_command(command_text)
     if not decision:
         return 0

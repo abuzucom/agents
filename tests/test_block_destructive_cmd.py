@@ -47,6 +47,14 @@ class CommandBoundaryTest(unittest.TestCase):
     def test_caret_escaped_operator_is_not_a_boundary(self):
         self.assertEqual(permission_decision("echo safe ^& text"), "allow")
 
+    def test_caret_escaped_redirect_is_not_a_write(self):
+        command = "echo safe ^> tests\\test_gate_parity.py"
+        self.assertEqual(permission_decision(command), "allow")
+
+    def test_caret_inside_quotes_does_not_hide_a_boundary(self):
+        command = 'echo "a^" & format E: & echo "'
+        self.assertEqual(permission_decision(command), "deny")
+
     def test_unclosed_quote_fails_closed(self):
         self.assertEqual(permission_decision('echo "unterminated'), "deny")
 
@@ -58,7 +66,16 @@ class CommandPolicyTest(unittest.TestCase):
     """CMD operations use behavior rather than operand literals."""
 
     def test_storage_destruction_is_operand_independent(self):
-        for command_text in ("format X:", "format Y:", "diskpart /s plan.txt"):
+        for command_text in (
+            "format X:",
+            "format Y:",
+            "format.com Z:",
+            "format.bat W:",
+            "format.cmd V:",
+            "format.ps1 U:",
+            "C:\\Windows\\System32\\format.com E:",
+            "diskpart /s plan.txt",
+        ):
             with self.subTest(command_text=command_text):
                 self.assertEqual(permission_decision(command_text), "deny")
 
@@ -66,7 +83,30 @@ class CommandPolicyTest(unittest.TestCase):
         self.assertEqual(permission_decision("rd /s /q build"), "ask")
 
     def test_drive_root_deletion_denies(self):
-        self.assertEqual(permission_decision("rd /s /q C:\\"), "deny")
+        for command_text in ("rd /s /q C:\\", "rd /s /q C:\\\\", "rd /s /q C:\\."):
+            with self.subTest(command_text=command_text):
+                self.assertEqual(permission_decision(command_text), "deny")
+
+    def test_test_file_writes_ask(self):
+        for command_text in (
+            "echo. > tests\\test_gate_parity.py",
+            "copy /y nul tests\\test_gate_parity.py",
+            "move source.txt tests\\test_gate_parity.py",
+            "xcopy source tests\\fixture /e",
+            "type source.txt > tests\\test_gate_parity.py",
+        ):
+            with self.subTest(command_text=command_text):
+                self.assertEqual(permission_decision(command_text), "ask")
+
+    def test_recursive_mirror_asks_or_denies_by_target(self):
+        self.assertEqual(
+            permission_decision("robocopy C:\\empty C:\\important /mir"),
+            "ask",
+        )
+        self.assertEqual(
+            permission_decision("robocopy C:\\empty C:\\\\ /purge"),
+            "deny",
+        )
 
     def test_sensitive_discovery_asks(self):
         for command_text in ("whoami /all", "systeminfo", "ipconfig /all"):
@@ -94,6 +134,15 @@ class CommandPolicyTest(unittest.TestCase):
     def test_command_string_and_fixed_batch_have_distinct_verdicts(self):
         self.assertEqual(permission_decision("cmd /c whoami"), "deny")
         self.assertEqual(permission_decision("build.cmd"), "ask")
+        self.assertEqual(permission_decision("build.ps1"), "ask")
+
+    def test_powershell_abbreviated_encoded_payload_denies(self):
+        self.assertEqual(permission_decision("powershell -enc ABC"), "deny")
+
+    def test_remote_execution_pathex_forms_deny(self):
+        for command_text in ("psexec.com host cmd", "C:\\tools\\winrs.exe host"):
+            with self.subTest(command_text=command_text):
+                self.assertEqual(permission_decision(command_text), "deny")
 
 
 class PayloadTest(unittest.TestCase):

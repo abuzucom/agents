@@ -5,6 +5,7 @@ from dataclasses import dataclass
 
 MAX_COMMAND_CHARACTERS = 65536
 COMMAND_SEPARATORS = frozenset({"&", "|", "(", ")", "\n", "\r"})
+OUTPUT_REDIRECT = ">"
 
 
 @dataclass(frozen=True)
@@ -18,13 +19,17 @@ class CmdParseResult:
 def contains_dynamic_expansion(command_text: str) -> bool:
     """Return whether CMD expansion can change command structure."""
     escaped = False
+    inside_quotes = False
     percent_open = False
     exclamation_open = False
     for current_character in command_text:
         if escaped:
             escaped = False
             continue
-        if current_character == "^":
+        if current_character == '"':
+            inside_quotes = not inside_quotes
+            continue
+        if current_character == "^" and not inside_quotes:
             escaped = True
             continue
         if current_character == "%":
@@ -61,6 +66,34 @@ def append_segment(
     command_tokens.clear()
 
 
+def split_output_redirects(
+    command_tokens: tuple[str, ...],
+) -> tuple[tuple[str, ...], list[str]]:
+    """Return executable tokens and literal output redirect targets."""
+    executable_tokens: list[str] = []
+    redirect_targets: list[str] = []
+    token_index = 0
+    while token_index < len(command_tokens):
+        token = command_tokens[token_index]
+        if token != OUTPUT_REDIRECT:
+            executable_tokens.append(token)
+            token_index += 1
+            continue
+        if executable_tokens and executable_tokens[-1].isdigit():
+            executable_tokens.pop()
+        token_index += 1
+        while (token_index < len(command_tokens)
+               and command_tokens[token_index] == OUTPUT_REDIRECT):
+            token_index += 1
+        if token_index >= len(command_tokens):
+            continue
+        target = command_tokens[token_index]
+        if not target.startswith("&"):
+            redirect_targets.append(target)
+        token_index += 1
+    return tuple(executable_tokens), redirect_targets
+
+
 def parse_cmd_command(command_text: str) -> CmdParseResult:
     """Return bounded CMD segments or one fail-closed parser state."""
     if not isinstance(command_text, str):
@@ -81,25 +114,44 @@ def scan_cmd_characters(command_text: str) -> CmdParseResult:
     token_characters: list[str] = []
     inside_quotes = False
     escaped = False
+    previous_character = ""
     for current_character in command_text:
         if escaped:
+            if current_character == OUTPUT_REDIRECT:
+                token_characters.append("^")
             token_characters.append(current_character)
             escaped = False
-            continue
-        if current_character == "^":
-            escaped = True
+            previous_character = current_character
             continue
         if current_character == '"':
             inside_quotes = not inside_quotes
+            previous_character = current_character
+            continue
+        if current_character == "^" and not inside_quotes:
+            escaped = True
+            previous_character = current_character
+            continue
+        if not inside_quotes and current_character == OUTPUT_REDIRECT:
+            append_token(token_characters, command_tokens)
+            command_tokens.append(OUTPUT_REDIRECT)
+            previous_character = current_character
+            continue
+        if (not inside_quotes and current_character == "&"
+                and previous_character == OUTPUT_REDIRECT):
+            token_characters.append(current_character)
+            previous_character = current_character
             continue
         if not inside_quotes and current_character in COMMAND_SEPARATORS:
             append_token(token_characters, command_tokens)
             append_segment(command_tokens, command_segments)
+            previous_character = current_character
             continue
         if not inside_quotes and current_character.isspace():
             append_token(token_characters, command_tokens)
+            previous_character = current_character
             continue
         token_characters.append(current_character)
+        previous_character = current_character
     if escaped or inside_quotes:
         return CmdParseResult("malformed")
     append_token(token_characters, command_tokens)

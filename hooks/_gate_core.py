@@ -2,15 +2,15 @@
 """Shared decision logic for the shell gates.
 
 Not part of AGENTS.md, which stays tool-agnostic and is synced to non-Claude
-tools verbatim. This module holds everything the Bash and PowerShell gates
-decide identically, so the two cannot drift: payload reading and field-type
+tools verbatim. This module holds everything the Bash, PowerShell, and CMD gates
+decide identically, so the gates cannot drift: payload reading and field-type
 validation, the deny and ask emission, the ask-to-deny downgrade for an
 unattended session, root-target detection, and the whole git classification.
 
 Each gate keeps only what its shell spells differently: how a command
 tokenizes, where one statement ends, which wrappers and redirections lead a
-command, and how a delete's flags are written. Both call in here for the
-verdict.
+    command, and how a delete's flags are written. All gates call this module
+    for shared decisions.
 
 A hook run as `python3 .../hooks/<gate>.py` gets `hooks/` as `sys.path[0]`,
 so `import _gate_core` resolves with no packaging. A gate that cannot import
@@ -97,12 +97,10 @@ def _is_drive_root(token: str) -> bool:
     if candidate.startswith("\\\\") or candidate.startswith("//"):
         parts = [part for part in candidate.replace("\\", "/").split("/") if part]
         return len(parts) <= UNC_SHARE_ROOT_PARTS
-    return (
-        len(candidate) == DRIVE_ROOT_LENGTH + 1
-        and candidate[0].isalpha()
-        and candidate[1] == ":"
-        and candidate[2] in "\\/"
-    )
+    normalized = ntpath.normpath(candidate.replace("/", "\\"))
+    return (len(normalized) == DRIVE_ROOT_LENGTH + 1
+            and normalized[0].isalpha()
+            and normalized[1:] == ":\\")
 
 
 def _is_system_root(token: str) -> bool:
@@ -452,13 +450,18 @@ def resolved_under(root: str, *parts: str):
 
 
 CMD_DELETE_VERBS = frozenset({"del", "erase", "rd", "rmdir"})
-# Both shells reach the other through an interpreter, so each gate has to
+CMD_TREE_DELETE_FLAGS = {
+    "robocopy": frozenset({"/mir", "/purge"}),
+    "xcopy": frozenset({"/e", "/s"}),
+}
+WINDOWS_COMMAND_SUFFIXES = (".exe", ".com", ".bat", ".cmd", ".ps1")
+# The shells reach each other through interpreters, so each gate has to
 # read a delete spelled the other way. The readings live here rather than in
 # a gate, so neither can learn a spelling the other does not.
 POSIX_DELETE_PROGRAMS = frozenset({"rm"})
 POWERSHELL_DELETE_PROGRAMS = frozenset({"remove-item", "ri", "remove-itemproperty"})
 DELETE_PROGRAMS = (POSIX_DELETE_PROGRAMS | POWERSHELL_DELETE_PROGRAMS
-                   | CMD_DELETE_VERBS)
+                   | CMD_DELETE_VERBS | set(CMD_TREE_DELETE_FLAGS))
 # -Recurse abbreviates to any unambiguous prefix, and -Force to -fo.
 RECURSE_PREFIXES = tuple(f"-{'recurse'[:n]}" for n in range(1, 8))
 POWERSHELL_PATH_FLAGS = frozenset({"-path", "-literalpath"})
@@ -521,6 +524,15 @@ POWERSHELL_ENCODED_FLAGS = frozenset(
 )
 MAX_COMMAND_DEPTH = 4
 CMD_RECURSIVE_FLAGS = frozenset({"/s"})
+
+
+def normalize_windows_command_name(program: str) -> str:
+    """Return a Windows command basename without a PATHEXT suffix."""
+    name = ntpath.basename(program.strip().strip('"').strip("'")).casefold()
+    for suffix in WINDOWS_COMMAND_SUFFIXES:
+        if name.endswith(suffix):
+            return name[:-len(suffix)]
+    return name
 
 
 def decode_powershell_command(value: str) -> tuple:
@@ -927,16 +939,21 @@ def cmd_delete_verdict(program: str, args: list) -> tuple:
     remove a directory tree whenever /s is present. del and erase take
     /s to recurse into subdirectories.
     """
-    if program.lower() not in CMD_DELETE_VERBS:
+    program_name = normalize_windows_command_name(program)
+    if program_name in CMD_DELETE_VERBS:
+        recursive_flags = CMD_RECURSIVE_FLAGS
+    elif program_name in CMD_TREE_DELETE_FLAGS:
+        recursive_flags = CMD_TREE_DELETE_FLAGS[program_name]
+    else:
         return "", ""
     recursive = False
     operands = []
     for token in args:
         if token.startswith("/"):
-            recursive = recursive or token.lower() in CMD_RECURSIVE_FLAGS
+            recursive = recursive or token.casefold() in recursive_flags
         else:
             operands.append(token)
-    return delete_verdict(recursive, operands, f"recursive {program.lower()}")
+    return delete_verdict(recursive, operands, f"recursive {program_name}")
 
 
 TEST_DIR_PARTS = frozenset({"tests", "test", "__tests__", "spec"})
@@ -956,6 +973,13 @@ WRITE_PROGRAMS = {
     "out-file": 0, "copy-item": -1, "cpi": -1, "move-item": -1,
     "mi": -1, "clear-content": 0, "export-clixml": 0,
     "export-csv": 0, "rename-item": -1,
+}
+CMD_WRITE_PROGRAMS = {
+    "copy": -1,
+    "move": -1,
+    "robocopy": 1,
+    "type": None,
+    "xcopy": 1,
 }
 # (canonical name, shortest valid unambiguous prefix, names an output target).
 CONTENT_PARAMETERS = (
@@ -1059,7 +1083,14 @@ def _powershell_write_parameter(name: str, flag: str):
 def _known_write_targets(program: str, args: list, redirects: list) -> list:
     """Return known output operands for redirects and write programs."""
     targets = list(redirects)
-    name = os.path.basename(program).lower().removesuffix(".exe")
+    name = normalize_windows_command_name(program)
+    if name in CMD_WRITE_PROGRAMS:
+        position = CMD_WRITE_PROGRAMS[name]
+        operands = [token for token in args if not token.startswith("/")]
+        if (position is not None and operands
+                and -len(operands) <= position < len(operands)):
+            targets.append(operands[position])
+        return targets
     position = WRITE_PROGRAMS.get(name)
     if position is None:
         return targets
@@ -2010,16 +2041,19 @@ SU_VALUE_OPTIONS = frozenset({
 
 def su_target_verdict(arguments: list) -> tuple:
     """Classify the effective target and command payload of one su call."""
-    argument_index = 0
-    target_user = "root"
-    while argument_index < len(arguments):
-        argument = arguments[argument_index]
+    for argument in arguments:
         lowered_argument = argument.casefold()
-        if lowered_argument in SU_COMMAND_OPTIONS:
+        option_name = lowered_argument.split("=", 1)[0]
+        if option_name in SU_COMMAND_OPTIONS:
             return "deny", "su executes a command-string payload"
         if argument.startswith("-") and not argument.startswith("--"):
             if "c" in argument[1:]:
                 return "deny", "su executes a command-string payload"
+    argument_index = 0
+    target_user = "root"
+    target_found = False
+    while argument_index < len(arguments):
+        argument = arguments[argument_index]
         if argument in SU_VALUE_OPTIONS:
             argument_index += 2
             continue
@@ -2028,12 +2062,13 @@ def su_target_verdict(arguments: list) -> tuple:
             continue
         if argument == "--":
             argument_index += 1
-            if argument_index < len(arguments):
+            if not target_found and argument_index < len(arguments):
                 target_user = arguments[argument_index]
+                target_found = True
             break
-        if not argument.startswith("-"):
+        if not target_found and not argument.startswith("-"):
             target_user = argument
-            break
+            target_found = True
         argument_index += 1
     if is_ambiguous(target_user):
         return "deny", "su uses a dynamic target account"

@@ -1100,6 +1100,7 @@ class PrivilegeEscalationTest(unittest.TestCase):
         "su - root",
         "sudo su root",
         "su -c 'systemctl restart nginx'",
+        "su deploy -c 'rm -rf /'",
         "sudo rm -rf /",
         "sudo -n rm -rf /etc",
         "sudo dd if=/dev/zero of=/dev/sda",
