@@ -6,15 +6,19 @@ import sys
 from pathlib import Path
 
 try:
-    from tests.json_line_worker import JsonLineWorkerProcess
+    from tests.json_line_worker import (
+        DEFAULT_REQUEST_TIMEOUT_SECONDS,
+        JsonLineWorkerProcess,
+    )
 except ImportError:
-    from json_line_worker import JsonLineWorkerProcess
+    from json_line_worker import DEFAULT_REQUEST_TIMEOUT_SECONDS, JsonLineWorkerProcess
 
 
 class MainWorker:
     """Keep one imported CLI module alive across isolated invocations."""
 
-    def __init__(self, module_path: Path, request_timeout: float = 5.0,
+    def __init__(self, module_path: Path,
+                 request_timeout: float = DEFAULT_REQUEST_TIMEOUT_SECONDS,
                  change_directory: bool = True):
         self.module_path = Path(module_path)
         self.change_directory = change_directory

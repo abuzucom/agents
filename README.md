@@ -81,8 +81,9 @@ target. Direct commands are `python scripts/sync.py`,
 
 `scripts/run_tests.py` verifies that class sharding preserves every test ID.
 The runner then executes four classes concurrently. Each class receives a
-300-second timeout. Failures retain a nonzero exit. The standard-library
-`unittest` loader still defines discovery.
+300-second timeout. Persistent worker requests receive a separate 30-second
+deadline. Failures retain a nonzero exit. The standard-library `unittest`
+loader still defines discovery.
 
 `.pre-commit-config.yaml` runs each check on owned paths. `sync-check.yml`
 runs tests and authored pull request checks on `pull_request`. The same

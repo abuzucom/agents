@@ -9,7 +9,7 @@ import threading
 from pathlib import Path
 
 
-DEFAULT_REQUEST_TIMEOUT_SECONDS = 5.0
+DEFAULT_REQUEST_TIMEOUT_SECONDS = 30.0
 SHUTDOWN_TIMEOUT_SECONDS = 5.0
 WORKER_ENTRYPOINT = Path(__file__).with_name("json_line_worker_child.py")
 

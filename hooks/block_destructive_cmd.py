@@ -112,39 +112,57 @@ def classify_service_or_task(
     return "ask", "schtasks reads scheduled-task state"
 
 
+def classify_named_program(
+    program_token: str,
+    program_name: str,
+    arguments: tuple[str, ...],
+) -> tuple[str, str]:
+    """Return the direct policy verdict for one normalized CMD program."""
+    if program_name in STORAGE_DESTRUCTION_PROGRAMS:
+        return "deny", f"{program_name} partitions or formats storage"
+    if program_name in core.DELETE_PROGRAMS:
+        return core.any_delete_verdict(program_name, list(arguments))
+    if program_name in ("sc", "schtasks"):
+        return classify_service_or_task(program_name, arguments)
+    if program_name in REMOTE_EXECUTION_PROGRAMS:
+        return "deny", f"{program_name} enables remote command execution"
+    if program_name in SENSITIVE_DISCOVERY_PROGRAMS:
+        return "ask", f"{program_name} enumerates sensitive host state"
+    if program_name == "curl":
+        return classify_curl_transfer(arguments)
+    if program_name in INTERPRETER_PROGRAMS:
+        return classify_interpreter(program_name, arguments)
+    if program_name in ("call", "for"):
+        return "deny", f"{program_name} can hide nested command execution"
+    if program_token.casefold().endswith(SCRIPT_SUFFIXES):
+        return "ask", "a fixed local batch script executes code"
+    return "", ""
+
+
 def classify_cmd_segment(command_tokens: tuple[str, ...]) -> tuple[str, str]:
     """Return the strongest policy verdict for one CMD command segment."""
-    command_tokens, redirects = cmd_parser.split_output_redirects(command_tokens)
+    command_tokens, redirects, redirects_complete = (
+        cmd_parser.split_output_redirects(command_tokens)
+    )
+    if not redirects_complete:
+        return "deny", "CMD output redirect target is missing"
     if not command_tokens:
         return core.strongest(
             core.truncation_verdict("", [], redirects),
             core.test_write_verdict("", [], redirects),
         )
-    program_token = command_tokens[0]
-    program_name = normalize_cmd_program(program_token)
+    program_name = normalize_cmd_program(command_tokens[0])
     arguments = command_tokens[1:]
     verdict = core.privilege_verdict(list(command_tokens))
-    if program_name in STORAGE_DESTRUCTION_PROGRAMS:
-        verdict = "deny", f"{program_name} partitions or formats storage"
-    elif program_name in core.DELETE_PROGRAMS:
-        verdict = core.any_delete_verdict(program_name, list(arguments))
-    elif program_name in ("sc", "schtasks"):
-        verdict = classify_service_or_task(program_name, arguments)
-    elif program_name in REMOTE_EXECUTION_PROGRAMS:
-        verdict = "deny", f"{program_name} enables remote command execution"
-    elif program_name in SENSITIVE_DISCOVERY_PROGRAMS:
-        verdict = "ask", f"{program_name} enumerates sensitive host state"
-    elif program_name == "curl":
-        verdict = classify_curl_transfer(arguments)
-    elif program_name in INTERPRETER_PROGRAMS:
-        verdict = classify_interpreter(program_name, arguments)
-    elif program_name in ("call", "for"):
-        verdict = "deny", f"{program_name} can hide nested command execution"
-    elif program_token.casefold().endswith(SCRIPT_SUFFIXES):
-        verdict = "ask", "a fixed local batch script executes code"
+    verdict = core.strongest(
+        verdict,
+        classify_named_program(command_tokens[0], program_name, arguments),
+    )
     if program_name == "git":
-        git_verdict = core.git_verdict(list(arguments), _CWD[0])
-        verdict = core.strongest(verdict, git_verdict)
+        verdict = core.strongest(
+            verdict,
+            core.git_verdict(list(arguments), _CWD[0]),
+        )
     policies = (
         core.destruction_verdict(program_name, list(arguments)),
         core.alias_verdict(program_name, list(arguments)),

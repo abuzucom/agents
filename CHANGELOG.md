@@ -90,6 +90,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   behavior. Read-only Git commands may inspect prohibited branch refs.
 - Bounded Claude stop-hook retries without clearing strict pre-tool branch
   enforcement.
+- Raised the persistent worker request deadline from five seconds to 30 seconds.
+  The deadline remains bounded and covers observed Windows CI startup time.
 - Blocked creation and publication of `claude/` branch targets even when the
   current branch conforms. Compliant recovery commands now request native
   execution authorization.

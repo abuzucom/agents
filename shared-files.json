@@ -2,19 +2,19 @@
   "note": "SHA-256 of every file that must stay byte-identical across the repositories adopting these gates. Line endings are normalized before hashing. Regenerate with scripts/sync.py --write-shared and commit the result in every one of them.",
   "shared": {
     "hooks/_bash_parser.py": "6c28a00b050a59a9d69918f6b492079072813aed3540c576595c0a426a0c8929",
-    "hooks/_cmd_parser.py": "5f6d74f8174ec434f3d1730a652d30c86b32afe67682c0591e66fb051874c8fb",
+    "hooks/_cmd_parser.py": "4212670bc4166a5f89be120ceb6bafbc854d16743ff900f4b596b7b79fa5981b",
     "hooks/_gate_core.py": "f3c58fc7582f075c5ab606df38328b849b6ce7aaff079805fa8d0deb127733c6",
     "hooks/_platform_policy.py": "291723101e85ff904dcc74c0518fc5984f1fac64ae893b9285b6cef6d7114948",
     "hooks/block_destructive_bash.py": "2ba6e8debd214306c2fc9aa85ceac39bf5226c491a1181c9a4d08a14bd604b3c",
-    "hooks/block_destructive_cmd.py": "4c5048f0fa8595a9f2181918da1bdf07811aad3d8d5880dc79c581ab8a916341",
+    "hooks/block_destructive_cmd.py": "15c56c753be9fccf3ece1a2b4d3199ec456a794bfd193201c2c98dad3e382cd1",
     "hooks/block_destructive_powershell.py": "fc9eec04b0e473aa392ff7bf0bac8c7b282eae456ddd30f1609e2002a0aee6f9",
     "hooks/reinject_agents_policy.py": "013aca692fce42ead349071231d04344adb76bae27d43dec2e41d7c1152c6dc2",
     "hooks/require_consent.py": "6f11efa1a90267eea49f410addb7ef7edb1b727dbddb483ac109dbbe2441dc60",
     "tests/gate_corpus.py": "9f5165447718e27531f61559ff275192c2247a7cdb8ce561ce0051ba2a044ba4",
-    "tests/json_line_worker.py": "b75beff1cf903817fbee88fb9fa80ccabad0eb25fc319d16c8c297a6df7236cd",
+    "tests/json_line_worker.py": "57cbf9ed4c57506201e9c9e4ae57d6b8a330d5ede2f8fb76f0c4f72dae55fc0b",
     "tests/json_line_worker_child.py": "bad155acd0f37cf37e0ed12ac6c35755a27b987a541977c48d52076912d0e83c",
     "tests/test_block_destructive_bash.py": "f250b9d0b1934e0a46fef09d2b63b1c53cefe12a77355f6f742e42b36730a51f",
-    "tests/test_block_destructive_cmd.py": "f166c091f7e7713906acbe362412a436f6493e1ab2358cb15397e841e4dd91f6",
+    "tests/test_block_destructive_cmd.py": "80d8a3039dd5a9cfba4c2ffa38560b10be43a7ae976cadbed28ca9cef344798f",
     "tests/test_block_destructive_powershell.py": "a1395e9227866937daab8d18cd605df7b8fa532aafee00b7e3fd160eaaf1c58c",
     "tests/test_platform_policy.py": "96d9059f840a2630ce3ba04ae9435c493301279af2355b84cfc30a85aaadc32d"
   }

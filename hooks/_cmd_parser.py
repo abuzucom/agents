@@ -68,8 +68,8 @@ def append_segment(
 
 def split_output_redirects(
     command_tokens: tuple[str, ...],
-) -> tuple[tuple[str, ...], list[str]]:
-    """Return executable tokens and literal output redirect targets."""
+) -> tuple[tuple[str, ...], list[str], bool]:
+    """Return executable tokens, redirect targets, and syntax completeness."""
     executable_tokens: list[str] = []
     redirect_targets: list[str] = []
     token_index = 0
@@ -86,12 +86,12 @@ def split_output_redirects(
                and command_tokens[token_index] == OUTPUT_REDIRECT):
             token_index += 1
         if token_index >= len(command_tokens):
-            continue
+            return tuple(executable_tokens), redirect_targets, False
         target = command_tokens[token_index]
         if not target.startswith("&"):
             redirect_targets.append(target)
         token_index += 1
-    return tuple(executable_tokens), redirect_targets
+    return tuple(executable_tokens), redirect_targets, True
 
 
 def parse_cmd_command(command_text: str) -> CmdParseResult:

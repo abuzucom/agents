@@ -55,6 +55,18 @@ class CommandBoundaryTest(unittest.TestCase):
         command = 'echo "a^" & format E: & echo "'
         self.assertEqual(permission_decision(command), "deny")
 
+    def test_output_redirect_forms_preserve_boundaries(self):
+        cases = (
+            ("echo safe 2> tests\\test_gate_parity.py", "ask"),
+            ("echo safe >> tests\\test_gate_parity.py", "ask"),
+            ("echo safe >&1", "allow"),
+            ("echo safe >", "deny"),
+            ("> important.log", "deny"),
+        )
+        for command, expected in cases:
+            with self.subTest(command=command):
+                self.assertEqual(permission_decision(command), expected)
+
     def test_unclosed_quote_fails_closed(self):
         self.assertEqual(permission_decision('echo "unterminated'), "deny")
 
@@ -133,6 +145,7 @@ class CommandPolicyTest(unittest.TestCase):
 
     def test_command_string_and_fixed_batch_have_distinct_verdicts(self):
         self.assertEqual(permission_decision("cmd /c whoami"), "deny")
+        self.assertEqual(permission_decision("call hidden.cmd"), "deny")
         self.assertEqual(permission_decision("build.cmd"), "ask")
         self.assertEqual(permission_decision("build.ps1"), "ask")
 
