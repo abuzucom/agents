@@ -170,6 +170,15 @@ trigger covers `opened`, `synchronize`, `reopened`, `ready_for_review`, and
 Each checker, hook, workflow, or dependency added to a target repository is
 tooling under Rule 9. Obtain active-human approval before adding tooling.
 
+Licensing requires a separate decision. BSD-3-Clause governs third-party use
+of copied `abuzucom/agents` material. Third-party adopters must retain its
+applicable notices and conditions for that material. Those terms do not license
+the target repository or its existing content. Copyright-holder adoption into
+an `abuzucom` repository does not require that repository to adopt
+BSD-3-Clause. Do not present this repository's `LICENSE` as the target license
+or add any target license without active-human approval for the exact license.
+An unlicensed target remains unlicensed unless that approval changes its status.
+
 1. Run `python scripts/sync.py --print-adoptable` to print canonical adoptable
    policy. The command omits the marked `abuzucom/agents` orientation block.
    Local synchronized tool copies retain that block. Place the adoptable policy
