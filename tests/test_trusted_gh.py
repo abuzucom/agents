@@ -43,11 +43,10 @@ class ExecutableLookupTest(unittest.TestCase):
             executable = repository / ("gh.exe" if os.name == "nt" else "gh")
             executable.write_text("untrusted executable\n", encoding="utf-8")
             executable.chmod(0o755)
-            environment = {"PATH": os.pathsep.join((str(repository),
-                                                      os.environ.get("PATH", "")))}
+            environment = {"PATH": str(repository)}
             with patch.dict(os.environ, environment, clear=False):
-                resolved = Path(trusted_gh.resolve_gh(repository))
-        self.assertNotEqual(resolved.resolve(), executable.resolve())
+                with self.assertRaises(FileNotFoundError):
+                    trusted_gh.resolve_gh(repository)
 
 
 class TrustedRunnerSafetyTest(unittest.TestCase):
