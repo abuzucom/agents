@@ -24,6 +24,18 @@ include the following actions:
   `branch -D`, and `clean -fdx`.
 - The gates classify privilege escalation, process termination, alias
   definition, shell profile writes, schedule destruction, and forge deletion.
+- The gates deny cloud, infrastructure-as-code, orchestration, direct SSH,
+  file-transfer, and firewall client families across Bash, PowerShell, and CMD.
+- The infrastructure file-tool gate denies direct reads and writes to protected
+  credentials, Terraform files, and Kubernetes or Helm manifests. Broad Glob
+  and Grep requests scan a bounded tree and deny when protected files appear.
+- Hosted GitHub operations require `scripts/trusted_gh.py`. The wrapper resolves
+  GitHub CLI outside the repository and verifies a fixed authenticated account
+  request. Hosted deletions, API writes, GraphQL mutations, administrative
+  merges, public visibility, token output, and broad scopes deny.
+- Normal merges, repository archives, private visibility changes, and ordinary
+  authentication changes ask. Local Git and normal fetch, pull, and push remain
+  available. Clear Git and HTTP substitutes for hosted operations deny.
 - The gates classify recovery destruction through `vssadmin`, `wbadmin`,
   `wmic shadowcopy`, and `bcdedit`.
 - The consent hook gates direct editor-tool writes to existing tests. The same
@@ -165,6 +177,9 @@ enforce Constrained Language Mode.
 - Per-call hooks lack telemetry for rate and volume analytics. Examples include
   "N deletions in M minutes" and correlation with an anomalous login. Each gate
   reads one command shape.
+- The marked GitHub fallback asks for confirmation. The gate lacks persistent
+  cross-process state. Human review enforces the one-use limit after a failed
+  trusted wrapper operation.
 - Gate registration defines tool coverage. Unregistered tools bypass the gates.
 - Codex hosted tools bypass local `PreToolUse` hooks. Claude does not document
   aggregate ordering for parallel subagent policy chunks. Gemini and

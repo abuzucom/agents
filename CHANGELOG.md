@@ -79,6 +79,12 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   Python command-string execution.
 - Added Claude prompt and stop-event branch enforcement for prohibited
   `claude/` harness assignments.
+- Added a trusted authenticated GitHub CLI wrapper with bounded account
+  metadata and repository-local identity proposals.
+- Added a dedicated infrastructure file-tool gate for credentials, Terraform
+  files, and Kubernetes or Helm manifests.
+- Added cross-shell GitHub routing, hosted mutation, infrastructure command,
+  and protected path parity coverage.
 
 ### Changed
 - Closed CMD boundary bypasses for quoted carets, PATHEXT command names,
@@ -92,6 +98,12 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   enforcement.
 - Raised the persistent worker request deadline from five seconds to 30 seconds.
   The deadline remains bounded and covers observed Windows CI startup time.
+- Routed hosted GitHub operations through trusted `gh`. Direct CLI lookup and
+  clear Git or HTTP substitutes now deny. A marked fallback asks for consent.
+- Derived unset Git identities from authenticated GitHub account metadata after
+  explicit confirmation. Bounded local history candidates provide a fallback.
+- Denied cloud, infrastructure-as-code, orchestration, direct remote-shell,
+  file-transfer, and firewall command families on every shell platform.
 - Blocked creation and publication of `claude/` branch targets even when the
   current branch conforms. Compliant recovery commands now request native
   execution authorization.

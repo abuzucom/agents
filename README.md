@@ -9,10 +9,10 @@ Adapt the template to verified project facts. Retain applicable rules.
 `AGENTS.md` is the canonical, tool-neutral instruction file. The file contains:
 
 - A short non-negotiable summary at the top.
-- Fourteen critical rules covering injection, destructive actions, tests,
+- Sixteen critical rules covering injection, destructive actions, tests,
   scope, draft pull requests, API compatibility, hashing, secrets,
   dependencies, workflow state, CI credentials, container users,
-  enforcement claims, and git identity.
+  enforcement claims, git identity, infrastructure access, and GitHub routing.
 - Branch naming and validation-first workflow requirements.
 - Correctness, concurrency, code quality, and style conventions.
 - A commented per-repository orientation block for commands, protected paths,
@@ -36,6 +36,7 @@ the inspected files and behavior.
 | `.gitattributes`, `.editorconfig` | Shared text and editor defaults |
 | `scripts/sync.py`, `shared-files.json` | Local copy generation, adoptable output, and drift detection |
 | `scripts/read_git_state.py`, `scripts/trusted_git.py` | Bounded Git state output and trusted Git execution |
+| `scripts/trusted_gh.py` | Trusted authenticated GitHub CLI execution and account metadata |
 | `scripts/run_tests.py` | Complete class-sharded parallel test execution |
 | `scripts/check_*.py` | Portable policy checkers |
 | `scripts/prose_policy.py` | Shared advisory prose analysis for files and metadata |
@@ -84,6 +85,20 @@ The runner then executes four classes concurrently. Each class receives a
 300-second timeout. Persistent worker requests receive a separate 30-second
 deadline. Failures retain a nonzero exit. The standard-library `unittest`
 loader still defines discovery.
+
+### GitHub Access
+
+Run hosted GitHub operations through:
+
+```console
+python scripts/trusted_gh.py run <gh arguments>
+```
+
+The wrapper resolves GitHub CLI outside the repository. The wrapper verifies
+the authenticated account before the requested operation. Shell gates deny
+direct `gh` lookup and clear Git or HTTP substitutes. High-risk hosted
+mutations deny. Confirmable hosted state changes ask. Normal local Git and
+ordinary fetch, pull, and push transport remain available.
 
 `.pre-commit-config.yaml` runs each check on owned paths. `sync-check.yml`
 runs tests and authored pull request checks on `pull_request`. The same
@@ -211,7 +226,8 @@ tooling under Rule 9. Obtain active-human approval before adding tooling.
      `tests/test_enforce_branch_name.py` and `tests/test_trusted_git_state.py`.
      Run both tests in CI.
 11. Wire git-identity checks in the same change. Copy
-      `scripts/check_git_identity.py` and `scripts/trusted_git.py`. Register the
+      `scripts/check_git_identity.py`, `scripts/trusted_git.py`, and
+      `scripts/trusted_gh.py`. Register the
       default mode at `pre-commit`, `--unpushed` at `pre-push`, and `--base` with
      `--head` in CI. The default allowlist accepts GitHub noreply addresses.
      Use `--allow` only for an approved repository convention. For Claude Code,
@@ -229,13 +245,15 @@ tooling under Rule 9. Obtain active-human approval before adding tooling.
      without a `python` executable. A missing core denies with exit 2. The
      installation remains incomplete.
 13. Unless active-human approval pruned Rule 2 and associated enforcement, wire
-     all command gates. Copy `hooks/block_destructive_bash.py`,
-     `hooks/block_destructive_powershell.py`, `hooks/block_destructive_cmd.py`,
+      all command gates. Copy `hooks/block_destructive_bash.py`,
+      `hooks/block_destructive_powershell.py`, `hooks/block_destructive_cmd.py`,
+      `hooks/block_infrastructure_access.py`,
      `hooks/_gate_core.py`, `hooks/_bash_parser.py`, `hooks/_cmd_parser.py`, and
      `hooks/_platform_policy.py`. Merge the `Bash`, `PowerShell`, and available
      CMD entries from `hooks/claude-code-settings.example.json`. Copy
-     `tests/gate_corpus.py`, `tests/json_line_worker.py`,
-     `tests/json_line_worker_child.py`, `tests/test_block_destructive_cmd.py`,
+      `tests/gate_corpus.py`, `tests/json_line_worker.py`,
+      `tests/json_line_worker_child.py`, `tests/test_block_destructive_cmd.py`,
+      `tests/test_block_infrastructure_access.py`, `tests/test_trusted_gh.py`,
      `tests/test_block_destructive_bash.py`,
      `tests/test_block_destructive_powershell.py`, `tests/test_platform_policy.py`,
      and `tests/test_gate_parity.py`. Read Rule 2 before adoption. The parity
