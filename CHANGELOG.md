@@ -12,6 +12,17 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ## [Unreleased]
 
 ### Added
+- Added Rule 17. The rule bans GitHub cross-references to a repository outside
+  the current owner. The rule requires active-human consent before any
+  outward-facing act on such a repository.
+- Added `scripts/check_external_pr_refs.py`. The checker reads the pull request
+  event and blocks autolinked external references in the title and body. The
+  checker reuses `scripts/prose_policy.py` code masking, so a backticked
+  reference passes. The reusable workflow runs it in the blocking `pr-checks`
+  job.
+- Added `tests/test_external_pr_refs.py` covering owner comparison, code spans,
+  fenced blocks, commit and URL forms, the Dependabot exemption, malformed
+  payloads, and CI wiring.
 - Added `scripts/read_git_state.py` for bounded structured branch, revision,
   remote, and status output. The reader renders control characters and redacts
   remote URL user information.
