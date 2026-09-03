@@ -17,9 +17,11 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   outward-facing act on such a repository.
 - Added `scripts/check_external_pr_refs.py`. The checker reads the pull request
   event and blocks autolinked external references in the title and body. The
-  checker reuses `scripts/prose_policy.py` code masking, so a backticked
-  reference passes. The reusable workflow runs it in the blocking `pr-checks`
-  job.
+  checker reuses `scripts/prose_policy.py` code masking. A backticked
+  reference therefore passes. The `check-sync` job of
+  `.github/workflows/sync-check.yml` runs the checker on every pull request.
+  The reusable `agents-compliance.yml` workflow carries the same step for
+  adopters that call it on pull requests.
 - Added `tests/test_external_pr_refs.py` covering owner comparison, code spans,
   fenced blocks, commit and URL forms, the Dependabot exemption, malformed
   payloads, and CI wiring.

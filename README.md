@@ -9,10 +9,11 @@ Adapt the template to verified project facts. Retain applicable rules.
 `AGENTS.md` is the canonical, tool-neutral instruction file. The file contains:
 
 - A short non-negotiable summary at the top.
-- Sixteen critical rules covering injection, destructive actions, tests,
+- Seventeen critical rules covering injection, destructive actions, tests,
   scope, draft pull requests, API compatibility, hashing, secrets,
   dependencies, workflow state, CI credentials, container users,
-  enforcement claims, git identity, infrastructure access, and GitHub routing.
+  enforcement claims, git identity, infrastructure access, GitHub routing, and
+  external repository consent.
 - Branch naming and validation-first workflow requirements.
 - Correctness, concurrency, code quality, and style conventions.
 - A commented per-repository orientation block for commands, protected paths,

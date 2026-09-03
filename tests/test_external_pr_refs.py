@@ -19,6 +19,7 @@ if str(REPO_ROOT) not in sys.path:
 from scripts import check_external_pr_refs
 
 WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "agents-compliance.yml"
+SYNC_WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "sync-check.yml"
 PRE_COMMIT_PATH = REPO_ROOT / ".pre-commit-config.yaml"
 OWNER = "abuzucom"
 EXTERNAL_REFERENCE = "evanpurkhiser/prolink-go#16"
@@ -171,6 +172,11 @@ class WiringTest(unittest.TestCase):
         self.assertIn("python scripts/check_external_pr_refs.py", text)
         blocking = text.split("  pr-checks:")[1].split("\n  static-checks:")[0]
         self.assertIn("check_external_pr_refs.py", blocking)
+
+    def test_pull_request_workflow_runs_the_checker(self):
+        text = SYNC_WORKFLOW_PATH.read_text(encoding="utf-8")
+        self.assertIn("pull_request:", text)
+        self.assertIn("python scripts/check_external_pr_refs.py", text)
 
     def test_pre_commit_runs_tests_for_the_checker(self):
         text = PRE_COMMIT_PATH.read_text(encoding="utf-8")

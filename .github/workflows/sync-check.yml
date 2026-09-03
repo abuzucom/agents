@@ -80,6 +80,9 @@ jobs:
       - name: Check pull request prose (warning only)
         if: github.event_name == 'pull_request'
         run: python scripts/check_pull_request_message.py
+      - name: Check external repository references
+        if: github.event_name == 'pull_request'
+        run: python scripts/check_external_pr_refs.py
       - name: Check dashes and ASCII in template files
         run: python scripts/check_ascii.py plan/HANDOFF.md.example SECURITY.md.example CONTRIBUTING.md.example .github/PULL_REQUEST_TEMPLATE.md .github/ISSUE_TEMPLATE.md
       - name: Check dashes and ASCII in this repo's own prose
