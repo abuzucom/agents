@@ -6,6 +6,7 @@ PYTHON ?= python3
 
 PROSE_FILES = AGENTS.md README.md CHANGELOG.md DRIFT.md \
 	docs/gate-threat-model.md adopters/1a2n-web-visualizer.md \
+	adopters/prolink-go.md \
 	plan/HANDOFF.md.example SECURITY.md.example CONTRIBUTING.md.example \
 	.github/PULL_REQUEST_TEMPLATE.md .github/ISSUE_TEMPLATE.md
 
