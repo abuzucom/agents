@@ -11,6 +11,16 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Fixed
+- Ran `scripts/check_banned_agents.py` and `scripts/check_git_identity.py` on
+  pull requests through a new `pr-authorship` job in
+  `.github/workflows/sync-check.yml`. Both checkers lived only in the
+  `pr-checks` job of the reusable `agents-compliance.yml`. Its sole caller
+  `agents-md-compliance.yml` stays push-only by design. That job's
+  `pull_request` condition is false on a push. The job therefore skipped on
+  every event this repository fires. Neither checker ran in CI. The caller keeps its
+  push-only trigger. `README.md` records the split.
+
 ### Added
 - Added Rule 17. The rule bans GitHub cross-references to a repository outside
   the current owner. The rule requires active-human consent before any

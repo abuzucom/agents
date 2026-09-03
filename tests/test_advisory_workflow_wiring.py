@@ -19,6 +19,16 @@ class AdvisoryWorkflowTest(unittest.TestCase):
         self.assertNotIn("github.event.pull_request.title", text)
         self.assertNotIn("github.event.pull_request.body", text)
 
+    def test_sync_workflow_runs_authorship_checkers(self):
+        # The reusable workflow's pr-checks job is skipped on every event
+        # this repository fires, so these checkers need a live home here.
+        text = SYNC_WORKFLOW.read_text(encoding="utf-8")
+        self.assertIn("python scripts/check_banned_agents.py", text)
+        self.assertIn("python scripts/check_git_identity.py", text)
+        self.assertIn("fetch-depth: 0", text)
+        self.assertIn("PR_BASE_SHA", text)
+        self.assertIn("PR_HEAD_SHA", text)
+
     def test_reusable_workflow_avoids_ref_interpolation(self):
         text = REUSABLE_WORKFLOW.read_text(encoding="utf-8")
         run_blocks = re.findall(r"run:\s*[|>-]?\s*\n((?:\s{10,}.*\n)+)", text)
