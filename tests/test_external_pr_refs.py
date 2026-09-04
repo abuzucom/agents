@@ -164,6 +164,88 @@ class CheckerBehaviorTest(unittest.TestCase):
         self.assertEqual(len(findings), 1)
 
 
+class OwnerResolutionTest(unittest.TestCase):
+    """The range mode resolves the current owner or fails closed."""
+
+    def test_explicit_owner_wins(self):
+        resolved = check_external_pr_refs.resolve_owner(
+            "Explicit", {"GITHUB_REPOSITORY_OWNER": "fromenv"}, REPO_ROOT)
+        self.assertEqual(resolved, "Explicit")
+
+    def test_environment_owner_used_without_explicit(self):
+        resolved = check_external_pr_refs.resolve_owner(
+            "", {"GITHUB_REPOSITORY_OWNER": "fromenv"}, REPO_ROOT)
+        self.assertEqual(resolved, "fromenv")
+
+    def test_origin_remote_used_as_last_source(self):
+        resolved = check_external_pr_refs.resolve_owner("", {}, REPO_ROOT)
+        self.assertEqual(resolved, OWNER)
+
+    def test_unresolvable_owner_raises(self):
+        with RetryingTemporaryDirectory() as tmp_dir:
+            with self.assertRaises(ValueError):
+                check_external_pr_refs.resolve_owner("", {}, Path(tmp_dir))
+
+    def test_owner_parses_from_ssh_remote(self):
+        parsed = check_external_pr_refs.parse_remote_owner(
+            "git@github.com:abuzucom/agents.git")
+        self.assertEqual(parsed, OWNER)
+
+    def test_owner_parses_from_https_remote(self):
+        parsed = check_external_pr_refs.parse_remote_owner(
+            "https://github.com/abuzucom/agents")
+        self.assertEqual(parsed, OWNER)
+
+    def test_non_github_remote_yields_no_owner(self):
+        parsed = check_external_pr_refs.parse_remote_owner(
+            "https://gitlab.com/abuzucom/agents")
+        self.assertEqual(parsed, "")
+
+
+class CommitRangeTest(unittest.TestCase):
+    """The range mode scans commit subjects and bodies."""
+
+    def check(self, messages) -> tuple:
+        """Return the status and output for one prepared message list."""
+        out = io.StringIO()
+        err = io.StringIO()
+        with redirect_stdout(out), redirect_stderr(err):
+            status = check_external_pr_refs.check_messages(messages, OWNER)
+        return status, out.getvalue() + err.getvalue()
+
+    def test_external_reference_in_subject_blocks(self):
+        status, output = self.check(
+            [("a" * 40, f"fix: port {EXTERNAL_REFERENCE}", "")])
+        self.assertEqual(status, 1)
+        self.assertIn("subject", output)
+        self.assertIn("aaaaaaaaaaaa", output)
+
+    def test_external_reference_in_body_blocks(self):
+        status, output = self.check(
+            [("b" * 40, "fix: port upstream patch", f"Ports {EXTERNAL_URL}.")])
+        self.assertEqual(status, 1)
+        self.assertIn("body", output)
+
+    def test_same_owner_reference_passes(self):
+        status, output = self.check(
+            [("c" * 40, "fix: follow up", "Closes abuzucom/agents#6.")])
+        self.assertEqual(status, 0, output)
+
+    def test_backticked_reference_passes(self):
+        status, output = self.check(
+            [("d" * 40, "fix: port upstream patch",
+              f"Ports `{EXTERNAL_REFERENCE}`.")])
+        self.assertEqual(status, 0, output)
+
+    def test_clean_range_passes(self):
+        status, output = self.check([("e" * 40, "docs: tidy", "No refs here.")])
+        self.assertEqual(status, 0, output)
+
+    def test_empty_range_passes(self):
+        status, output = self.check([])
+        self.assertEqual(status, 0, output)
+
+
 class WiringTest(unittest.TestCase):
     """CI and pre-commit configuration run the new checker."""
 

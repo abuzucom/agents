@@ -1,20 +1,33 @@
 #!/usr/bin/env python3
 """Block autolinked pull request references to an external repository."""
+import argparse
 import json
 import os
 import re
+import subprocess
 import sys
 from pathlib import Path
 
 try:
+    from scripts import check_commit_message, read_git_state
     from scripts.prose_policy import mask_markdown_code
 except ImportError:
+    import check_commit_message
+    import read_git_state
     from prose_policy import mask_markdown_code
 
 MAX_EVENT_BYTES = 1024 * 1024
 MAX_TITLE_LENGTH = 4096
 MAX_BODY_LENGTH = 1024 * 1024
 DEPENDABOT_LOGIN = "dependabot[bot]"
+SHORT_SHA_LENGTH = 12
+
+# github.com/<owner>/<repo> in either the HTTPS or the SCP-like SSH form.
+REMOTE_OWNER = re.compile(
+    r"^(?:https?://[^/]*github\.com/|(?:ssh://)?[^@]*@github\.com[:/])"
+    r"([\w.-]+)/",
+    re.IGNORECASE,
+)
 
 # GitHub posts a cross-reference event on the target of an autolinked
 # reference. A code span suppresses the autolink, so masked text never
@@ -85,6 +98,75 @@ def find_external_references(text: str, owner: str, field: str) -> list[str]:
     return findings
 
 
+def parse_remote_owner(url: str) -> str:
+    """Return the GitHub owner named by a remote URL, or an empty string."""
+    match = REMOTE_OWNER.match(url.strip())
+    return match.group(1) if match else ""
+
+
+def resolve_owner(explicit: str, environment: dict, repo) -> str:
+    """Return the current repository owner from the first available source."""
+    if explicit:
+        return explicit
+    from_environment = environment.get("GITHUB_REPOSITORY_OWNER", "")
+    if from_environment:
+        return from_environment
+    remote = read_git_state.read_state("remote", Path(repo)).get("origin")
+    owner = parse_remote_owner(remote) if remote else ""
+    if not owner:
+        raise ValueError(
+            "no repository owner from --owner, GITHUB_REPOSITORY_OWNER, or "
+            "the origin remote"
+        )
+    return owner
+
+
+def check_messages(messages: list, owner: str) -> int:
+    """Return 1 when a commit message cross-references an external owner."""
+    findings = []
+    for sha, subject, body in messages:
+        label = sha[:SHORT_SHA_LENGTH]
+        findings.extend(
+            find_external_references(subject, owner, f"commit {label}.subject")
+        )
+        findings.extend(
+            find_external_references(body, owner, f"commit {label}.body")
+        )
+    for message in findings:
+        print(message)
+    if findings:
+        return 1
+    print("no external-reference findings found")
+    return 0
+
+
+def check_range(base: str, head: str, owner: str, repo=None) -> int:
+    """Return 1 when the base..head range carries an external reference."""
+    repository = repo or os.getcwd()
+    try:
+        messages = check_commit_message.load_commit_messages(
+            base, head, repository)
+    except (OSError, subprocess.CalledProcessError, UnicodeError,
+            ValueError) as error:
+        print(f"error: external reference check failed: {error}",
+              file=sys.stderr)
+        return 1
+    return check_messages(messages, owner)
+
+
+def check_unpushed(owner: str, repo=None) -> int:
+    """Return 1 when an unpushed commit carries an external reference."""
+    repository = repo or os.getcwd()
+    try:
+        messages = check_commit_message.load_unpushed_messages(repository)
+    except (OSError, subprocess.CalledProcessError, UnicodeError,
+            ValueError) as error:
+        print(f"error: external reference check failed: {error}",
+              file=sys.stderr)
+        return 1
+    return check_messages(messages, owner)
+
+
 def check_event(path: str | Path) -> int:
     """Return 1 when a pull request cross-references an external owner."""
     try:
@@ -108,8 +190,36 @@ def check_event(path: str | Path) -> int:
     return 0
 
 
-def main() -> int:
-    """Check the GitHub event path supplied by the runner environment."""
+def build_parser() -> argparse.ArgumentParser:
+    """Return the argument parser for the event and commit-range modes."""
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--base", default="", help="base ref (exclusive)")
+    parser.add_argument("--head", default="", help="head ref (inclusive)")
+    parser.add_argument("--owner", default="",
+                        help="current repository owner; overrides discovery")
+    parser.add_argument("--unpushed", action="store_true",
+                        help="check commits absent from every remote")
+    return parser
+
+
+def main(argv: list | None = None) -> int:
+    """Check a commit range, or the event path supplied by the runner."""
+    parser = build_parser()
+    args = parser.parse_args(argv)
+    if bool(args.base) != bool(args.head):
+        parser.error("--base and --head must be given together")
+    if args.base and args.unpushed:
+        parser.error("--unpushed does not combine with --base and --head")
+    if args.base or args.unpushed:
+        try:
+            owner = resolve_owner(args.owner, os.environ, os.getcwd())
+        except (OSError, ValueError) as error:
+            print(f"error: external reference check failed: {error}",
+                  file=sys.stderr)
+            return 1
+        if args.unpushed:
+            return check_unpushed(owner)
+        return check_range(args.base, args.head, owner)
     event_path = os.environ.get("GITHUB_EVENT_PATH")
     if not event_path:
         print("error: GITHUB_EVENT_PATH is unset", file=sys.stderr)

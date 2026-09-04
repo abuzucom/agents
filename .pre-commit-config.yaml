@@ -61,3 +61,10 @@ repos:
         pass_filenames: false
         always_run: true
         stages: [pre-push]
+      - id: check-unpushed-external-refs
+        name: Check unpushed commits for external references (Rule 17)
+        entry: python scripts/check_external_pr_refs.py --unpushed
+        language: python
+        pass_filenames: false
+        always_run: true
+        stages: [pre-push]

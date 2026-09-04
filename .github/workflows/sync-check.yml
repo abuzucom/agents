@@ -81,6 +81,14 @@ jobs:
           python scripts/check_git_identity.py \
             --base "$PR_BASE_SHA" \
             --head "$PR_HEAD_SHA"
+      - name: Check commit messages for external references
+        env:
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          python scripts/check_external_pr_refs.py \
+            --base "$PR_BASE_SHA" \
+            --head "$PR_HEAD_SHA"
 
   check-sync:
     runs-on: ubuntu-latest
