@@ -189,8 +189,9 @@ class PolicyValidationTest(unittest.TestCase):
         (root / "CLAUDE.md").write_text("different\n", encoding="utf-8")
         args = Namespace(client="claude", chunk_index=0)
         with patch.object(self.hook, "installed_root", return_value=root):
-            with self.assertRaisesRegex(ValueError, "not synchronized"):
-                self.hook.run_hook(args, {"cwd": str(root)})
+            with patch.dict(os.environ, {"CLAUDE_PROJECT_DIR": ""}):
+                with self.assertRaisesRegex(ValueError, "not synchronized"):
+                    self.hook.run_hook(args, {"cwd": str(root)})
 
     def test_client_root_rejects_a_different_repository(self):
         root = self.make_project()
