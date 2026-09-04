@@ -59,6 +59,8 @@ jobs:
           python scripts/check_git_identity.py \
             --base "$PR_BASE_SHA" \
             --head "$PR_HEAD_SHA"
+      - name: Check external repository references
+        run: python scripts/check_external_pr_refs.py
 
   static-checks:
     if: github.event_name != 'pull_request' || github.event.pull_request.draft == false

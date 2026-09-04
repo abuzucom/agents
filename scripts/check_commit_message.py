@@ -162,28 +162,12 @@ def load_commits(base: str, head: str, repo=None) -> list[tuple[str, str]]:
     return commits
 
 
-def load_commit_messages(
-        base: str, head: str, repo=None) -> list[tuple[str, str, str]]:
-    """Collect bounded full commit messages for one validated range."""
-    repository = repo or os.getcwd()
-    result = run_git(
-        repository,
-        [
-            "log",
-            "--no-merges",
-            "--no-ext-diff",
-            f"--max-count={MAX_COMMIT_COUNT}",
-            f"--format=%H{FIELD_SEPARATOR}%s{FIELD_SEPARATOR}%b{RECORD_SEPARATOR}",
-            "--end-of-options",
-            f"{base}..{head}",
-        ],
-        check=True,
-        runner=subprocess.run,
-    )
-    if len(result.stdout.encode("utf-8")) > MAX_METADATA_BYTES:
+def _parse_message_records(stdout: str) -> list[tuple[str, str, str]]:
+    """Return validated (sha, subject, body) triples from bounded git output."""
+    if len(stdout.encode("utf-8")) > MAX_METADATA_BYTES:
         raise ValueError("git log returned excessive commit metadata")
     messages = []
-    for raw_record in result.stdout.split(RECORD_SEPARATOR):
+    for raw_record in stdout.split(RECORD_SEPARATOR):
         record = raw_record.strip("\r\n")
         if not record:
             continue
@@ -192,6 +176,49 @@ def load_commit_messages(
             raise ValueError("git log returned malformed commit metadata")
         messages.append((fields[0], fields[1], fields[2]))
     return messages
+
+
+def _message_log_arguments(revisions: list[str]) -> list[str]:
+    """Return the bounded git log arguments shared by both message loaders."""
+    return [
+        "log",
+        "--no-merges",
+        "--no-ext-diff",
+        f"--max-count={MAX_COMMIT_COUNT}",
+        f"--format=%H{FIELD_SEPARATOR}%s{FIELD_SEPARATOR}%b{RECORD_SEPARATOR}",
+        *revisions,
+    ]
+
+
+def load_commit_messages(
+        base: str, head: str, repo=None) -> list[tuple[str, str, str]]:
+    """Collect bounded full commit messages for one validated range."""
+    repository = repo or os.getcwd()
+    result = run_git(
+        repository,
+        _message_log_arguments(["--end-of-options", f"{base}..{head}"]),
+        check=True,
+        runner=subprocess.run,
+    )
+    return _parse_message_records(result.stdout)
+
+
+def load_unpushed_messages(repo=None) -> list[tuple[str, str, str]]:
+    """Collect bounded messages for commits on HEAD absent from every remote."""
+    repository = repo or os.getcwd()
+    remotes = run_git(repository, ["remote"], runner=subprocess.run)
+    if remotes.returncode != 0:
+        raise subprocess.CalledProcessError(remotes.returncode, "git remote")
+    if not remotes.stdout.strip():
+        return []
+    result = run_git(
+        repository,
+        _message_log_arguments(
+            ["--not", "--remotes", "--not", "--end-of-options", "HEAD"]),
+        check=True,
+        runner=subprocess.run,
+    )
+    return _parse_message_records(result.stdout)
 
 
 def check(base: str, head: str, repo=None) -> int:

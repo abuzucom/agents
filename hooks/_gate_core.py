@@ -2486,7 +2486,119 @@ def _github_auth_verdict(args: list) -> tuple:
     return "", ""
 
 
-def github_cli_verdict(args: list) -> tuple:
+def _is_github_host(host: str) -> bool:
+    """Return True when `host` is github.com itself or a subdomain of it.
+
+    A suffix test alone would accept `attacker-github.com`, so the domain
+    boundary is explicit.
+    """
+    name = host.lower().partition(":")[0]
+    return name == "github.com" or name.endswith(".github.com")
+
+
+def _repository_target_owner(token: str) -> str:
+    """Return the owner of a GitHub CLI repository argument.
+
+    gh accepts `OWNER/REPO`, `HOST/OWNER/REPO`, and a full URL, so a scheme,
+    any user information, and a leading GitHub host are stripped before the
+    owner is read. An unrecognized shape returns an empty string, which the
+    caller treats as unreadable rather than as clearance.
+    """
+    if not token or token.startswith("-") or is_ambiguous(token):
+        return ""
+    value = token.partition("://")[2] or token
+    value = value.rpartition("@")[2]
+    segments = [segment for segment in value.split("/") if segment]
+    if len(segments) == 3 and _is_github_host(segments[0]):
+        segments = segments[1:]
+    if len(segments) != 2:
+        return ""
+    # Splitting dropped empty segments, so the owner is never empty here.
+    # A separator left inside it means the token was never owner/name.
+    owner = segments[0]
+    if any(character in owner for character in "@:\\"):
+        return ""
+    return owner
+
+
+def _origin_owner(cwd: str) -> str:
+    """Return the GitHub owner of the origin remote, or an empty string.
+
+    The URL is parsed with string operations because this module carries no
+    regular expressions: a gate must not depend on backtracking behavior.
+    """
+    entries = parse_git_config(cwd)
+    if not entries:
+        return ""
+    url = entries.get("remote.origin.url", "").strip()
+    if not url:
+        return ""
+    url = url.partition("://")[2] or url
+    url = url.rpartition("@")[2]
+    # The SCP-like form is host:owner/name, so the colon can precede the
+    # first slash. Split on whichever separator comes first.
+    colon = url.find(":")
+    slash = url.find("/")
+    if slash == -1 and colon == -1:
+        return ""
+    if colon != -1 and (slash == -1 or colon < slash):
+        host, path = url[:colon], url[colon + 1:]
+        if path.split("/")[0].isdigit():
+            # A port, not an owner: re-split on the slash after it.
+            host, _, path = url.partition("/")
+    else:
+        host, path = url[:slash], url[slash + 1:]
+    if not _is_github_host(host):
+        return ""
+    return _repository_target_owner(path.removesuffix(".git"))
+
+
+# Posting to a repository outside the current owner notifies people who did
+# not ask for it, so these subcommands reach an active human first.
+OUTWARD_FACING_COMMANDS = frozenset({
+    ("pr", "create"), ("pr", "comment"), ("pr", "review"), ("pr", "edit"),
+    ("pr", "close"), ("pr", "reopen"), ("pr", "ready"),
+    ("issue", "create"), ("issue", "comment"), ("issue", "edit"),
+    ("issue", "close"), ("issue", "reopen"),
+    ("repo", "fork"), ("release", "create"),
+})
+
+
+def _external_target_verdict(args: list, command: list, noun: str,
+                             action: str, repo_owner: str) -> tuple:
+    """Route an outward-facing command at another owner to active consent."""
+    if (noun, action) not in OUTWARD_FACING_COMMANDS:
+        return "", ""
+    # -R and --repo are global options, so _github_command_args already
+    # removed them: the target has to come from the original arguments.
+    target = _option_value(args, frozenset({"--repo", "-r"}))
+    if target:
+        owner = _repository_target_owner(target)
+        if not owner:
+            # An explicit target this gate cannot read is not clearance.
+            return "ask", (f"{sanitize(noun)} {sanitize(action)} names a "
+                           "repository target this gate cannot read")
+    else:
+        owner = ""
+        for token in command:
+            if token.startswith("-"):
+                continue
+            owner = _repository_target_owner(token)
+            if owner:
+                break
+    if not owner or owner.lower() == repo_owner.lower():
+        return "", ""
+    if not repo_owner:
+        # An unreadable origin cannot clear the target, so the gate asks
+        # rather than waving an outward-facing command through.
+        return "ask", (f"{sanitize(noun)} {sanitize(action)} targets "
+                       f"{sanitize(owner)}, and this repository names no "
+                       "origin owner to compare")
+    return "ask", (f"{sanitize(noun)} {sanitize(action)} targets "
+                   f"{sanitize(owner)}, an owner outside this repository")
+
+
+def github_cli_verdict(args: list, *, repo_owner: str = "") -> tuple:
     """Return the safety verdict for one GitHub CLI invocation."""
     command = _github_command_args(args)
     if not command:
@@ -2509,7 +2621,7 @@ def github_cli_verdict(args: list) -> tuple:
         return "ask", "repository edits change hosted settings"
     if noun == "repo" and action == "archive":
         return "ask", "repository archiving disables hosted development"
-    return "", ""
+    return _external_target_verdict(args, command, noun, action, repo_owner)
 
 
 def trusted_gh_arguments(program: str, args: list, cwd: str) -> list:
@@ -2592,9 +2704,11 @@ def github_routing_verdict(program: str, args: list, cwd: str) -> tuple:
 def forge_verdict(program: str, args: list, cwd: str = "") -> tuple:
     """Return (decision, reason) for a destructive forge command."""
     name = os.path.basename(program).lower().removesuffix(".exe")
-    wrapped = trusted_gh_arguments(program, args, cwd or os.getcwd())
+    repository = cwd or os.getcwd()
+    owner = _origin_owner(repository)
+    wrapped = trusted_gh_arguments(program, args, repository)
     if wrapped:
-        decision, reason = github_cli_verdict(wrapped)
+        decision, reason = github_cli_verdict(wrapped, repo_owner=owner)
         if decision:
             return decision, reason
         name = "gh"
@@ -2602,7 +2716,7 @@ def forge_verdict(program: str, args: list, cwd: str = "") -> tuple:
     if name not in FORGE_PROGRAMS:
         return "", ""
     if name == "gh":
-        decision, reason = github_cli_verdict(args)
+        decision, reason = github_cli_verdict(args, repo_owner=owner)
         if decision:
             return decision, reason
     command = _github_command_args(args) if name == "gh" else args

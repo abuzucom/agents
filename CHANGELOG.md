@@ -11,7 +11,59 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Fixed
+- Closed a cross-owner gate bypass. `gh` accepts `OWNER/REPO`,
+  `HOST/OWNER/REPO`, and a full URL for `--repo`. The target parser read only
+  the bare form. A URL or host-qualified target therefore produced no owner,
+  and the gate treated that as clearance. The parser now strips a scheme, any user
+  information, and a leading GitHub host. An explicit `--repo` the gate cannot
+  read routes to consent rather than passing.
+- Required a domain boundary on the GitHub host test. `_origin_owner` in the
+  gate and the remote parser in `scripts/check_external_pr_refs.py` accepted
+  any host ending in `github.com`. A domain such as `attacker-github.com`
+  therefore supplied its path owner as the trusted origin owner. Both now
+  require the host to equal `github.com` or end with `.github.com`. The checker
+  splits host from path in the pattern and validates the host in code. That
+  split avoids the nested quantifier a subdomain alternation would need.
+- Ran `scripts/check_banned_agents.py` and `scripts/check_git_identity.py` on
+  pull requests through a new `pr-authorship` job in
+  `.github/workflows/sync-check.yml`. Both checkers lived only in the
+  `pr-checks` job of the reusable `agents-compliance.yml`. Its sole caller
+  `agents-md-compliance.yml` stays push-only by design. That job's
+  `pull_request` condition is false on a push. The job therefore skipped on
+  every event this repository fires. Neither checker ran in CI. The caller keeps its
+  push-only trigger. `README.md` records the split.
+
 ### Added
+- Added a cross-owner verdict to `github_cli_verdict` in
+  `hooks/_gate_core.py`. An outward-facing GitHub CLI command aimed at an owner
+  outside the origin remote routes to active-human consent. Covered commands
+  include pull request and issue creation, comments, reviews, edits, state
+  changes, repository forks, and release creation. An unreadable origin owner
+  asks rather than passing. Read-only commands stay available. The URL and
+  target parsing uses string operations, since the module carries no regular
+  expressions. `shared-files.json` records the new digest.
+- Added commit-message scanning to `scripts/check_external_pr_refs.py` through
+  a commit-range mode and an `--unpushed` mode. The `pr-authorship` job runs
+  the range mode. A pre-push hook runs the unpushed mode. That check precedes
+  the push that would create the reference.
+- Added `tests/test_external_repo_gate.py` covering origin owner parsing across
+  remote URL forms, target parsing, the cross-owner verdicts, and the
+  end-to-end `forge_verdict` path. Added cross-owner rows to
+  `tests/test_gate_parity.py`, chosen so the verdict holds in any checkout.
+- Added Rule 17. The rule bans GitHub cross-references to a repository outside
+  the current owner. The rule requires active-human consent before any
+  outward-facing act on such a repository.
+- Added `scripts/check_external_pr_refs.py`. The checker reads the pull request
+  event and blocks autolinked external references in the title and body. The
+  checker reuses `scripts/prose_policy.py` code masking. A backticked
+  reference therefore passes. The `check-sync` job of
+  `.github/workflows/sync-check.yml` runs the checker on every pull request.
+  The reusable `agents-compliance.yml` workflow carries the same step for
+  adopters that call it on pull requests.
+- Added `tests/test_external_pr_refs.py` covering owner comparison, code spans,
+  fenced blocks, commit and URL forms, the Dependabot exemption, malformed
+  payloads, and CI wiring.
 - Added `scripts/read_git_state.py` for bounded structured branch, revision,
   remote, and status output. The reader renders control characters and redacts
   remote URL user information.

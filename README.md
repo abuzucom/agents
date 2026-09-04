@@ -9,10 +9,11 @@ Adapt the template to verified project facts. Retain applicable rules.
 `AGENTS.md` is the canonical, tool-neutral instruction file. The file contains:
 
 - A short non-negotiable summary at the top.
-- Sixteen critical rules covering injection, destructive actions, tests,
+- Seventeen critical rules covering injection, destructive actions, tests,
   scope, draft pull requests, API compatibility, hashing, secrets,
   dependencies, workflow state, CI credentials, container users,
-  enforcement claims, git identity, infrastructure access, and GitHub routing.
+  enforcement claims, git identity, infrastructure access, GitHub routing, and
+  external repository consent.
 - Branch naming and validation-first workflow requirements.
 - Correctness, concurrency, code quality, and style conventions.
 - A commented per-repository orientation block for commands, protected paths,
@@ -105,7 +106,12 @@ runs tests and authored pull request checks on `pull_request`. The same
 workflow also runs push checks. `immutable-conflict-check.yml` uses trusted
 base code to inspect the immutable pull request tree and commit metadata.
 `agents-md-compliance.yml` runs push compliance through the reusable
-`agents-compliance.yml` workflow.
+`agents-compliance.yml` workflow. That caller stays push-only. The
+`pr-checks` and `advisory-pr-checks` jobs of the reusable workflow therefore
+skip on every event this repository fires. `sync-check.yml` carries the
+banned-agent and commit-identity checks for pull requests. An adopter calling
+`agents-compliance.yml` on `pull_request` receives those checks from that
+workflow instead.
 
 `sync-check.yml` also runs
 [AgentLint](https://github.com/0xmariowu/AgentLint) as an advisory audit with

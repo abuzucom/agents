@@ -75,6 +75,19 @@ Both sets trace to the single declined workflow, apart from the `README_PATH`
 case. The adopter's `README.md` documents a Go library rather than this
 repository's policy.
 
+## Available since adoption
+
+- The `hooks/_gate_core.py` digest in `shared-files.json` changed. The gate
+  gained a cross-owner verdict for outward-facing GitHub CLI commands. The
+  adopter mirrors every hook byte-identically. Taking Rule 17 means taking
+  the new hook bytes and the regenerated manifest together.
+- Rule 17 and `scripts/check_external_pr_refs.py`. The adopter forks
+  `evanpurkhiser/prolink-go`. Adopter pull request 6 cross-referenced upstream
+  pull request 16 and notified an unmaintained upstream. The checker blocks that
+  reference form. The checker compares the pull request event owner. It needs
+  no adopter-specific configuration. Taking it requires the checker, its test,
+  and a workflow step on a pull-request-triggered job.
+
 ## Note for the template
 
 Three suites assert artifacts that exist only in this repository:
