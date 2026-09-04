@@ -176,6 +176,11 @@ class PolicyValidationTest(unittest.TestCase):
         with self.assertRaises(UnicodeEncodeError):
             self.hook.load_policy(non_ascii)
 
+    def test_installed_root_rejects_an_incomplete_install(self):
+        with patch.object(self.hook.Path, "is_file", return_value=False):
+            with self.assertRaisesRegex(ValueError, "installed policy root"):
+                self.hook.installed_root()
+
     def test_chunk_validation_rejects_invalid_policy_shapes(self):
         long_line = "x" * (self.hook.MAX_CHUNK_CHARS + 1)
         with self.assertRaises(ValueError):
@@ -188,7 +193,7 @@ class PolicyValidationTest(unittest.TestCase):
         root = self.make_project()
         (root / "CLAUDE.md").write_text("different\n", encoding="utf-8")
         args = Namespace(client="claude", chunk_index=0)
-        with patch.object(self.hook, "installed_root", return_value=root):
+        with patch.object(self.hook, "installed_root", return_value=root.resolve()):
             with patch.dict(os.environ, {"CLAUDE_PROJECT_DIR": ""}):
                 with self.assertRaisesRegex(ValueError, "not synchronized"):
                     self.hook.run_hook(args, {"cwd": str(root)})
