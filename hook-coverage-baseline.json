@@ -35,7 +35,7 @@
     "_gate_core.py::_shell_alias_write_label": 12,
     "_gate_core.py::device_write_verdict": 2,
     "_gate_core.py::environment_assignment_verdict": 1,
-    "_gate_core.py::forge_verdict": 2,
+    "_gate_core.py::forge_verdict": 1,
     "_gate_core.py::git_checker_environment": 3,
     "_gate_core.py::git_read_verdict": 1,
     "_gate_core.py::git_write_context": 2,
