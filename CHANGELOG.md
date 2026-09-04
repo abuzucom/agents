@@ -21,6 +21,9 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Scoped the ASCII policy claim to documentation prose.
 
 ### Fixed
+- Handled missing client configurations and checked every configured launcher.
+- Accepted immutable digests for `docker://` workflow actions.
+- Normalized numeric YAML Python versions before trusted workflow validation.
 - Anchored lifecycle policy injection to the repository containing the hook.
 - Protected policy files when the working directory belongs to another repository.
 - Closed a cross-owner gate bypass. `gh` accepts `OWNER/REPO`,

@@ -514,10 +514,11 @@ def _pull_target_violations(document: dict, text: str, path: str) -> list[str]:
             version = (python_step.get("with", {}).get("python-version")
                        if isinstance(python_step, dict)
                        else None)
-            if isinstance(version, str) and PYTHON_VERSION_PATTERN.fullmatch(version):
+            version_text = str(version) if isinstance(version, (str, float, int)) else ""
+            if PYTHON_VERSION_PATTERN.fullmatch(version_text):
                 trusted_steps = _trusted_steps()
                 trusted_steps[2] = dict(trusted_steps[2])
-                trusted_steps[2]["with"] = {"python-version": version}
+                trusted_steps[2]["with"] = {"python-version": version_text}
                 trusted_job["steps"] = trusted_steps
     job_schema_ok = document.get("jobs") in (
         {"immutable-compliance": expected_job},

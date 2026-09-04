@@ -24,6 +24,15 @@ class ActionPinTest(unittest.TestCase):
         text = "jobs:\n  test:\n    uses: ./.github/workflows/reuse.yml\n"
         self.assertEqual(check_action_pins.find_violations(text, "x.yml"), [])
 
+    def test_container_digest_passes(self):
+        text = "jobs:\n  test:\n    steps:\n      - uses: docker://alpine@sha256:" + "a" * 64
+        self.assertEqual(check_action_pins.find_violations(text, "x.yml"), [])
+
+    def test_container_tag_fails(self):
+        text = "jobs:\n  test:\n    steps:\n      - uses: docker://alpine:latest\n"
+        found = check_action_pins.find_violations(text, "x.yml")
+        self.assertEqual(len(found), 1)
+
 
 if __name__ == "__main__":
     unittest.main()

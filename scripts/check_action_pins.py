@@ -6,6 +6,7 @@ from pathlib import Path
 import yaml
 
 FULL_SHA_LENGTH = 40
+CONTAINER_DIGEST_LENGTH = 64
 
 
 def _workflow_paths(root: Path) -> list[Path]:
@@ -42,6 +43,14 @@ def find_violations(text: str, path: str) -> list[str]:
             if reference.startswith("./"):
                 continue
             revision = reference.rsplit("@", 1)[-1] if "@" in reference else ""
+            if reference.startswith("docker://"):
+                digest = revision.removeprefix("sha256:")
+                if len(digest) != CONTAINER_DIGEST_LENGTH or any(
+                        character not in "0123456789abcdefABCDEF"
+                        for character in digest):
+                    violations.append(
+                        f"{path}: {location} must use a full image digest")
+                continue
             if len(revision) != FULL_SHA_LENGTH or any(
                     character not in "0123456789abcdefABCDEF"
                     for character in revision):

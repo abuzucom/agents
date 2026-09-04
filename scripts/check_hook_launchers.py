@@ -39,8 +39,13 @@ def _launcher(command: str) -> str:
 
 def _config_paths(root: Path) -> list[Path]:
     """Return client configuration files that define hooks."""
-    return [root / ".claude" / "settings.json", root / ".codex" / "hooks.json",
-            root / ".gemini" / "settings.json", root / ".agents" / "hooks.json"]
+    candidates = [
+        root / ".claude" / "settings.json",
+        root / ".codex" / "hooks.json",
+        root / ".gemini" / "settings.json",
+        root / ".agents" / "hooks.json",
+    ]
+    return [path for path in candidates if path.is_file()]
 
 
 def main() -> int:
@@ -51,19 +56,26 @@ def main() -> int:
         document = json.loads(path.read_text(encoding="utf-8"))
         commands.extend(_commands(document))
     launchers = sorted({_launcher(command) for command in commands})
+    if not launchers:
+        print("no configured hook launchers", file=sys.stderr)
+        return 1
     missing = [name for name in launchers if shutil.which(name) is None]
     if missing:
         print(f"missing hook launchers: {', '.join(missing)}", file=sys.stderr)
         return 1
-    launcher = launchers[0]
     gate = root / "hooks" / "block_destructive_bash.py"
-    result = subprocess.run(
-        [launcher, str(gate)], input=DENY_PAYLOAD, text=True,
-        capture_output=True, cwd=root, check=False,
-    )
-    if result.returncode != 2:
-        print("configured launcher did not preserve fail-closed exit code 2", file=sys.stderr)
-        return 1
+    for launcher in launchers:
+        result = subprocess.run(
+            [launcher, str(gate)], input=DENY_PAYLOAD, text=True,
+            capture_output=True, cwd=root, check=False,
+        )
+        if result.returncode != 2:
+            print(
+                f"configured launcher {launcher} did not preserve "
+                "fail-closed exit code 2",
+                file=sys.stderr,
+            )
+            return 1
     return 0
 
 
