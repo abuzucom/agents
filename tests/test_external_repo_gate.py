@@ -135,6 +135,16 @@ class RepositoryTargetTest(unittest.TestCase):
                 "https://www.github.com/owner/name"),
             "owner")
 
+    def test_owner_carrying_a_colon_rejected(self):
+        # A separator left inside the owner means the token never had the
+        # owner/name shape, so the gate must not read an owner from it.
+        self.assertEqual(
+            _gate_core._repository_target_owner("host:owner/name"), "")
+
+    def test_owner_carrying_a_backslash_rejected(self):
+        self.assertEqual(
+            _gate_core._repository_target_owner("owner\\other/name"), "")
+
     def test_lookalike_host_is_unreadable(self):
         self.assertEqual(
             _gate_core._repository_target_owner(

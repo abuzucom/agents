@@ -2513,8 +2513,10 @@ def _repository_target_owner(token: str) -> str:
         segments = segments[1:]
     if len(segments) != 2:
         return ""
+    # Splitting dropped empty segments, so the owner is never empty here.
+    # A separator left inside it means the token was never owner/name.
     owner = segments[0]
-    if not owner or any(character in owner for character in "@:\\"):
+    if any(character in owner for character in "@:\\"):
         return ""
     return owner
 
