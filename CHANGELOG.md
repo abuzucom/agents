@@ -11,7 +11,18 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Added
+- Added a workflow action pin checker and a pre-setup hook launcher probe.
+- Added `ci` as an allowed commit type.
+
+### Changed
+- Separated handoff path handling into `scripts/handoff_policy.py`.
+- Accepted exact Python 3 versions in the trusted compliance workflow schema.
+- Scoped the ASCII policy claim to documentation prose.
+
 ### Fixed
+- Anchored lifecycle policy injection to the repository containing the hook.
+- Protected policy files when the working directory belongs to another repository.
 - Closed a cross-owner gate bypass. `gh` accepts `OWNER/REPO`,
   `HOST/OWNER/REPO`, and a full URL for `--repo`. The target parser read only
   the bare form. A URL or host-qualified target therefore produced no owner,

@@ -258,7 +258,9 @@ An unlicensed target remains unlicensed unless that approval changes its status.
      into `.claude/settings.json`. Copy `tests/test_require_consent.py` and run
      the test in CI. The example launcher is `python`. Use `python3` on systems
      without a `python` executable. A missing core denies with exit 2. The
-     installation remains incomplete.
+     installation remains incomplete. Run `scripts/check_hook_launchers.py`
+     before runtime setup on each supported operating system. The probe checks
+     configured launchers and requires a gate failure to return exit code 2.
 13. Unless active-human approval pruned Rule 2 and associated enforcement, wire
       all command gates. Copy `hooks/block_destructive_bash.py`,
       `hooks/block_destructive_powershell.py`, `hooks/block_destructive_cmd.py`,

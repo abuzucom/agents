@@ -1,0 +1,71 @@
+#!/usr/bin/env python3
+"""Verify configured hook launchers and one fail-closed gate invocation."""
+import json
+import shlex
+import shutil
+import subprocess
+import sys
+from pathlib import Path
+
+DENY_PAYLOAD = json.dumps({
+    "hook_event_name": "PreToolUse",
+    "tool_name": "Bash",
+    "permission_mode": "default",
+    "tool_input": {"command": "rm -rf /"},
+})
+
+
+def _commands(value: object) -> list[str]:
+    """Collect command strings from nested client configuration."""
+    found = []
+    if isinstance(value, dict):
+        for key, child in value.items():
+            if key in {"command", "commandWindows"} and isinstance(child, str):
+                found.append(child)
+            found.extend(_commands(child))
+    elif isinstance(value, list):
+        for child in value:
+            found.extend(_commands(child))
+    return found
+
+
+def _launcher(command: str) -> str:
+    """Return the executable token from one configured command."""
+    tokens = shlex.split(command, posix=sys.platform != "win32")
+    if not tokens:
+        raise ValueError("empty hook command")
+    return tokens[0]
+
+
+def _config_paths(root: Path) -> list[Path]:
+    """Return client configuration files that define hooks."""
+    return [root / ".claude" / "settings.json", root / ".codex" / "hooks.json",
+            root / ".gemini" / "settings.json", root / ".agents" / "hooks.json"]
+
+
+def main() -> int:
+    """Check launcher resolution and require a blocking gate response."""
+    root = Path.cwd()
+    commands = []
+    for path in _config_paths(root):
+        document = json.loads(path.read_text(encoding="utf-8"))
+        commands.extend(_commands(document))
+    launchers = sorted({_launcher(command) for command in commands})
+    missing = [name for name in launchers if shutil.which(name) is None]
+    if missing:
+        print(f"missing hook launchers: {', '.join(missing)}", file=sys.stderr)
+        return 1
+    launcher = launchers[0]
+    gate = root / "hooks" / "block_destructive_bash.py"
+    result = subprocess.run(
+        [launcher, str(gate)], input=DENY_PAYLOAD, text=True,
+        capture_output=True, cwd=root, check=False,
+    )
+    if result.returncode != 2:
+        print("configured launcher did not preserve fail-closed exit code 2", file=sys.stderr)
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

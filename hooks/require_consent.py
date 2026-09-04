@@ -298,9 +298,10 @@ def _decide(payload: dict, target: str, reason: str) -> int:
 
 
 def _write_reason(payload: dict, raw: str, target: str,
-                  project_dir: str) -> str:
+                  project_dir: str, policy_root: str) -> str:
     """Return why this write needs consent, or an empty string."""
-    if is_protected_path(target, project_dir):
+    if (is_protected_path(target, project_dir)
+            or is_protected_path(target, policy_root)):
         return "writes to a file that decides whether these gates run at all"
     if names_a_test(raw, target, project_dir):
         return (escape_reason(raw, target, project_dir)
@@ -308,7 +309,7 @@ def _write_reason(payload: dict, raw: str, target: str,
     return ""
 
 
-def _handle_write(payload: dict, project_dir: str) -> int:
+def _handle_write(payload: dict, project_dir: str, policy_root: str) -> int:
     """Gate a write to an existing test file or to the gates' own files."""
     tool_input = payload.get("tool_input")
     if not isinstance(tool_input, dict):
@@ -321,16 +322,16 @@ def _handle_write(payload: dict, project_dir: str) -> int:
     if not raw:
         return 0
     target = resolve_target(raw, project_dir)
-    reason = _write_reason(payload, raw, target, project_dir)
+    reason = _write_reason(payload, raw, target, project_dir, policy_root)
     if not reason:
         return 0
     return _decide(payload, target, reason)
 
 
-def _handle_pre_tool_use(payload: dict, project_dir: str) -> int:
+def _handle_pre_tool_use(payload: dict, project_dir: str, policy_root: str) -> int:
     """Dispatch on the tool the session is about to call."""
     if payload.get("tool_name") in GATED_TOOLS:
-        return _handle_write(payload, project_dir)
+        return _handle_write(payload, project_dir, policy_root)
     return 0
 
 
@@ -341,7 +342,8 @@ def _run() -> int:
         return emit("deny", "the hook payload could not be parsed, so the "
                             "gate cannot clear this call")
     if payload.get("hook_event_name") == "PreToolUse":
-        return _handle_pre_tool_use(payload, core.project_dir(payload))
+        return _handle_pre_tool_use(
+            payload, core.project_dir(payload), core.policy_root())
     return emit_context("SessionStart", SESSION_NOTICE)
 
 

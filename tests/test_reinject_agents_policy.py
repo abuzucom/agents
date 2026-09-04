@@ -188,9 +188,16 @@ class PolicyValidationTest(unittest.TestCase):
         root = self.make_project()
         (root / "CLAUDE.md").write_text("different\n", encoding="utf-8")
         args = Namespace(client="claude", chunk_index=0)
-        with patch.dict(os.environ, {"CLAUDE_PROJECT_DIR": ""}):
-            with self.assertRaises(ValueError):
+        with patch.object(self.hook, "installed_root", return_value=root):
+            with self.assertRaisesRegex(ValueError, "not synchronized"):
                 self.hook.run_hook(args, {"cwd": str(root)})
+
+    def test_client_root_rejects_a_different_repository(self):
+        root = self.make_project()
+        other = self.make_project()
+        with patch.object(self.hook, "installed_root", return_value=root):
+            with self.assertRaisesRegex(ValueError, "installed policy root"):
+                self.hook.project_root("codex", {"cwd": str(other)})
 
     def test_cli_rejects_malformed_json(self):
         result = subprocess.run(

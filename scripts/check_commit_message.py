@@ -24,8 +24,9 @@ except ModuleNotFoundError:
     from trusted_git import run_git
     from prose_policy import find_violations as find_prose_violations
 
-SUBJECT_PATTERN = re.compile(r"^(feat|fix|chore|docs|test): \S.*$")
-TYPE_PREFIX_PATTERN = re.compile(r"^(?:feat|fix|chore|docs|test):\s+")
+COMMIT_TYPES = "feat, fix, chore, docs, test, ci"
+SUBJECT_PATTERN = re.compile(r"^(feat|fix|chore|docs|test|ci): \S.*$")
+TYPE_PREFIX_PATTERN = re.compile(r"^(?:feat|fix|chore|docs|test|ci):\s+")
 SQUASH_SUFFIX = re.compile(r" \(#\d+\)$")
 MAX_LENGTH = 50
 MAX_COMMIT_COUNT = 200
@@ -60,7 +61,7 @@ def find_violations(subjects: list[tuple[str, str]]) -> list[str]:
         if not SUBJECT_PATTERN.match(subject):
             violations.append(
                 f"warning: {prefix}subject '{raw_subject}' must start with "
-                "'type: description' (feat, fix, chore, docs, test)"
+                f"'type: description' ({COMMIT_TYPES})"
             )
             continue
         if len(subject) > MAX_LENGTH:

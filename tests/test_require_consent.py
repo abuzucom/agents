@@ -579,6 +579,18 @@ class PathReasonTest(unittest.TestCase):
             "what this edit changes",
         )
 
+    def test_installed_policy_root_is_protected_from_another_working_directory(self):
+        target = str(Path(self.module.__file__).resolve().parent / "_gate_core.py")
+        payload = edit_payload(target, "old", "new")
+        reason = self.module._write_reason(
+            payload,
+            target,
+            target,
+            str(self.root),
+            self.module.core.policy_root(),
+        )
+        self.assertIn("decides whether these gates run", reason)
+
 
 class FailClosedInputTest(unittest.TestCase):
     """A gate that cannot read its input must not answer 'fine'."""
