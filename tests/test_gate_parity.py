@@ -416,6 +416,21 @@ class GitHubCliSafetyParityTest(unittest.TestCase):
         (WRAPPER + "pr diff 16 --repo outside-owner-x9/repo", ""),
         (WRAPPER + "issue list --repo outside-owner-x9/repo", ""),
         (WRAPPER + "repo clone outside-owner-x9/repo", ""),
+        # gh accepts HOST/OWNER/REPO and full URLs, so those forms reach the
+        # same verdict as the bare owner/name form.
+        (WRAPPER + "pr create --repo github.com/outside-owner-x9/repo", "ask"),
+        (WRAPPER + "pr comment 1 --repo https://github.com/outside-owner-x9/repo",
+         "ask"),
+        (WRAPPER + "issue create -R https://github.com/outside-owner-x9/repo",
+         "ask"),
+        (WRAPPER + "repo fork https://github.com/outside-owner-x9/repo", "ask"),
+        (WRAPPER + "pr view 1 --repo https://github.com/outside-owner-x9/repo",
+         ""),
+        # A lookalike host is unreadable, and an unreadable explicit target is
+        # not clearance.
+        (WRAPPER + "pr create --repo https://attacker-github.com/owner/repo",
+         "ask"),
+        (WRAPPER + "pr create --repo not-a-repository", "ask"),
     )
 
     def test_github_cli_safety_matches(self):

@@ -2486,14 +2486,35 @@ def _github_auth_verdict(args: list) -> tuple:
     return "", ""
 
 
+def _is_github_host(host: str) -> bool:
+    """Return True when `host` is github.com itself or a subdomain of it.
+
+    A suffix test alone would accept `attacker-github.com`, so the domain
+    boundary is explicit.
+    """
+    name = host.lower().partition(":")[0]
+    return name == "github.com" or name.endswith(".github.com")
+
+
 def _repository_target_owner(token: str) -> str:
-    """Return the owner of an `owner/name` argument, or an empty string."""
-    owner, separator, name = token.partition("/")
-    if not separator or "/" in name or not owner or not name:
+    """Return the owner of a GitHub CLI repository argument.
+
+    gh accepts `OWNER/REPO`, `HOST/OWNER/REPO`, and a full URL, so a scheme,
+    any user information, and a leading GitHub host are stripped before the
+    owner is read. An unrecognized shape returns an empty string, which the
+    caller treats as unreadable rather than as clearance.
+    """
+    if not token or token.startswith("-") or is_ambiguous(token):
         return ""
-    if is_ambiguous(token):
+    value = token.partition("://")[2] or token
+    value = value.rpartition("@")[2]
+    segments = [segment for segment in value.split("/") if segment]
+    if len(segments) == 3 and _is_github_host(segments[0]):
+        segments = segments[1:]
+    if len(segments) != 2:
         return ""
-    if any(character in owner for character in "@:\\") or owner.startswith("-"):
+    owner = segments[0]
+    if not owner or any(character in owner for character in "@:\\"):
         return ""
     return owner
 
@@ -2510,10 +2531,8 @@ def _origin_owner(cwd: str) -> str:
     url = entries.get("remote.origin.url", "").strip()
     if not url:
         return ""
-    for separator in ("://", "@"):
-        _, found, remainder = url.partition(separator)
-        if found:
-            url = remainder
+    url = url.partition("://")[2] or url
+    url = url.rpartition("@")[2]
     # The SCP-like form is host:owner/name, so the colon can precede the
     # first slash. Split on whichever separator comes first.
     colon = url.find(":")
@@ -2522,13 +2541,12 @@ def _origin_owner(cwd: str) -> str:
         return ""
     if colon != -1 and (slash == -1 or colon < slash):
         host, path = url[:colon], url[colon + 1:]
-        if host.lower().endswith("github.com") and path.split("/")[0].isdigit():
+        if path.split("/")[0].isdigit():
             # A port, not an owner: re-split on the slash after it.
             host, _, path = url.partition("/")
-            host = host.rpartition(":")[0] or host
     else:
         host, path = url[:slash], url[slash + 1:]
-    if not host.lower().endswith("github.com"):
+    if not _is_github_host(host):
         return ""
     return _repository_target_owner(path.removesuffix(".git"))
 
@@ -2552,8 +2570,14 @@ def _external_target_verdict(args: list, command: list, noun: str,
     # -R and --repo are global options, so _github_command_args already
     # removed them: the target has to come from the original arguments.
     target = _option_value(args, frozenset({"--repo", "-r"}))
-    owner = _repository_target_owner(target) if target else ""
-    if not owner:
+    if target:
+        owner = _repository_target_owner(target)
+        if not owner:
+            # An explicit target this gate cannot read is not clearance.
+            return "ask", (f"{sanitize(noun)} {sanitize(action)} names a "
+                           "repository target this gate cannot read")
+    else:
+        owner = ""
         for token in command:
             if token.startswith("-"):
                 continue

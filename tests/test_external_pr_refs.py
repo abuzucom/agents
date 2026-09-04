@@ -201,6 +201,45 @@ class OwnerResolutionTest(unittest.TestCase):
             "https://gitlab.com/abuzucom/agents")
         self.assertEqual(parsed, "")
 
+    def test_lookalike_host_yields_no_owner(self):
+        # A suffix test alone would accept this domain as GitHub.
+        parsed = check_external_pr_refs.parse_remote_owner(
+            "https://attacker-github.com/victim/repo")
+        self.assertEqual(parsed, "")
+
+    def test_lookalike_scp_host_yields_no_owner(self):
+        parsed = check_external_pr_refs.parse_remote_owner(
+            "git@attacker-github.com:victim/repo.git")
+        self.assertEqual(parsed, "")
+
+    def test_subdomain_remote_yields_owner(self):
+        parsed = check_external_pr_refs.parse_remote_owner(
+            "https://www.github.com/abuzucom/agents")
+        self.assertEqual(parsed, OWNER)
+
+    def test_remote_with_port_yields_owner(self):
+        parsed = check_external_pr_refs.parse_remote_owner(
+            "https://github.com:443/abuzucom/agents")
+        self.assertEqual(parsed, OWNER)
+
+    def test_remote_with_extra_path_yields_no_owner(self):
+        parsed = check_external_pr_refs.parse_remote_owner(
+            "https://github.com/abuzucom/agents/extra")
+        self.assertEqual(parsed, "")
+
+    def test_github_host_boundary(self):
+        for host, expected in (
+                ("github.com", True),
+                ("www.github.com", True),
+                ("GitHub.Com", True),
+                ("github.com:443", True),
+                ("attacker-github.com", False),
+                ("gitlab.com", False),
+        ):
+            with self.subTest(host=host):
+                self.assertEqual(
+                    check_external_pr_refs.is_github_host(host), expected)
+
 
 class CommitRangeTest(unittest.TestCase):
     """The range mode scans commit subjects and bodies."""

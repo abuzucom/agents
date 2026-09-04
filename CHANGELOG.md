@@ -12,6 +12,19 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ## [Unreleased]
 
 ### Fixed
+- Closed a cross-owner gate bypass. `gh` accepts `OWNER/REPO`,
+  `HOST/OWNER/REPO`, and a full URL for `--repo`. The target parser read only
+  the bare form. A URL or host-qualified target therefore produced no owner,
+  and the gate treated that as clearance. The parser now strips a scheme, any user
+  information, and a leading GitHub host. An explicit `--repo` the gate cannot
+  read routes to consent rather than passing.
+- Required a domain boundary on the GitHub host test. `_origin_owner` in the
+  gate and the remote parser in `scripts/check_external_pr_refs.py` accepted
+  any host ending in `github.com`. A domain such as `attacker-github.com`
+  therefore supplied its path owner as the trusted origin owner. Both now
+  require the host to equal `github.com` or end with `.github.com`. The checker
+  splits host from path in the pattern and validates the host in code. That
+  split avoids the nested quantifier a subdomain alternation would need.
 - Ran `scripts/check_banned_agents.py` and `scripts/check_git_identity.py` on
   pull requests through a new `pr-authorship` job in
   `.github/workflows/sync-check.yml`. Both checkers lived only in the

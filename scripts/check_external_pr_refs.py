@@ -22,11 +22,11 @@ MAX_BODY_LENGTH = 1024 * 1024
 DEPENDABOT_LOGIN = "dependabot[bot]"
 SHORT_SHA_LENGTH = 12
 
-# github.com/<owner>/<repo> in either the HTTPS or the SCP-like SSH form.
-REMOTE_OWNER = re.compile(
-    r"^(?:https?://[^/]*github\.com/|(?:ssh://)?[^@]*@github\.com[:/])"
-    r"([\w.-]+)/",
-    re.IGNORECASE,
+# A remote URL splits into host and path. The host is validated in code
+# rather than in the pattern, which keeps the pattern free of the nested
+# quantifier a subdomain alternation would need.
+REMOTE_PARTS = re.compile(
+    r"^(?:[A-Za-z][\w+.-]*://)?(?:[^/@]*@)?([^/:]+)(?::\d+)?[:/](.+)$"
 )
 
 # GitHub posts a cross-reference event on the target of an autolinked
@@ -98,10 +98,25 @@ def find_external_references(text: str, owner: str, field: str) -> list[str]:
     return findings
 
 
+def is_github_host(host: str) -> bool:
+    """Return True when `host` is github.com itself or a subdomain of it.
+
+    A suffix test alone would accept `attacker-github.com`, so the domain
+    boundary is explicit.
+    """
+    name = host.lower().partition(":")[0]
+    return name == "github.com" or name.endswith(".github.com")
+
+
 def parse_remote_owner(url: str) -> str:
     """Return the GitHub owner named by a remote URL, or an empty string."""
-    match = REMOTE_OWNER.match(url.strip())
-    return match.group(1) if match else ""
+    match = REMOTE_PARTS.match(url.strip())
+    if not match:
+        return ""
+    if not is_github_host(match.group(1)):
+        return ""
+    segments = [segment for segment in match.group(2).split("/") if segment]
+    return segments[0] if len(segments) == 2 else ""
 
 
 def resolve_owner(explicit: str, environment: dict, repo) -> str:

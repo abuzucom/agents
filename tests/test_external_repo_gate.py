@@ -77,6 +77,18 @@ class OriginOwnerTest(unittest.TestCase):
     def test_remote_without_separator_yields_nothing(self):
         self.assertEqual(self.owner_for("github.com"), "")
 
+    def test_lookalike_host_remote_yields_nothing(self):
+        self.assertEqual(
+            self.owner_for("https://attacker-github.com/victim/repo"), "")
+
+    def test_lookalike_scp_remote_yields_nothing(self):
+        self.assertEqual(
+            self.owner_for("git@attacker-github.com:victim/repo.git"), "")
+
+    def test_subdomain_remote_resolves(self):
+        self.assertEqual(
+            self.owner_for("https://www.github.com/abuzucom/agents"), OWNER)
+
 
 class RepositoryTargetTest(unittest.TestCase):
     """Only a plain owner/name argument names a target owner."""
@@ -99,6 +111,57 @@ class RepositoryTargetTest(unittest.TestCase):
 
     def test_bare_word_rejected(self):
         self.assertEqual(_gate_core._repository_target_owner("name"), "")
+
+    def test_host_qualified_target(self):
+        self.assertEqual(
+            _gate_core._repository_target_owner("github.com/owner/name"),
+            "owner")
+
+    def test_url_target(self):
+        self.assertEqual(
+            _gate_core._repository_target_owner(
+                "https://github.com/owner/name"),
+            "owner")
+
+    def test_url_target_with_credentials(self):
+        self.assertEqual(
+            _gate_core._repository_target_owner(
+                "https://user@github.com/owner/name"),
+            "owner")
+
+    def test_subdomain_host_qualified_target(self):
+        self.assertEqual(
+            _gate_core._repository_target_owner(
+                "https://www.github.com/owner/name"),
+            "owner")
+
+    def test_lookalike_host_is_unreadable(self):
+        self.assertEqual(
+            _gate_core._repository_target_owner(
+                "https://attacker-github.com/owner/name"),
+            "")
+
+
+class GithubHostTest(unittest.TestCase):
+    """Only github.com and its subdomains count as the GitHub host."""
+
+    def test_exact_host(self):
+        self.assertTrue(_gate_core._is_github_host("github.com"))
+
+    def test_subdomain(self):
+        self.assertTrue(_gate_core._is_github_host("www.github.com"))
+
+    def test_uppercase_host(self):
+        self.assertTrue(_gate_core._is_github_host("GitHub.Com"))
+
+    def test_host_with_port(self):
+        self.assertTrue(_gate_core._is_github_host("github.com:443"))
+
+    def test_lookalike_suffix_rejected(self):
+        self.assertFalse(_gate_core._is_github_host("attacker-github.com"))
+
+    def test_unrelated_host_rejected(self):
+        self.assertFalse(_gate_core._is_github_host("gitlab.com"))
 
 
 class CrossOwnerVerdictTest(unittest.TestCase):
@@ -146,6 +209,43 @@ class CrossOwnerVerdictTest(unittest.TestCase):
         self.assertEqual(
             self.verdict(["pr", "comment", "16", "--repo", EXTERNAL], ""),
             "ask")
+
+    def test_url_target_asks(self):
+        self.assertEqual(
+            self.verdict(["pr", "create", "--repo",
+                          f"https://github.com/{EXTERNAL}"]),
+            "ask")
+
+    def test_host_qualified_target_asks(self):
+        self.assertEqual(
+            self.verdict(["pr", "comment", "1", "--repo",
+                          f"github.com/{EXTERNAL}"]),
+            "ask")
+
+    def test_url_target_from_positional_argument_asks(self):
+        self.assertEqual(
+            self.verdict(["repo", "fork", f"https://github.com/{EXTERNAL}"]),
+            "ask")
+
+    def test_same_owner_url_target_passes(self):
+        self.assertEqual(
+            self.verdict(["pr", "comment", "6", "--repo",
+                          "https://github.com/abuzucom/agents"]),
+            "")
+
+    def test_unreadable_explicit_target_asks(self):
+        # An explicit --repo the gate cannot parse is not clearance.
+        for target in ("https://attacker-github.com/owner/name",
+                       "not-a-repository",
+                       "owner/name/extra"):
+            with self.subTest(target=target):
+                self.assertEqual(
+                    self.verdict(["pr", "create", "--repo", target]), "ask")
+
+    def test_read_only_command_with_unreadable_target_passes(self):
+        self.assertEqual(
+            self.verdict(["pr", "view", "1", "--repo", "not-a-repository"]),
+            "")
 
     def test_read_only_commands_stay_available(self):
         for args in (
