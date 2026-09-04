@@ -22,6 +22,22 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   push-only trigger. `README.md` records the split.
 
 ### Added
+- Added a cross-owner verdict to `github_cli_verdict` in
+  `hooks/_gate_core.py`. An outward-facing GitHub CLI command aimed at an owner
+  outside the origin remote routes to active-human consent. Covered commands
+  include pull request and issue creation, comments, reviews, edits, state
+  changes, repository forks, and release creation. An unreadable origin owner
+  asks rather than passing. Read-only commands stay available. The URL and
+  target parsing uses string operations, since the module carries no regular
+  expressions. `shared-files.json` records the new digest.
+- Added commit-message scanning to `scripts/check_external_pr_refs.py` through
+  a commit-range mode and an `--unpushed` mode. The `pr-authorship` job runs
+  the range mode. A pre-push hook runs the unpushed mode. That check precedes
+  the push that would create the reference.
+- Added `tests/test_external_repo_gate.py` covering origin owner parsing across
+  remote URL forms, target parsing, the cross-owner verdicts, and the
+  end-to-end `forge_verdict` path. Added cross-owner rows to
+  `tests/test_gate_parity.py`, chosen so the verdict holds in any checkout.
 - Added Rule 17. The rule bans GitHub cross-references to a repository outside
   the current owner. The rule requires active-human consent before any
   outward-facing act on such a repository.

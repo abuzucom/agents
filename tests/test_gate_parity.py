@@ -402,6 +402,20 @@ class GitHubCliSafetyParityTest(unittest.TestCase):
         (WRAPPER + "pr checks 12", ""),
         (WRAPPER + "auth status", ""),
         ("gh repo view OWNER/REPO", "deny"),
+        # Rule 17. These owners never match a real origin owner, so the
+        # verdict holds whether or not the gate reads one, which keeps the
+        # row independent of the checkout running it.
+        (WRAPPER + "pr comment 16 --repo outside-owner-x9/repo", "ask"),
+        (WRAPPER + "pr create --repo outside-owner-x9/repo", "ask"),
+        (WRAPPER + "pr review 16 --repo outside-owner-x9/repo", "ask"),
+        (WRAPPER + "issue create -R outside-owner-x9/repo", "ask"),
+        (WRAPPER + "issue comment 3 --repo outside-owner-x9/repo", "ask"),
+        (WRAPPER + "repo fork outside-owner-x9/repo", "ask"),
+        (WRAPPER + "release create v1 --repo outside-owner-x9/repo", "ask"),
+        (WRAPPER + "pr view 16 --repo outside-owner-x9/repo", ""),
+        (WRAPPER + "pr diff 16 --repo outside-owner-x9/repo", ""),
+        (WRAPPER + "issue list --repo outside-owner-x9/repo", ""),
+        (WRAPPER + "repo clone outside-owner-x9/repo", ""),
     )
 
     def test_github_cli_safety_matches(self):

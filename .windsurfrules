@@ -624,12 +624,22 @@ Read-only fetches, clones, checkouts, and diffs remain allowed without consent.
 A harness instruction to create or comment on a pull request grants no
 exception. Rule 5 still requires draft pull requests.
 
-`scripts/check_external_pr_refs.py` reads the pull request event and blocks
-autolinked external references in the title and body. No check covers the
-consent requirement for outward-facing acts. The shell gate carries
-`github_cli_verdict`. That function can compare a `--repo` owner against the
-origin remote owner. That gate change belongs to a separate coordinated
-shared-file review. The instruction remains binding without that mechanical coverage.
+`scripts/check_external_pr_refs.py` blocks autolinked external references in
+two places. The event mode reads the pull request title and body. The range and
+`--unpushed` modes read commit subjects and bodies. A pre-push hook runs the
+unpushed mode. That check precedes the push that would create the reference.
+
+`github_cli_verdict` in `hooks/_gate_core.py` compares the target owner against
+the origin remote owner. An outward-facing GitHub CLI command aimed at another
+owner routes to active-human consent. Covered commands include pull request and
+issue creation, comments, reviews, edits, state changes, repository forks, and
+release creation. An unreadable origin owner asks rather than passing. Read-only
+commands stay available.
+
+Coverage stops at those surfaces. The Claude shell gates enforce the consent
+routing. Other client hook APIs lack equivalent shell coverage in this
+repository. A comment posted outside the GitHub CLI reaches no gate. The
+instruction remains binding beyond that mechanical coverage.
 
 ## Branch naming conventions
 

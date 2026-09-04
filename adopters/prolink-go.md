@@ -77,6 +77,10 @@ repository's policy.
 
 ## Available since adoption
 
+- The `hooks/_gate_core.py` digest in `shared-files.json` changed. The gate
+  gained a cross-owner verdict for outward-facing GitHub CLI commands. The
+  adopter mirrors every hook byte-identically. Taking Rule 17 means taking
+  the new hook bytes and the regenerated manifest together.
 - Rule 17 and `scripts/check_external_pr_refs.py`. The adopter forks
   `evanpurkhiser/prolink-go`. Adopter pull request 6 cross-referenced upstream
   pull request 16 and notified an unmaintained upstream. The checker blocks that
