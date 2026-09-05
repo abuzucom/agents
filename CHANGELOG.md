@@ -21,6 +21,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Scoped the ASCII policy claim to documentation prose.
 
 ### Fixed
+- Denied Antigravity branch checks with ambiguous workspace paths.
+- Clarified Git `-c` option precedence in the shared gate parser.
 - Normalized unquoted numeric Python versions in trusted workflow candidates.
 - Selected installed destructive gates for launcher probes.
 - Added launcher probe and numeric-version regression coverage.

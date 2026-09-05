@@ -408,6 +408,28 @@ class PreToolUseTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(json.loads(result.stdout)["decision"], "deny")
 
+    def test_antigravity_denies_zero_workspaces(self):
+        payload = {
+            "toolCall": {"name": "view_file", "args": {"AbsolutePath": "README.md"}},
+            "workspacePaths": [],
+        }
+        result = run_hook(payload, CONFORMING_BRANCH, "antigravity")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        output = json.loads(result.stdout)
+        self.assertEqual(output["decision"], "deny")
+        self.assertIn("received 0", output["reason"])
+
+    def test_antigravity_denies_multiple_workspaces(self):
+        payload = {
+            "toolCall": {"name": "view_file", "args": {"AbsolutePath": "README.md"}},
+            "workspacePaths": [str(REPO_ROOT), str(REPO_ROOT)],
+        }
+        result = run_hook(payload, CONFORMING_BRANCH, "antigravity")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        output = json.loads(result.stdout)
+        self.assertEqual(output["decision"], "deny")
+        self.assertIn("received 2", output["reason"])
+
     def test_powershell_command_line_allows_exact_recovery(self):
         payload = {
             "hook_event_name": "PreToolUse",

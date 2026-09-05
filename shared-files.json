@@ -3,7 +3,7 @@
   "shared": {
     "hooks/_bash_parser.py": "6c28a00b050a59a9d69918f6b492079072813aed3540c576595c0a426a0c8929",
     "hooks/_cmd_parser.py": "4212670bc4166a5f89be120ceb6bafbc854d16743ff900f4b596b7b79fa5981b",
-    "hooks/_gate_core.py": "a712057b4258f4998679a9a8a86091938f5c522e7d49b53751852938f0f78ead",
+    "hooks/_gate_core.py": "ae09c3671a8f79d15527693ede195a1200cea650a8a0174c150e8594de757338",
     "hooks/_platform_policy.py": "a5e57ed2a363fe4bf8a61f31fd2f2f5b0b98a76bf36f59633c9bf0cf3c1500ed",
     "hooks/block_destructive_bash.py": "b631f23d7c6bc57b6ac137099d632340b8099df18f2d409267ca22e3597e27a1",
     "hooks/block_destructive_cmd.py": "7401659646431a8a0a83602b5c8857d19558d2eac7582ebb3fec1b8d8d062072",
