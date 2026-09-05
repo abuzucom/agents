@@ -502,15 +502,12 @@ before selecting one. Never auto-select a history candidate.
 An authenticated `gh` does not establish a Git identity. `gh auth status` and
 `git commit` use separate configuration.
 
-Author and committer emails must use the active contributor's GitHub noreply
-address in the form
-`<id>+<login>@users.noreply.github.com`. Other addresses can fail account
-linking or publish private addresses.
-
 An agent commits as the active operator. Never substitute the repository
-owner's identity. Never invent an author or committer address. Validate the
-author and committer identities independently through authenticated GitHub
-metadata. Fail closed when the identity cannot be verified.
+
+Agent-generated commits must use the active operator's exact GitHub noreply
+address in the form `<id>+<login>@users.noreply.github.com`. Human-authored
+commits may use a verified public email. CI must resolve every author and
+committer email to the contributor who created the commit.
 
 Any non-banned agent may use a name-only `Co-authored-by` label. Never add an
 email to an agent label. Every human `Co-authored-by` trailer requires an

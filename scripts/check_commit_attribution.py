@@ -18,7 +18,7 @@ except ModuleNotFoundError:
 
 APPROVED_HUMAN_COAUTHORS = frozenset()
 NOREPLY_PATTERN = re.compile(
-    r"\A(?:(?P<account_id>[0-9]+)\+)?(?P<login>[A-Za-z0-9-]+)"
+    r"\A(?P<account_id>[0-9]+)\+(?P<login>[A-Za-z0-9-]+)"
     r"@users\.noreply\.github\.com\Z",
     re.IGNORECASE,
 )
@@ -133,7 +133,8 @@ def _commit_api(repository: str, sha: str, repo_root: str) -> dict:
     return document
 
 
-def _identity_violation(role: str, commit: dict, identity: dict | None) -> str | None:
+def _identity_violation(role: str, commit: dict, identity: dict | None,
+                        require_noreply: bool = False) -> str | None:
     """Return a bounded identity violation for one commit field."""
     sha = commit["sha"][:12]
     if not isinstance(identity, dict) or not identity.get("login"):
@@ -141,13 +142,27 @@ def _identity_violation(role: str, commit: dict, identity: dict | None) -> str |
     raw = commit.get("commit", {}).get(role, {}).get("email", "")
     login = identity["login"]
     match = NOREPLY_PATTERN.fullmatch(raw)
+    if require_noreply and not match:
+        return f"{sha}: {role} email must use a numbered GitHub noreply address"
     if match and match.group("login").lower() != login.lower():
         return f"{sha}: {role} noreply login does not match GitHub identity"
-    if match and match.group("account_id"):
-        account_id = identity.get("id")
-        if not isinstance(account_id, int) or match.group("account_id") != str(account_id):
-            return f"{sha}: {role} noreply account ID does not match GitHub identity"
+    if not match:
+        return None
+    account_id = identity.get("id")
+    if not isinstance(account_id, int) or match.group("account_id") != str(account_id):
+        return f"{sha}: {role} noreply account ID does not match GitHub identity"
     return None
+
+
+def has_agent_label(body: str) -> bool:
+    """Return whether a message contains a name-only agent label."""
+    for key, value in terminal_trailers(body):
+        if key.lower() != "co-authored-by":
+            continue
+        match = COAUTHOR_PATTERN.fullmatch(value.strip())
+        if match and not match.group("email") and match.group("name").strip():
+            return True
+    return False
 
 
 def github_identity_violations(commits: list[dict], repository: str,
@@ -156,8 +171,11 @@ def github_identity_violations(commits: list[dict], repository: str,
     violations = []
     for commit in commits:
         document = _commit_api(repository, commit["sha"], repo_root)
+        require_noreply = has_agent_label(commit.get("body", ""))
         for role in ("author", "committer"):
-            violation = _identity_violation(role, document, document.get(role))
+            violation = _identity_violation(
+                role, document, document.get(role), require_noreply
+            )
             if violation:
                 violations.append(violation)
     return violations

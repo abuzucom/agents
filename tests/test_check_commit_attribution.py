@@ -72,9 +72,7 @@ class IdentityTest(unittest.TestCase):
         }
         identity = {"id": 123, "login": "octocat"}
         commit_record = {"sha": sha}
-        self.assertIsNone(
-            checker._identity_violation("author", document, identity)
-        )
+        self.assertIsNone(checker._identity_violation("author", document, identity))
         self.assertIsNone(
             checker._identity_violation("committer", document, identity)
         )
@@ -103,6 +101,40 @@ class IdentityTest(unittest.TestCase):
         identity = {"id": 123, "login": "octocat"}
         violation = checker._identity_violation("author", document, identity)
         self.assertIn("login", violation)
+
+    def test_custom_email_fails(self):
+        checker = load_checker()
+        document = {
+            "sha": "e" * 40,
+            "commit": {"author": {"email": "author@example.com"}},
+        }
+        identity = {"id": 123, "login": "octocat"}
+        self.assertIsNone(checker._identity_violation("author", document, identity))
+
+    def test_unnumbered_noreply_fails(self):
+        checker = load_checker()
+        document = {
+            "sha": "f" * 40,
+            "commit": {
+                "author": {"email": "octocat@users.noreply.github.com"},
+            },
+        }
+        identity = {"id": 123, "login": "octocat"}
+        self.assertIsNone(checker._identity_violation("author", document, identity))
+
+    def test_unnumbered_noreply_agent_identity_fails(self):
+        checker = load_checker()
+        document = {
+            "sha": "g" * 40,
+            "commit": {
+                "author": {"email": "octocat@users.noreply.github.com"},
+            },
+        }
+        identity = {"id": 123, "login": "octocat"}
+        violation = checker._identity_violation(
+            "author", document, identity, require_noreply=True
+        )
+        self.assertIn("numbered GitHub noreply", violation)
 
 
 if __name__ == "__main__":

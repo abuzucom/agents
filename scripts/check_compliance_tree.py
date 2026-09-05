@@ -697,11 +697,16 @@ def _scan_metadata(
         violations.extend(attribution.trailer_violations(commits))
         repository_name = os.environ.get("PR_BASE_REPOSITORY", "")
         if repository_name:
-            violations.extend(
-                attribution.github_identity_violations(
-                    commits, repository_name, str(repo)
+            try:
+                violations.extend(
+                    attribution.github_identity_violations(
+                        commits, repository_name, str(repo)
+                    )
                 )
-            )
+            except (OSError, RuntimeError, subprocess.SubprocessError, ValueError) as error:
+                violations.append(
+                    "commit attribution lookup failed: " + _sanitize(error)
+                )
     identity = checkers["check_git_identity"]
     identities = identity.log_identities(
         ["--end-of-options", f"{base}..{head}"], repo)

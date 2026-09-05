@@ -383,8 +383,9 @@ files for banned tools. Exclude banned tools from `scripts/sync.py`.
 `Co-authored-by` trailers, and optional pull request author against the
 denylist. `scripts/check_commit_attribution.py` validates contributor identity
 through GitHub metadata and permits name-only labels for non-banned agents.
-The checker rejects fabricated noreply IDs and unapproved email-bearing
-co-author trailers.
+The checker rejects fabricated noreply IDs on agent-generated commits and
+unapproved email-bearing co-author trailers. Human-authored commits may use a
+verified public email.
 Adopters retaining the rule must copy and run the checker. Platform controls
 add another layer but do not replace the checker. The sync step does not copy
 the checker.

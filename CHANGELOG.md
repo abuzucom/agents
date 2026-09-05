@@ -13,6 +13,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 - Enforced contributor identity validation for author and committer metadata.
+- Required agent-generated commits to use the active operator's noreply address.
 - Rejected fabricated noreply IDs and unapproved co-author trailers.
 - Limited non-banned agent attribution to name-only labels.
 
