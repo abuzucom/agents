@@ -29,7 +29,9 @@ DENYLIST_NAMES = ("grok", "xai")
 DENYLIST_EMAIL_DOMAINS = ("x.ai",)
 
 TRAILER_LINE = re.compile(r"^(?P<key>[A-Za-z0-9-]+):[ \t]*(?P<value>.*)$")
-CO_AUTHOR = re.compile(r"^(?P<name>[^<>]+?)[ \t]*<(?P<email>[^<>]+)>[ \t]*$")
+CO_AUTHOR = re.compile(
+    r"^(?P<name>[^<>]+?)[ \t]*(?:<(?P<email>[^<>]+)>[ \t]*)?$"
+)
 OBJECT_ID = re.compile(r"^[0-9a-fA-F]{40,64}$")
 MAX_COMMITS = 200
 MAX_COMMIT_BYTES = 256 * 1024
@@ -59,11 +61,14 @@ def _terminal_trailers(body: str) -> list[tuple[str, str]]:
         lines.pop()
     if not lines:
         return []
-    start = len(lines) - 1
-    while start and lines[start - 1].strip():
-        start -= 1
+    trailer_lines = []
+    for line in reversed(lines):
+        if not line.strip():
+            break
+        trailer_lines.append(line)
+    trailer_lines.reverse()
     trailers = []
-    for line in lines[start:]:
+    for line in trailer_lines:
         if line.startswith((" ", "\t")):
             if not trailers:
                 return []
@@ -97,7 +102,8 @@ def find_violations(commits: list[dict], pr_author: str = "") -> list[str]:
             match = CO_AUTHOR.fullmatch(value)
             if not match:
                 continue
-            name, email = match.group("name").strip(), match.group("email")
+            name = match.group("name").strip()
+            email = match.group("email") or ""
             if _matches_denylist(name, email):
                 violations.append(f"{sha}: banned-agent co-author '{name} <{email}>'")
     if pr_author and _matches_denylist(pr_author, ""):

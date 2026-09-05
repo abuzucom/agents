@@ -63,6 +63,7 @@ CHECKER_NAMES = (
     "check_dockerfile_root",
     "check_conflict_markers",
     "check_banned_agents",
+    "check_commit_attribution",
     "check_commit_message",
     "check_git_identity",
     "check_branch_name",
@@ -491,6 +492,7 @@ def _trusted_steps() -> list[dict]:
         },
         {
             "name": "Scan immutable pull request objects with the trusted checker",
+            "env": {"GH_TOKEN": "${{ github.token }}"},
             "run": TRUSTED_SCAN_COMMAND,
         },
     ]
@@ -690,6 +692,16 @@ def _scan_metadata(
     head = values["--tree"]
     commits = banned.load_commits(base, head, repo)
     violations.extend(banned.find_violations(commits))
+    attribution = checkers.get("check_commit_attribution")
+    if attribution is not None:
+        violations.extend(attribution.trailer_violations(commits))
+        repository_name = os.environ.get("PR_BASE_REPOSITORY", "")
+        if repository_name:
+            violations.extend(
+                attribution.github_identity_violations(
+                    commits, repository_name, str(repo)
+                )
+            )
     identity = checkers["check_git_identity"]
     identities = identity.log_identities(
         ["--end-of-options", f"{base}..{head}"], repo)

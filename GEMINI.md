@@ -502,13 +502,24 @@ before selecting one. Never auto-select a history candidate.
 An authenticated `gh` does not establish a Git identity. `gh auth status` and
 `git commit` use separate configuration.
 
-Commit emails must use a GitHub noreply address in the form
+Author and committer emails must use the active contributor's GitHub noreply
+address in the form
 `<id>+<login>@users.noreply.github.com`. Other addresses can fail account
 linking or publish private addresses.
 
-An agent commits as the operator. Record agent attribution in a
-`Co-authored-by:` trailer. No check confirms trailer presence. No mechanical
-signal separates agent and human commits.
+An agent commits as the active operator. Never substitute the repository
+owner's identity. Never invent an author or committer address. Validate the
+author and committer identities independently through authenticated GitHub
+metadata. Fail closed when the identity cannot be verified.
+
+Any non-banned agent may use a name-only `Co-authored-by` label. Never add an
+email to an agent label. Every human `Co-authored-by` trailer requires an
+exact approved name and email mapping. Reject every other email-bearing
+co-author trailer. Omit the trailer when no approved identity exists.
+
+The strict attribution checker runs in local hooks and required pull request
+CI. The trusted immutable checker enforces the same rules. No check accepts a
+regex-only noreply address as proof of identity.
 
 When a commit already carries the wrong identity, report the defect and stop.
 Correcting the identity rewrites history. Never force-push, rebase, amend, or

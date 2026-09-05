@@ -25,6 +25,8 @@ class AdvisoryWorkflowTest(unittest.TestCase):
         text = SYNC_WORKFLOW.read_text(encoding="utf-8")
         self.assertIn("python scripts/check_banned_agents.py", text)
         self.assertIn("python scripts/check_git_identity.py", text)
+        self.assertIn("python scripts/check_commit_attribution.py", text)
+        self.assertIn("GH_TOKEN", text)
         self.assertIn("fetch-depth: 0", text)
         self.assertIn("PR_BASE_SHA", text)
         self.assertIn("PR_HEAD_SHA", text)

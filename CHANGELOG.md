@@ -11,6 +11,11 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Fixed
+- Enforced contributor identity validation for author and committer metadata.
+- Rejected fabricated noreply IDs and unapproved co-author trailers.
+- Limited non-banned agent attribution to name-only labels.
+
 ### Added
 - Added a workflow action pin checker and a pre-setup hook launcher probe.
 - Added `ci` as an allowed commit type.

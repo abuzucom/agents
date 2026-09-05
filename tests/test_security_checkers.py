@@ -398,6 +398,12 @@ class BannedAgentsTest(unittest.TestCase):
 
         self.assertEqual(banned_agents.find_violations([_commit(body)]), [])
 
+    def test_name_only_banned_agent_is_rejected(self):
+        body = "Implement the change.\n\nCo-authored-by: Grok\n"
+        violations = banned_agents.find_violations([_commit(body)])
+        self.assertEqual(len(violations), 1)
+        self.assertIn("co-author", violations[0])
+
 
 class SecretsHeuristicTest(unittest.TestCase):
     """Environment variants and private-key formats remain blocked."""

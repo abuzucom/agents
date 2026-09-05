@@ -333,6 +333,7 @@ blocking checkers fail after a violation or an incomplete required check.
 | `check_ascii.py` | ASCII and prohibited dash style | 1, blocking |
 | `check_banned_agents.py` | Denied authors, committers, trailers, and optional PR author | 1, blocking |
 | `check_branch_name.py` | Branch naming | 1, blocking |
+| `check_commit_attribution.py` | Verified commit identities and co-author trailers | 1, blocking |
 | `check_commit_message.py` | `--base` and `--head` subject format plus subject and body prose | 0 for findings, 1 for infrastructure errors |
 | `check_compliance_tree.py` | Bounded immutable-tree orchestration | 1, blocking |
 | `check_conflict_markers.py` | Unresolved conflict markers | 1, blocking |
@@ -349,9 +350,11 @@ blocking checkers fail after a violation or an incomplete required check.
 
 `check_compliance_tree.py` accepts `--repo` and `--tree` plus optional pull
 request metadata. `check_git_identity.py` supports default config checks,
-`--unpushed`, `--base` with `--head`, `--allow`, and advisory `--advise` output.
-Advice never changes the exit code. `check_commit_message.py` targets CI and
-skips merge commits. The commit checker does not implement a `commit-msg` hook.
+strict operator checks, `--unpushed`, `--base` with `--head`, `--allow`, and
+advisory `--advise` output. Advice never changes the exit code.
+`check_commit_attribution.py` validates commit identities in CI and co-author
+trailers in `commit-msg`. `check_commit_message.py` targets CI and skips merge
+commits.
 
 `check_hook_coverage.py --write-baseline` creates or refreshes
 `hook-coverage-baseline.json`. Python 3.12 and newer use local
@@ -378,8 +381,10 @@ files for banned tools. Exclude banned tools from `scripts/sync.py`.
 
 `scripts/check_banned_agents.py` matches commit author, committer,
 `Co-authored-by` trailers, and optional pull request author against the
-denylist. The checker cannot identify an agent using a human identity without a
-trailer.
+denylist. `scripts/check_commit_attribution.py` validates contributor identity
+through GitHub metadata and permits name-only labels for non-banned agents.
+The checker rejects fabricated noreply IDs and unapproved email-bearing
+co-author trailers.
 Adopters retaining the rule must copy and run the checker. Platform controls
 add another layer but do not replace the checker. The sync step does not copy
 the checker.
