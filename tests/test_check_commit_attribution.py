@@ -102,7 +102,7 @@ class IdentityTest(unittest.TestCase):
         violation = checker._identity_violation("author", document, identity)
         self.assertIn("login", violation)
 
-    def test_custom_email_fails(self):
+    def test_verified_custom_email_passes(self):
         checker = load_checker()
         document = {
             "sha": "e" * 40,
@@ -111,7 +111,7 @@ class IdentityTest(unittest.TestCase):
         identity = {"id": 123, "login": "octocat"}
         self.assertIsNone(checker._identity_violation("author", document, identity))
 
-    def test_unnumbered_noreply_fails(self):
+    def test_verified_unnumbered_noreply_passes(self):
         checker = load_checker()
         document = {
             "sha": "f" * 40,
