@@ -958,11 +958,11 @@ punctuation. Keep hyphens in compound words, ranges, CLI flags, and negative
 numbers. `scripts/lint_style.py` and `scripts/check_ascii.py` provide blocking
 dash and ASCII checks.
 
-**No non-ASCII characters.** Use 7-bit ASCII (0-127) for all code, comments,
-and prose. Unicode belongs only inside string literals or required domain data.
-Keep Unicode out of identifiers, comments, and documentation. A domain
-requirement cannot license Unicode outside literals. The same `lint_style.py`
-and `check_ascii.py` pair backs the rule.
+**No non-ASCII characters.** Use 7-bit ASCII (0-127) for documentation prose.
+Unicode belongs inside source string literals and required domain data. Keep
+Unicode out of policy documentation and comments. A domain requirement can
+license Unicode inside required data. `check_ascii.py` enforces the documented
+prose scope.
 
 **American English spelling.** Use American spelling in code, comments, commit
 messages, and documentation. British variants include `-our`,
@@ -1006,7 +1006,7 @@ advisory coverage. Human review covers semantic paraphrases and complex grammar.
 behavior. Omit implementation history and removed alternatives.
 
 **Commit messages.** Format subjects as `type: description`. Allowed types
-include feat, fix, chore, docs, and test. Use imperative mood. Limit subjects
+include feat, fix, chore, docs, test, and ci. Use imperative mood. Limit subjects
 to 50 characters. Omit a trailing period. Wrap bodies at 72 characters. Put
 extra detail in the body. Avoid subject truncation.
 `scripts/check_commit_message.py` checks shape, length, punctuation, and prose.

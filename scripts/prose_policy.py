@@ -6,6 +6,11 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
+try:
+    from scripts.handoff_policy import HANDOFF_PATH, is_handoff_path
+except ModuleNotFoundError:
+    from handoff_policy import HANDOFF_PATH, is_handoff_path
+
 ROOT = Path(__file__).resolve().parent.parent
 DENYLIST_PATH = Path(__file__).resolve().with_name("prose_bans.txt")
 DENYLIST_RELATIVE_PATH = "scripts/prose_bans.txt"
@@ -301,7 +306,7 @@ def find_violations(
     occupied = []
 
     for entry in denylist:
-        if entry.scope == "handoff-exempt" and normalized_path == HANDOFF_PATH:
+        if entry.scope == "handoff-exempt" and is_handoff_path(normalized_path):
             continue
         _collect_pattern(
             text,
@@ -370,7 +375,7 @@ def find_violations(
         (GENERIC_CLAIM_PATTERN, "generic justification", "name the mechanism"),
         (TUTORIAL_PATTERN, "tutorial narration", "direct instruction preferred"),
     )
-    if normalized_path != HANDOFF_PATH:
+    if not is_handoff_path(normalized_path):
         discourse_patterns += ((
             _phrase_pattern(PROVENANCE_PHRASES),
             "conversational provenance",

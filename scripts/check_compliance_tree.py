@@ -19,6 +19,7 @@ MAX_GIT_DIAGNOSTIC = 64 * 1024
 MAX_DIAGNOSTIC_LENGTH = 500
 OBJECT_ID_PATTERN = re.compile(r"(?:[0-9a-fA-F]{40}|[0-9a-fA-F]{64})\Z")
 ACTION_PATTERN = re.compile(r"[^@\s]+@[0-9a-fA-F]{40}\Z")
+PYTHON_VERSION_PATTERN = re.compile(r"^3\.\d+(?:\.\d+)?$")
 CODE_SUFFIXES = {
     ".c", ".cc", ".cjs", ".cpp", ".cs", ".go", ".java", ".js",
     ".jsx", ".mjs", ".php", ".py", ".pyw", ".rb", ".rs", ".ts",
@@ -504,12 +505,43 @@ def _pull_target_violations(document: dict, text: str, path: str) -> list[str]:
         "permissions": {"contents": "read"},
         "steps": _trusted_steps(),
     }
+    trusted_job = dict(expected_job)
+    candidate_job = document.get("jobs", {}).get("immutable-compliance")
+    if isinstance(candidate_job, dict):
+        candidate_job = dict(candidate_job)
+        candidate_steps = candidate_job.get("steps")
+        if isinstance(candidate_steps, list) and len(candidate_steps) == 5:
+            python_step = candidate_steps[2]
+            version = (python_step.get("with", {}).get("python-version")
+                       if isinstance(python_step, dict)
+                       else None)
+            version_text = str(version) if isinstance(version, (str, float, int)) else ""
+            if PYTHON_VERSION_PATTERN.fullmatch(version_text):
+                candidate_steps = list(candidate_steps)
+                python_step = dict(python_step)
+                python_step["with"] = {"python-version": version_text}
+                candidate_steps[2] = python_step
+                candidate_job["steps"] = candidate_steps
+                trusted_steps = _trusted_steps()
+                trusted_steps[2] = dict(trusted_steps[2])
+                trusted_steps[2]["with"] = {"python-version": version_text}
+                trusted_job["steps"] = trusted_steps
+    candidate_jobs = dict(document.get("jobs", {}))
+    if isinstance(candidate_job, dict):
+        candidate_jobs["immutable-compliance"] = candidate_job
+    job_schema_ok = document.get("jobs") in (
+        {"immutable-compliance": expected_job},
+        {"immutable-compliance": trusted_job},
+    ) or candidate_jobs in (
+        {"immutable-compliance": expected_job},
+        {"immutable-compliance": trusted_job},
+    )
     allowed_top_keys = {"name", True, "on", "concurrency", "permissions", "env", "jobs"}
     checks = (
         (set(document).issubset(allowed_top_keys), "has unsupported top-level keys"),
         (document.get("permissions") == {"contents": "read"}, "permissions are not read-only"),
         (document.get("env") == TRUSTED_ENVIRONMENT, "does not bind exact trusted inputs"),
-        (document.get("jobs") == {"immutable-compliance": expected_job}, "job schema is not trusted"),
+        (job_schema_ok, "job schema is not trusted"),
         (re.search(r"secrets\s*(?:\.|\[)", text, re.IGNORECASE) is None, "references secrets"),
     )
     return [
