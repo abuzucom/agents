@@ -492,7 +492,6 @@ def _trusted_steps() -> list[dict]:
         },
         {
             "name": "Scan immutable pull request objects with the trusted checker",
-            "env": {"GH_TOKEN": "${{ github.token }}"},
             "run": TRUSTED_SCAN_COMMAND,
         },
     ]
