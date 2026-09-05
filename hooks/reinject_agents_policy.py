@@ -14,6 +14,14 @@ MAX_CHUNK_CHARS = 8500
 CLAUDE_CHUNK_COUNT = 8
 
 
+def installed_root() -> Path:
+    """Return the repository root containing this hook."""
+    root = Path(__file__).resolve().parent.parent
+    if not (root / "AGENTS.md").is_file() or not (root / ".git").exists():
+        raise ValueError("installed policy root is incomplete")
+    return root
+
+
 def find_project_root(start: str) -> Path:
     """Return the nearest parent containing canonical policy and Git metadata."""
     current = Path(start).resolve(strict=True)
@@ -43,7 +51,11 @@ def project_root(client: str, payload: dict) -> Path:
         start = payload.get("cwd")
     if not isinstance(start, str) or not start:
         raise ValueError("project root is absent")
-    return find_project_root(start)
+    root = find_project_root(start)
+    expected = installed_root()
+    if root != expected:
+        raise ValueError("caller path does not resolve to the installed policy root")
+    return root
 
 
 def load_policy(root: Path) -> tuple[str, str]:

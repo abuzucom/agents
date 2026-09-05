@@ -436,6 +436,11 @@ def project_dir(payload: dict) -> str:
             or os.getcwd())
 
 
+def policy_root() -> str:
+    """Return the repository root containing the installed policy hooks."""
+    return os.path.realpath(os.path.join(os.path.dirname(__file__), os.pardir))
+
+
 def resolved_under(root: str, *parts: str):
     """Return the joined path when it stays under `root`, else None.
 
