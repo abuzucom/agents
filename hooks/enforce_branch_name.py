@@ -570,7 +570,13 @@ def main() -> int:
     payload = _read_payload()
     if args.client == "antigravity":
         workspaces = payload.get("workspacePaths", [])
-        project_dir = workspaces[0] if len(workspaces) == 1 else os.getcwd()
+        if not isinstance(workspaces, list) or len(workspaces) != 1:
+            count = len(workspaces) if isinstance(workspaces, list) else "invalid"
+            return _deny(
+                args.client,
+                f"Antigravity requires exactly one workspace path, received {count}",
+            )
+        project_dir = workspaces[0]
     else:
         project_dir = core.project_dir(payload)
     event = payload.get("hook_event_name", "SessionStart")

@@ -1498,7 +1498,8 @@ def _apply_git_global_argument(args: list, index: int, state: dict) -> tuple:
     """Apply one Git global argument and return its last index or an error."""
     token = args[index]
     name = token.partition("=")[0]
-    if (token == "-c" or token.startswith("-c")
+    if token == "-c" or (
+            token.startswith("-c")
             and len(token) > GIT_SHORT_OPTION_VALUE_INDEX):
         return _apply_git_config_argument(args, index, token, state)
     if name in ("-C", "--git-dir", "--work-tree"):
