@@ -7,12 +7,21 @@ import subprocess
 import sys
 from pathlib import Path
 
-DENY_PAYLOAD = json.dumps({
-    "hook_event_name": "PreToolUse",
-    "tool_name": "Bash",
-    "permission_mode": "default",
-    "tool_input": {"command": "rm -rf /"},
-})
+GATE_NAMES = (
+    ("block_destructive_bash.py", "Bash"),
+    ("block_destructive_powershell.py", "PowerShell"),
+    ("block_destructive_cmd.py", "Cmd"),
+)
+
+
+def _deny_payload(tool_name: str) -> str:
+    """Return a destructive probe payload for one gate client."""
+    return json.dumps({
+        "hook_event_name": "PreToolUse",
+        "tool_name": tool_name,
+        "permission_mode": "default",
+        "tool_input": {"command": "rm -rf /"},
+    })
 
 
 def _commands(value: object) -> list[str]:
@@ -48,6 +57,15 @@ def _config_paths(root: Path) -> list[Path]:
     return [path for path in candidates if path.is_file()]
 
 
+def _gate_paths(root: Path) -> list[tuple[Path, str]]:
+    """Return installed gate scripts and their matching client names."""
+    return [
+        (root / "hooks" / filename, tool_name)
+        for filename, tool_name in GATE_NAMES
+        if (root / "hooks" / filename).is_file()
+    ]
+
+
 def main() -> int:
     """Check launcher resolution and require a blocking gate response."""
     root = Path.cwd()
@@ -63,19 +81,23 @@ def main() -> int:
     if missing:
         print(f"missing hook launchers: {', '.join(missing)}", file=sys.stderr)
         return 1
-    gate = root / "hooks" / "block_destructive_bash.py"
+    gates = _gate_paths(root)
+    if not gates:
+        print("no installed destructive gate scripts", file=sys.stderr)
+        return 1
     for launcher in launchers:
-        result = subprocess.run(
-            [launcher, str(gate)], input=DENY_PAYLOAD, text=True,
-            capture_output=True, cwd=root, check=False,
-        )
-        if result.returncode != 2:
-            print(
-                f"configured launcher {launcher} did not preserve "
-                "fail-closed exit code 2",
-                file=sys.stderr,
+        for gate, tool_name in gates:
+            result = subprocess.run(
+                [launcher, str(gate)], input=_deny_payload(tool_name), text=True,
+                capture_output=True, cwd=root, check=False,
             )
-            return 1
+            if result.returncode != 2:
+                print(
+                    f"configured launcher {launcher} did not preserve "
+                    f"fail-closed exit code 2 for {gate.name}",
+                    file=sys.stderr,
+                )
+                return 1
     return 0
 
 

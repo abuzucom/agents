@@ -508,6 +508,7 @@ def _pull_target_violations(document: dict, text: str, path: str) -> list[str]:
     trusted_job = dict(expected_job)
     candidate_job = document.get("jobs", {}).get("immutable-compliance")
     if isinstance(candidate_job, dict):
+        candidate_job = dict(candidate_job)
         candidate_steps = candidate_job.get("steps")
         if isinstance(candidate_steps, list) and len(candidate_steps) == 5:
             python_step = candidate_steps[2]
@@ -516,11 +517,22 @@ def _pull_target_violations(document: dict, text: str, path: str) -> list[str]:
                        else None)
             version_text = str(version) if isinstance(version, (str, float, int)) else ""
             if PYTHON_VERSION_PATTERN.fullmatch(version_text):
+                candidate_steps = list(candidate_steps)
+                python_step = dict(python_step)
+                python_step["with"] = {"python-version": version_text}
+                candidate_steps[2] = python_step
+                candidate_job["steps"] = candidate_steps
                 trusted_steps = _trusted_steps()
                 trusted_steps[2] = dict(trusted_steps[2])
                 trusted_steps[2]["with"] = {"python-version": version_text}
                 trusted_job["steps"] = trusted_steps
+    candidate_jobs = dict(document.get("jobs", {}))
+    if isinstance(candidate_job, dict):
+        candidate_jobs["immutable-compliance"] = candidate_job
     job_schema_ok = document.get("jobs") in (
+        {"immutable-compliance": expected_job},
+        {"immutable-compliance": trusted_job},
+    ) or candidate_jobs in (
         {"immutable-compliance": expected_job},
         {"immutable-compliance": trusted_job},
     )
