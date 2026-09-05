@@ -63,13 +63,20 @@ GITHUB_COMMITTER = "noreply@github.com"
 # Git treats each of these as an explicitly given identity, in this order.
 # A checker that read only user.email would block harnesses and CI systems
 # that supply one through the environment instead.
-NAME_SOURCES = (
+AUTHOR_NAME_SOURCES = (
     ("env", "GIT_AUTHOR_NAME"),
+    ("config", "user.name"),
+)
+COMMITTER_NAME_SOURCES = (
     ("env", "GIT_COMMITTER_NAME"),
     ("config", "user.name"),
 )
-EMAIL_SOURCES = (
+AUTHOR_EMAIL_SOURCES = (
     ("env", "GIT_AUTHOR_EMAIL"),
+    ("config", "user.email"),
+    ("env", "EMAIL"),
+)
+COMMITTER_EMAIL_SOURCES = (
     ("env", "GIT_COMMITTER_EMAIL"),
     ("config", "user.email"),
     ("env", "EMAIL"),
@@ -239,14 +246,18 @@ def worktree_identity(repo=None) -> dict:
     result = run_git(repository, ["version"], runner=subprocess.run)
     if result.returncode != 0:
         raise subprocess.CalledProcessError(result.returncode, "git version")
-    name = _first_explicit(NAME_SOURCES, repository)
-    email = _first_explicit(EMAIL_SOURCES, repository)
+    author_name = _first_explicit(AUTHOR_NAME_SOURCES, repository)
+    committer_name = _first_explicit(COMMITTER_NAME_SOURCES, repository)
+    author_email = _first_explicit(AUTHOR_EMAIL_SOURCES, repository)
+    committer_email = _first_explicit(COMMITTER_EMAIL_SOURCES, repository)
+    committer_name = committer_name or author_name
+    committer_email = committer_email or author_email
     return {
         "label": "worktree",
-        "author_email": email,
-        "committer_email": email,
-        "unset_name": not name,
-        "unset_email": not email,
+        "author_email": author_email,
+        "committer_email": committer_email,
+        "unset_name": not author_name or not committer_name,
+        "unset_email": not author_email or not committer_email,
     }
 
 
@@ -301,6 +312,30 @@ def account_identity_candidate(account: dict, configured_name: str) -> tuple:
         raise ValueError("GitHub account login is invalid")
     name = configured_name.strip() or login
     return name, f"{account_id}+{login}@users.noreply.github.com"
+
+
+def strict_identity_violations(identities: list, repo=None) -> list[str]:
+    """Require every selected identity to match the authenticated operator."""
+    repository = repo or os.getcwd()
+    if authenticated_account is None:
+        return ["trusted GitHub account lookup is unavailable"]
+    try:
+        account = authenticated_account(repository)
+        expected_email = account_identity_candidate(
+            account, _config("user.name", repository)
+        )[1]
+    except (OSError, subprocess.TimeoutExpired, ValueError) as error:
+        return [f"trusted GitHub account lookup failed: {error}"]
+    violations = []
+    for identity in identities:
+        for role in ("author", "committer"):
+            email = identity[f"{role}_email"].strip()
+            if email.lower() != expected_email.lower():
+                violations.append(
+                    f"{identity['label']}: {role} email does not match the "
+                    "authenticated operator"
+                )
+    return violations
 
 
 def history_identity_candidates(repo=None) -> list:
@@ -446,6 +481,11 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="report the gh account and user.useConfigOnly; never changes the exit code",
     )
+    parser.add_argument(
+        "--strict",
+        action="store_true",
+        help="require author and committer emails to match authenticated gh",
+    )
     return parser
 
 
@@ -466,6 +506,10 @@ def main() -> int:
     args = parser.parse_args()
     if bool(args.base) != bool(args.head):
         parser.error("--base and --head must be given together")
+    if args.strict and args.base:
+        parser.error("--strict cannot validate a commit range")
+    if args.strict and args.allow:
+        parser.error("--strict cannot be combined with --allow")
     pattern = re.compile(args.allow) if args.allow else NOREPLY
 
     try:
@@ -480,6 +524,8 @@ def main() -> int:
         return 1
 
     violations = find_violations(identities, pattern)
+    if args.strict:
+        violations.extend(strict_identity_violations(identities, args.repo))
     if violations:
         for message in violations:
             print(message, file=sys.stderr)
