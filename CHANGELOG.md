@@ -21,6 +21,9 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Scoped the ASCII policy claim to documentation prose.
 
 ### Fixed
+- Normalized unquoted numeric Python versions in trusted workflow candidates.
+- Selected installed destructive gates for launcher probes.
+- Added launcher probe and numeric-version regression coverage.
 - Handled missing client configurations and checked every configured launcher.
 - Accepted immutable digests for `docker://` workflow actions.
 - Normalized numeric YAML Python versions before trusted workflow validation.
