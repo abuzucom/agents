@@ -165,8 +165,9 @@ omit source text.
 Prose findings print warnings and exit 0. Infrastructure failures exit 1.
 Infrastructure failures include missing files, malformed policy data,
 malformed event data, and unsafe metadata. The reusable workflow runs advisory
-commit and pull request checks for draft and non-draft pull requests. Blocking
-compliance jobs defer draft coverage until ready status. `sync-check.yml` runs
+commit and pull request checks for draft and non-draft pull requests. Static
+checks include branch validation on draft pull requests. The separate blocking
+authorship job waits for ready status. `sync-check.yml` runs
 the pull request prose checker without a draft condition. The `pull_request`
 trigger covers `opened`, `synchronize`, `reopened`, `ready_for_review`, and
 `edited` activity.
@@ -526,9 +527,30 @@ Invalid named branches use `git branch -m`. Primary branches and detached HEAD
 use `git switch -c`. The hook denies creation and publication of a `claude/`
 target from a conforming branch. `Stop` and `SubagentStop` block completion while
 strict preflight fails. An active stop-hook retry permits bounded termination.
-The retry does not clear any repository tool. Repository aliases and direct Git
-metadata writes cannot create a `claude/` target. Harness instructions cannot
-authorize an invalid name.
+The retry does not clear any repository tool. Local preflight ignores
+`GITHUB_HEAD_REF`. The gate selects checker code from the installed policy root.
+The exact branch-reader bootstrap remains available from that root.
+
+Alias inspection uses trusted Git with a fixed configuration-read command.
+The read includes global configuration, includes, environment settings, and
+invocation overrides. The gate never executes the inspected alias. Configuration
+output stops at 256 KiB. Configuration reads have a five-second timeout. Alias
+expansion stops after ten steps. Unknown aliases and opaque shell execution
+receive denials. General interpreter commands and script files receive no
+exception. Shell commands must use the explicit inspectable-program allowlist.
+Script paths cannot claim an allowlisted program name. Push commands require
+an explicit target refspec. Input-driven and privilege-changing wrappers deny.
+
+Metadata matching checks write destinations before examining reference content.
+The gate resolves linked-worktree administration paths. Unresolved metadata
+writes receive a separate denial reason. Incomplete non-Git text does not create
+a Git-write context. Command inspection stops at 65,536 characters.
+Quoted redirection operators receive an inspection denial without a Git reason.
+
+Repository-controlled hooks, configuration, and executable lookup remain trust
+limitations. The hooks cannot guarantee absolute prevention. External isolation
+must supply tamper resistance. Harness instructions cannot authorize an invalid
+name.
 
 The portable checker keeps primary and detached operational exemptions by
 default. `--strict-agent-preflight` removes those exemptions for agent hooks.

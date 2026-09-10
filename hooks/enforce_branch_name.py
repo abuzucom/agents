@@ -3,7 +3,6 @@
 import argparse
 import json
 import os
-import shlex
 import stat
 import subprocess
 import sys
@@ -25,6 +24,7 @@ GATE = "enforce_branch_name.py"
 MAX_GIT_POINTER_BYTES = 4096
 MAX_HEAD_BYTES = 1024
 MAX_ALIAS_DEPTH = 8
+CHECKER_TIMEOUT_SECONDS = 10
 PROHIBITED_AGENT_PREFIX = "claude/"
 QUESTION_TOOLS = frozenset({"AskUserQuestion", "ask_question"})
 SHELL_TOOLS = frozenset({
@@ -44,12 +44,12 @@ BRANCH_MUTATION_SUBCOMMANDS = frozenset({
     "update-ref",
     "worktree",
 })
-PROTECTED_GIT_METADATA = (
-    ".git/head",
-    ".git/packed-refs",
-    ".git/refs/heads/",
-    ".git/worktrees/",
-)
+INSPECTABLE_PROGRAMS = frozenset({
+    "echo", "printf", "pwd", "cat", "head", "tail", "wc", "ls", "dir",
+    "get-content", "get-childitem", "get-location", "write-output",
+    "touch", "tee", "cp", "mv", "set-content", "add-content", "out-file",
+    "copy-item", "move-item", "copy", "move", "type", "true", "false",
+})
 
 
 def _read_payload() -> dict:
@@ -87,11 +87,17 @@ def _git_directory(project_dir: str) -> str:
 
 
 def current_branch(project_dir: str, allow_environment: bool = True) -> str:
-    """Return the current branch from CI metadata or bounded Git metadata."""
+    """Return bounded local metadata and validate optional CI agreement."""
     head_ref = os.environ.get("GITHUB_HEAD_REF", "") if allow_environment else ""
-    if head_ref:
-        return head_ref
     git_dir = _git_directory(project_dir)
+    branch = _branch_from_git_directory(git_dir)
+    if head_ref and branch != "HEAD" and head_ref != branch:
+        raise ValueError("CI branch metadata disagrees with local HEAD")
+    return head_ref or branch
+
+
+def _branch_from_git_directory(git_dir: str) -> str:
+    """Read one branch without resolving a checkout-controlled executable."""
     head_path = os.path.realpath(os.path.join(git_dir, "HEAD"))
     if os.path.commonpath((git_dir, head_path)) != git_dir:
         raise OSError("repository HEAD escapes the git directory")
@@ -108,22 +114,21 @@ def check_branch(branch: str, strict: bool = True, project_dir: str = "") -> str
     """Return the portable checker's complaint for one explicit branch."""
     if strict and not branch:
         return "branch name is empty"
-    root = project_dir or os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    checker = core.resolved_under(project_dir, CHECKER_PATH)
-    if not project_dir:
-        checker = core.resolved_under(root, CHECKER_PATH)
+    root = core.policy_root()
+    checker = core.resolved_under(root, CHECKER_PATH)
     if checker is None or not os.path.isfile(checker):
         return "branch checker is missing"
-    command = [sys.executable, checker, branch]
+    command = [sys.executable, "-E", "-s", checker]
     if strict:
         command.append("--strict-agent-preflight")
-    result = subprocess.run(
-        command,
-        cwd=root,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+    command.extend(["--", branch])
+    try:
+        result = subprocess.run(
+            command, cwd=root, capture_output=True, text=True, check=False,
+            timeout=CHECKER_TIMEOUT_SECONDS,
+        )
+    except (OSError, subprocess.TimeoutExpired) as error:
+        return f"branch checker failed: {core.sanitize(error)}"
     if result.returncode == 0:
         return ""
     return result.stderr.strip() or "branch name does not match the convention"
@@ -132,9 +137,11 @@ def check_branch(branch: str, strict: bool = True, project_dir: str = "") -> str
 def find_violation(project_dir: str, invocation: dict = None) -> str:
     """Return strict branch preflight failure for the effective repository."""
     root = invocation["cwd"] if invocation else project_dir
-    allow_environment = not invocation or not invocation.get("repository_override")
     try:
-        branch = current_branch(root, allow_environment=allow_environment)
+        if invocation and invocation.get("git_dir"):
+            branch = _branch_from_git_directory(invocation["git_dir"])
+        else:
+            branch = current_branch(root, allow_environment=False)
     except (OSError, UnicodeDecodeError, ValueError) as error:
         return f"branch lookup failed: {core.sanitize(error)}"
     return check_branch(branch, strict=True, project_dir=project_dir)
@@ -143,7 +150,7 @@ def find_violation(project_dir: str, invocation: dict = None) -> str:
 def read_branch_preflight(project_dir: str) -> tuple[str, str]:
     """Return the current branch and its strict preflight violation."""
     try:
-        branch_name = current_branch(project_dir)
+        branch_name = current_branch(project_dir, allow_environment=False)
     except (OSError, UnicodeDecodeError, ValueError) as error:
         failure_reason = f"branch lookup failed: {core.sanitize(error)}"
         return "", failure_reason
@@ -178,42 +185,91 @@ def alias_names_prohibited_branch(
     visited: frozenset = frozenset(),
 ) -> bool:
     """Return whether a bounded Git alias expansion names a prohibited ref."""
-    normalized_subcommand = subcommand.casefold()
-    if depth >= MAX_ALIAS_DEPTH or normalized_subcommand in visited:
-        return True
-    expansion = core.resolve_alias(project_dir, normalized_subcommand)
-    if not expansion:
+    if depth >= MAX_ALIAS_DEPTH or subcommand in visited:
         return False
-    if expansion.startswith("!"):
-        return PROHIBITED_AGENT_PREFIX in expansion.casefold()
-    try:
-        expanded_arguments = shlex.split(expansion) + arguments
-    except ValueError:
-        return True
-    nested_subcommand, nested_arguments = core.git_subcommand(expanded_arguments)
-    normalized_nested = nested_subcommand.casefold()
-    if normalized_nested in BRANCH_MUTATION_SUBCOMMANDS:
-        return arguments_name_prohibited_branch(nested_arguments)
-    if normalized_nested in core.KNOWN_SUBCOMMANDS:
-        return False
-    return alias_names_prohibited_branch(
-        project_dir,
-        nested_subcommand,
-        nested_arguments,
-        depth + 1,
-        visited | {normalized_subcommand},
-    )
+    context = core.git_branch_context([subcommand, *arguments], project_dir, [])
+    return _context_names_prohibited_branch(context)
 
 
-def command_names_prohibited_metadata(command_text: str) -> bool:
+def command_names_prohibited_metadata(command_text: str, project_dir: str = "") -> bool:
     """Return whether a command writes a prohibited ref through Git metadata."""
-    command_segments, parsed_completely = bash_parser.command_segments(command_text)
-    fragments = [command_text]
-    if parsed_completely:
-        fragments = [token for segment in command_segments for token in segment]
-    normalized = " ".join(fragments).casefold().replace("\\", "/")
-    return (PROHIBITED_AGENT_PREFIX in normalized
-            and any(marker in normalized for marker in PROTECTED_GIT_METADATA))
+    if bash_parser.has_quoted_redirects(command_text):
+        return False
+    segments, _complete = bash_parser.command_segments(command_text)
+    roots = _metadata_roots(project_dir) if project_dir else ()
+    return any(_segment_names_prohibited_metadata(segment, project_dir, roots)
+               for segment in segments)
+
+
+def _metadata_roots(project_dir: str) -> tuple:
+    """Resolve worktree and common administration directories once per call."""
+    try:
+        git_dir = _git_directory(project_dir)
+        pointer = os.path.join(git_dir, "commondir")
+        if not os.path.exists(pointer):
+            return (git_dir,)
+        common = _read_regular(pointer, MAX_GIT_POINTER_BYTES).strip()
+        if not common:
+            return (git_dir,)
+        return (git_dir, os.path.realpath(os.path.join(git_dir, common)))
+    except (OSError, ValueError, UnicodeError):
+        return ()
+
+
+def _metadata_relative_path(path: str, project_dir: str = "", roots: tuple = ()) -> str:
+    """Return a metadata-relative path without searching file contents."""
+    candidate = os.path.realpath(os.path.join(project_dir or ".", path))
+    normalized = candidate.replace("\\", "/").casefold()
+    for root in roots:
+        root = root.replace("\\", "/").casefold()
+        if normalized.startswith(root + "/"):
+            return normalized[len(root) + 1:]
+    parts = normalized.split("/")
+    for index, part in enumerate(parts):
+        if part != ".git":
+            continue
+        return "/".join(parts[index + 1:]) or ".git"
+    return ""
+
+
+def _metadata_path(path: str, project_dir: str = "", roots: tuple = ()) -> bool:
+    """Match protected administration entries after path resolution."""
+    relative = _metadata_relative_path(path, project_dir, roots)
+    return (relative in (".git", "head", "packed-refs", "commondir")
+            or relative.startswith(("refs/heads/", "worktrees/")))
+
+
+def _content_names_prohibited_ref(content: str) -> bool:
+    """Match complete branch-reference tokens in metadata content."""
+    return any(token.casefold().startswith("refs/heads/claude/")
+               for token in content.split())
+
+
+def _segment_names_prohibited_metadata(
+    segment: list, project_dir: str = "", roots: tuple = (),
+) -> bool:
+    """Match a known metadata write before inspecting branch reference text."""
+    executable, _assignments, complete = bash_parser.strip_prefixes(segment)
+    if not complete or not executable:
+        return False
+    program = core.normalize_windows_command_name(executable[0])
+    targets = core._known_write_targets(
+        program, executable[1:], bash_parser.redirect_targets(segment))
+    if program == "touch":
+        targets.extend(token for token in executable[1:] if not token.startswith("-"))
+    protected = [target for target in targets if _metadata_path(target, project_dir, roots)]
+    if not protected:
+        return False
+    if any(_metadata_relative_path(target, project_dir, roots).startswith("refs/heads/claude/")
+           for target in protected):
+        return True
+    return any(_content_names_prohibited_ref(token) for token in executable[1:])
+
+
+def _context_names_prohibited_branch(context: dict) -> bool:
+    """Match only resolved literal targets in branch-capable Git operations."""
+    return (context.get("subcommand") in BRANCH_MUTATION_SUBCOMMANDS
+            and arguments_name_prohibited_branch(context.get("arguments", [])))
 
 
 def _parsed_command_segments(command_text: str, tool_name: str) -> tuple:
@@ -230,12 +286,10 @@ def command_names_prohibited_branch(
     tool_name: str = "Bash",
 ) -> bool:
     """Return whether a Git branch mutation names a prohibited branch."""
-    command_segments, parsed_completely = _parsed_command_segments(
+    command_segments, _parsed_completely = _parsed_command_segments(
         command_text, tool_name)
-    if not parsed_completely:
-        return PROHIBITED_AGENT_PREFIX in command_text.casefold()
     for command_segment in command_segments:
-        executable_tokens, _assignments, prefixes_complete = (
+        executable_tokens, assignments, prefixes_complete = (
             bash_parser.strip_prefixes(command_segment)
         )
         if not prefixes_complete or not executable_tokens:
@@ -243,17 +297,8 @@ def command_names_prohibited_branch(
         program_name = core.normalize_windows_command_name(executable_tokens[0])
         if program_name != "git":
             continue
-        git_arguments = executable_tokens[1:]
-        subcommand, remaining_arguments = core.git_subcommand(git_arguments)
-        normalized_subcommand = subcommand.casefold()
-        if normalized_subcommand in BRANCH_MUTATION_SUBCOMMANDS:
-            if arguments_name_prohibited_branch(remaining_arguments):
-                return True
-            continue
-        if normalized_subcommand in core.KNOWN_SUBCOMMANDS:
-            continue
-        if alias_names_prohibited_branch(
-                project_dir, subcommand, remaining_arguments):
+        context = core.git_branch_context(executable_tokens[1:], project_dir, assignments)
+        if _context_names_prohibited_branch(context):
             return True
     return False
 
@@ -278,20 +323,31 @@ def file_write_names_prohibited_metadata(tool_input: dict, project_dir: str) -> 
     raw_path = tool_input.get("file_path", tool_input.get("notebook_path", ""))
     if not isinstance(raw_path, str) or not raw_path:
         return False
-    candidate = raw_path if os.path.isabs(raw_path) else os.path.join(project_dir, raw_path)
-    normalized_path = os.path.abspath(candidate).casefold().replace("\\", "/")
-    normalized_root = os.path.abspath(project_dir).casefold().replace("\\", "/")
-    if normalized_path.startswith(normalized_root + "/"):
-        normalized_path = normalized_path[len(normalized_root) + 1:]
-    combined = f"{normalized_path} {_write_content(tool_input)}".casefold()
-    return (PROHIBITED_AGENT_PREFIX in combined
-            and any(marker in combined for marker in PROTECTED_GIT_METADATA))
+    roots = _metadata_roots(project_dir)
+    if not _metadata_path(raw_path, project_dir, roots):
+        return False
+    return (_metadata_relative_path(raw_path, project_dir, roots).startswith("refs/heads/claude/")
+            or _content_names_prohibited_ref(_write_content(tool_input)))
+
+
+def _file_metadata_reason(tool_input: dict, project_dir: str) -> str:
+    """Deny direct metadata writes with literal or unresolved reference data."""
+    raw_path = tool_input.get("file_path", tool_input.get("notebook_path", ""))
+    if not isinstance(raw_path, str) or not raw_path or "\0" in raw_path:
+        return "File write destination is missing or malformed"
+    if file_write_names_prohibited_metadata(tool_input, project_dir):
+        return "File write targets a prohibited claude/ Git ref"
+    if _metadata_path(raw_path, project_dir, _metadata_roots(project_dir)):
+        return "Git metadata write has unresolved reference content"
+    return ""
 
 
 def arguments_name_prohibited_branch(arguments: list) -> bool:
     """Return whether Git branch arguments contain a prohibited branch ref."""
     for argument in arguments:
         option_value = argument.split("=", 1)[-1]
+        if argument.startswith(("-b", "-B", "-c", "-C", "-m", "-M")):
+            option_value = argument[2:]
         for refspec_component in option_value.split(":"):
             branch_name = normalize_branch_candidate(refspec_component)
             if is_prohibited_agent_branch(branch_name):
@@ -362,28 +418,95 @@ def _handle_session_start(project_dir: str) -> int:
     return 0
 
 
-def _blocks_invocation(project_dir: str, invocation: dict) -> bool:
-    """Report and return True when one effective Git write must block."""
-    label = invocation["label"]
-    if invocation.get("error"):
-        print(
-            f"blocked by hooks/enforce_branch_name.py: {label}: "
-            f"{invocation['error']}.",
-            file=sys.stderr,
-        )
-        return True
-    violation = find_violation(project_dir, invocation)
-    if not violation:
-        return False
-    print(
-        f"blocked by hooks/enforce_branch_name.py: {label} on a non-conforming branch.\n"
-        f"{core.sanitize(violation)}\n"
-        "Ask the active human before running the applicable recovery command: "
-        "git branch -m <type>/<kebab-description> or "
-        "git switch -c <type>/<kebab-description>.",
-        file=sys.stderr,
-    )
-    return True
+def _push_has_literal_target(arguments: list) -> bool:
+    """Require a refspec after consuming the remote and option values."""
+    operands = []
+    explicit_remote = False
+    index = 0
+    value_options = {"--repo", "--receive-pack", "--exec", "--push-option", "--recurse-submodules", "-o"}
+    while index < len(arguments):
+        token = arguments[index]
+        name, separator, _value = token.partition("=")
+        if token == "--":
+            operands.extend(arguments[index + 1:])
+            break
+        if name in value_options:
+            explicit_remote = explicit_remote or name == "--repo"
+            if not separator:
+                index += 1
+                if index >= len(arguments):
+                    return False
+        elif not token.startswith("-"):
+            operands.append(token)
+        index += 1
+    return bool(operands if explicit_remote else operands[1:])
+
+
+def _git_context_reason(context: dict, project_dir: str) -> str:
+    """Validate resolved targets before checking the effective checkout."""
+    if context.get("error"):
+        return context["error"]
+    if _context_names_prohibited_branch(context):
+        return "Git operation targets a prohibited claude/ branch"
+    if context.get("subcommand") in BRANCH_MUTATION_SUBCOMMANDS:
+        arguments = context.get("arguments", [])
+        if any(value in ("--stdin", "--all", "--mirror") for value in arguments):
+            return "Git branch targets depend on uninspected input or reference sets"
+        if any(core.is_ambiguous(value) or "*" in value or "?" in value for value in arguments):
+            return "Git branch arguments contain unresolved expansion"
+        if context["subcommand"] == "push" and not _push_has_literal_target(arguments):
+            return "Git push requires an explicit target refspec"
+    if context.get("repository_override"):
+        return find_violation(project_dir, context)
+    return ""
+
+
+def _segment_execution_reason(segment: list, project_dir: str, roots: tuple = ()) -> str:
+    """Reject opaque execution without attributing an unsupported Git target."""
+    executable, assignments, complete = bash_parser.strip_prefixes(segment)
+    if not complete:
+        return "Command wrapper could not be inspected"
+    if not executable:
+        return ""
+    program = core.normalize_windows_command_name(executable[0])
+    if executable[0].casefold() not in (program, program + ".exe"):
+        return "A script or executable path cannot claim an inspectable program name"
+    # Prefix options can change cwd or remove inherited configuration.
+    prefix_count = len(segment) - len(executable)
+    if any(token in bash_parser.WRAPPERS and token not in ("env", "command", "exec")
+           for token in segment[:prefix_count]):
+        return "Command wrapper has opaque input or execution context"
+    if any(token.startswith("-") for token in segment[:prefix_count]):
+        return "Command wrapper changes unresolved execution settings"
+    if program != "git" and program not in INSPECTABLE_PROGRAMS:
+        return "Opaque command execution requires an inspectable operation"
+    if _segment_names_prohibited_metadata(segment, project_dir, roots):
+        return "Git metadata write targets a prohibited claude/ branch"
+    targets = core._known_write_targets(
+        program, executable[1:], bash_parser.redirect_targets(segment))
+    if any(_metadata_path(target, project_dir, roots) for target in targets):
+        return "Git metadata write has unresolved reference content"
+    if program == "git":
+        context = core.git_branch_context(executable[1:], project_dir, assignments)
+        return _git_context_reason(context, project_dir)
+    if any(core.is_ambiguous(token) for token in executable):
+        return "Command arguments contain unresolved expansion"
+    return ""
+
+
+def command_execution_reason(command: str, project_dir: str, tool_name: str) -> str:
+    """Parse once and return the first established execution violation."""
+    segments, complete = _parsed_command_segments(command, tool_name)
+    if not complete:
+        return "Command syntax is incomplete or exceeds the inspection limit"
+    if bash_parser.has_quoted_redirects(command):
+        return "Quoted shell operators require additional inspection"
+    roots = _metadata_roots(project_dir)
+    for segment in segments:
+        reason = _segment_execution_reason(segment, project_dir, roots)
+        if reason:
+            return reason
+    return ""
 
 
 def _tool_call(payload: dict, client: str) -> tuple:
@@ -407,10 +530,12 @@ def _command_text(tool_name: str, tool_input: dict) -> str:
 
 def _valid_recovery(command: str, branch: str) -> bool:
     """Return True only for one exact branch correction command."""
-    segments, complete = bash_parser.command_segments(command)
-    if not complete or len(segments) != 1:
+    if (len(command) > bash_parser.MAX_COMMAND_CHARACTERS
+            or "\n" in command or "\r" in command):
         return False
-    tokens = segments[0]
+    tokens, complete = bash_parser._tokenize_line(command)
+    if not complete:
+        return False
     if len(tokens) != 4 or tokens[0] != "git":
         return False
     target = tokens[3]
@@ -419,6 +544,16 @@ def _valid_recovery(command: str, branch: str) -> bool:
     if branch in ("main", "master", "HEAD"):
         return tokens[1:3] == ["switch", "-c"]
     return tokens[1:3] == ["branch", "-m"]
+
+
+def _valid_bootstrap(command: str, project_dir: str) -> bool:
+    """Allow the fixed branch reader only from the installed policy root."""
+    if os.path.realpath(project_dir) != core.policy_root():
+        return False
+    return command in (
+        "python scripts/read_git_state.py branch",
+        "python3 scripts/read_git_state.py branch",
+    )
 
 
 def recovery_authorization_reason(branch_name: str) -> str:
@@ -474,16 +609,20 @@ def _handle_invalid_branch(
         if lookup_violation:
             branch_violation = lookup_violation
     tool_name, tool_input = _tool_call(payload, client)
+    if not isinstance(tool_name, str):
+        return _deny(client, "Tool name is missing or malformed")
     if tool_name in QUESTION_TOOLS:
         return 0
     label = str(tool_name or "tool")
     if tool_name in SHELL_TOOLS and isinstance(tool_input, dict):
         command_text = _command_text(tool_name, tool_input)
+        if _valid_bootstrap(command_text, project_dir):
+            return 0
+        if branch_name and _valid_recovery(command_text, branch_name):
+            return request_recovery_authorization(client, payload, branch_name)
         contexts = blocked_command(command_text, project_dir)
         if contexts:
             label = contexts[0].get("label") or label
-        if branch_name and _valid_recovery(command_text, branch_name):
-            return request_recovery_authorization(client, payload, branch_name)
     recovery_command = (
         "git switch -c"
         if branch_name in ("main", "master", "HEAD")
@@ -510,19 +649,20 @@ def _handle_pre_tool_use(payload: dict, project_dir: str, client: str) -> int:
             branch_name,
         )
     tool_name, tool_input = _tool_call(payload, client)
+    if not isinstance(tool_name, str):
+        return _deny(client, "Tool name is missing or malformed")
     if tool_name in FILE_WRITE_TOOLS and isinstance(tool_input, dict):
-        if file_write_names_prohibited_metadata(tool_input, project_dir):
-            return _deny(client, "file write targets a prohibited claude/ Git ref")
+        reason = _file_metadata_reason(tool_input, project_dir)
+        if reason:
+            return _deny(client, reason)
     if tool_name not in SHELL_TOOLS or not isinstance(tool_input, dict):
         return 0
     command_text = _command_text(tool_name, tool_input)
-    if command_names_prohibited_branch(
-            command_text, project_dir, tool_name) or command_names_prohibited_metadata(
-                command_text):
-        return _deny(client, "Git operation targets a prohibited claude/ branch")
-    for invocation in blocked_command(command_text, project_dir):
-        if _blocks_invocation(project_dir, invocation):
-            return _deny(client, "effective Git write targets an invalid branch")
+    if _valid_bootstrap(command_text, project_dir):
+        return 0
+    reason = command_execution_reason(command_text, project_dir, tool_name)
+    if reason:
+        return _deny(client, reason)
     return 0
 
 

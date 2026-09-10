@@ -13,6 +13,17 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 - Supply the read-only job token to immutable commit attribution checks.
+- Run static branch validation for draft pull requests.
+- Resolve branch aliases against effective Git configuration without alias execution.
+- Use local HEAD metadata and the installed branch checker for agent preflight.
+- Separate opaque execution from literal prohibited-branch detection.
+- Validate metadata write destinations and linked-worktree administration paths.
+- Restrict branch recovery to exact commands with native consent.
+- Bound command parsing, configuration reads, and alias expansion.
+- Replace repeated segment-list searches with hash-based membership checks.
+- Reject Git redirections into protected metadata before command dispatch.
+- Deny implicit push targets and wrappers with opaque input or execution context.
+- Validate tool-name types and file destinations before classification.
 - Enforced contributor identity validation for author and committer metadata.
 - Required agent-generated commits to use the active operator's noreply address.
 - Rejected fabricated noreply IDs and unapproved co-author trailers.
