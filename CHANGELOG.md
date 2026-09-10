@@ -12,6 +12,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ## [Unreleased]
 
 ### Fixed
+- Supply the read-only job token to immutable commit attribution checks.
 - Enforced contributor identity validation for author and committer metadata.
 - Required agent-generated commits to use the active operator's noreply address.
 - Rejected fabricated noreply IDs and unapproved co-author trailers.
