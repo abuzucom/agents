@@ -12,6 +12,9 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ## [Unreleased]
 
 ### Fixed
+- Disable Git inspection tracing and stream-redirection side effects.
+- Protect metadata directory roots and explicit copy destinations.
+- Route bounded repository workflows through native execution consent.
 - Canonicalize temporary metadata fixture paths across runner platforms.
 - Exercise branch dispatch with isolated metadata on detached CI checkouts.
 - Supply the read-only job token to immutable commit attribution checks.

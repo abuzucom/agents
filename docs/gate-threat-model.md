@@ -87,15 +87,23 @@ include the following actions:
 - Branch alias inspection runs trusted Git with a fixed configuration-read
   operation. Native Git resolves includes and configuration precedence.
   Invocation settings travel through argument arrays and environment values.
+  The config reader accepts only required environment fields. Trace and stream
+  redirection controls never reach Git. Fixed environment values disable Trace2
+  destinations from Git configuration.
   The inspection never executes an alias. Reads stop at 256 KiB or five seconds.
   Alias expansion stops after ten steps. Unknown and shell aliases deny.
-- The branch gate denies opaque interpreters, script files, and unresolved
+- The branch gate denies opaque interpreters, unlisted scripts, and unresolved
   branch arguments. Commands require an explicit inspectable program name.
   Incomplete parsing receives a syntax denial. Only recovered Git commands
   create ambiguous Git-write contexts. Parsing stops at 65,536 characters.
+  Bounded repository workflows request native consent. The route rejects
+  wrappers, chained commands, redirection, and shell expansion. Unsupported
+  consent responses and unattended Claude sessions remain closed.
 - Metadata checks classify the write destination separately from reference
   content. Linked worktrees use resolved administration paths. Unresolved
-  metadata writes deny without claiming a literal prohibited-branch match.
+  directory-root writes deny. Copy target-directory options identify destinations.
+  Copy and move destinations cannot contain protected administration directories.
+  Unresolved metadata writes deny without claiming a literal prohibited-branch match.
   Git reads receive the same output-redirection checks. Quoted redirection
   operators receive a separate inspection denial. Implicit push targets and
   wrappers with opaque input or execution context also deny.
@@ -284,11 +292,10 @@ reason.
 - The PowerShell `_interpreter_verdict` retains an uncommon parser state after
   a recognized interpreter. Shared corpus rows cover fixed scripts, command
   payloads, dynamic targets, and plain shell transitions.
-- Branch enforcement retains malformed lifecycle payloads, alternate recovery
-  schemas, and uncommon Git target positions in
+- Branch enforcement retains malformed lifecycle payloads and uncommon Git target positions in
   `alias_names_prohibited_branch`, `command_names_prohibited_branch`,
-  `command_names_prohibited_metadata`, `handle_context_event`, `main`, and
-  `request_recovery_authorization`. Hook tests cover every lifecycle event.
+  `command_names_prohibited_metadata`, `handle_context_event`, and `main`.
+  Hook tests cover every lifecycle event and client consent response.
   Tests also cover exact recovery, aliases, metadata, and branch publication.
 - `read_payload`, `resolved_under`, and `sanitize` retain defensive exceptions
   and direct-caller bounds. Hook entry points reject those states earlier.

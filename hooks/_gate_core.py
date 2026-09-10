@@ -41,6 +41,12 @@ DRIVE_ROOT_LENGTH = 2
 MAX_GIT_CONFIG_COUNT = 1000
 MAX_GIT_ALIAS_DEPTH = 10
 CONFIG_READ_TIMEOUT_SECONDS = 5
+CONFIG_READ_ENVIRONMENT = frozenset({
+    "PATH", "SYSTEMROOT", "WINDIR", "HOME", "USERPROFILE", "HOMEDRIVE", "HOMEPATH",
+    "XDG_CONFIG_HOME", "LANG", "LC_ALL", "GIT_CONFIG_NOSYSTEM", "GIT_CONFIG_SYSTEM",
+    "GIT_CONFIG_GLOBAL", "GIT_CONFIG_COUNT", "GIT_DIR", "GIT_COMMON_DIR", "GIT_WORK_TREE",
+    "GIT_CEILING_DIRECTORIES", "GIT_DISCOVERY_ACROSS_FILESYSTEM",
+})
 GIT_SHORT_OPTION_VALUE_INDEX = 2
 # section.subsection.key, the only shape a driver name takes.
 GIT_CONFIG_SUBSECTION_PARTS = 3
@@ -2045,7 +2051,7 @@ def _run_config_reader(command: list, environment: dict) -> bytes:
     """Read bounded config output and supervise the pipe reader to completion."""
     with subprocess.Popen(
         command, cwd=policy_root(), env=environment,
-        stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+        stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
     ) as process:
         output = []
         reader = threading.Thread(target=_collect_config_output, args=(process, output))
@@ -2062,13 +2068,23 @@ def _run_config_reader(command: list, environment: dict) -> bytes:
         return output[0]
 
 
+def _config_read_environment(environment: dict) -> dict:
+    """Preserve config selection without inheriting tracing, redirection, or loader controls."""
+    selected = {
+        name: value for name, value in environment.items()
+        if name.upper() in CONFIG_READ_ENVIRONMENT
+        or name.startswith(("GIT_CONFIG_KEY_", "GIT_CONFIG_VALUE_"))
+    }
+    selected.update({"GIT_PAGER": "", "PAGER": "", "GIT_TERMINAL_PROMPT": "0",
+                     "GIT_OPTIONAL_LOCKS": "0", "GIT_TRACE": "0", "GIT_TRACE2": "0",
+                     "GIT_TRACE2_EVENT": "0", "GIT_TRACE2_PERF": "0"})
+    # Explicit environment values also override Trace2 destinations in Git configuration.
+    return selected
+
+
 def _branch_config_entries(state: dict, environment: dict) -> dict:
     """Read effective aliases through the fixed native config operation."""
-    environment = dict(environment)
-    environment["GIT_PAGER"] = ""
-    environment["PAGER"] = ""
-    environment["GIT_TERMINAL_PROMPT"] = "0"
-    environment["GIT_OPTIONAL_LOCKS"] = "0"
+    environment = _config_read_environment(environment)
     for variable, key in (("GIT_DIR", "git_dir"), ("GIT_WORK_TREE", "work_tree"),
                           ("GIT_COMMON_DIR", "common_dir")):
         if state[key]:

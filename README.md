@@ -535,15 +535,24 @@ Alias inspection uses trusted Git with a fixed configuration-read command.
 The read includes global configuration, includes, environment settings, and
 invocation overrides. The gate never executes the inspected alias. Configuration
 output stops at 256 KiB. Configuration reads have a five-second timeout. Alias
-expansion stops after ten steps. Unknown aliases and opaque shell execution
-receive denials. General interpreter commands and script files receive no
-exception. Shell commands must use the explicit inspectable-program allowlist.
+expansion stops after ten steps. The subprocess receives a constrained environment.
+Tracing and stream redirection remain disabled during inspection. Explicit
+environment overrides also disable configuration-based Trace2 destinations.
+Unknown aliases and opaque shell execution receive denials. General interpreter
+commands and unlisted script invocations receive no exception.
+Fixed repository test, state, synchronization, and trusted GitHub commands request
+native consent. Listed Makefile targets and literal `rg` searches also request consent.
+Workflow requests reject wrappers, chains, redirection, and shell expansion.
+Unattended Claude sessions and clients without an implemented consent response deny.
+Other shell commands must use the explicit inspectable-program allowlist.
 Script paths cannot claim an allowlisted program name. Push commands require
 an explicit target refspec. Input-driven and privilege-changing wrappers deny.
 
 Metadata matching checks write destinations before examining reference content.
-The gate resolves linked-worktree administration paths. Unresolved metadata
-writes receive a separate denial reason. Incomplete non-Git text does not create
+The gate resolves linked-worktree administration paths and protects metadata
+directory roots. Copy target-directory options select effective write destinations.
+Copy and move destinations cannot contain protected administration directories.
+Unresolved metadata writes receive a separate denial reason. Incomplete non-Git text does not create
 a Git-write context. Command inspection stops at 65,536 characters.
 Quoted redirection operators receive an inspection denial without a Git reason.
 

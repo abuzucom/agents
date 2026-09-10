@@ -50,6 +50,17 @@ INSPECTABLE_PROGRAMS = frozenset({
     "touch", "tee", "cp", "mv", "set-content", "add-content", "out-file",
     "copy-item", "move-item", "copy", "move", "type", "true", "false",
 })
+WORKFLOW_SCRIPT_ARGUMENTS = {
+    "scripts/run_tests.py": ((),),
+    "scripts/read_git_state.py": tuple((mode,) for mode in ("branch", "status", "remote", "revision", "all")),
+    "scripts/sync.py": ((), ("--check",), ("--check-shared",), ("--write-shared",), ("--print-adoptable",)),
+    "scripts/check_action_pins.py": ((),),
+}
+SEARCH_FLAGS = frozenset({
+    "-n", "--line-number", "-l", "--files-with-matches", "-i", "--ignore-case",
+    "-F", "--fixed-strings", "--files", "--hidden", "-g", "--glob", "-e", "--regexp", "--",
+})
+MAX_WORKFLOW_ARGUMENTS = 64
 
 
 def _read_payload() -> dict:
@@ -222,6 +233,8 @@ def _metadata_relative_path(path: str, project_dir: str = "", roots: tuple = ())
     normalized = candidate.replace("\\", "/").casefold()
     for root in roots:
         root = root.replace("\\", "/").casefold()
+        if normalized == root:
+            return ".git"
         if normalized.startswith(root + "/"):
             return normalized[len(root) + 1:]
     parts = normalized.split("/")
@@ -235,14 +248,43 @@ def _metadata_relative_path(path: str, project_dir: str = "", roots: tuple = ())
 def _metadata_path(path: str, project_dir: str = "", roots: tuple = ()) -> bool:
     """Match protected administration entries after path resolution."""
     relative = _metadata_relative_path(path, project_dir, roots)
-    return (relative in (".git", "head", "packed-refs", "commondir")
+    return (relative in (".git", "head", "packed-refs", "commondir", "refs", "refs/heads", "worktrees")
             or relative.startswith(("refs/heads/", "worktrees/")))
+
+
+def _metadata_copy_ancestor(program: str, path: str, project_dir: str, roots: tuple) -> bool:
+    """Reject directory merges whose contents could reach Git administration paths."""
+    if program not in ("cp", "mv", "copy", "move", "copy-item", "move-item"):
+        return False
+    destination = os.path.realpath(os.path.join(project_dir, path)).replace("\\", "/").casefold()
+    return any(root.replace("\\", "/").casefold().startswith(destination.rstrip("/") + "/")
+               for root in roots)
 
 
 def _content_names_prohibited_ref(content: str) -> bool:
     """Match complete branch-reference tokens in metadata content."""
     return any(token.casefold().startswith("refs/heads/claude/")
                for token in content.split())
+
+
+def _metadata_write_targets(program: str, arguments: list, redirects: list) -> list:
+    """Honor copy target-directory options before classifying positional operands."""
+    if program not in ("cp", "mv"):
+        return core._known_write_targets(program, arguments, redirects)
+    for index, token in enumerate(arguments):
+        if token == "--":
+            break
+        option, separator, value = token.partition("=")
+        if option.startswith("--") and "--target-directory".startswith(option):
+            if not separator:
+                value = arguments[index + 1] if index + 1 < len(arguments) else ""
+            return redirects + [value]
+        if token.startswith("-") and not token.startswith("--"):
+            prefix, marker, value = token[1:].partition("t")
+            if marker and all(flag in "abdfilnprRsuvx" for flag in prefix):
+                value = value or (arguments[index + 1] if index + 1 < len(arguments) else "")
+                return redirects + [value]
+    return core._known_write_targets(program, arguments, redirects)
 
 
 def _segment_names_prohibited_metadata(
@@ -253,7 +295,7 @@ def _segment_names_prohibited_metadata(
     if not complete or not executable:
         return False
     program = core.normalize_windows_command_name(executable[0])
-    targets = core._known_write_targets(
+    targets = _metadata_write_targets(
         program, executable[1:], bash_parser.redirect_targets(segment))
     if program == "touch":
         targets.extend(token for token in executable[1:] if not token.startswith("-"))
@@ -482,9 +524,10 @@ def _segment_execution_reason(segment: list, project_dir: str, roots: tuple = ()
         return "Opaque command execution requires an inspectable operation"
     if _segment_names_prohibited_metadata(segment, project_dir, roots):
         return "Git metadata write targets a prohibited claude/ branch"
-    targets = core._known_write_targets(
+    targets = _metadata_write_targets(
         program, executable[1:], bash_parser.redirect_targets(segment))
-    if any(_metadata_path(target, project_dir, roots) for target in targets):
+    if any(_metadata_path(target, project_dir, roots)
+           or _metadata_copy_ancestor(program, target, project_dir, roots) for target in targets):
         return "Git metadata write has unresolved reference content"
     if program == "git":
         context = core.git_branch_context(executable[1:], project_dir, assignments)
@@ -556,6 +599,42 @@ def _valid_bootstrap(command: str, project_dir: str) -> bool:
     )
 
 
+def _python_workflow(tokens: list, project_dir: str) -> bool:
+    """Recognize bounded repository scripts and unittest module invocations."""
+    if tokens[1:3] == ["-m", "unittest"]:
+        modules = [token for token in tokens[3:] if token not in ("-v", "-q")]
+        return bool(modules) and all(
+            token.startswith("tests.") and all(part.isidentifier() for part in token.split("."))
+            for token in modules)
+    path = core.resolved_under(project_dir, tokens[1])
+    if path is None or not os.path.isfile(path):
+        return False
+    if tokens[1] == "scripts/trusted_gh.py" and tokens[2:3] == ["run"]:
+        decision, _reason = core.forge_verdict("gh", tokens[3:], project_dir)
+        return bool(tokens[3:]) and decision != "deny"
+    return tuple(tokens[2:]) in WORKFLOW_SCRIPT_ARGUMENTS.get(tokens[1], ())
+
+
+def _workflow_needs_consent(command: str, project_dir: str) -> bool:
+    """Limit workflow consent to one literal invocation without wrappers or redirection."""
+    if "\n" in command or "\r" in command or len(command) > bash_parser.MAX_COMMAND_CHARACTERS:
+        return False
+    tokens, complete = bash_parser._tokenize_line(command)
+    if not complete or not 1 < len(tokens) <= MAX_WORKFLOW_ARGUMENTS:
+        return False
+    if any(core.is_ambiguous(token) or token in (";", "&", "&&", "|", "||", "(", ")")
+           or any(character in token for character in "<>%!^\0") for token in tokens):
+        return False
+    if tokens[0] in ("python", "python3", "python.exe", "python3.exe"):
+        return _python_workflow(tokens, project_dir)
+    if tokens[0] == "make":
+        return (tokens[1] in ("lint", "test", "check", "sync", "identity")
+                and tokens[2:] in ([], ["PYTHON=python"], ["PYTHON=python3"]))
+    if tokens[0] == "rg":
+        return all(not token.startswith("-") or token in SEARCH_FLAGS for token in tokens[1:])
+    return False
+
+
 def recovery_authorization_reason(branch_name: str) -> str:
     """Return the mandatory recovery instruction for one invalid branch."""
     recovery_command = (
@@ -587,6 +666,11 @@ def request_recovery_authorization(
 ) -> int:
     """Request authorization for one validated branch recovery command."""
     authorization_reason = recovery_authorization_reason(branch_name)
+    return _request_authorization(client, payload, authorization_reason)
+
+
+def _request_authorization(client: str, payload: dict, authorization_reason: str) -> int:
+    """Use native consent where supported and preserve unattended denial."""
     if client == "claude":
         return core.decide(GATE, payload, "ask", authorization_reason)
     if client in ("gemini", "antigravity"):
@@ -660,6 +744,8 @@ def _handle_pre_tool_use(payload: dict, project_dir: str, client: str) -> int:
     command_text = _command_text(tool_name, tool_input)
     if _valid_bootstrap(command_text, project_dir):
         return 0
+    if _workflow_needs_consent(command_text, project_dir):
+        return _request_authorization(client, payload, "Repository workflow requires execution consent")
     reason = command_execution_reason(command_text, project_dir, tool_name)
     if reason:
         return _deny(client, reason)

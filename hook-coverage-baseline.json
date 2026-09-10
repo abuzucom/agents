@@ -82,7 +82,6 @@
     "enforce_branch_name.py::file_write_names_prohibited_metadata": 1,
     "enforce_branch_name.py::handle_context_event": 7,
     "enforce_branch_name.py::main": 1,
-    "enforce_branch_name.py::request_recovery_authorization": 4,
     "enforce_git_identity.py::_handle_pre_tool_use": 2,
     "reinject_agents_policy.py::load_policy": 1,
     "require_consent.py::_handle_write": 1,
