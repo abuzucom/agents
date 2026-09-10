@@ -12,6 +12,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ## [Unreleased]
 
 ### Fixed
+- Canonicalize temporary metadata fixture paths across runner platforms.
+- Exercise branch dispatch with isolated metadata on detached CI checkouts.
 - Supply the read-only job token to immutable commit attribution checks.
 - Run static branch validation for draft pull requests.
 - Resolve branch aliases against effective Git configuration without alias execution.

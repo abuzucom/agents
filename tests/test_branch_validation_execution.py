@@ -122,7 +122,7 @@ class BranchExecutionTest(unittest.TestCase):
 
     def test_metadata_common_directory_resolution(self):
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
+            root = Path(directory).resolve()
             administration = root / ".git"
             administration.mkdir()
             common = root / "common"

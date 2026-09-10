@@ -54,13 +54,13 @@ class BranchFailureTest(unittest.TestCase):
 
     def test_actual_git_directory_selects_branch_metadata(self):
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
+            root = Path(directory).resolve()
             (root / "HEAD").write_text("ref: refs/heads/claude/x\n", encoding="utf-8")
             self.assertTrue(hook.find_violation(str(REPO_ROOT), {"cwd": str(REPO_ROOT), "git_dir": directory}))
 
     def test_explicit_git_directory_reaches_native_config(self):
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
+            root = Path(directory).resolve()
             (root / "HEAD").write_text("ref: refs/heads/fix/example\n", encoding="utf-8")
             (root / "objects").mkdir()
             (root / "refs").mkdir()
@@ -71,7 +71,7 @@ class BranchFailureTest(unittest.TestCase):
 
     def test_native_config_failure_never_becomes_an_allow(self):
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
+            root = Path(directory).resolve()
             config = root / "invalid.config"
             config.write_text("[unterminated\n", encoding="utf-8")
             context = core.git_branch_context(
@@ -90,7 +90,7 @@ class BranchFailureTest(unittest.TestCase):
 
     def test_config_program_cannot_come_from_target_checkout(self):
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
+            root = Path(directory).resolve()
             name = "git.exe" if os.name == "nt" else "git"
             executable = root / name
             executable.write_bytes(b"untrusted executable placeholder")
@@ -125,7 +125,7 @@ class AdditionalBoundaryTest(unittest.TestCase):
 
     def test_empty_common_directory_and_literal_metadata(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
+            root = Path(directory).resolve()
             git_dir = root / ".git"
             git_dir.mkdir()
             (git_dir / "commondir").write_text("\n", encoding="utf-8")
