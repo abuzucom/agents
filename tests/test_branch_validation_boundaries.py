@@ -60,7 +60,7 @@ class BranchBoundaryTest(unittest.TestCase):
 
     def test_branch_bootstrap_is_available_during_recovery(self):
         with tempfile.TemporaryDirectory() as directory:
-            policy = Path(directory)
+            policy = Path(directory).resolve()
             (policy / ".git").mkdir()
             (policy / ".git" / "HEAD").write_text("ref: refs/heads/claude/x\n", encoding="utf-8")
             payload = {
