@@ -12,6 +12,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ## [Unreleased]
 
 ### Fixed
+- Check every tee output and PowerShell path-array destination for Git metadata writes.
+- Discover repository metadata for Git reads from nested and linked-worktree directories.
 - Disable Git inspection tracing and stream-redirection side effects.
 - Protect metadata directory roots and explicit copy destinations.
 - Route bounded repository workflows through native execution consent.

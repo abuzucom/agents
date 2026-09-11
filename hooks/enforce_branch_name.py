@@ -3,6 +3,7 @@
 import argparse
 import json
 import os
+import shlex
 import stat
 import subprocess
 import sys
@@ -152,6 +153,11 @@ def find_violation(project_dir: str, invocation: dict = None) -> str:
         if invocation and invocation.get("git_dir"):
             branch = _branch_from_git_directory(invocation["git_dir"])
         else:
+            if invocation:
+                dot_git, reason = core._discover_dot_git(root)
+                if not dot_git:
+                    raise OSError(reason or "repository metadata was not found")
+                root = os.path.dirname(dot_git)
             branch = current_branch(root, allow_environment=False)
     except (OSError, UnicodeDecodeError, ValueError) as error:
         return f"branch lookup failed: {core.sanitize(error)}"
@@ -269,6 +275,15 @@ def _content_names_prohibited_ref(content: str) -> bool:
 
 def _metadata_write_targets(program: str, arguments: list, redirects: list) -> list:
     """Honor copy target-directory options before classifying positional operands."""
+    if program == "tee":
+        targets = list(redirects)
+        options = True
+        for argument in arguments:
+            if options and argument == "--":
+                options = False
+            elif not options or not argument.startswith("-"):
+                targets.append(argument)
+        return targets
     if program not in ("cp", "mv"):
         return core._known_write_targets(program, arguments, redirects)
     for index, token in enumerate(arguments):
@@ -545,10 +560,80 @@ def command_execution_reason(command: str, project_dir: str, tool_name: str) -> 
     if bash_parser.has_quoted_redirects(command):
         return "Quoted shell operators require additional inspection"
     roots = _metadata_roots(project_dir)
+    if tool_name == "PowerShell":
+        reason = _powershell_metadata_reason(command, project_dir, roots)
+        if reason:
+            return reason
     for segment in segments:
         reason = _segment_execution_reason(segment, project_dir, roots)
         if reason:
             return reason
+    return ""
+
+
+def _powershell_array_arguments(tokens: list) -> list:
+    """Group unquoted comma-separated arguments while retaining literal commas."""
+    groups = []
+    continuation = False
+    for token in tokens:
+        if token == ",":
+            if not groups or continuation:
+                raise ValueError("PowerShell array syntax is incomplete")
+            continuation = True
+        elif continuation:
+            groups[-1].append(token)
+            continuation = False
+        else:
+            groups.append([token])
+    if continuation:
+        raise ValueError("PowerShell array syntax is incomplete")
+    return groups
+
+
+def _powershell_array_targets(program: str, groups: list) -> list:
+    """Separate named output arrays from source arrays and content values."""
+    targets = []
+    operands = []
+    index = 0
+    while index < len(groups):
+        group = groups[index]
+        flag, separator, attached = group[0].partition(":")
+        parameter = core._powershell_write_parameter(program, flag.lower())
+        if parameter:
+            if not separator and len(group) > 1:
+                raise ValueError("PowerShell parameter array requires an explicit value")
+            values = [attached, *group[1:]] if separator else []
+            if not separator and index + 1 < len(groups):
+                index += 1
+                values = groups[index]
+            if parameter[2]:
+                targets.extend(values)
+        elif not group[0].startswith("-"):
+            operands.append(group)
+        index += 1
+    if operands:
+        targets.extend(operands[core.WRITE_PROGRAMS[program]])
+    return targets
+
+
+def _powershell_metadata_reason(command: str, project_dir: str, roots: tuple) -> str:
+    """Inspect PowerShell destination arrays before scalar command classification."""
+    lexer = shlex.shlex(command, posix=True, punctuation_chars=",;<>|&()")
+    lexer.whitespace_split = True
+    lexer.escape = "`"
+    try:
+        segments = bash_parser._split_segments(list(lexer))
+        for segment in segments:
+            program = core.normalize_windows_command_name(segment[0])
+            if program not in core.POWERSHELL_WRITE_PARAMETERS:
+                continue
+            groups = _powershell_array_arguments(segment[1:])
+            targets = _powershell_array_targets(program, groups)
+            if any(_metadata_path(target, project_dir, roots)
+                   or _metadata_copy_ancestor(program, target, project_dir, roots) for target in targets):
+                return "Git metadata write has unresolved reference content"
+    except ValueError:
+        return "PowerShell destination array syntax could not be inspected"
     return ""
 
 

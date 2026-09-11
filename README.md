@@ -529,6 +529,7 @@ target from a conforming branch. `Stop` and `SubagentStop` block completion whil
 strict preflight fails. An active stop-hook retry permits bounded termination.
 The retry does not clear any repository tool. Local preflight ignores
 `GITHUB_HEAD_REF`. The gate selects checker code from the installed policy root.
+Git directory overrides use bounded upward discovery to locate repository metadata.
 The exact branch-reader bootstrap remains available from that root.
 
 Alias inspection uses trusted Git with a fixed configuration-read command.
@@ -549,6 +550,8 @@ Script paths cannot claim an allowlisted program name. Push commands require
 an explicit target refspec. Input-driven and privilege-changing wrappers deny.
 
 Metadata matching checks write destinations before examining reference content.
+Every tee output and PowerShell path-array element receives a metadata check.
+Quoted commas remain literal filename characters.
 The gate resolves linked-worktree administration paths and protects metadata
 directory roots. Copy target-directory options select effective write destinations.
 Copy and move destinations cannot contain protected administration directories.
