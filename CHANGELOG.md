@@ -12,6 +12,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ## [Unreleased]
 
 ### Fixed
+- Allow rebase recovery before detached-HEAD branch correction.
 - Check every tee output and PowerShell path-array destination for Git metadata writes.
 - Discover repository metadata for Git reads from nested and linked-worktree directories.
 - Disable Git inspection tracing and stream-redirection side effects.

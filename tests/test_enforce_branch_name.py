@@ -255,6 +255,28 @@ class PreToolUseTest(unittest.TestCase):
             "ask",
         )
 
+    def test_active_rebase_allows_abort_before_detached_recovery(self):
+        with tempfile.TemporaryDirectory() as directory:
+            project_dir = Path(directory)
+            (project_dir / ".git" / "rebase-merge").mkdir(parents=True)
+            result = _run_fixture_hook(
+                bash_payload("git rebase --abort"), "HEAD", "claude", project_dir)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        output = json.loads(result.stdout)
+        self.assertEqual(
+            output["hookSpecificOutput"]["permissionDecision"],
+            "ask",
+        )
+
+    def test_active_rebase_denies_branch_creation(self):
+        with tempfile.TemporaryDirectory() as directory:
+            project_dir = Path(directory)
+            (project_dir / ".git" / "rebase-apply").mkdir(parents=True)
+            result = _run_fixture_hook(
+                bash_payload("git switch -c feat/recovered"), "HEAD", "claude", project_dir)
+        self.assertEqual(result.returncode, BLOCKING_EXIT_CODE)
+        self.assertIn("rebase", result.stderr)
+
     def test_claude_branch_creation_is_blocked_from_conforming_branch(self):
         commands = (
             f"git switch -c {VIOLATING_BRANCH}",
