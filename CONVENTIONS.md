@@ -697,6 +697,13 @@ the active human remains allowed. The exact recovery command remains allowed
 through normal permission handling. Never chain another command to a recovery
 command. Rule 10 applies. Never assume prior validation against this file.
 
+During an active rebase, detect `.git/rebase-merge` and `.git/rebase-apply`
+before detached-HEAD recovery. Allow only `git rebase --abort`,
+`git rebase --continue`, or `git rebase --skip` through native authorization.
+Do not create, switch, rename, or publish branches while rebase metadata
+exists. After rebase recovery, rerun strict branch preflight before ordinary
+repository work.
+
 When the current branch starts with `claude/`, block the first session and
 subagent completion attempt. Allow a Claude Code retry with
 `stop_hook_active` set to true to terminate the turn. This bound prevents an

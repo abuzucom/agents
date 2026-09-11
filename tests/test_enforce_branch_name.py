@@ -10,6 +10,7 @@ nothing, and an edit to `.claude/settings.json` that drops an event would
 otherwise pass every behavioral test in this file.
 """
 import importlib.util
+import io
 import json
 import os
 import shutil
@@ -17,6 +18,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from contextlib import redirect_stderr
 from pathlib import Path
 from unittest.mock import patch
 
@@ -254,6 +256,43 @@ class PreToolUseTest(unittest.TestCase):
             output["hookSpecificOutput"]["permissionDecision"],
             "ask",
         )
+
+    def test_active_rebase_allows_abort_before_detached_recovery(self):
+        with tempfile.TemporaryDirectory() as directory:
+            project_dir = Path(directory)
+            (project_dir / ".git" / "rebase-merge").mkdir(parents=True)
+            result = _run_fixture_hook(
+                bash_payload("git rebase --abort"), "HEAD", "claude", project_dir)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        output = json.loads(result.stdout)
+        self.assertEqual(
+            output["hookSpecificOutput"]["permissionDecision"],
+            "ask",
+        )
+
+    def test_active_rebase_denies_branch_creation(self):
+        with tempfile.TemporaryDirectory() as directory:
+            project_dir = Path(directory)
+            (project_dir / ".git" / "rebase-apply").mkdir(parents=True)
+            result = _run_fixture_hook(
+                bash_payload("git switch -c feat/recovered"), "HEAD", "claude", project_dir)
+        self.assertEqual(result.returncode, BLOCKING_EXIT_CODE)
+        self.assertIn("rebase", result.stderr)
+
+    def test_rebase_lookup_failure_denies_invalid_branch_tool(self):
+        output = io.StringIO()
+        with patch.object(hook, "rebase_is_active", side_effect=OSError("metadata unavailable")):
+            with redirect_stderr(output):
+                result = hook._handle_invalid_branch(
+                    bash_payload("git status"),
+                    str(REPO_ROOT),
+                    "claude",
+                    "branch is invalid",
+                    VIOLATING_BRANCH,
+                )
+        self.assertEqual(result, BLOCKING_EXIT_CODE)
+        self.assertIn("rebase lookup failed", output.getvalue())
+        self.assertIn("metadata unavailable", output.getvalue())
 
     def test_claude_branch_creation_is_blocked_from_conforming_branch(self):
         commands = (

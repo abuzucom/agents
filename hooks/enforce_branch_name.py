@@ -27,6 +27,8 @@ MAX_HEAD_BYTES = 1024
 MAX_ALIAS_DEPTH = 8
 CHECKER_TIMEOUT_SECONDS = 10
 PROHIBITED_AGENT_PREFIX = "claude/"
+REBASE_DIRECTORIES = ("rebase-merge", "rebase-apply")
+REBASE_RECOVERY_COMMANDS = frozenset(("--abort", "--continue", "--skip"))
 QUESTION_TOOLS = frozenset({"AskUserQuestion", "ask_question"})
 SHELL_TOOLS = frozenset({
     "Bash", "CMD", "Cmd", "CommandPrompt", "PowerShell",
@@ -120,6 +122,13 @@ def _branch_from_git_directory(git_dir: str) -> str:
     if head:
         return "HEAD"
     raise OSError("repository HEAD is empty")
+
+
+def rebase_is_active(project_dir: str) -> bool:
+    """Return whether bounded Git metadata records an active rebase."""
+    git_dir = _git_directory(project_dir)
+    return any(os.path.isdir(os.path.join(git_dir, directory))
+               for directory in REBASE_DIRECTORIES)
 
 
 def check_branch(branch: str, strict: bool = True, project_dir: str = "") -> str:
@@ -656,7 +665,7 @@ def _command_text(tool_name: str, tool_input: dict) -> str:
     return ""
 
 
-def _valid_recovery(command: str, branch: str) -> bool:
+def _valid_recovery(command: str, branch: str, rebase_active: bool = False) -> bool:
     """Return True only for one exact branch correction command."""
     if (len(command) > bash_parser.MAX_COMMAND_CHARACTERS
             or "\n" in command or "\r" in command):
@@ -664,7 +673,11 @@ def _valid_recovery(command: str, branch: str) -> bool:
     tokens, complete = bash_parser._tokenize_line(command)
     if not complete:
         return False
-    if len(tokens) != 4 or tokens[0] != "git":
+    if not tokens or tokens[0] != "git":
+        return False
+    if rebase_active:
+        return len(tokens) == 3 and tokens[1] == "rebase" and tokens[2] in REBASE_RECOVERY_COMMANDS
+    if len(tokens) != 4:
         return False
     target = tokens[3]
     if check_branch(target, strict=True):
@@ -720,8 +733,14 @@ def _workflow_needs_consent(command: str, project_dir: str) -> bool:
     return False
 
 
-def recovery_authorization_reason(branch_name: str) -> str:
+def recovery_authorization_reason(branch_name: str, rebase_active: bool = False) -> str:
     """Return the mandatory recovery instruction for one invalid branch."""
+    if rebase_active:
+        return (
+            "MANDATORY REBASE RECOVERY. Execute git rebase --abort, "
+            "git rebase --continue, or git rebase --skip for authorization. "
+            "Do not create or switch branches while the rebase remains active."
+        )
     recovery_command = (
         "git switch -c <type>/<kebab-description>"
         if branch_name in ("main", "master", "HEAD")
@@ -748,9 +767,10 @@ def request_recovery_authorization(
     client: str,
     payload: dict,
     branch_name: str,
+    rebase_active: bool = False,
 ) -> int:
     """Request authorization for one validated branch recovery command."""
-    authorization_reason = recovery_authorization_reason(branch_name)
+    authorization_reason = recovery_authorization_reason(branch_name, rebase_active)
     return _request_authorization(client, payload, authorization_reason)
 
 
@@ -783,16 +803,22 @@ def _handle_invalid_branch(
     if tool_name in QUESTION_TOOLS:
         return 0
     label = str(tool_name or "tool")
+    try:
+        rebase_active = rebase_is_active(project_dir)
+    except OSError as error:
+        return _deny(client, f"rebase lookup failed: {core.sanitize(error)}")
     if tool_name in SHELL_TOOLS and isinstance(tool_input, dict):
         command_text = _command_text(tool_name, tool_input)
         if _valid_bootstrap(command_text, project_dir):
             return 0
-        if branch_name and _valid_recovery(command_text, branch_name):
-            return request_recovery_authorization(client, payload, branch_name)
+        if branch_name and _valid_recovery(command_text, branch_name, rebase_active):
+            return request_recovery_authorization(client, payload, branch_name, rebase_active)
         contexts = blocked_command(command_text, project_dir)
         if contexts:
             label = contexts[0].get("label") or label
     recovery_command = (
+        "git rebase --abort, git rebase --continue, or git rebase --skip"
+        if rebase_active else
         "git switch -c"
         if branch_name in ("main", "master", "HEAD")
         else "git branch -m"
