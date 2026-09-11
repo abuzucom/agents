@@ -508,7 +508,8 @@ def _pull_target_violations(document: dict, text: str, path: str) -> list[str]:
         "steps": _trusted_steps(),
     }
     trusted_job = dict(expected_job)
-    candidate_job = document.get("jobs", {}).get("immutable-compliance")
+    raw_jobs = document.get("jobs")
+    candidate_job = raw_jobs.get("immutable-compliance") if isinstance(raw_jobs, dict) else None
     if isinstance(candidate_job, dict):
         candidate_job = dict(candidate_job)
         candidate_steps = candidate_job.get("steps")
@@ -528,7 +529,7 @@ def _pull_target_violations(document: dict, text: str, path: str) -> list[str]:
                 trusted_steps[2] = dict(trusted_steps[2])
                 trusted_steps[2]["with"] = {"python-version": version_text}
                 trusted_job["steps"] = trusted_steps
-    candidate_jobs = dict(document.get("jobs", {}))
+    candidate_jobs = dict(raw_jobs) if isinstance(raw_jobs, dict) else {}
     if isinstance(candidate_job, dict):
         candidate_jobs["immutable-compliance"] = candidate_job
     job_schema_ok = document.get("jobs") in (

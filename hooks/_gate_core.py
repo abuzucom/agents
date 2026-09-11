@@ -33,7 +33,7 @@ import threading
 
 INTERACTIVE_MODES = frozenset({"default", "plan", "acceptEdits", "auto"})
 AMBIGUOUS_MARKERS = ("$", "`")
-FILESYSTEM_ROOTS = frozenset({"//", "/*", "/"})
+FILESYSTEM_ROOTS = frozenset({"//", "/*"})
 # A UNC share root is \\\\server\\share, so at most two components; a drive
 # root includes a separator, such as C:\\. Both name a whole volume.
 UNC_SHARE_ROOT_PARTS = 2
@@ -2612,6 +2612,11 @@ FORGE_DELETE_NOUNS = frozenset({"repo", "repository", "release", "project",
                                  "org", "organization", "gist", "secret",
                                  "environment", "cache", "run", "variable"})
 GH_GLOBAL_VALUE_OPTIONS = frozenset({"-R", "--repo", "--hostname"})
+GH_SUBCOMMAND_VALUE_OPTIONS = frozenset({
+    "-a", "-b", "-B", "-F", "-H", "-l", "-m", "-p", "-r", "-t", "-T",
+    "--assignee", "--body", "--base", "--body-file", "--head", "--label",
+    "--milestone", "--project", "--reviewer", "--title", "--template",
+})
 GH_BROAD_AUTH_SCOPES = frozenset({"admin:org", "admin:public_key",
                                   "admin:repo_hook", "delete_repo", "gist",
                                   "project", "repo", "user", "workflow",
@@ -2646,13 +2651,16 @@ def _option_value(args: list, names: frozenset) -> str:
     """Return a command option value in separate or joined form."""
     for index, token in enumerate(args):
         lowered = token.lower()
-        if lowered in names:
-            return args[index + 1] if index + 1 < len(args) else ""
         for name in names:
-            prefix = name + "="
-            if lowered.startswith(prefix):
+            is_short = len(name) == 2 and name.startswith("-") and not name.startswith("--")
+            target = token if is_short else lowered
+            option_name = name if is_short else name.lower()
+            if target == option_name:
+                return args[index + 1] if index + 1 < len(args) else ""
+            prefix = option_name + "="
+            if target.startswith(prefix):
                 return token[len(prefix):]
-            if len(name) == 2 and lowered.startswith(name) and len(token) > 2:
+            if is_short and target.startswith(option_name) and len(token) > 2:
                 return token[2:]
     return ""
 
@@ -2660,7 +2668,7 @@ def _option_value(args: list, names: frozenset) -> str:
 def _github_api_verdict(args: list) -> tuple:
     """Deny state-changing REST and GraphQL API requests."""
     lowered = [token.lower() for token in args]
-    method = _option_value(args, frozenset({"--method", "-x"})).upper()
+    method = _option_value(args, frozenset({"--method", "-X", "-x"})).upper()
     if method and method != "GET":
         return "deny", "gh api can mutate hosted GitHub resources"
     if any(token in {"-f", "-F", "--field", "--raw-field", "--input"}
@@ -2772,7 +2780,7 @@ def _external_target_verdict(args: list, command: list, noun: str,
         return "", ""
     # -R and --repo are global options, so _github_command_args already
     # removed them: the target has to come from the original arguments.
-    target = _option_value(args, frozenset({"--repo", "-r"}))
+    target = _option_value(args, frozenset({"--repo", "-R"}))
     if target:
         owner = _repository_target_owner(target)
         if not owner:
@@ -2781,12 +2789,19 @@ def _external_target_verdict(args: list, command: list, noun: str,
                            "repository target this gate cannot read")
     else:
         owner = ""
-        for token in command:
+        index = 0
+        while index < len(command):
+            token = command[index]
+            if token in GH_SUBCOMMAND_VALUE_OPTIONS:
+                index += 2
+                continue
             if token.startswith("-"):
+                index += 1
                 continue
             owner = _repository_target_owner(token)
             if owner:
                 break
+            index += 1
     if not owner or owner.lower() == repo_owner.lower():
         return "", ""
     if not repo_owner:
@@ -2916,7 +2931,7 @@ def forge_verdict(program: str, args: list, cwd: str = "") -> tuple:
         args = wrapped
     if name not in FORGE_PROGRAMS:
         return "", ""
-    if name == "gh":
+    if name == "gh" and not wrapped:
         decision, reason = github_cli_verdict(args, repo_owner=owner)
         if decision:
             return decision, reason
