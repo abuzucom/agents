@@ -822,6 +822,8 @@ def _check_all(repo_root: str) -> list[str]:
                 file_path, sha, repo_root,
                 _parse_marker_size(attrs.get("conflict-marker-size"))))
             continue
+        if not _path_exists(file_path):
+            continue
         attrs = worktree_attributes.get(file_path, {})
         violations.extend(check_file(
             file_path,

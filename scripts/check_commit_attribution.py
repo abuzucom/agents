@@ -144,10 +144,10 @@ def _identity_violation(role: str, commit: dict, identity: dict | None,
     match = NOREPLY_PATTERN.fullmatch(raw)
     if require_noreply and not match:
         return f"{sha}: {role} email must use a numbered GitHub noreply address"
-    if match and match.group("login").lower() != login.lower():
-        return f"{sha}: {role} noreply login does not match GitHub identity"
     if not match:
         return None
+    if match.group("login").lower() != login.lower():
+        return f"{sha}: {role} noreply login does not match GitHub identity"
     account_id = identity.get("id")
     if not isinstance(account_id, int) or match.group("account_id") != str(account_id):
         return f"{sha}: {role} noreply account ID does not match GitHub identity"
