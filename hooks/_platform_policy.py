@@ -45,9 +45,8 @@ def normalize_program_name(program: str) -> str:
 def is_remote_endpoint(endpoint: str) -> bool:
     """Return whether a transfer endpoint names a remote host."""
     candidate = endpoint.strip().strip('"').strip("'")
-    if len(candidate) >= 3 and candidate[0].isalpha() and candidate[1] == ":":
-        if candidate[2] in "\\/":
-            return False
+    if len(candidate) >= 2 and candidate[0].isalpha() and candidate[1] == ":":
+        return False
     if "://" in candidate:
         return True
     if candidate.startswith("[") and "]:" in candidate:

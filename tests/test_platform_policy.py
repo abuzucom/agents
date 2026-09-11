@@ -125,6 +125,14 @@ class TransferPolicyTest(unittest.TestCase):
         )
         self.assertEqual(verdict, "")
 
+    def test_windows_drive_relative_is_not_remote_endpoint(self):
+        verdict, _reason = platform_policy.classify_platform_command(
+            "linux",
+            "scp",
+            ["C:work\\report.txt", "D:archive\\report.txt"],
+        )
+        self.assertEqual(verdict, "")
+
 
 if __name__ == "__main__":
     unittest.main()

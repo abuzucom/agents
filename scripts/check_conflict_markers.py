@@ -796,10 +796,14 @@ def _check_all(repo_root: str) -> list[str]:
     violations, readable = _partition_index_entries(
         _get_index_entries(repo_root))
     skipped = _skip_worktree_paths(repo_root)
-    present = [path for path, _ in readable if os.path.lexists(path)]
+
+    def _path_exists(candidate_path: str) -> bool:
+        return os.path.lexists(os.path.join(repo_root, candidate_path))
+
+    present = [path for path, _ in readable if _path_exists(path)]
     absent_skipped = [
         (path, sha) for path, sha in readable
-        if path in skipped and not os.path.lexists(path)
+        if path in skipped and not _path_exists(path)
     ]
     worktree_attributes = get_git_attributes(
         present, repo_root=repo_root)
@@ -812,7 +816,7 @@ def _check_all(repo_root: str) -> list[str]:
             violations.append(
                 f"reached violation limit ({MAX_VIOLATIONS}), stopping")
             break
-        if file_path in skipped and not os.path.lexists(file_path):
+        if file_path in skipped and not _path_exists(file_path):
             attrs = cached_attributes.get(file_path, {})
             violations.extend(_check_staged_blob(
                 file_path, sha, repo_root,

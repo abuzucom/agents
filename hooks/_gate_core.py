@@ -30,7 +30,7 @@ import sys
 
 INTERACTIVE_MODES = frozenset({"default", "plan", "acceptEdits", "auto"})
 AMBIGUOUS_MARKERS = ("$", "`")
-FILESYSTEM_ROOTS = frozenset({"/", "//", "/*"})
+FILESYSTEM_ROOTS = frozenset({"//", "/*"})
 # A UNC share root is \\\\server\\share, so at most two components; a drive
 # root includes a separator, such as C:\\. Both name a whole volume.
 UNC_SHARE_ROOT_PARTS = 2
