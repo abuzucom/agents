@@ -74,7 +74,6 @@ jobs:
         run: python scripts/check_external_pr_refs.py
 
   static-checks:
-    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262

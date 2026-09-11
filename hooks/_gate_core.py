@@ -21,12 +21,15 @@ through.
 import base64
 import binascii
 import fnmatch
+import importlib.util
 import json
 import ntpath
 import os
 import posixpath
 import shlex
+import subprocess
 import sys
+import threading
 
 INTERACTIVE_MODES = frozenset({"default", "plan", "acceptEdits", "auto"})
 AMBIGUOUS_MARKERS = ("$", "`")
@@ -37,6 +40,13 @@ UNC_SHARE_ROOT_PARTS = 2
 DRIVE_ROOT_LENGTH = 2
 MAX_GIT_CONFIG_COUNT = 1000
 MAX_GIT_ALIAS_DEPTH = 10
+CONFIG_READ_TIMEOUT_SECONDS = 5
+CONFIG_READ_ENVIRONMENT = frozenset({
+    "PATH", "SYSTEMROOT", "WINDIR", "HOME", "USERPROFILE", "HOMEDRIVE", "HOMEPATH",
+    "XDG_CONFIG_HOME", "LANG", "LC_ALL", "GIT_CONFIG_NOSYSTEM", "GIT_CONFIG_SYSTEM",
+    "GIT_CONFIG_GLOBAL", "GIT_CONFIG_COUNT", "GIT_DIR", "GIT_COMMON_DIR", "GIT_WORK_TREE",
+    "GIT_CEILING_DIRECTORIES", "GIT_DISCOVERY_ACROSS_FILESYSTEM",
+})
 GIT_SHORT_OPTION_VALUE_INDEX = 2
 # section.subsection.key, the only shape a driver name takes.
 GIT_CONFIG_SUBSECTION_PARTS = 3
@@ -1941,6 +1951,191 @@ def resolve_alias(cwd: str, subcommand: str) -> str:
     if not entries:
         return ""
     return entries.get(f"alias.{subcommand.lower()}", "")
+
+
+def resolve_branch_alias(subcommand: str, arguments: list, entries: dict) -> tuple:
+    """Return literal Git arguments or an explicit alias inspection error."""
+    visited = set()
+    for _depth in range(MAX_GIT_ALIAS_DEPTH):
+        if not subcommand or is_ambiguous(subcommand):
+            return subcommand, arguments, "Git subcommand is unresolved"
+        if subcommand in KNOWN_SUBCOMMANDS or subcommand in ("symbolic-ref", "update-ref"):
+            return subcommand, arguments, ""
+        if subcommand in visited:
+            return subcommand, arguments, "Git alias expansion contains a cycle"
+        visited.add(subcommand)
+        expansion = entries.get(f"alias.{subcommand}")
+        if not expansion:
+            return subcommand, arguments, "Git alias is unresolved"
+        if expansion.startswith("!"):
+            return subcommand, arguments, "Git shell alias has opaque execution"
+        if len(expansion) > MAX_CONFIG_BYTES:
+            return subcommand, arguments, "Git alias exceeds the inspection limit"
+        try:
+            expanded = shlex.split(expansion)
+        except ValueError:
+            return subcommand, arguments, "Git alias syntax is incomplete"
+        if not expanded or expanded[0].startswith("-"):
+            return subcommand, arguments, "Git alias changes unresolved invocation settings"
+        subcommand = expanded[0]
+        arguments = expanded[1:] + arguments
+    return subcommand, arguments, "Git alias expansion exceeds the inspection limit"
+
+
+def _branch_global_arguments(args: list, environment: dict) -> tuple:
+    """Normalize inspectable global options without invoking a shell."""
+    normalized = []
+    index = 0
+    while index < len(args) and args[index].startswith("-"):
+        token = args[index]
+        name, separator, value = token.partition("=")
+        if name in ("--exec-path", "--namespace", "--super-prefix", "--bare"):
+            return None, "Git global option changes opaque execution or repository settings"
+        if name == "--config-env":
+            if not separator:
+                index += 1
+                value = args[index] if index < len(args) else ""
+            key, separator, variable = value.partition("=")
+            if not separator or not key or variable not in environment:
+                return None, "Git config environment value is missing"
+            normalized.extend(["-c", key + "=" + environment[variable]])
+        elif token.startswith("-C") and token != "-C":
+            normalized.extend(["-C", token[2:]])
+        else:
+            normalized.append(token)
+            if name in GIT_VALUE_OPTIONS and not separator:
+                index += 1
+                if index >= len(args):
+                    return None, "Git global option value is missing"
+                normalized.append(args[index])
+        index += 1
+    normalized.extend(args[index:])
+    return normalized, ""
+
+
+def _trusted_config_executable(cwd: str) -> str:
+    """Select the installed Git resolver and reject checkout-local programs."""
+    resolver_path = resolved_under(policy_root(), "scripts", "trusted_git.py")
+    if resolver_path is None or not os.path.isfile(resolver_path):
+        raise OSError("trusted Git resolver is missing")
+    spec = importlib.util.spec_from_file_location("_branch_trusted_git", resolver_path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    executable = module.resolve_git(policy_root())
+    target_root = os.path.realpath(cwd or ".")
+    dot_git, reason = _discover_dot_git(target_root)
+    if dot_git is None:
+        raise OSError(reason)
+    if dot_git:
+        target_root = os.path.dirname(dot_git)
+    candidate = os.path.realpath(executable)
+    if candidate == target_root or candidate.startswith(target_root + os.sep):
+        raise OSError("Git executable belongs to the target checkout")
+    return executable
+
+
+def _collect_config_output(process, result: list) -> None:
+    """Bound pipe consumption before retaining configuration output."""
+    try:
+        output = process.stdout.read(MAX_CONFIG_BYTES + 1)
+        if len(output) > MAX_CONFIG_BYTES:
+            process.kill()
+            result.append(None)
+        else:
+            result.append(output)
+    except OSError:
+        result.append(None)
+
+
+def _run_config_reader(command: list, environment: dict) -> bytes:
+    """Read bounded config output and supervise the pipe reader to completion."""
+    with subprocess.Popen(
+        command, cwd=policy_root(), env=environment,
+        stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+    ) as process:
+        output = []
+        reader = threading.Thread(target=_collect_config_output, args=(process, output))
+        reader.start()
+        try:
+            process.wait(timeout=CONFIG_READ_TIMEOUT_SECONDS)
+        finally:
+            if process.poll() is None:
+                process.kill()
+            process.wait()
+            reader.join()
+        if process.returncode or not output or output[0] is None:
+            raise OSError("Git configuration read failed or exceeded the output limit")
+        return output[0]
+
+
+def _config_read_environment(environment: dict) -> dict:
+    """Preserve config selection without inheriting tracing, redirection, or loader controls."""
+    selected = {
+        name: value for name, value in environment.items()
+        if name.upper() in CONFIG_READ_ENVIRONMENT
+        or name.startswith(("GIT_CONFIG_KEY_", "GIT_CONFIG_VALUE_"))
+    }
+    selected.update({"GIT_PAGER": "", "PAGER": "", "GIT_TERMINAL_PROMPT": "0",
+                     "GIT_OPTIONAL_LOCKS": "0", "GIT_TRACE": "0", "GIT_TRACE2": "0",
+                     "GIT_TRACE2_EVENT": "0", "GIT_TRACE2_PERF": "0"})
+    # Explicit environment values also override Trace2 destinations in Git configuration.
+    return selected
+
+
+def _branch_config_entries(state: dict, environment: dict) -> dict:
+    """Read effective aliases through the fixed native config operation."""
+    environment = _config_read_environment(environment)
+    for variable, key in (("GIT_DIR", "git_dir"), ("GIT_WORK_TREE", "work_tree"),
+                          ("GIT_COMMON_DIR", "common_dir")):
+        if state[key]:
+            environment[variable] = state[key]
+    command = [_trusted_config_executable(state["cwd"]), "-C", state["cwd"], "--no-pager"]
+    for key, value in state["settings"]:
+        command.extend(["-c", key + "=" + value])
+    command.extend(["config", "--null", "--list", "--includes"])
+    raw = _run_config_reader(command, environment).decode("utf-8")
+    entries = {}
+    for record in raw.split("\0"):
+        if not record:
+            continue
+        key, _separator, value = record.partition("\n")
+        entries[key] = value
+    return entries
+
+
+def git_branch_context(args: list, cwd: str, assignments: list) -> dict:
+    """Resolve branch targets using one effective configuration snapshot."""
+    environment = dict(os.environ)
+    environment.update(_assignment_map(assignments))
+    if any(name in ("PATH", "GIT_EXEC_PATH", "LD_PRELOAD", "LD_LIBRARY_PATH")
+           or name.startswith("DYLD_") for name, _value in assignments):
+        return _ambiguous_git_context(_fallback_git_state(cwd), {}, [], "",
+                                      "Git invocation changes executable loading")
+    args, reason = _branch_global_arguments(args, environment)
+    if args is None:
+        return _ambiguous_git_context(_fallback_git_state(cwd), environment, assignments, "", reason)
+    subcommand, arguments = git_subcommand(args)
+    state, reason = _git_global_state(args, cwd, environment)
+    if state is None:
+        return _ambiguous_git_context(
+            _fallback_git_state(cwd), environment, assignments, subcommand, reason)
+    if "GIT_CONFIG_PARAMETERS" in environment:
+        return _ambiguous_git_context(state, environment, assignments, subcommand,
+                                      "GIT_CONFIG_PARAMETERS cannot be inspected safely")
+    settings, reason = _environment_config(environment)
+    if settings is None:
+        return _ambiguous_git_context(state, environment, assignments, subcommand, reason)
+    try:
+        entries = _branch_config_entries(state, environment)
+    except (OSError, UnicodeError, ValueError, subprocess.TimeoutExpired):
+        return _ambiguous_git_context(state, environment, assignments, subcommand,
+                                      "Git configuration inspection failed; restore readable bounded config")
+    subcommand, arguments, reason = resolve_branch_alias(subcommand, arguments, entries)
+    context = _git_write_context(
+        state, environment, assignments, settings, (f"git {sanitize(subcommand)}", reason))
+    context["subcommand"] = subcommand
+    context["arguments"] = arguments
+    return context
 
 
 # Removing recovery data is the step that makes destruction irreversible,

@@ -63,9 +63,10 @@ include the following actions:
   environment references, `Set-Item`, and `Set-Variable`.
 - The gates classify git commit, git push, and aliases that resolve to those
   operations. The gates read aliases from the effective repository and inline
-  config without executing the aliases. Branch-name and identity checks pass
-  the effective Git cwd into each checker subprocess. The checks also pass
-  repository locations and inline settings. The checks inspect every commit and
+  config without executing the aliases. Identity checks pass the effective Git
+  cwd, repository locations, and inline settings into the checker subprocess.
+  Branch checks select checker code from the installed policy root.
+  The checks inspect every commit and
   push in a chained command. The checks also inspect every alias that resolves
   to either operation. A possible alias creates ambiguity for an unknown
   subcommand. Unavailable alias sources preserve that ambiguity.
@@ -80,6 +81,32 @@ include the following actions:
   deny when the command names that target. Claude stop events block one
   completion attempt on strict failure. An active stop-hook retry allows
   termination without clearing any repository tool.
+- Local branch preflight ignores `GITHUB_HEAD_REF`. The optional CI reader
+  rejects conflicting named local and environment branches. The fixed branch
+  bootstrap remains available from the installed policy root.
+- Branch alias inspection runs trusted Git with a fixed configuration-read
+  operation. Native Git resolves includes and configuration precedence.
+  Invocation settings travel through argument arrays and environment values.
+  The config reader accepts only required environment fields. Trace and stream
+  redirection controls never reach Git. Fixed environment values disable Trace2
+  destinations from Git configuration.
+  The inspection never executes an alias. Reads stop at 256 KiB or five seconds.
+  Alias expansion stops after ten steps. Unknown and shell aliases deny.
+- The branch gate denies opaque interpreters, unlisted scripts, and unresolved
+  branch arguments. Commands require an explicit inspectable program name.
+  Incomplete parsing receives a syntax denial. Only recovered Git commands
+  create ambiguous Git-write contexts. Parsing stops at 65,536 characters.
+  Bounded repository workflows request native consent. The route rejects
+  wrappers, chained commands, redirection, and shell expansion. Unsupported
+  consent responses and unattended Claude sessions remain closed.
+- Metadata checks classify the write destination separately from reference
+  content. Linked worktrees use resolved administration paths. Unresolved
+  directory-root writes deny. Copy target-directory options identify destinations.
+  Copy and move destinations cannot contain protected administration directories.
+  Unresolved metadata writes deny without claiming a literal prohibited-branch match.
+  Git reads receive the same output-redirection checks. Quoted redirection
+  operators receive a separate inspection denial. Implicit push targets and
+  wrappers with opaque input or execution context also deny.
 - Lifecycle hooks read bounded canonical `AGENTS.md` content. Claude injects
   numbered chunks into built-in Explore and Plan agents. Codex injects complete
   context at session and subagent lifecycle events. Gemini and Antigravity
@@ -265,15 +292,14 @@ reason.
 - The PowerShell `_interpreter_verdict` retains an uncommon parser state after
   a recognized interpreter. Shared corpus rows cover fixed scripts, command
   payloads, dynamic targets, and plain shell transitions.
-- Branch enforcement retains malformed lifecycle payloads, alternate recovery
-  schemas, and uncommon Git target positions in
+- Branch enforcement retains malformed lifecycle payloads and uncommon Git target positions in
   `alias_names_prohibited_branch`, `command_names_prohibited_branch`,
-  `command_names_prohibited_metadata`, `handle_context_event`, `main`, and
-  `request_recovery_authorization`. Hook tests cover every lifecycle event.
+  `command_names_prohibited_metadata`, `handle_context_event`, and `main`.
+  Hook tests cover every lifecycle event and client consent response.
   Tests also cover exact recovery, aliases, metadata, and branch publication.
 - `read_payload`, `resolved_under`, and `sanitize` retain defensive exceptions
   and direct-caller bounds. Hook entry points reject those states earlier.
-- `current_branch` retains the post-resolution containment check for a replaced
+- `_branch_from_git_directory` retains the post-resolution containment check for a replaced
   or linked `.git/HEAD`. A portable test cannot create that filesystem race.
 - `load_policy` retains the post-read size check for policy growth after
   `lstat`. A deterministic test cannot create that filesystem race.
