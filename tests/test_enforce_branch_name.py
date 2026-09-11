@@ -1,17 +1,16 @@
 #!/usr/bin/env python3
 """Tests for hooks/enforce_branch_name.py and its wiring.
 
-Runs the hook as a subprocess against synthetic Claude Code payloads, the
-same path the harness uses, rather than asserting on mocks. Branch names
-come from `GITHUB_HEAD_REF`, which scripts/check_branch_name.py reads before
-falling back to `git rev-parse`, so results do not depend on which branch
-the test run happens to be on.
+Run the hook as a subprocess against synthetic client payloads. Store branch
+names in isolated local HEAD fixtures. Keep CI environment metadata separate
+from local branch enforcement.
 
 The settings tests guard the wiring: a hook nobody registered enforces
 nothing, and an edit to `.claude/settings.json` that drops an event would
 otherwise pass every behavioral test in this file.
 """
 import importlib.util
+import io
 import json
 import os
 import shutil
@@ -19,6 +18,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from contextlib import redirect_stderr
 from pathlib import Path
 from unittest.mock import patch
 
@@ -51,9 +51,34 @@ def run_hook(
     client: str = "claude",
     project_dir: Path = REPO_ROOT,
 ) -> subprocess.CompletedProcess:
-    """Run the hook as the harness does: JSON on stdin, branch from the env."""
+    """Run the hook against a local branch fixture without changing the checkout."""
+    if project_dir != REPO_ROOT:
+        return _run_fixture_hook(payload, branch, client, project_dir)
+    with tempfile.TemporaryDirectory() as directory:
+        return _run_fixture_hook(payload, branch, client, Path(directory))
+
+
+def _run_fixture_hook(payload, branch: str, client: str, project_dir: Path):
+    """Create local metadata and send a payload to the installed hook."""
+    git_dir = project_dir / ".git"
+    git_dir.mkdir(exist_ok=True)
+    (git_dir / "objects").mkdir(exist_ok=True)
+    (git_dir / "refs").mkdir(exist_ok=True)
+    head = "0" * 40 if branch == "HEAD" else "ref: refs/heads/" + branch
+    (git_dir / "HEAD").write_text(head + "\n", encoding="utf-8")
+    config = git_dir / "config"
+    if not config.exists():
+        config.write_text("[core]\nrepositoryformatversion = 0\nbare = false\n", encoding="utf-8")
+    if payload is not None:
+        payload = dict(payload)
+        payload["cwd"] = str(project_dir)
+        if "workspacePaths" in payload:
+            payload["workspacePaths"] = [
+                str(project_dir) if path == str(REPO_ROOT) else path
+                for path in payload["workspacePaths"]
+            ]
     environment = dict(os.environ)
-    environment["GITHUB_HEAD_REF"] = branch
+    environment.pop("GITHUB_HEAD_REF", None)
     environment["CLAUDE_PROJECT_DIR"] = str(project_dir)
     return subprocess.run(
         [sys.executable, str(HOOK_PATH), "--client", client],
@@ -231,6 +256,43 @@ class PreToolUseTest(unittest.TestCase):
             output["hookSpecificOutput"]["permissionDecision"],
             "ask",
         )
+
+    def test_active_rebase_allows_abort_before_detached_recovery(self):
+        with tempfile.TemporaryDirectory() as directory:
+            project_dir = Path(directory)
+            (project_dir / ".git" / "rebase-merge").mkdir(parents=True)
+            result = _run_fixture_hook(
+                bash_payload("git rebase --abort"), "HEAD", "claude", project_dir)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        output = json.loads(result.stdout)
+        self.assertEqual(
+            output["hookSpecificOutput"]["permissionDecision"],
+            "ask",
+        )
+
+    def test_active_rebase_denies_branch_creation(self):
+        with tempfile.TemporaryDirectory() as directory:
+            project_dir = Path(directory)
+            (project_dir / ".git" / "rebase-apply").mkdir(parents=True)
+            result = _run_fixture_hook(
+                bash_payload("git switch -c feat/recovered"), "HEAD", "claude", project_dir)
+        self.assertEqual(result.returncode, BLOCKING_EXIT_CODE)
+        self.assertIn("rebase", result.stderr)
+
+    def test_rebase_lookup_failure_denies_invalid_branch_tool(self):
+        output = io.StringIO()
+        with patch.object(hook, "rebase_is_active", side_effect=OSError("metadata unavailable")):
+            with redirect_stderr(output):
+                result = hook._handle_invalid_branch(
+                    bash_payload("git status"),
+                    str(REPO_ROOT),
+                    "claude",
+                    "branch is invalid",
+                    VIOLATING_BRANCH,
+                )
+        self.assertEqual(result, BLOCKING_EXIT_CODE)
+        self.assertIn("rebase lookup failed", output.getvalue())
+        self.assertIn("metadata unavailable", output.getvalue())
 
     def test_claude_branch_creation_is_blocked_from_conforming_branch(self):
         commands = (
@@ -615,16 +677,17 @@ class BlockedCommandTest(unittest.TestCase):
 
 
 class FindViolationTest(unittest.TestCase):
-    """A repo without the checker cannot clear strict preflight."""
+    """Missing local metadata or an installed checker must fail closed."""
 
     def test_absent_checker_yields_violation(self):
         with patch.dict(os.environ, {"GITHUB_HEAD_REF": ""}):
             self.assertTrue(hook.find_violation(str(Path(__file__).parent)))
 
-    def test_explicit_project_without_checker_fails_closed(self):
+    def test_policy_root_without_checker_fails_closed(self):
         with tempfile.TemporaryDirectory() as directory:
-            violation = hook.check_branch(
-                CONFORMING_BRANCH, project_dir=directory)
+            with patch.object(hook.core, "policy_root", return_value=directory):
+                violation = hook.check_branch(
+                    CONFORMING_BRANCH, project_dir=str(REPO_ROOT))
         self.assertEqual(violation, "branch checker is missing")
 
 

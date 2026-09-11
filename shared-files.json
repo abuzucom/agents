@@ -1,9 +1,9 @@
 {
   "note": "SHA-256 of every file that must stay byte-identical across the repositories adopting these gates. Line endings are normalized before hashing. Regenerate with scripts/sync.py --write-shared and commit the result in every one of them.",
   "shared": {
-    "hooks/_bash_parser.py": "6c28a00b050a59a9d69918f6b492079072813aed3540c576595c0a426a0c8929",
+    "hooks/_bash_parser.py": "082d48b1565f28f13a954efd123471266d4a3bfaecbbc58fd078d304e339961d",
     "hooks/_cmd_parser.py": "4212670bc4166a5f89be120ceb6bafbc854d16743ff900f4b596b7b79fa5981b",
-    "hooks/_gate_core.py": "ff3b5e158c5f3e1c1f7d0c6c34f4829fff421166359ee95c5cc65f8a688dcc4d",
+    "hooks/_gate_core.py": "febf12eaf77b22e437245cdd15d4030c17d824737538009cdb592d9a4c2ddbba",
     "hooks/_platform_policy.py": "1efee195c0db55e0e76a7ca25f7342a0eba3e40077f066db6fd2b33650c7221e",
     "hooks/block_destructive_bash.py": "95162009ee5b1acb2f99a273358b3a707e286bd6ff2e4a41a2d48d537ece89b1",
     "hooks/block_destructive_cmd.py": "7401659646431a8a0a83602b5c8857d19558d2eac7582ebb3fec1b8d8d062072",
