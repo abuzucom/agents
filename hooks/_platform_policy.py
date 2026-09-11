@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Classify macOS and Linux command behavior without native execution."""
 import os
+import sys
 
 
 SENSITIVE_DISCOVERY_PROGRAMS = frozenset({
@@ -42,12 +43,15 @@ def normalize_program_name(program: str) -> str:
     return os.path.basename(program).casefold()
 
 
-def is_remote_endpoint(endpoint: str) -> bool:
+def is_remote_endpoint(endpoint: str, platform_name: str = sys.platform) -> bool:
     """Return whether a transfer endpoint names a remote host."""
     candidate = endpoint.strip().strip('"').strip("'")
-    if len(candidate) >= 3 and candidate[0].isalpha() and candidate[1] == ":":
-        if candidate[2] in "\\/":
-            return False
+    if (platform_name.startswith("win")
+            and len(candidate) >= 3
+            and candidate[0].isalpha()
+            and candidate[1] == ":"
+            and candidate[2] in "\\/"):
+        return False
     if "://" in candidate:
         return True
     if candidate.startswith("[") and "]:" in candidate:
@@ -62,15 +66,21 @@ def is_remote_endpoint(endpoint: str) -> bool:
     return 0 < host_separator < first_path_separator
 
 
-def classify_transfer_direction(arguments: list[str]) -> tuple[str, str]:
+def classify_transfer_direction(
+    arguments: list[str],
+    platform_name: str = sys.platform,
+) -> tuple[str, str]:
     """Classify a two-endpoint copy from local and remote path properties."""
     endpoints = [argument for argument in arguments if not argument.startswith("-")]
     if len(endpoints) < 2:
         return "ask", "a transfer endpoint is missing or cannot be resolved"
     source_endpoint = endpoints[-2]
     destination_endpoint = endpoints[-1]
-    source_is_remote = is_remote_endpoint(source_endpoint)
-    destination_is_remote = is_remote_endpoint(destination_endpoint)
+    source_is_remote = is_remote_endpoint(source_endpoint, platform_name=platform_name)
+    destination_is_remote = is_remote_endpoint(
+        destination_endpoint,
+        platform_name=platform_name,
+    )
     if destination_is_remote:
         return "deny", "a transfer sends data to a remote endpoint"
     if source_is_remote:
@@ -141,7 +151,7 @@ def classify_platform_command(
     """Return the host-specific behavior verdict for one named command."""
     program_name = normalize_program_name(program)
     if program_name in ("scp", "sftp", "rsync"):
-        return classify_transfer_direction(arguments)
+        return classify_transfer_direction(arguments, platform_name=platform_name)
     if program_name in SENSITIVE_DISCOVERY_PROGRAMS:
         return "ask", f"{program_name} enumerates sensitive host state"
     if platform_name == "darwin":

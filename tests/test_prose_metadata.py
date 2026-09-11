@@ -42,6 +42,20 @@ class CommitProseTest(unittest.TestCase):
         self.assertIn("controlled vocabulary", output.getvalue())
         self.assertNotIn("serious", output.getvalue().lower())
 
+    def test_commit_body_with_literal_escapes_warns(self):
+        messages = [
+            (
+                "a" * 40,
+                "fix: improve validation",
+                "Summary\\n- Allow rebase recovery.\\n",
+            )
+        ]
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            result = check_commit_message.check_messages(messages)
+        self.assertEqual(result, 0)
+        self.assertIn("literal escape sequence", output.getvalue())
+
     def test_existing_subject_contract_remains_available(self):
         found = check_commit_message.find_violations(
             [("a" * 40, "missing prefix")]
@@ -130,6 +144,23 @@ class PullRequestProseTest(unittest.TestCase):
         self.assertEqual(result, 0)
         self.assertIn("controlled vocabulary", output.getvalue())
         self.assertNotIn("title format", output.getvalue())
+
+    def test_pull_request_body_with_literal_escapes_warns(self):
+        event = {
+            "pull_request": {
+                "title": "fix: reject malformed records",
+                "body": "Summary\\n- Allow rebase recovery.\\n",
+                "draft": True,
+                "user": {"login": "octocat"},
+            }
+        }
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            result = check_pull_request_message.check_event(
+                self._write_event(event)
+            )
+        self.assertEqual(result, 0)
+        self.assertIn("literal escape sequence", output.getvalue())
 
     def test_malformed_event_returns_one(self):
         event_path = self._write_event({"pull_request": {"title": 7}})

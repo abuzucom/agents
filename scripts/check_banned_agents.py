@@ -167,12 +167,12 @@ def load_commits(base: str, head: str, repo=None) -> list[dict]:
         timeout=60,
     )
     shas = result.stdout.splitlines()
+    if len(shas) > MAX_COMMITS:
+        raise ValueError(f"commit range exceeds the {MAX_COMMITS}-commit limit")
     if any(not OBJECT_ID.fullmatch(sha) for sha in shas):
         raise ValueError("git rev-list returned malformed object IDs")
     if len(shas) != int(raw_count):
         raise ValueError("git rev-list count changed during inspection")
-    if len(shas) > MAX_COMMITS:
-        raise ValueError(f"commit range exceeds the {MAX_COMMITS}-commit limit")
     total_size = sum(_commit_size(repository, sha) for sha in shas)
     if total_size > MAX_TOTAL_COMMIT_BYTES:
         raise ValueError("commit range exceeds the metadata byte limit")

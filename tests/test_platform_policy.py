@@ -119,11 +119,25 @@ class TransferPolicyTest(unittest.TestCase):
 
     def test_windows_drive_is_not_remote_endpoint(self):
         verdict, _reason = platform_policy.classify_platform_command(
-            "linux",
+            "win32",
             "scp",
             ["C:\\work\\report.txt", "D:\\archive\\report.txt"],
         )
         self.assertEqual(verdict, "")
+
+    def test_single_letter_remote_host_denies(self):
+        for platform_name, destination in (
+            ("linux", "x:dest"),
+            ("linux", "D:archive\\report.txt"),
+            ("win32", "x:dest"),
+        ):
+            with self.subTest(platform=platform_name, destination=destination):
+                verdict, _reason = platform_policy.classify_platform_command(
+                    platform_name,
+                    "scp",
+                    ["report.txt", destination],
+                )
+                self.assertEqual(verdict, "deny")
 
 
 if __name__ == "__main__":

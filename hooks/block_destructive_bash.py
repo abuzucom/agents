@@ -231,6 +231,8 @@ def _program_verdict(tokens: list, redirects: list,
     named = _named_program_verdict(program, args, environment, depth)
     if named is not None:
         return core.strongest(policy, named)
+    # GitHub routing and forge verdicts merge into policy above.
+    # That placement covers named programs without evaluating twice below.
     verdict = policy
     for candidate in (platform_policy.classify_platform_command(
                           sys.platform, program, args),
@@ -241,11 +243,9 @@ def _program_verdict(tokens: list, redirects: list,
                       core.truncation_verdict(program, args, redirects),
                       core.process_verdict(program, args),
                       core.schedule_verdict(program, args),
-                      core.forge_verdict(program, args, _CWD[0]),
                       core.filesystem_repair_verdict(program, args),
                       core.infrastructure_path_verdict(
                           program, args, redirects, _CWD[0]),
-                      core.github_routing_verdict(program, args, _CWD[0]),
                       core.profile_verdict(program, args, redirects),
                       core.protected_write_verdict(
                           program, args, redirects, _CWD[0]),
