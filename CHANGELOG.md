@@ -21,6 +21,10 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ### Added
 - Added a workflow action pin checker and a pre-setup hook launcher probe.
 - Added `ci` as an allowed commit type.
+- Added literal escape sequence checks in shared prose policy for unescaped
+  newlines, carriage returns, and tabs in prose.
+- Forbade literal escape sequences in prose, commit messages, and pull request
+  descriptions.
 
 ### Changed
 - Separated handoff path handling into `scripts/handoff_policy.py`.

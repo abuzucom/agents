@@ -1005,10 +1005,18 @@ Section headers define scope. Add entries without changing checker logic. The
 denylist source receives the sole self-scan exemption. The handoff-exempt
 section skips matches only for `plan/HANDOFF.md.example`.
 
-`scripts/check_hedging.py` reports voice, sentence, discourse, and vocabulary
-findings as warnings. Prose findings always return exit code 0. Unreadable
-policy data and unsafe metadata return exit code 1. Pattern checks provide
-advisory coverage. Human review covers semantic paraphrases and complex grammar.
+`scripts/check_hedging.py` reports voice, sentence, discourse, escape-sequence,
+and vocabulary findings as warnings. Prose findings always return exit code 0.
+Unreadable policy data and unsafe metadata return exit code 1. Pattern checks
+provide advisory coverage. Human review covers semantic paraphrases and complex
+grammar.
+
+**No literal escape sequences in prose.** Use real newlines and whitespace in
+prose. Never write literal escape sequences such as `\n`, `\r`, or `\t` in
+documentation, comments, commit messages, pull request titles, or pull request
+descriptions. Fenced code blocks and inline code spans receive an exemption. Use
+multiline strings, heredocs, or files such as `--body-file` for multiline tool
+input.
 
 **Comment the why.** Explain reasoning that code cannot show. Describe current
 behavior. Omit implementation history and removed alternatives.

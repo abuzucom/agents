@@ -67,6 +67,7 @@ RHETORICAL_PATTERNS = (
         re.IGNORECASE,
     ),
 )
+LITERAL_ESCAPE_PATTERN = re.compile(r"\\[nrt]")
 
 HEDGING_PHRASES = (
     "could potentially",
@@ -357,6 +358,14 @@ def find_violations(
             findings,
             occupied,
         )
+    _collect_pattern(
+        prose,
+        LITERAL_ESCAPE_PATTERN,
+        "literal escape sequence",
+        "use real newlines and whitespace",
+        findings,
+        occupied,
+    )
 
     discourse_patterns = (
         (_phrase_pattern(HEDGING_PHRASES), "hedging", "direct statement preferred"),

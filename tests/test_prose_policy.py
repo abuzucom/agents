@@ -188,5 +188,26 @@ class DiscourseTest(unittest.TestCase):
         self.assertIn("intent attribution", found[0])
 
 
+class LiteralEscapeTest(unittest.TestCase):
+    """Literal escape sequences in prose trigger advisory warnings."""
+
+    def test_literal_newline_escape_warns(self):
+        found = findings("Summary\\n- Allow rebase recovery.\\n")
+        self.assertEqual(len(found), 2)
+        self.assertTrue(all("literal escape sequence" in item for item in found))
+
+    def test_literal_carriage_return_and_tab_warn(self):
+        found = findings("Header\\r\\tDetails.\n")
+        self.assertEqual(len(found), 2)
+        self.assertTrue(all("literal escape sequence" in item for item in found))
+
+    def test_code_span_skips_escape_sequences(self):
+        self.assertEqual(findings("Use `\\n` to represent newlines.\n"), [])
+
+    def test_fenced_code_block_skips_escape_sequences(self):
+        text = "```text\nSummary\\n- item\n```\n"
+        self.assertEqual(findings(text), [])
+
+
 if __name__ == "__main__":
     unittest.main()
