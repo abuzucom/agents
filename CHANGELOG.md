@@ -12,6 +12,11 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ## [Unreleased]
 
 ### Fixed
+- Require path separators for Windows drive letters in remote endpoint checks.
+- Condition remote endpoint Windows drive parsing on host platform.
+- Deny single-letter remote host transfer destinations on POSIX platforms.
+- Restore root slash defense-in-depth in filesystem root checks.
+- Retain secondary commit limit enforcement during banned-agent checks.
 - Cover rebase-state lookup failures in branch-hook validation.
 - Allow rebase recovery before detached-HEAD branch correction.
 - Check every tee output and PowerShell path-array destination for Git metadata writes.
