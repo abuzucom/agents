@@ -119,6 +119,34 @@ class PartialAdoptionTest(unittest.TestCase):
         self.assertEqual(code, 1)
         self.assertIn(f"{LIVE_SETTINGS} is absent or unreadable", output)
 
+    def test_non_mapping_configuration_reports_the_type(self):
+        """A top-level array registers no hook and must not raise."""
+        self._copy_full_tree()
+        path = self.root / LIVE_SETTINGS
+        path.write_text(json.dumps([{"hooks": {}}]), encoding="utf-8")
+        code, output = _run(self.root)
+        self.assertEqual(code, 1)
+        self.assertIn("holds list at the top level", output)
+
+    def test_null_hooks_property_reports_every_registration(self):
+        """A null hooks branch reports findings rather than raising."""
+        self._copy_full_tree()
+        path = self.root / LIVE_SETTINGS
+        path.write_text(json.dumps({"hooks": None}), encoding="utf-8")
+        code, output = _run(self.root)
+        self.assertEqual(code, 1)
+        self.assertIn("does not register require_consent.py", output)
+
+    def test_malformed_event_and_group_shapes_report_findings(self):
+        """A mistyped event branch or group entry must not raise."""
+        self._copy_full_tree()
+        document = {"hooks": {"PreToolUse": {"matcher": "Bash"},
+                              "SessionStart": ["text", {"hooks": None}]}}
+        self._write_settings(document)
+        code, output = _run(self.root)
+        self.assertEqual(code, 1)
+        self.assertIn("does not register enforce_branch_name.py", output)
+
     def test_absent_shared_manifest_fails(self):
         self._copy_full_tree()
         (self.root / check_gate_adoption.SHARED_MANIFEST).unlink()

@@ -145,20 +145,40 @@ def check_hook_imports(root: Path) -> list[str]:
     return findings
 
 
-def _invocations(entry: dict) -> str:
+def _invocations(entry: object) -> str:
     """Return one registered hook invocation as a single string."""
+    if not isinstance(entry, dict):
+        return ""
+    arguments = entry.get("args")
     parts = [str(entry.get("command", ""))]
-    parts += [str(value) for value in entry.get("args", [])]
+    if isinstance(arguments, list):
+        parts += [str(value) for value in arguments]
     return " ".join(parts)
+
+
+def _event_groups(document: dict, event: str) -> list:
+    """Return the matcher groups registered under one event.
+
+    Hand-edited configuration reaches this checker, so a null or
+    mistyped branch reports a finding rather than raising.
+    """
+    hooks = document.get("hooks")
+    if not isinstance(hooks, dict):
+        return []
+    groups = hooks.get(event)
+    if not isinstance(groups, list):
+        return []
+    return [group for group in groups if isinstance(group, dict)]
 
 
 def _registered_matchers(document: dict, event: str, hook: str) -> set:
     """Return every matcher registering one hook under one event."""
     matchers = set()
-    for group in document.get("hooks", {}).get(event, []):
-        entries = group.get("hooks", [])
+    for group in _event_groups(document, event):
+        entries = group.get("hooks")
+        entries = entries if isinstance(entries, list) else []
         if any(hook in _invocations(entry) for entry in entries):
-            matchers.add(group.get("matcher", ""))
+            matchers.add(str(group.get("matcher", "")))
     return matchers
 
 
@@ -186,6 +206,12 @@ def check_registrations(root: Path) -> list[str]:
             document = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, ValueError) as error:
             findings.append(f"{relative} is absent or unreadable: {error}")
+            continue
+        if not isinstance(document, dict):
+            findings.append(
+                f"{relative} holds {type(document).__name__} at the top "
+                f"level, so the file registers no hook"
+            )
             continue
         findings.extend(_check_document(relative, document))
     return findings
