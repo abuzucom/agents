@@ -76,6 +76,29 @@ class TrustedRunnerSafetyTest(unittest.TestCase):
         self.assertEqual(result.returncode, 2)
         self.assertIn("literal escape text", result.stderr)
 
+    def test_managed_proxy_placeholder_is_removed(self):
+        captured = {}
+
+        def runner(arguments, **kwargs):
+            captured.update(kwargs)
+            return subprocess.CompletedProcess(arguments, 0, "", "")
+
+        with patch.dict(os.environ, {
+                "HTTP_PROXY": "http://127.0.0.1:9",
+                "HTTPS_PROXY": "127.0.0.1:9",
+                "ALL_PROXY": "http://proxy.example.test:8080",
+        }, clear=False):
+            with patch.object(trusted_gh, "resolve_gh", return_value=sys.executable):
+                with patch.object(trusted_gh, "_safe_directory",
+                                  return_value=Path(tempfile.gettempdir())):
+                    trusted_gh.run_gh(Path(tempfile.gettempdir()), ["api", "user"],
+                                      runner=runner)
+
+        self.assertNotIn("HTTP_PROXY", captured["env"])
+        self.assertNotIn("HTTPS_PROXY", captured["env"])
+        self.assertEqual(captured["env"]["ALL_PROXY"],
+                         "http://proxy.example.test:8080")
+
 
 if __name__ == "__main__":
     unittest.main()

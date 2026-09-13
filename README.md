@@ -101,6 +101,13 @@ direct `gh` lookup and clear Git or HTTP substitutes. High-risk hosted
 mutations deny. Confirmable hosted state changes ask. Normal local Git and
 ordinary fetch, pull, and push transport remain available.
 
+Hosted resource edits must use the wrapper. The managed Codex sandbox can set
+`127.0.0.1:9` as a loopback proxy placeholder. That endpoint failing does not
+show that GitHub CLI is broken. The wrapper clears only that exact placeholder
+and preserves valid proxy settings. Agents cannot modify Git Credential Manager
+or GitHub authentication state. Agents cannot open a browser to refresh a
+GitHub token.
+
 `.pre-commit-config.yaml` runs each check on owned paths. `sync-check.yml`
 runs tests and authored pull request checks on `pull_request`. The same
 workflow also runs push checks. `immutable-conflict-check.yml` uses trusted

@@ -11,6 +11,13 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Added
+- Require trusted GitHub CLI routing for hosted resource operations.
+- Handle the managed Codex loopback proxy placeholder without changing valid
+  proxy settings.
+- Deny agent changes to Git Credential Manager and GitHub authentication state.
+- Deny browser-based GitHub token recovery by agents.
+
 ## [1.14.0] (2026-09-13)
 
 ### Fixed
