@@ -21,6 +21,8 @@ from pathlib import Path
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import gate_corpus
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "hooks"))
+import _gate_core
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 BASH_HOOK = REPO_ROOT / "hooks" / "block_destructive_bash.py"
@@ -454,12 +456,25 @@ class GitHubCliSafetyParityTest(unittest.TestCase):
             "curl https://api.github.com/repos/OWNER/REPO",
             "wget https://raw.githubusercontent.com/OWNER/REPO/main/file",
             "hub pr list",
+            "git-credential-manager erase",
+            "git-credential-manager-core configure",
+            "start https://github.com/login",
         )
         for command in commands:
             with self.subTest(command=command):
                 self.assertEqual(bash(command), "deny")
                 self.assertEqual(powershell(command), "deny")
                 self.assertEqual(cmd(command), "deny")
+
+    def test_shared_browser_and_credential_denials(self):
+        self.assertEqual(
+            _gate_core.github_routing_verdict(
+                "start-process", ["https://github.com/login"], "")[0],
+            "deny")
+        self.assertEqual(
+            _gate_core.github_routing_verdict(
+                "git-credential-manager", ["erase"], "")[0],
+            "deny")
 
     def test_github_target_matching_rejects_lookalikes(self):
         commands = (
