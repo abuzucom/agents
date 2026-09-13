@@ -11,6 +11,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [1.14.0] (2026-09-13)
+
 ### Fixed
 - Parse GitHub hostnames in URL, SCP, and schemeless remote targets.
 - Require task-specific, English-only, non-vulgar branch descriptions.
