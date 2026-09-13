@@ -157,6 +157,10 @@ class SessionStartTest(unittest.TestCase):
         self.assertIn(VIOLATING_BRANCH, specific["additionalContext"])
         self.assertIn("STOP", specific["additionalContext"])
         self.assertIn("git branch -m", specific["additionalContext"])
+        self.assertIn("must infer the name", specific["additionalContext"])
+        self.assertNotIn("provide a branch name", specific["additionalContext"])
+        self.assertNotIn("choose the branch name", specific["additionalContext"])
+        self.assertNotIn("enter the exact branch name", specific["additionalContext"])
         self.assertNotIn("sign-off", specific["additionalContext"])
         self.assertEqual(output["systemMessage"], specific["additionalContext"])
 

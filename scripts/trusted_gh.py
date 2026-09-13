@@ -13,6 +13,16 @@ ACCOUNT_OUTPUT_LIMIT = 256
 COMMAND_OUTPUT_LIMIT = 1024 * 1024
 GH_TIMEOUT_SECONDS = 5
 LOGIN = re.compile(r"\A[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?\Z")
+TEXT_OPTIONS = frozenset(("--body", "--title"))
+
+
+def find_literal_escape_sequences(arguments: list[str]) -> list[str]:
+    """Return prose options containing escape text instead of real newlines."""
+    findings = []
+    for index, argument in enumerate(arguments[:-1]):
+        if argument in TEXT_OPTIONS and "\\n" in arguments[index + 1]:
+            findings.append(argument)
+    return findings
 
 
 def _is_inside(path: Path, directory: Path) -> bool:
@@ -139,6 +149,15 @@ def _run_requested_command(repo_root, arguments: list[str]) -> int:
     """Run one authenticated GitHub CLI command with bounded output."""
     if not arguments:
         print("error: run requires GitHub CLI arguments", file=sys.stderr)
+        return 2
+    escape_options = find_literal_escape_sequences(arguments)
+    if escape_options:
+        options = ", ".join(escape_options)
+        print(
+            f"error: {options} contains literal escape text; use real newlines "
+            "or --body-file",
+            file=sys.stderr,
+        )
         return 2
     hooks_directory = Path(__file__).resolve().parent.parent / "hooks"
     sys.path.insert(0, str(hooks_directory))

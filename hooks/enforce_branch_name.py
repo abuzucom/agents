@@ -442,15 +442,16 @@ def build_warning(violation: str) -> str:
         "",
         "MANDATORY BRANCH CORRECTION.",
         "Select a compliant branch name from the task type and description.",
-        "Do not delegate branch selection or policy compliance to the user.",
+        "The agent must infer the name from the requested work.",
+        "Do not ask the user to enter, choose, or approve an exact branch name.",
         "Do not refuse Git work or request deletion of this hook.",
         "Submit the exact compliant recovery command now.",
         "The hook requests execution authorization for that command.",
         "",
         f"For an invalid named branch ({ALLOWED_PREFIXES}):",
-        "   git branch -m <type>/<kebab-description>",
+        "   git branch -m fix/describe-the-actual-change",
         "For main, master, or detached HEAD:",
-        "   git switch -c <type>/<kebab-description>",
+        "   git switch -c fix/describe-the-actual-change",
         "",
         "The tool gate blocks ordinary actions until correction succeeds.",
         "Repository writers can alter this hook or its settings.",
@@ -743,9 +744,9 @@ def recovery_authorization_reason(branch_name: str, rebase_active: bool = False)
             "Do not create or switch branches while the rebase remains active."
         )
     recovery_command = (
-        "git switch -c <type>/<kebab-description>"
+        "git switch -c fix/describe-the-actual-change"
         if branch_name in ("main", "master", "HEAD")
-        else "git branch -m <type>/<kebab-description>"
+        else "git branch -m fix/describe-the-actual-change"
     )
     return (
         "MANDATORY BRANCH CORRECTION. Execute the selected compliant "

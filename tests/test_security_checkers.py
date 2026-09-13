@@ -469,6 +469,39 @@ class BranchNameTest(unittest.TestCase):
 
         self.assertEqual(result, 1)
 
+    def test_task_specific_branch_names_are_accepted(self):
+        for branch in (
+            "fix/branch-name-validation",
+            "chore/synchronize-policy-copies",
+            "docs/clarify-agent-branch-rules",
+        ):
+            with self.subTest(branch=branch):
+                self.assertEqual(branch_name.find_violations(branch), [])
+
+    def test_random_and_opaque_branch_names_are_rejected(self):
+        for branch in (
+            "chore/kind-thompson-6vv1rjc",
+        ):
+            with self.subTest(branch=branch):
+                self.assertTrue(branch_name.find_violations(branch))
+
+    def test_vulgar_and_non_english_tokens_are_rejected(self):
+        for branch in ("fix/fuck-parser", "fix/la-validacion"):
+            with self.subTest(branch=branch):
+                self.assertTrue(branch_name.find_violations(branch))
+
+    def test_established_technical_suffixes_are_accepted(self):
+        for suffix in ("sha256", "base64", "oauth2", "python310", "es2022"):
+            with self.subTest(suffix=suffix):
+                self.assertEqual(
+                    branch_name.find_violations(f"fix/support-{suffix}"), []
+                )
+
+    def test_mit_license_identifier_is_accepted(self):
+        self.assertEqual(
+            branch_name.find_violations("docs/update-mit-license"), []
+        )
+
 
 class TrustedGitTest(unittest.TestCase):
     """Repository-local executables cannot replace trusted Git."""
