@@ -167,7 +167,7 @@ def emit_antigravity(payload: dict, policy: str, digest: str) -> int:
     """Emit context only for Antigravity invocation events."""
     event = payload.get("hook_event_name")
     if event in ("PreToolUse", "BeforeTool"):
-        print(json.dumps({"decision": "allow"}))
+        print(json.dumps({}))
         return 0
     output = {"injectSteps": [{
         "ephemeralMessage": policy_context(policy, digest),

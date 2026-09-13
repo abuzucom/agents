@@ -117,7 +117,7 @@ class PolicyContentTest(unittest.TestCase):
         result = run_hook("antigravity", payload)
         self.assertEqual(result.returncode, 0, result.stderr)
         output = json.loads(result.stdout)
-        self.assertEqual(output, {"decision": "allow"})
+        self.assertEqual(output, {})
         self.assertNotIn("injectSteps", output)
 
     def test_claude_emits_session_context_and_numbered_chunks(self):
