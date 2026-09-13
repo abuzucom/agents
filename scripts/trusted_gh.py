@@ -6,12 +6,17 @@ import re
 import subprocess
 import sys
 import tempfile
+import urllib.parse
 from pathlib import Path
 
 
 ACCOUNT_OUTPUT_LIMIT = 256
 COMMAND_OUTPUT_LIMIT = 1024 * 1024
 GH_TIMEOUT_SECONDS = 5
+PROXY_VARIABLES = ("HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY",
+                   "http_proxy", "https_proxy", "all_proxy")
+MANAGED_PROXY_HOST = "127.0.0.1"
+MANAGED_PROXY_PORT = 9
 LOGIN = re.compile(r"\A[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?\Z")
 TEXT_OPTIONS = frozenset(("--body", "--title"))
 
@@ -98,6 +103,26 @@ def _safe_search_path(repository: Path) -> str:
     return os.pathsep.join(entries)
 
 
+def _is_managed_proxy_placeholder(value: str) -> bool:
+    """Return whether a proxy value is the managed Codex placeholder."""
+    candidate = value.strip()
+    try:
+        parsed = urllib.parse.urlsplit(candidate if "://" in candidate
+                                       else "//" + candidate)
+        port = parsed.port
+    except ValueError:
+        return False
+    return parsed.hostname == MANAGED_PROXY_HOST and port == MANAGED_PROXY_PORT
+
+
+def _sanitize_proxy_environment(environment: dict) -> None:
+    """Remove only managed proxy placeholders from an environment."""
+    for variable in PROXY_VARIABLES:
+        value = environment.get(variable)
+        if value and _is_managed_proxy_placeholder(value):
+            environment.pop(variable, None)
+
+
 def run_gh(repo_root, arguments: list[str], *, runner=None, timeout=None):
     """Run trusted GitHub CLI from outside the repository."""
     repository = Path(repo_root).resolve()
@@ -105,6 +130,7 @@ def run_gh(repo_root, arguments: list[str], *, runner=None, timeout=None):
     environment = dict(os.environ)
     environment.pop("GH_CONFIG_DIR", None)
     environment.pop("GH_REPO", None)
+    _sanitize_proxy_environment(environment)
     environment.update({"GH_PAGER": "", "GH_PROMPT_DISABLED": "1"})
     environment["PATH"] = _safe_search_path(repository)
     if os.name == "nt":

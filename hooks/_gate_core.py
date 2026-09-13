@@ -2693,7 +2693,7 @@ def _github_auth_verdict(args: list) -> tuple:
     if scope_set & GH_BROAD_AUTH_SCOPES:
         return "deny", "gh auth requests a broad write or deletion scope"
     if action in {"login", "logout", "refresh", "setup-git", "switch"}:
-        return "ask", "gh auth changes authentication state or Git integration"
+        return "deny", "agents cannot change GitHub authentication state"
     return "", ""
 
 
@@ -2929,6 +2929,12 @@ def github_routing_verdict(program: str, args: list, cwd: str) -> tuple:
     if wrapped:
         return "", ""
     name = normalize_windows_command_name(program)
+    if name in {"git-credential-manager", "git-credential-manager-core",
+                "credential-manager"}:
+        return "deny", "agents cannot modify Git Credential Manager"
+    if (name in {"start", "start-process", "explorer", "open", "xdg-open"}
+            and _is_github_target(args)):
+        return "deny", "agents cannot open GitHub authentication in a browser"
     if name == "gh":
         return "deny", "direct gh lookup is untrusted; use scripts/trusted_gh.py run"
     if name == "hub":
