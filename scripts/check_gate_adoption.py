@@ -94,6 +94,11 @@ def _shared_paths(root: Path) -> tuple[list[str], list[str]]:
         document = json.loads(manifest.read_text(encoding="utf-8"))
     except (OSError, ValueError) as error:
         return [], [f"{SHARED_MANIFEST} is unreadable: {error}"]
+    if not isinstance(document, dict):
+        return [], [
+            f"{SHARED_MANIFEST} holds {type(document).__name__} at the top "
+            f"level, so the manifest lists no shared gate file"
+        ]
     shared = document.get("shared")
     if not isinstance(shared, dict) or not shared:
         return [], [f"{SHARED_MANIFEST} lists no shared gate files"]

@@ -154,6 +154,15 @@ class PartialAdoptionTest(unittest.TestCase):
         self.assertEqual(code, 1)
         self.assertIn("shared-files.json is absent", output)
 
+    def test_non_mapping_shared_manifest_reports_the_type(self):
+        """A top-level array lists no shared file and must not raise."""
+        self._copy_full_tree()
+        path = self.root / check_gate_adoption.SHARED_MANIFEST
+        path.write_text(json.dumps(["hooks/_gate_core.py"]), encoding="utf-8")
+        code, output = _run(self.root)
+        self.assertEqual(code, 1)
+        self.assertIn("holds list at the top level", output)
+
     def test_empty_shared_manifest_fails(self):
         self._copy_full_tree()
         path = self.root / check_gate_adoption.SHARED_MANIFEST
