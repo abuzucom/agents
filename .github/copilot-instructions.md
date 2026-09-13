@@ -665,7 +665,17 @@ On a primary branch named `main` or `master`, create and switch to a feature
 branch. On a detached HEAD, create and switch to a feature branch. Never work
 directly on a primary branch or detached HEAD.
 
-Use the format `<type>/<short-kebab-description>`:
+Use the format `<type>/<short-kebab-description>`. The description must state
+the work performed in the branch. Select it from the task context.
+
+Do not use random English words, generated names, opaque suffixes, profanity,
+vulgarity, or clearly non-English tokens. Do not request an exact branch name
+from the task author. Agents must infer a task-specific name.
+
+Good examples include `fix/branch-name-validation`,
+`chore/synchronize-policy-copies`, and `docs/clarify-agent-branch-rules`.
+Bad examples include `chore/kind-thompson`, `fix/blue-river`, and
+`feat/happy-tiger`.
 
 | Prefix | Use | Example |
 |---|---|---|
