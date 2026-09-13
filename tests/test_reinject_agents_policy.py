@@ -109,6 +109,17 @@ class PolicyContentTest(unittest.TestCase):
         message = json.loads(result.stdout)["injectSteps"][0]["ephemeralMessage"]
         self.assertTrue(message.endswith(self.policy))
 
+    def test_antigravity_pre_tool_use_output_is_schema_safe(self):
+        payload = {
+            "hook_event_name": "PreToolUse",
+            "workspacePaths": [str(REPO_ROOT)],
+        }
+        result = run_hook("antigravity", payload)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        output = json.loads(result.stdout)
+        self.assertEqual(output, {"decision": "allow"})
+        self.assertNotIn("injectSteps", output)
+
     def test_claude_emits_session_context_and_numbered_chunks(self):
         session = run_hook("claude", {"hook_event_name": "SessionStart"})
         self.assertEqual(session.returncode, 0, session.stderr)

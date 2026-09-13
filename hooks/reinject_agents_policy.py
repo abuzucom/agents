@@ -163,8 +163,12 @@ def emit_gemini(payload: dict, policy: str, digest: str) -> int:
     return 0
 
 
-def emit_antigravity(policy: str, digest: str) -> int:
-    """Emit complete Antigravity ephemeral invocation context."""
+def emit_antigravity(payload: dict, policy: str, digest: str) -> int:
+    """Emit context only for Antigravity invocation events."""
+    event = payload.get("hook_event_name")
+    if event in ("PreToolUse", "BeforeTool"):
+        print(json.dumps({"decision": "allow"}))
+        return 0
     output = {"injectSteps": [{
         "ephemeralMessage": policy_context(policy, digest),
     }]}
@@ -185,7 +189,7 @@ def run_hook(args: argparse.Namespace, payload: dict) -> int:
         return emit_codex(payload, policy, digest)
     if args.client == "gemini":
         return emit_gemini(payload, policy, digest)
-    return emit_antigravity(policy, digest)
+    return emit_antigravity(payload, policy, digest)
 
 
 def main() -> int:
