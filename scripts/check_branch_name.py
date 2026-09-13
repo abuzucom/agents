@@ -26,7 +26,7 @@ BRANCH_BANNED_TOKENS_PATH = Path(__file__).resolve().with_name(
 FOREIGN_TOKENS = frozenset(
     "el la de que una para con las los por como pero esta este cuando "
     "le des une est dans avec pas pour sont vous nous cette mais der die "
-    "das und ist nicht mit auch eine einen sich auf nao dos com sao isso "
+    "das und ist nicht auch eine einen sich auf nao dos com sao isso "
     "il di che sono questo anche sul".split()
 )
 TECHNICAL_SUFFIXES = frozenset(

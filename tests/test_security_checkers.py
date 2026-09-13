@@ -497,6 +497,11 @@ class BranchNameTest(unittest.TestCase):
                     branch_name.find_violations(f"fix/support-{suffix}"), []
                 )
 
+    def test_mit_license_identifier_is_accepted(self):
+        self.assertEqual(
+            branch_name.find_violations("docs/update-mit-license"), []
+        )
+
 
 class TrustedGitTest(unittest.TestCase):
     """Repository-local executables cannot replace trusted Git."""
