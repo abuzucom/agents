@@ -58,6 +58,7 @@ WORKFLOW_SCRIPT_ARGUMENTS = {
     "scripts/read_git_state.py": tuple((mode,) for mode in ("branch", "status", "remote", "revision", "all")),
     "scripts/sync.py": ((), ("--check",), ("--check-shared",), ("--write-shared",), ("--print-adoptable",)),
     "scripts/check_action_pins.py": ((),),
+    "scripts/check_gate_adoption.py": ((),),
 }
 SEARCH_FLAGS = frozenset({
     "-n", "--line-number", "-l", "--files-with-matches", "-i", "--ignore-case",
