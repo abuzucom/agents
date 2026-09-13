@@ -490,6 +490,13 @@ class BranchNameTest(unittest.TestCase):
             with self.subTest(branch=branch):
                 self.assertTrue(branch_name.find_violations(branch))
 
+    def test_established_technical_suffixes_are_accepted(self):
+        for suffix in ("sha256", "base64", "oauth2", "python310", "es2022"):
+            with self.subTest(suffix=suffix):
+                self.assertEqual(
+                    branch_name.find_violations(f"fix/support-{suffix}"), []
+                )
+
 
 class TrustedGitTest(unittest.TestCase):
     """Repository-local executables cannot replace trusted Git."""

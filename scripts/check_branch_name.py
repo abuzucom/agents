@@ -29,6 +29,9 @@ FOREIGN_TOKENS = frozenset(
     "das und ist nicht mit auch eine einen sich auf nao dos com sao isso "
     "il di che sono questo anche sul".split()
 )
+TECHNICAL_SUFFIXES = frozenset(
+    ("base64", "es2022", "oauth2", "python310", "sha256")
+)
 
 
 def _pattern(prefixes: tuple[str, ...]) -> re.Pattern:
@@ -66,7 +69,8 @@ def _description_violations(branch: str) -> list[str]:
                 f"branch '{branch}' contains a clearly non-English token"
             )
     final_token = tokens[-1]
-    if (6 <= len(final_token) <= 12
+    if (final_token.casefold() not in TECHNICAL_SUFFIXES
+            and 6 <= len(final_token) <= 12
             and any(character.isalpha() for character in final_token)
             and any(character.isdigit() for character in final_token)):
         violations.append(

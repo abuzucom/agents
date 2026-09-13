@@ -64,6 +64,18 @@ class TrustedRunnerSafetyTest(unittest.TestCase):
         self.assertEqual(result.returncode, 2)
         self.assertIn("removes work", result.stderr)
 
+    def test_literal_newline_escape_in_pr_body_is_rejected(self):
+        result = subprocess.run(
+            [sys.executable, str(REPOSITORY_ROOT / "scripts" / "trusted_gh.py"),
+             "run", "pr", "edit", "45", "--body", "line1\\n\\nline2"],
+            cwd=REPOSITORY_ROOT,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("literal escape text", result.stderr)
+
 
 if __name__ == "__main__":
     unittest.main()
