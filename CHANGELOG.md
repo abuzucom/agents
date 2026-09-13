@@ -12,6 +12,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ## [Unreleased]
 
 ### Fixed
+- Parse GitHub hostnames in URL, SCP, and schemeless remote targets.
 - Require task-specific, English-only, non-vulgar branch descriptions.
 - Require path separators for Windows drive letters in remote endpoint checks.
 - Condition remote endpoint Windows drive parsing on host platform.

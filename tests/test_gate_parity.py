@@ -443,9 +443,14 @@ class GitHubCliSafetyParityTest(unittest.TestCase):
     def test_git_and_http_substitutes_deny(self):
         commands = (
             "git clone https://github.com/OWNER/REPO.git",
+            "git clone https://raw.githubusercontent.com/OWNER/REPO/main/file",
+            "git clone git@github.com:OWNER/REPO.git",
+            "git clone github.com:OWNER/REPO.git",
+            "curl github.com:443/OWNER/REPO",
             "git remote -v",
             "git fetch origin refs/pull/12/head",
             "curl https://api.github.com/repos/OWNER/REPO",
+            "wget https://raw.githubusercontent.com/OWNER/REPO/main/file",
             "hub pr list",
         )
         for command in commands:
@@ -453,6 +458,17 @@ class GitHubCliSafetyParityTest(unittest.TestCase):
                 self.assertEqual(bash(command), "deny")
                 self.assertEqual(powershell(command), "deny")
                 self.assertEqual(cmd(command), "deny")
+
+    def test_github_target_matching_rejects_lookalikes(self):
+        commands = (
+            "git clone https://not-github.com/OWNER/REPO.git",
+            "git clone https://example.com/github.com/OWNER/REPO.git",
+        )
+        for command in commands:
+            with self.subTest(command=command):
+                self.assertEqual(bash(command), "")
+                self.assertEqual(powershell(command), "")
+                self.assertEqual(cmd(command), "")
 
     def test_marked_git_fallback_asks(self):
         command = (

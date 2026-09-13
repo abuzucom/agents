@@ -30,6 +30,7 @@ import shlex
 import subprocess
 import sys
 import threading
+import urllib.parse
 
 INTERACTIVE_MODES = frozenset({"default", "plan", "acceptEdits", "auto"})
 AMBIGUOUS_MARKERS = ("$", "`")
@@ -40,6 +41,7 @@ UNC_SHARE_ROOT_PARTS = 2
 DRIVE_ROOT_LENGTH = 2
 MAX_GIT_CONFIG_COUNT = 1000
 MAX_GIT_ALIAS_DEPTH = 10
+GITHUB_DOMAINS = frozenset({"github.com", "githubusercontent.com"})
 CONFIG_READ_TIMEOUT_SECONDS = 5
 CONFIG_READ_ENVIRONMENT = frozenset({
     "PATH", "SYSTEMROOT", "WINDIR", "HOME", "USERPROFILE", "HOMEDRIVE", "HOMEPATH",
@@ -2875,11 +2877,35 @@ def _git_subcommand(args: list) -> tuple:
     return "", []
 
 
+def _is_github_hostname(hostname: str) -> bool:
+    """Return whether a hostname belongs to GitHub."""
+    normalized = hostname.rstrip(".").casefold()
+    return any(normalized == domain or normalized.endswith("." + domain)
+               for domain in GITHUB_DOMAINS)
+
+
+def _token_hostname(token: str) -> str:
+    """Return a GitHub-relevant hostname parsed from one command token."""
+    candidate = token.strip()
+    if "://" in candidate or candidate.startswith("//"):
+        return urllib.parse.urlsplit(candidate).hostname or ""
+    colon_index = candidate.find(":")
+    slash_index = candidate.find("/")
+    if colon_index >= 0 and (slash_index < 0 or colon_index < slash_index):
+        hostname = candidate[:colon_index].rsplit("@", 1)[-1]
+        return hostname
+    if "/" in candidate and not candidate.startswith("/"):
+        return candidate.split("/", 1)[0]
+    return ""
+
+
 def _is_github_target(tokens: list) -> bool:
     """Return whether arguments name GitHub or a pull request ref."""
+    for token in tokens:
+        if _is_github_hostname(_token_hostname(token)):
+            return True
     text = " ".join(tokens).casefold()
-    return ("github.com" in text or "api.github.com" in text
-            or "refs/pull/" in text or "pull/" in text)
+    return "refs/pull/" in text or "pull/" in text
 
 
 def _github_git_substitute(args: list) -> bool:
