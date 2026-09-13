@@ -445,6 +445,8 @@ class GitHubCliSafetyParityTest(unittest.TestCase):
             "git clone https://github.com/OWNER/REPO.git",
             "git clone https://raw.githubusercontent.com/OWNER/REPO/main/file",
             "git clone git@github.com:OWNER/REPO.git",
+            "git clone github.com:OWNER/REPO.git",
+            "curl github.com:443/OWNER/REPO",
             "git remote -v",
             "git fetch origin refs/pull/12/head",
             "curl https://api.github.com/repos/OWNER/REPO",

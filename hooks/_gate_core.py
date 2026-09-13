@@ -2889,9 +2889,11 @@ def _token_hostname(token: str) -> str:
     candidate = token.strip()
     if "://" in candidate or candidate.startswith("//"):
         return urllib.parse.urlsplit(candidate).hostname or ""
-    if "@" in candidate and ":" in candidate:
-        candidate = candidate.rsplit("@", 1)[1].split(":", 1)[0]
-        return candidate
+    colon_index = candidate.find(":")
+    slash_index = candidate.find("/")
+    if colon_index >= 0 and (slash_index < 0 or colon_index < slash_index):
+        hostname = candidate[:colon_index].rsplit("@", 1)[-1]
+        return hostname
     if "/" in candidate and not candidate.startswith("/"):
         return candidate.split("/", 1)[0]
     return ""
