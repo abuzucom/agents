@@ -355,9 +355,8 @@ def _run_requested_command(repo_root, arguments: list[str]) -> int:
         return 2
     escape_options = find_literal_escape_sequences(arguments)
     if escape_options:
-        options = ", ".join(escape_options)
         print(
-            f"error: {options} contains literal escape text; use real newlines "
+            "error: an argument contains literal escape text; use real newlines "
             "or --body-file",
             file=sys.stderr,
         )
@@ -371,13 +370,13 @@ def _run_requested_command(repo_root, arguments: list[str]) -> int:
         return 2
     decision, reason = gate_core.forge_verdict("gh", arguments)
     if decision == "deny":
-        print(f"error: {reason}", file=sys.stderr)
+        print("error: GitHub command denied by policy; review the command", file=sys.stderr)
         return 2
     try:
         effective_arguments = with_repository_context(Path(repo_root), arguments)
         decision, reason = gate_core.forge_verdict("gh", effective_arguments)
         if decision == "deny":
-            print(f"error: {reason}", file=sys.stderr)
+            print("error: GitHub command denied by policy; review the command", file=sys.stderr)
             return 2
         authenticated_account(repo_root)
         result = run_gh(repo_root, effective_arguments)
