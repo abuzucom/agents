@@ -37,6 +37,26 @@ class GithubCommandDenylistTest(unittest.TestCase):
         self.assertEqual(decision, "deny")
         self.assertIn("invalid", reason)
 
+    def test_option_values_do_not_shift_denied_paths(self):
+        cases = (
+            ["pr", "-R", "OWNER/REPO", "merge", "12"],
+            ["pr", "-ROWNER/REPO", "merge", "12"],
+            ["pr", "--repo=OWNER/REPO", "merge", "12"],
+            ["pr", "--", "merge", "12"],
+            ["auth", "--hostname", "github.example", "token"],
+            ["repo", "--repo", "OWNER/REPO", "clone", "OWNER/REPO"],
+        )
+        for command in cases:
+            with self.subTest(command=command):
+                decision, _reason = _gate_core._github_command_denylist_verdict(
+                    command)
+                self.assertEqual(decision, "deny")
+
+    def test_option_values_do_not_shift_legacy_guards(self):
+        decision, _reason = _gate_core.github_cli_verdict(
+            ["repo", "--repo", "OWNER/REPO", "edit", "--visibility", "public"])
+        self.assertEqual(decision, "deny")
+
 
 if __name__ == "__main__":
     unittest.main()

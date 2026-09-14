@@ -374,6 +374,13 @@ class GitHubCliSafetyParityTest(unittest.TestCase):
     WRAPPER = "python scripts/trusted_gh.py run "
     CASES = (
         (WRAPPER + "agent-task create", "deny"),
+        (WRAPPER + "pr -R OWNER/REPO merge 12", "deny"),
+        (WRAPPER + "pr -ROWNER/REPO merge 12", "deny"),
+        (WRAPPER + "pr --repo=OWNER/REPO merge 12", "deny"),
+        (WRAPPER + "pr -- merge 12", "deny"),
+        (WRAPPER + "auth --hostname github.example token", "deny"),
+        (WRAPPER + "repo --repo OWNER/REPO clone OWNER/REPO", "deny"),
+        (WRAPPER + "repo --repo OWNER/REPO edit --visibility public", "deny"),
         (WRAPPER + "agent create", "deny"),
         (WRAPPER + "agents list", "deny"),
         (WRAPPER + "agent-tasks view 1", "deny"),

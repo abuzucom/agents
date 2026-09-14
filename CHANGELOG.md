@@ -9,6 +9,18 @@ The house style bans that hyphen. `scripts/check_ascii.py` enforces the ban on
 this file.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.19] (2026-09-14)
+
+### Fixed
+- Consume interleaved GitHub CLI option values before path matching.
+- Cover option terminators and attached option values.
+
+## [2.0.18] (2026-09-14)
+
+### Fixed
+- Parse interleaved GitHub CLI option values before denylist matching.
+- Align Rules 16 and 17 with unconditional GitHub CLI denials.
+
 ## [2.0.17] (2026-09-14)
 
 ### Fixed

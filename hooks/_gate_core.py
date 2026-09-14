@@ -2620,6 +2620,8 @@ GH_SUBCOMMAND_VALUE_OPTIONS = frozenset({
     "--assignee", "--body", "--base", "--body-file", "--head", "--label",
     "--milestone", "--project", "--reviewer", "--title", "--template",
 })
+GH_COMMAND_VALUE_OPTIONS = (GH_GLOBAL_VALUE_OPTIONS
+                            | GH_SUBCOMMAND_VALUE_OPTIONS)
 GH_BROAD_AUTH_SCOPES = frozenset({"admin:org", "admin:public_key",
                                   "admin:repo_hook", "delete_repo", "gist",
                                   "project", "repo", "user", "workflow",
@@ -2657,8 +2659,7 @@ def _github_command_denylist_verdict(command: list) -> tuple:
         families, paths = _load_github_command_denylist()
     except ValueError as error:
         return "deny", str(error)
-    command_path = tuple(token.casefold() for token in command
-                         if not token.startswith("-"))
+    command_path = _github_command_path(command)
     if command_path and command_path[:1] in families:
         if command_path[0] == "secret":
             return "deny", "gh secret operations expose or change hosted secrets"
@@ -2671,6 +2672,37 @@ def _github_command_denylist_verdict(command: list) -> tuple:
                 return "deny", "gh repo delete removes work and is denied by policy"
             return "deny", f"gh {' '.join(path)} is denied by policy"
     return "", ""
+
+
+def _github_command_path(command: list) -> tuple:
+    """Return the noun and action after consuming option values."""
+    command_path = []
+    index = 0
+    while index < len(command) and len(command_path) < 2:
+        token = command[index]
+        if token == "--":
+            index += 1
+            continue
+        if token in GH_COMMAND_VALUE_OPTIONS:
+            index += 2
+            continue
+        lowered = token.casefold()
+        if any(lowered.startswith(option.casefold() + "=")
+               for option in GH_COMMAND_VALUE_OPTIONS if option.startswith("--")):
+            index += 1
+            continue
+        if any(token.casefold().startswith(option.casefold())
+               and len(token) > len(option)
+               for option in GH_COMMAND_VALUE_OPTIONS
+               if len(option) == 2):
+            index += 1
+            continue
+        if token.startswith("-"):
+            index += 1
+            continue
+        command_path.append(lowered)
+        index += 1
+    return tuple(command_path)
 
 
 def _github_command_args(args: list) -> list:
@@ -2865,7 +2897,7 @@ def github_cli_verdict(args: list, *, repo_owner: str = "") -> tuple:
     decision, reason = _github_command_denylist_verdict(command)
     if decision:
         return decision, reason
-    words = [token.lower() for token in command if not token.startswith("-")]
+    words = _github_command_path(command)
     noun = words[0] if words else ""
     action = words[1] if len(words) > 1 else ""
     if noun == "api":

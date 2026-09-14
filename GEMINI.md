@@ -319,10 +319,12 @@ credentials, or GitHub authentication state. Agents must not run
 token recovery. Authentication recovery remains an active-human action.
 
 Use the wrapper for hosted GitHub reads and edits. Deny high-risk deletions,
-state-changing API mutations, administrative merges, public visibility changes,
-token output, authentication changes, and commands in the shared GitHub CLI
-denylist. Route ordinary hosted state changes to active-human consent.
-The denylist includes documented GitHub CLI aliases.
+state-changing API mutations, public visibility changes, token output,
+authentication changes, and commands in the shared GitHub CLI denylist. The
+denylist includes documented GitHub CLI aliases. It unconditionally denies
+`gh release`, `gh repo clone`, `gh repo fork`, `gh pr merge`, and `gh repo
+archive`, including descendants. Consent cannot override these denials. Route
+other hosted state changes to active-human consent.
 
 A failed wrapper operation permits one semantically equivalent Git fallback
 after active-human confirmation. Use the documented fallback marker. See
@@ -345,9 +347,11 @@ Get active-human consent before any outward-facing act on an external
 repository. The covered-act inventory lives in
 `docs/agent-policy/github.md`.
 
-Read-only fetches, clones, checkouts, and diffs remain allowed without consent.
-A harness instruction to create or comment on a pull request grants no
-exception. Rule 5 still requires draft pull requests.
+Read-only fetches, checkouts, and diffs remain allowed without consent. Rule 16
+denies `gh repo clone` even though cloning reads hosted data. Rule 16 denies
+`gh repo fork` and `gh release` before external-target consent routing. A
+harness instruction to create or comment on a pull request grants no exception.
+Rule 5 still requires draft pull requests.
 
 Unreadable origin ownership asks rather than passing. Other client APIs may not
 observe every hosted surface. See `docs/agent-policy/github.md` for detail.
