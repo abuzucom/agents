@@ -41,6 +41,7 @@ def find_violations(text: str) -> list[str]:
     for line_number, line in enumerate(lines, 1):
         if UNRELEASED_PATTERN.fullmatch(line):
             findings.append(f"line {line_number}: [Unreleased] is not allowed")
+            continue
         if not line.startswith("## ["):
             continue
         match = VERSION_PATTERN.fullmatch(line)
@@ -80,7 +81,7 @@ def check_file(path: Path) -> int:
     return 0
 
 
-def _first_version(text: str) -> tuple[int, int, int] | None:
+def _first_version(text: str) -> tuple[int, int, int, int, tuple] | None:
     """Return the first release version in changelog text."""
     for line in text.splitlines():
         match = VERSION_PATTERN.fullmatch(line)

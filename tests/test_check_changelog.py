@@ -28,6 +28,7 @@ class ChangelogCheckerTest(unittest.TestCase):
         text = "# Changelog\n\n## [Unreleased]\n\n- Pending change.\n"
         findings = checker.find_violations(text)
         self.assertTrue(any("Unreleased" in finding for finding in findings))
+        self.assertEqual(sum("line 3:" in finding for finding in findings), 1)
 
     def test_invalid_version_order_fails(self):
         text = """# Changelog\n\n## [1.0.0] (2026-09-13)\n\n- New.\n\n## [2.0.0] (2026-09-12)\n\n- Old.\n"""
