@@ -374,6 +374,13 @@ class GitHubCliSafetyParityTest(unittest.TestCase):
     WRAPPER = "python scripts/trusted_gh.py run "
     CASES = (
         (WRAPPER + "agent-task create", "deny"),
+        (WRAPPER + "agent create", "deny"),
+        (WRAPPER + "agents list", "deny"),
+        (WRAPPER + "agent-tasks view 1", "deny"),
+        (WRAPPER + "cs list", "deny"),
+        (WRAPPER + "ext list", "deny"),
+        (WRAPPER + "extensions list", "deny"),
+        (WRAPPER + "skills list", "deny"),
         (WRAPPER + "alias set x status", "deny"),
         (WRAPPER + "config set prompt disabled", "deny"),
         (WRAPPER + "codespace list", "deny"),
