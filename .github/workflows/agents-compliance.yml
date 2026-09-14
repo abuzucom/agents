@@ -90,6 +90,10 @@ jobs:
         run: python scripts/check_branch_name.py
       - name: Check gate adoption
         run: python scripts/check_gate_adoption.py
+      - name: Check versioned changelog
+        run: python scripts/check_changelog.py
+      - name: Check canonical policy size
+        run: python scripts/check_policy_size.py
       - name: Check persist-credentials on checkout steps
         run: python scripts/check_persist_credentials.py .github/workflows/*.yml
       - name: Check for unjustified MD5/SHA-1

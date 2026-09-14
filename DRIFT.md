@@ -12,21 +12,21 @@ file and manifest mismatch fails the local check. The mismatch leaves checks
 in other repositories unchanged.
 
 Cross-repository equality requires coordinated file and manifest updates in
-every repository that adopted the files. Deliberate differences also require
-the drift records below. The local manifest check enforces local equality
-alone. Repository coordination and drift records remain process requirements.
+controlled repositories. The local manifest check enforces local equality
+alone. Uncontrolled mirrors have no reporting obligation to this repository.
 
 ## Three categories
 
 | Category | Example | Requirement |
 |---|---|---|
-| Expected to differ | settings files, CODEOWNERS, CI workflows, a repository's own checkers | Record the difference locally. |
-| Not adopted | a repository that took the branch gate and declined the identity gate | Record the adoption status locally. |
-| True drift | the same adopted file differs between repositories | Record true drift and open an `abuzucom/agents` issue. |
+| Expected to differ | settings files, CODEOWNERS, CI workflows, a repository's own checkers | Record the difference in controlled repositories. |
+| Not adopted | a repository that took the branch gate and declined the identity gate | Record the status in controlled repositories. |
+| True drift | the same adopted file differs between controlled repositories | Record drift and review it. |
 
 Only true drift supplies new template information. A declined file records
 adoption scope. A repository-specific settings file records local hook names.
-Those categories require records without template action.
+Controlled adopters record those categories. Uncontrolled mirrors have no
+reporting obligation here.
 
 A not-adopted file can produce a difference in an adopted file. Record the
 cause beside the effect.

@@ -1,0 +1,27 @@
+import unittest
+from pathlib import Path
+
+from scripts.check_policy_size import find_violations
+
+
+class PolicySizeTests(unittest.TestCase):
+    def test_canonical_policy_has_required_size_and_rules(self):
+        policy = Path("AGENTS.md").read_bytes()
+
+        self.assertEqual(find_violations(Path("AGENTS.md")), [])
+        text = policy.decode("ascii")
+        for required in (
+            "## Non-negotiable",
+            "## Critical rules",
+            "## Code quality",
+            "## Style",
+            "Change policy safely",
+            "Version every change",
+            "xAI",
+            "Grok",
+        ):
+            self.assertIn(required, text)
+
+
+if __name__ == "__main__":
+    unittest.main()

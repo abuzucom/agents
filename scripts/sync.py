@@ -57,6 +57,30 @@ COPIES = [
     ".copilot-instructions",
     ".github/copilot-instructions.md",
 ]
+SUPPORTING_POLICY_FILES = (
+    "docs/agent-policy/adoption.md",
+    "docs/agent-policy/enforcement.md",
+    "docs/agent-policy/clients.md",
+    "docs/agent-policy/github.md",
+    "docs/agent-policy/security.md",
+)
+
+
+def policy_bytes(root: Path) -> bytes:
+    """Return canonical policy plus approved local supporting documents."""
+    source, _ = _inspect_source(root)
+    raw = source.read_bytes()
+    parts = []
+    for relative_name in SUPPORTING_POLICY_FILES:
+        path = _lexical_path(root, relative_name)
+        if not path.exists():
+            continue
+        details = path.lstat()
+        if not stat.S_ISREG(details.st_mode):
+            raise ValueError("supporting policy is not a regular file")
+        content = path.read_bytes()
+        parts.append(content + (b"\n" if not content.endswith(b"\n") else b""))
+    return b"".join(parts) + raw
 
 
 def adoptable_content(content: str) -> str:
@@ -179,10 +203,9 @@ def files_match(source: Path, target: Path) -> bool:
         _regular_state(source)
         if _target_state(target) is None:
             return False
-        return (
-            source.read_text(encoding="utf-8").replace("\r\n", "\n")
-            == target.read_text(encoding="utf-8").replace("\r\n", "\n")
-        )
+        expected = policy_bytes(source.parent)
+        actual = target.read_bytes().replace(b"\r\n", b"\n")
+        return expected.replace(b"\r\n", b"\n") == actual
     except (OSError, RuntimeError, UnicodeDecodeError, ValueError):
         return False
 
@@ -195,6 +218,9 @@ def _copy_to_temp(source: Path, parent: Path) -> Path:
     try:
         os.close(descriptor)
         shutil.copyfile(source, temp_path)
+        assembled = policy_bytes(source.parent)
+        if assembled != source.read_bytes():
+            temp_path.write_bytes(assembled)
         with temp_path.open("ab") as temp_file:
             temp_file.flush()
             os.fsync(temp_file.fileno())

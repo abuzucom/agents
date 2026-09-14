@@ -9,7 +9,7 @@ The house style bans that hyphen. `scripts/check_ascii.py` enforces the ban on
 this file.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [2.0.0] (2026-09-13)
 
 ### Added
 - Require trusted GitHub CLI routing for hosted resource operations.
@@ -17,6 +17,11 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   proxy settings.
 - Deny agent changes to Git Credential Manager and GitHub authentication state.
 - Deny browser-based GitHub token recovery by agents.
+- Add schema-safe Antigravity `PreToolUse` output.
+- Add CI and pre-commit coverage for trusted GitHub CLI routing.
+- Add linked policy loading and a 32 KiB canonical policy limit.
+- Require a versioned SemVer entry for every repository change.
+- Add test-first changelog enforcement through hooks and CI.
 
 ## [1.14.0] (2026-09-13)
 

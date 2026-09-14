@@ -9,6 +9,13 @@ import sys
 from pathlib import Path
 
 MAX_POLICY_BYTES = 64 * 1024
+SUPPORTING_POLICY_FILES = (
+    "docs/agent-policy/adoption.md",
+    "docs/agent-policy/enforcement.md",
+    "docs/agent-policy/clients.md",
+    "docs/agent-policy/github.md",
+    "docs/agent-policy/security.md",
+)
 MAX_ROOT_DEPTH = 100
 MAX_CHUNK_CHARS = 8500
 CLAUDE_CHUNK_COUNT = 8
@@ -65,11 +72,25 @@ def load_policy(root: Path) -> tuple[str, str]:
     if not stat.S_ISREG(details.st_mode) or details.st_size > MAX_POLICY_BYTES:
         raise ValueError("AGENTS.md is not a bounded regular file")
     raw = path.read_bytes()
-    if len(raw) > MAX_POLICY_BYTES:
+    supporting = []
+    for relative_name in SUPPORTING_POLICY_FILES:
+        supporting_path = root / relative_name
+        if not supporting_path.exists():
+            continue
+        details = supporting_path.lstat()
+        if not stat.S_ISREG(details.st_mode):
+            raise ValueError(f"{relative_name} is not a regular file")
+        supporting_raw = supporting_path.read_bytes()
+        supporting.append((relative_name, supporting_raw))
+    assembled = b"".join(
+        content + (b"\n" if not content.endswith(b"\n") else b"")
+        for _name, content in supporting
+    ) + raw
+    if len(assembled) > MAX_POLICY_BYTES:
         raise ValueError("AGENTS.md exceeds the policy size limit")
-    text = raw.decode("utf-8").replace("\r\n", "\n")
+    text = assembled.decode("utf-8").replace("\r\n", "\n")
     text.encode("ascii")
-    return text, hashlib.sha256(raw).hexdigest()
+    return text, hashlib.sha256(assembled).hexdigest()
 
 
 def split_policy(policy: str, chunk_count: int) -> list[str]:
