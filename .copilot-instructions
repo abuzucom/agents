@@ -320,8 +320,8 @@ token recovery. Authentication recovery remains an active-human action.
 
 Use the wrapper for hosted GitHub reads and edits. Deny high-risk deletions,
 state-changing API mutations, administrative merges, public visibility changes,
-token output, and authentication changes. Route ordinary hosted state changes
-to active-human consent.
+token output, authentication changes, and commands in the shared GitHub CLI
+denylist. Route ordinary hosted state changes to active-human consent.
 
 A failed wrapper operation permits one semantically equivalent Git fallback
 after active-human confirmation. Use the documented fallback marker. See

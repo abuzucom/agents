@@ -31,6 +31,8 @@ import subprocess
 import sys
 import threading
 import urllib.parse
+from functools import lru_cache
+from pathlib import Path
 
 INTERACTIVE_MODES = frozenset({"default", "plan", "acceptEdits", "auto"})
 AMBIGUOUS_MARKERS = ("$", "`")
@@ -2624,6 +2626,51 @@ GH_BROAD_AUTH_SCOPES = frozenset({"admin:org", "admin:public_key",
                                   "write:discussion", "write:org",
                                   "write:packages"})
 GH_FALLBACK_CONFIG = "agents.githubfallback=confirmed"
+GH_COMMAND_DENYLIST = Path(__file__).with_name("github-command-denylist.txt")
+
+
+@lru_cache(maxsize=1)
+def _load_github_command_denylist() -> tuple[frozenset, frozenset]:
+    """Load GitHub CLI family and exact command-path bans."""
+    try:
+        lines = GH_COMMAND_DENYLIST.read_text(encoding="ascii").splitlines()
+    except OSError as error:
+        raise ValueError("GitHub CLI denylist is unavailable") from error
+    families = set()
+    paths = set()
+    for line_number, line in enumerate(lines, 1):
+        fields = line.split()
+        if not fields or fields[0].startswith("#"):
+            continue
+        if fields[0] == "family" and len(fields) == 2:
+            families.add((fields[1],))
+        elif fields[0] == "path" and len(fields) > 1:
+            paths.add(tuple(fields[1:]))
+        else:
+            raise ValueError(f"invalid GitHub CLI denylist line {line_number}")
+    return frozenset(families), frozenset(paths)
+
+
+def _github_command_denylist_verdict(command: list) -> tuple:
+    """Return a denial for a configured GitHub CLI command path."""
+    try:
+        families, paths = _load_github_command_denylist()
+    except ValueError as error:
+        return "deny", str(error)
+    command_path = tuple(token.casefold() for token in command
+                         if not token.startswith("-"))
+    if command_path and command_path[:1] in families:
+        if command_path[0] == "secret":
+            return "deny", "gh secret operations expose or change hosted secrets"
+        if command_path[0] == "variable":
+            return "deny", "gh variable operations expose or change hosted variables"
+        return "deny", f"gh {command_path[0]} is denied by policy"
+    for path in paths:
+        if command_path[:len(path)] == path:
+            if path == ("repo", "delete"):
+                return "deny", "gh repo delete removes work and is denied by policy"
+            return "deny", f"gh {' '.join(path)} is denied by policy"
+    return "", ""
 
 
 def _github_command_args(args: list) -> list:
@@ -2820,6 +2867,9 @@ def github_cli_verdict(args: list, *, repo_owner: str = "") -> tuple:
     command = _github_command_args(args)
     if not command:
         return "", ""
+    decision, reason = _github_command_denylist_verdict(command)
+    if decision:
+        return decision, reason
     words = [token.lower() for token in command if not token.startswith("-")]
     noun = words[0] if words else ""
     action = words[1] if len(words) > 1 else ""
