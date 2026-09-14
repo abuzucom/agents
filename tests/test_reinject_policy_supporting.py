@@ -87,6 +87,15 @@ class SupportingPolicyTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "exceeds the policy size limit"):
                 hook.load_policy(root)
 
+    def test_load_policy_rejects_oversized_canonical_file(self):
+        hook = load_hook()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "AGENTS.md").write_bytes(
+                b"x" * (hook.MAX_POLICY_BYTES + 1))
+            with self.assertRaisesRegex(ValueError, "bounded regular file"):
+                hook.load_policy(root)
+
 
 if __name__ == "__main__":
     unittest.main()
