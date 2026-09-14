@@ -57,6 +57,17 @@ class ChangelogCheckerTest(unittest.TestCase):
 
     def test_revision_arguments_reject_options(self):
         self.assertFalse(checker.valid_revision("-s:CHANGELOG.md"))
+        self.assertTrue(checker.valid_revision("HEAD~1"))
+        self.assertTrue(checker.valid_revision("main^"))
+
+    def test_pre_release_versions_order_and_uniqueness(self):
+        text = ("## [1.0.0] (2026-09-14)\n\n- Final.\n"
+                "## [1.0.0-rc.1] (2026-09-13)\n\n- RC.\n")
+        self.assertEqual(checker.find_violations(text), [])
+
+    def test_undated_release_heading_fails(self):
+        findings = checker.find_violations("## [1.0.0]\n\n- Change.\n")
+        self.assertTrue(any("invalid version heading" in item for item in findings))
 
     def test_staged_version_regression_fails(self):
         with tempfile.TemporaryDirectory() as directory:

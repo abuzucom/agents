@@ -80,9 +80,10 @@ def policy_bytes(root: Path) -> bytes:
         if not path.exists():
             raise ValueError(f"{relative_name} is missing")
         details = path.lstat()
-        if (not stat.S_ISREG(details.st_mode)
-                or details.st_size > MAX_POLICY_BYTES):
+        if not stat.S_ISREG(details.st_mode):
             raise ValueError("supporting policy is not a regular file")
+        if details.st_size > MAX_POLICY_BYTES:
+            raise ValueError("supporting policy exceeds the policy size limit")
         if not path.resolve().is_relative_to(root_resolved):
             raise ValueError("supporting policy escapes the repository")
         content = path.read_bytes()

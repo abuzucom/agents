@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+"""Validate the canonical policy size and required rules."""
 import argparse
 import sys
 from pathlib import Path

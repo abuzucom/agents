@@ -11,10 +11,10 @@ try:
 except ModuleNotFoundError:
     from trusted_git import run_git
 
-VERSION_PATTERN = re.compile(r"^## \[(\d+)\.(\d+)\.(\d+)\](?:-([0-9A-Za-z.-]+))? \((\d{4}-\d{2}-\d{2})\)$")
-HEADING_PATTERN = re.compile(r"^## \[(.+)\] (.+)$")
+VERSION_PATTERN = re.compile(r"^## \[(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?\] \((\d{4}-\d{2}-\d{2})\)$")
+HEADING_PATTERN = re.compile(r"^## \[.+\](?: .*)?$")
 UNRELEASED_PATTERN = re.compile(r"^## \[Unreleased\]$")
-REVISION_PATTERN = re.compile(r"^(?:[0-9A-Fa-f]{7,40}|[A-Za-z0-9_./-]+)$")
+REVISION_PATTERN = re.compile(r"^(?:[0-9A-Fa-f]{7,40}|[A-Za-z0-9_./~^\-]+)$")
 
 
 def valid_revision(value: str) -> bool:
@@ -22,9 +22,15 @@ def valid_revision(value: str) -> bool:
     return bool(value and not value.startswith("-") and REVISION_PATTERN.fullmatch(value))
 
 
-def _version_key(match: re.Match[str]) -> tuple[int, int, int]:
+def _version_key(match: re.Match[str]) -> tuple:
     """Return the numeric ordering key for a version heading."""
-    return tuple(int(match.group(index)) for index in range(1, 4))
+    prerelease = match.group(4)
+    if prerelease is None:
+        return (*[int(match.group(index)) for index in range(1, 4)], 1, ())
+    tokens = tuple(
+        (0, int(token)) if token.isdigit() else (1, token)
+        for token in prerelease.split("."))
+    return (*[int(match.group(index)) for index in range(1, 4)], 0, tokens)
 
 
 def find_violations(text: str) -> list[str]:
@@ -106,9 +112,10 @@ def check_range(repository: Path, base: str, head: str) -> int:
         changed = run_git(
             repository, ["diff", "--name-only", f"{base}..{head}"], check=True,
         ).stdout.splitlines()
-        base_text = run_git(
-            repository, ["show", f"{base}:CHANGELOG.md"], check=True,
-        ).stdout
+        base_result = run_git(
+            repository, ["show", f"{base}:CHANGELOG.md"], check=False,
+        )
+        base_text = base_result.stdout if base_result.returncode == 0 else ""
         head_text = run_git(
             repository, ["show", f"{head}:CHANGELOG.md"], check=True,
         ).stdout

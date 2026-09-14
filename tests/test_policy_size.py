@@ -28,6 +28,18 @@ class PolicySizeTests(unittest.TestCase):
             missing = Path(directory) / "AGENTS.md"
             self.assertTrue(find_violations(missing))
 
+    def test_oversized_policy_reports_violation(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "AGENTS.md"
+            path.write_bytes(b"x" * (32 * 1024 + 1))
+            self.assertTrue(any("exceeds" in item for item in find_violations(path)))
+
+    def test_non_ascii_policy_reports_violation(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "AGENTS.md"
+            path.write_bytes(b"bad\xc3\xa9")
+            self.assertTrue(any("not ASCII" in item for item in find_violations(path)))
+
 
 if __name__ == "__main__":
     unittest.main()
