@@ -12,6 +12,10 @@ The wrapper resolves `origin` from the local checkout or worktree metadata.
 The wrapper fails closed when that context is missing or unsafe. The wrapper
 keeps `gh` execution in an external safe directory.
 
+Pull request creation also receives a validated `--head OWNER:BRANCH` target
+when no head option exists. Global options may precede the GitHub command.
+Normal checkouts and worktrees work on Windows, macOS, and Linux.
+
 Argument arrays carry every value. Shell interpretation and dynamic command
 construction remain prohibited. Repository names, options, URLs, paths, and
 revisions require validation before use.

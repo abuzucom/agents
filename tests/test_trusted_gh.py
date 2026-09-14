@@ -110,6 +110,7 @@ class RepositoryContextTest(unittest.TestCase):
     def write_config(self, root, remote):
         git_dir = root / ".git"
         git_dir.mkdir()
+        (git_dir / "HEAD").write_text("ref: refs/heads/feature/test\n", encoding="utf-8")
         (git_dir / "config").write_text(
             '[remote "origin"]\n\turl = ' + remote + "\n",
             encoding="utf-8",
@@ -121,6 +122,12 @@ class RepositoryContextTest(unittest.TestCase):
             self.write_config(root, "https://github.com/AbuZuCom/agents.git")
             self.assertEqual(trusted_gh.repository_target(root), "AbuZuCom/agents")
 
+    def test_origin_target_accepts_ssh_url(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self.write_config(root, "ssh://git@github.com/owner/repo.git")
+            self.assertEqual(trusted_gh.repository_target(root), "owner/repo")
+
     def test_origin_target_from_worktree_pointer(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -129,6 +136,9 @@ class RepositoryContextTest(unittest.TestCase):
             (git_dir / "config").write_text(
                 '[remote "origin"]\n\turl = git@github.com:owner/repo.git\n',
                 encoding="utf-8",
+            )
+            (git_dir / "HEAD").write_text(
+                "ref: refs/heads/feature/test\n", encoding="utf-8"
             )
             (root / ".git").write_text(
                 "gitdir: metadata/worktree\n", encoding="utf-8"
@@ -155,7 +165,9 @@ class RepositoryContextTest(unittest.TestCase):
                     return subprocess.CompletedProcess(arguments, 0, "", "")
                 with patch.object(trusted_gh, "run_gh", side_effect=run_gh):
                     trusted_gh._run_requested_command(root, ["pr", "create"])
-        self.assertEqual(captured["arguments"], ["pr", "create", "--repo", "owner/repo"])
+        self.assertEqual(captured["arguments"], [
+            "pr", "create", "--repo", "owner/repo", "--head", "owner:feature/test"
+        ])
 
     def test_explicit_repo_argument_is_preserved(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -165,6 +177,34 @@ class RepositoryContextTest(unittest.TestCase):
                 trusted_gh.with_repository_context(root, ["pr", "view", "-R", "other/repo"]),
                 ["pr", "view", "-R", "other/repo"],
             )
+
+    def test_global_options_before_command_receive_context(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self.write_config(root, "https://github.com/owner/repo.git")
+            arguments = trusted_gh.with_repository_context(
+                root, ["--hostname", "github.com", "pr", "create"]
+            )
+            self.assertIn("--head", arguments)
+
+    def test_head_equals_form_is_preserved(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self.write_config(root, "https://github.com/owner/repo.git")
+            arguments = trusted_gh.with_repository_context(
+                root, ["pr", "create", "--head=owner:other"]
+            )
+            self.assertEqual(arguments.count("--head=owner:other"), 1)
+
+    def test_invalid_branch_fails_closed(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self.write_config(root, "https://github.com/owner/repo.git")
+            (root / ".git" / "HEAD").write_text(
+                "ref: refs/heads/bad//branch\n", encoding="utf-8"
+            )
+            with self.assertRaises(ValueError):
+                trusted_gh.repository_branch(root)
 
 
 if __name__ == "__main__":

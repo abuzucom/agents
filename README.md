@@ -105,6 +105,8 @@ The wrapper resolves `gh` outside the repository and verifies authentication.
 Repository-bound commands receive validated repository context from the local
 checkout or worktree. The wrapper fails closed when context is missing or
 unsafe. The wrapper keeps `gh` execution outside the repository.
+Pull request creation receives validated head context when no head option is
+provided. Windows, macOS, and Linux worktree layouts are supported.
 Shell gates deny direct `gh`, Git, and HTTP substitutes. High-risk hosted
 mutations deny. Confirmable changes ask. Local Git and ordinary fetch, pull,
 and push transport remain available.

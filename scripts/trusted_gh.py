@@ -12,6 +12,7 @@ from pathlib import Path
 
 ACCOUNT_OUTPUT_LIMIT = 256
 COMMAND_OUTPUT_LIMIT = 1024 * 1024
+METADATA_OUTPUT_LIMIT = 65536
 GH_TIMEOUT_SECONDS = 5
 PROXY_VARIABLES = ("HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY",
                    "http_proxy", "https_proxy", "all_proxy")
@@ -21,6 +22,8 @@ LOGIN = re.compile(r"\A[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?\Z")
 TEXT_OPTIONS = frozenset(("--body", "--title"))
 REPOSITORY_COMMANDS = frozenset(("pr", "issue", "repo", "run"))
 REPOSITORY_NAME = re.compile(r"\A[A-Za-z0-9](?:[A-Za-z0-9._-]{0,98}[A-Za-z0-9])?\Z")
+BRANCH_NAME = re.compile(r"\A[A-Za-z0-9][A-Za-z0-9._/-]{0,199}\Z")
+GLOBAL_VALUE_OPTIONS = frozenset(("-R", "--repo", "--hostname"))
 
 
 def find_literal_escape_sequences(arguments: list[str]) -> list[str]:
@@ -50,6 +53,8 @@ def _git_config_path(git_entry: Path) -> Path:
     """Return a local Git config path for a directory or worktree pointer."""
     if git_entry.is_dir():
         return git_entry / "config"
+    if git_entry.stat().st_size > METADATA_OUTPUT_LIMIT:
+        raise ValueError("repository context Git pointer exceeds the safety limit")
     content = git_entry.read_text(encoding="utf-8", errors="strict")
     marker, separator, value = content.strip().partition(":")
     if marker.strip().lower() != "gitdir" or not separator or not value.strip():
@@ -59,6 +64,8 @@ def _git_config_path(git_entry: Path) -> Path:
         raise ValueError("repository context has a missing Git worktree directory")
     common_file = git_dir / "commondir"
     if common_file.is_file():
+        if common_file.stat().st_size > METADATA_OUTPUT_LIMIT:
+            raise ValueError("repository context common pointer exceeds the safety limit")
         common_value = common_file.read_text(encoding="utf-8", errors="strict").strip()
         if not common_value or "\n" in common_value or "\r" in common_value:
             raise ValueError("repository context has an invalid common Git directory")
@@ -69,9 +76,28 @@ def _git_config_path(git_entry: Path) -> Path:
     return git_dir / "config"
 
 
+def _git_dir(git_entry: Path) -> Path:
+    """Return the resolved administrative Git directory."""
+    if git_entry.is_dir():
+        return git_entry
+    if git_entry.stat().st_size > METADATA_OUTPUT_LIMIT:
+        raise ValueError("repository context Git pointer exceeds the safety limit")
+    content = git_entry.read_text(encoding="utf-8", errors="strict")
+    marker, separator, value = content.strip().partition(":")
+    if marker.strip().lower() != "gitdir" or not separator or not value.strip():
+        raise ValueError("repository context has an invalid Git worktree pointer")
+    git_dir = (git_entry.parent / value.strip()).resolve()
+    if not git_dir.is_dir():
+        raise ValueError("repository context has a missing Git worktree directory")
+    common_file = git_dir / "commondir"
+    if common_file.is_file():
+        return git_dir
+    return git_dir
+
+
 def _origin_url(config_path: Path) -> str:
     """Read the origin URL from a bounded local Git config."""
-    if config_path.stat().st_size > 65536:
+    if config_path.stat().st_size > METADATA_OUTPUT_LIMIT:
         raise ValueError("repository context Git config exceeds the safety limit")
     section = ""
     origin = ""
@@ -95,7 +121,8 @@ def _repository_from_origin(origin: str) -> str:
     value = origin.strip()
     if value.startswith("https://") or value.startswith("ssh://"):
         parsed = urllib.parse.urlsplit(value)
-        if parsed.hostname != "github.com" or parsed.username or parsed.password:
+        if (parsed.hostname != "github.com" or parsed.password
+                or parsed.username not in (None, "git")):
             raise ValueError("repository origin is not a safe GitHub remote")
         path = parsed.path.lstrip("/")
     elif value.startswith("git@github.com:"):
@@ -114,6 +141,23 @@ def repository_target(start: Path) -> str:
     return _repository_from_origin(_origin_url(_git_config_path(_find_git_entry(start))))
 
 
+def repository_branch(start: Path) -> str:
+    """Return the validated current branch from local Git metadata."""
+    head_path = _git_dir(_find_git_entry(start)) / "HEAD"
+    if head_path.stat().st_size > METADATA_OUTPUT_LIMIT:
+        raise ValueError("repository HEAD exceeds the safety limit")
+    content = head_path.read_text(encoding="utf-8", errors="strict").strip()
+    marker = "ref: refs/heads/"
+    if not content.startswith(marker):
+        raise ValueError("repository has no named branch; check out a branch first")
+    branch = content.removeprefix(marker)
+    components = branch.split("/")
+    if (not BRANCH_NAME.fullmatch(branch) or any(component in ("", ".", "..")
+                                                for component in components)):
+        raise ValueError("repository has an invalid current branch")
+    return branch
+
+
 def _has_repository_option(arguments: list[str]) -> bool:
     """Return whether arguments contain a structural repository option."""
     for index, argument in enumerate(arguments):
@@ -124,11 +168,40 @@ def _has_repository_option(arguments: list[str]) -> bool:
     return False
 
 
+def _command_position(arguments: list[str]) -> int:
+    """Return the first GitHub command token after global options."""
+    index = 0
+    while index < len(arguments):
+        argument = arguments[index]
+        if argument == "--":
+            return index + 1
+        if argument in GLOBAL_VALUE_OPTIONS:
+            index += 2
+            continue
+        if argument.startswith("--") and "=" in argument:
+            index += 1
+            continue
+        if argument.startswith("-"):
+            index += 1
+            continue
+        return index
+    return len(arguments)
+
+
 def with_repository_context(repository: Path, arguments: list[str]) -> list[str]:
     """Add validated repository context to a repository-bound command."""
-    if not arguments or arguments[0] not in REPOSITORY_COMMANDS or _has_repository_option(arguments):
+    position = _command_position(arguments)
+    if (position >= len(arguments) or arguments[position] not in REPOSITORY_COMMANDS
+            or _has_repository_option(arguments)):
         return list(arguments)
-    return [*arguments, "--repo", repository_target(repository)]
+    target = repository_target(repository)
+    context = [*arguments, "--repo", target]
+    command = arguments[position:position + 2]
+    has_head = any(argument == "--head" or argument.startswith("--head=")
+                   for argument in arguments)
+    if command == ["pr", "create"] and not has_head:
+        context.extend(("--head", f"{target.split('/')[0]}:{repository_branch(repository)}"))
+    return context
 
 
 def _is_inside(path: Path, directory: Path) -> bool:

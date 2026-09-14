@@ -9,6 +9,13 @@ The house style bans that hyphen. `scripts/check_ascii.py` enforces the ban on
 this file.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.23] (2026-09-14)
+
+### Fixed
+- Handle global GitHub CLI options before repository commands.
+- Preserve explicit pull request head options.
+- Bound worktree metadata and accept valid SSH remotes on all platforms.
+
 ## [2.0.22] (2026-09-14)
 
 ### Fixed
