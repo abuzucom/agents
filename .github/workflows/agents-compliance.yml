@@ -92,6 +92,12 @@ jobs:
         run: python scripts/check_gate_adoption.py
       - name: Check versioned changelog
         run: python scripts/check_changelog.py
+      - name: Check changelog version advance
+        if: github.event_name == 'pull_request'
+        env:
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: python scripts/check_changelog.py --base "$PR_BASE_SHA" --head "$PR_HEAD_SHA"
       - name: Check canonical policy size
         run: python scripts/check_policy_size.py
       - name: Check persist-credentials on checkout steps

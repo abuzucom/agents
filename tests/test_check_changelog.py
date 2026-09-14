@@ -42,6 +42,18 @@ class ChangelogCheckerTest(unittest.TestCase):
         findings = checker.find_violations("not a changelog")
         self.assertTrue(any("no versioned" in finding for finding in findings))
 
+    def test_range_requires_version_advance_and_entry(self):
+        base = "## [2.0.0] (2026-09-13)\n\n### Added\n- Old.\n"
+        findings = checker.find_range_violations(base, base, ["README.md"])
+        self.assertTrue(findings)
+
+    def test_range_accepts_new_versioned_entry(self):
+        base = "## [2.0.0] (2026-09-13)\n\n### Added\n- Old.\n"
+        head = "## [2.0.1] (2026-09-14)\n\n### Fixed\n- New.\n\n" + base
+        findings = checker.find_range_violations(
+            base, head, ["README.md", "CHANGELOG.md"])
+        self.assertEqual(findings, [])
+
 
 if __name__ == "__main__":
     unittest.main()

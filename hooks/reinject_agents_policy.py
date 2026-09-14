@@ -73,9 +73,12 @@ def load_policy(root: Path) -> tuple[str, str]:
         raise ValueError("AGENTS.md is not a bounded regular file")
     raw = path.read_bytes()
     supporting = []
+    requires_supporting = (root / "docs" / "agent-policy").is_dir()
     for relative_name in SUPPORTING_POLICY_FILES:
         supporting_path = root / relative_name
         if not supporting_path.exists():
+            if requires_supporting:
+                raise ValueError(f"{relative_name} is missing")
             continue
         details = supporting_path.lstat()
         if not stat.S_ISREG(details.st_mode):

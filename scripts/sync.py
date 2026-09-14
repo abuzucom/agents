@@ -71,9 +71,12 @@ def policy_bytes(root: Path) -> bytes:
     source, _ = _inspect_source(root)
     raw = source.read_bytes()
     parts = []
+    requires_supporting = (root / "docs" / "agent-policy").is_dir()
     for relative_name in SUPPORTING_POLICY_FILES:
         path = _lexical_path(root, relative_name)
         if not path.exists():
+            if requires_supporting:
+                raise ValueError(f"{relative_name} is missing")
             continue
         details = path.lstat()
         if not stat.S_ISREG(details.st_mode):

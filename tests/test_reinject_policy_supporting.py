@@ -25,8 +25,11 @@ class SupportingPolicyTests(unittest.TestCase):
             supporting.mkdir(parents=True)
             (supporting / "adoption.md").write_text(
                 "supporting\n", encoding="utf-8")
+            for relative_name in hook.SUPPORTING_POLICY_FILES[1:]:
+                (root / relative_name).write_text("detail\n", encoding="utf-8")
             policy, _digest = hook.load_policy(root)
-        self.assertTrue(policy.startswith("supporting\ncanonical\n"))
+        self.assertTrue(policy.startswith("supporting\n"))
+        self.assertTrue(policy.endswith("canonical\n"))
 
     def test_load_policy_rejects_non_regular_supporting_file(self):
         hook = load_hook()
@@ -37,6 +40,15 @@ class SupportingPolicyTests(unittest.TestCase):
             supporting.mkdir(parents=True)
             (supporting / "adoption.md").mkdir()
             with self.assertRaisesRegex(ValueError, "regular file"):
+                hook.load_policy(root)
+
+    def test_load_policy_rejects_missing_supporting_file(self):
+        hook = load_hook()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "AGENTS.md").write_text("canonical\n", encoding="utf-8")
+            (root / "docs" / "agent-policy").mkdir(parents=True)
+            with self.assertRaisesRegex(ValueError, "missing"):
                 hook.load_policy(root)
 
 

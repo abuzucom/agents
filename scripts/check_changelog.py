@@ -76,6 +76,41 @@ def _first_version(text: str) -> tuple[int, int, int] | None:
     return None
 
 
+def find_range_violations(base: str, head: str, changed: list[str]) -> list[str]:
+    """Return findings for a pull-request changelog range."""
+    findings = find_violations(head)
+    base_version = _first_version(base)
+    head_version = _first_version(head)
+    if "CHANGELOG.md" not in changed:
+        findings.append("changed files require CHANGELOG.md")
+    if base_version is None or head_version is None:
+        findings.append("both revisions require a versioned release")
+    elif head_version <= base_version:
+        findings.append("head changelog version must exceed the base version")
+    return findings
+
+
+def check_range(repository: Path, base: str, head: str) -> int:
+    """Require a valid, newer changelog across a Git revision range."""
+    try:
+        changed = run_git(
+            repository, ["diff", "--name-only", f"{base}..{head}"], check=True,
+        ).stdout.splitlines()
+        base_text = run_git(
+            repository, ["show", f"{base}:CHANGELOG.md"], check=True,
+        ).stdout
+        head_text = run_git(
+            repository, ["show", f"{head}:CHANGELOG.md"], check=True,
+        ).stdout
+    except (OSError, UnicodeError, ValueError):
+        print("error: cannot inspect changelog revision range", file=sys.stderr)
+        return 1
+    findings = find_range_violations(base_text, head_text, changed)
+    for finding in findings:
+        print(f"error: CHANGELOG.md: {finding}", file=sys.stderr)
+    return 1 if findings else 0
+
+
 def check_staged(repository: Path) -> int:
     """Require a changed versioned changelog entry for staged changes."""
     try:
@@ -110,7 +145,13 @@ def main() -> int:
     parser.add_argument("path", nargs="?", default="CHANGELOG.md")
     parser.add_argument("--staged", action="store_true")
     parser.add_argument("--repo", default=".")
+    parser.add_argument("--base")
+    parser.add_argument("--head")
     args = parser.parse_args()
+    if args.base or args.head:
+        if not args.base or not args.head:
+            parser.error("--base and --head must be used together")
+        return check_range(Path(args.repo).resolve(), args.base, args.head)
     if args.staged:
         return check_staged(Path(args.repo).resolve())
     return check_file(Path(args.path))
