@@ -19,6 +19,8 @@ MANAGED_PROXY_HOST = "127.0.0.1"
 MANAGED_PROXY_PORT = 9
 LOGIN = re.compile(r"\A[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?\Z")
 TEXT_OPTIONS = frozenset(("--body", "--title"))
+REPOSITORY_COMMANDS = frozenset(("pr", "issue", "repo", "run"))
+REPOSITORY_NAME = re.compile(r"\A[A-Za-z0-9](?:[A-Za-z0-9._-]{0,98}[A-Za-z0-9])?\Z")
 
 
 def find_literal_escape_sequences(arguments: list[str]) -> list[str]:
@@ -28,6 +30,105 @@ def find_literal_escape_sequences(arguments: list[str]) -> list[str]:
         if argument in TEXT_OPTIONS and "\\n" in arguments[index + 1]:
             findings.append(argument)
     return findings
+
+
+def _find_git_entry(start: Path) -> Path:
+    """Return the nearest .git entry or raise a bounded error."""
+    current = start.resolve()
+    for _ in range(100):
+        candidate = current / ".git"
+        if candidate.is_dir() or candidate.is_file():
+            return candidate
+        parent = current.parent
+        if parent == current:
+            break
+        current = parent
+    raise ValueError("repository context is missing; run from a Git checkout")
+
+
+def _git_config_path(git_entry: Path) -> Path:
+    """Return a local Git config path for a directory or worktree pointer."""
+    if git_entry.is_dir():
+        return git_entry / "config"
+    content = git_entry.read_text(encoding="utf-8", errors="strict")
+    marker, separator, value = content.strip().partition(":")
+    if marker.strip().lower() != "gitdir" or not separator or not value.strip():
+        raise ValueError("repository context has an invalid Git worktree pointer")
+    git_dir = (git_entry.parent / value.strip()).resolve()
+    if not git_dir.is_dir():
+        raise ValueError("repository context has a missing Git worktree directory")
+    common_file = git_dir / "commondir"
+    if common_file.is_file():
+        common_value = common_file.read_text(encoding="utf-8", errors="strict").strip()
+        if not common_value or "\n" in common_value or "\r" in common_value:
+            raise ValueError("repository context has an invalid common Git directory")
+        common_dir = (git_dir / common_value).resolve()
+        if not common_dir.is_dir():
+            raise ValueError("repository context has a missing common Git directory")
+        return common_dir / "config"
+    return git_dir / "config"
+
+
+def _origin_url(config_path: Path) -> str:
+    """Read the origin URL from a bounded local Git config."""
+    if config_path.stat().st_size > 65536:
+        raise ValueError("repository context Git config exceeds the safety limit")
+    section = ""
+    origin = ""
+    for line in config_path.read_text(encoding="utf-8", errors="strict").splitlines():
+        stripped = line.strip()
+        if stripped.startswith("[") and stripped.endswith("]"):
+            section = stripped.lower()
+            continue
+        key, separator, value = stripped.partition("=")
+        if separator and section == '[remote "origin"]' and key.strip().lower() == "url":
+            origin = value.strip()
+    if not origin:
+        raise ValueError("repository context has no origin remote")
+    return origin
+
+
+def _repository_from_origin(origin: str) -> str:
+    """Return a validated GitHub OWNER/REPOSITORY target."""
+    if any(character in origin for character in "\r\n\x00"):
+        raise ValueError("repository context contains unsafe origin metadata")
+    value = origin.strip()
+    if value.startswith("https://") or value.startswith("ssh://"):
+        parsed = urllib.parse.urlsplit(value)
+        if parsed.hostname != "github.com" or parsed.username or parsed.password:
+            raise ValueError("repository origin is not a safe GitHub remote")
+        path = parsed.path.lstrip("/")
+    elif value.startswith("git@github.com:"):
+        path = value.removeprefix("git@github.com:")
+    else:
+        raise ValueError("repository origin is not a supported GitHub remote")
+    path = path.removesuffix(".git")
+    parts = path.split("/")
+    if len(parts) != 2 or not all(REPOSITORY_NAME.fullmatch(part) for part in parts):
+        raise ValueError("repository origin has an invalid owner or repository")
+    return "/".join(parts)
+
+
+def repository_target(start: Path) -> str:
+    """Return the validated GitHub target for the checkout containing start."""
+    return _repository_from_origin(_origin_url(_git_config_path(_find_git_entry(start))))
+
+
+def _has_repository_option(arguments: list[str]) -> bool:
+    """Return whether arguments contain a structural repository option."""
+    for index, argument in enumerate(arguments):
+        if argument in ("-R", "--repo") and index + 1 < len(arguments):
+            return True
+        if argument.startswith("--repo=") or argument.startswith("-R") and len(argument) > 2:
+            return True
+    return False
+
+
+def with_repository_context(repository: Path, arguments: list[str]) -> list[str]:
+    """Add validated repository context to a repository-bound command."""
+    if not arguments or arguments[0] not in REPOSITORY_COMMANDS or _has_repository_option(arguments):
+        return list(arguments)
+    return [*arguments, "--repo", repository_target(repository)]
 
 
 def _is_inside(path: Path, directory: Path) -> bool:
@@ -197,8 +298,13 @@ def _run_requested_command(repo_root, arguments: list[str]) -> int:
         print(f"error: {reason}", file=sys.stderr)
         return 2
     try:
+        effective_arguments = with_repository_context(Path(repo_root), arguments)
+        decision, reason = gate_core.forge_verdict("gh", effective_arguments)
+        if decision == "deny":
+            print(f"error: {reason}", file=sys.stderr)
+            return 2
         authenticated_account(repo_root)
-        result = run_gh(repo_root, arguments)
+        result = run_gh(repo_root, effective_arguments)
     except (OSError, subprocess.TimeoutExpired, ValueError) as error:
         print(f"error: {error}", file=sys.stderr)
         return 1

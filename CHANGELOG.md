@@ -9,6 +9,18 @@ The house style bans that hyphen. `scripts/check_ascii.py` enforces the ban on
 this file.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.22] (2026-09-14)
+
+### Fixed
+- Require accurate reporting of runtime elevation approval state.
+
+## [2.0.21] (2026-09-14)
+
+### Fixed
+- Resolve GitHub repository context from Windows worktrees.
+- Pass validated repository context to repository-bound GitHub CLI commands.
+- Require behavioral tests for executable pull request changes.
+
 ## [2.0.20] (2026-09-14)
 
 ### Fixed

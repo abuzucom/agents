@@ -12,6 +12,10 @@ from unittest.mock import patch
 REPOSITORY_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPOSITORY_ROOT / "scripts"))
 
+# The managed Windows runner applies unstable inherited ACLs under the system
+# temp directory. Keep test fixtures inside the writable checkout instead.
+tempfile.tempdir = str(REPOSITORY_ROOT)
+
 import trusted_gh
 
 
@@ -98,6 +102,69 @@ class TrustedRunnerSafetyTest(unittest.TestCase):
         self.assertNotIn("HTTPS_PROXY", captured["env"])
         self.assertEqual(captured["env"]["ALL_PROXY"],
                          "http://proxy.example.test:8080")
+
+
+class RepositoryContextTest(unittest.TestCase):
+    """Repository-bound commands receive safe explicit context."""
+
+    def write_config(self, root, remote):
+        git_dir = root / ".git"
+        git_dir.mkdir()
+        (git_dir / "config").write_text(
+            '[remote "origin"]\n\turl = ' + remote + "\n",
+            encoding="utf-8",
+        )
+
+    def test_origin_target_from_https_remote(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self.write_config(root, "https://github.com/AbuZuCom/agents.git")
+            self.assertEqual(trusted_gh.repository_target(root), "AbuZuCom/agents")
+
+    def test_origin_target_from_worktree_pointer(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            git_dir = root / "metadata" / "worktree"
+            git_dir.mkdir(parents=True)
+            (git_dir / "config").write_text(
+                '[remote "origin"]\n\turl = git@github.com:owner/repo.git\n',
+                encoding="utf-8",
+            )
+            (root / ".git").write_text(
+                "gitdir: metadata/worktree\n", encoding="utf-8"
+            )
+            self.assertEqual(trusted_gh.repository_target(root), "owner/repo")
+
+    def test_invalid_origin_fails_closed(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self.write_config(root, "https://example.test/owner/repo.git")
+            with self.assertRaises(ValueError):
+                trusted_gh.repository_target(root)
+
+    def test_repo_argument_is_added_to_repository_command(self):
+        captured = {}
+
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self.write_config(root, "https://github.com/owner/repo.git")
+            with patch.object(trusted_gh, "authenticated_account", return_value={"id": 1,
+                                                                                   "login": "user"}):
+                def run_gh(repository, arguments):
+                    captured["arguments"] = arguments
+                    return subprocess.CompletedProcess(arguments, 0, "", "")
+                with patch.object(trusted_gh, "run_gh", side_effect=run_gh):
+                    trusted_gh._run_requested_command(root, ["pr", "create"])
+        self.assertEqual(captured["arguments"], ["pr", "create", "--repo", "owner/repo"])
+
+    def test_explicit_repo_argument_is_preserved(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self.write_config(root, "https://github.com/owner/repo.git")
+            self.assertEqual(
+                trusted_gh.with_repository_context(root, ["pr", "view", "-R", "other/repo"]),
+                ["pr", "view", "-R", "other/repo"],
+            )
 
 
 if __name__ == "__main__":
