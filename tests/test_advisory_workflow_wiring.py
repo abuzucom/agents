@@ -50,6 +50,17 @@ class AdvisoryWorkflowTest(unittest.TestCase):
                 text.count("persist-credentials: false"),
             )
 
+    def test_changelog_range_jobs_fetch_full_history(self):
+        workflow_jobs = (
+            (SYNC_WORKFLOW, "check-sync"),
+            (REUSABLE_WORKFLOW, "static-checks"),
+        )
+        for workflow, job in workflow_jobs:
+            text = workflow.read_text(encoding="utf-8")
+            section = text.split(f"  {job}:", 1)[1]
+            self.assertIn("fetch-depth: 0", section)
+            self.assertIn("python scripts/check_changelog.py --base", section)
+
 
 if __name__ == "__main__":
     unittest.main()

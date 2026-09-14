@@ -9,9 +9,10 @@ The house style bans that hyphen. `scripts/check_ascii.py` enforces the ban on
 this file.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.0.3] (2026-09-13)
+## [2.0.4] (2026-09-14)
 
 ### Fixed
+- Fetch full history for CI changelog range checks.
 - Fail closed when linked policy files are missing or unsafe.
 - Handle changelog revision inspection errors without crashing.
 - Assemble generated policy copies from canonical content first.
