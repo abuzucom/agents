@@ -44,6 +44,8 @@ class GithubCommandDenylistTest(unittest.TestCase):
             ["pr", "--repo=OWNER/REPO", "merge", "12"],
             ["pr", "--", "merge", "12"],
             ["auth", "--hostname", "github.example", "token"],
+            ["auth", "-h", "github.example", "token"],
+            ["auth", "-u", "octocat", "token"],
             ["repo", "--repo", "OWNER/REPO", "clone", "OWNER/REPO"],
         )
         for command in cases:

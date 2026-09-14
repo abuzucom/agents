@@ -9,6 +9,12 @@ The house style bans that hyphen. `scripts/check_ascii.py` enforces the ban on
 this file.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.20] (2026-09-14)
+
+### Fixed
+- Consume GitHub CLI `-h` and `-u` option values before denylist matching.
+- Cover short authentication option forms through fresh hook processes.
+
 ## [2.0.19] (2026-09-14)
 
 ### Fixed

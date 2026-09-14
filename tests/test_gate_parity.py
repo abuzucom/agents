@@ -379,6 +379,8 @@ class GitHubCliSafetyParityTest(unittest.TestCase):
         (WRAPPER + "pr --repo=OWNER/REPO merge 12", "deny"),
         (WRAPPER + "pr -- merge 12", "deny"),
         (WRAPPER + "auth --hostname github.example token", "deny"),
+        (WRAPPER + "auth -h github.example token", "deny"),
+        (WRAPPER + "auth -u octocat token", "deny"),
         (WRAPPER + "repo --repo OWNER/REPO clone OWNER/REPO", "deny"),
         (WRAPPER + "repo --repo OWNER/REPO edit --visibility public", "deny"),
         (WRAPPER + "agent create", "deny"),

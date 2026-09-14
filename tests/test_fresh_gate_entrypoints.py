@@ -21,6 +21,8 @@ GITHUB_CASES = (
     ("python scripts/trusted_gh.py run auth token", "deny", 2),
     ("python scripts/trusted_gh.py run auth login", "deny", 2),
     ("python scripts/trusted_gh.py run auth status --scopes repo", "deny", 2),
+    ("python scripts/trusted_gh.py run auth -h github.example token", "deny", 2),
+    ("python scripts/trusted_gh.py run auth -u octocat token", "deny", 2),
     ("python scripts/trusted_gh.py run api --method DELETE repos/OWNER/REPO",
      "deny", 2),
     ("python scripts/trusted_gh.py run api --method GET repos/OWNER/REPO", "", 0),
