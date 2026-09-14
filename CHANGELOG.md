@@ -9,6 +9,54 @@ The house style bans that hyphen. `scripts/check_ascii.py` enforces the ban on
 this file.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.20] (2026-09-14)
+
+### Fixed
+- Consume GitHub CLI `-h` and `-u` option values before denylist matching.
+- Cover short authentication option forms through fresh hook processes.
+
+## [2.0.19] (2026-09-14)
+
+### Fixed
+- Consume interleaved GitHub CLI option values before path matching.
+- Cover option terminators and attached option values.
+
+## [2.0.18] (2026-09-14)
+
+### Fixed
+- Parse interleaved GitHub CLI option values before denylist matching.
+- Align Rules 16 and 17 with unconditional GitHub CLI denials.
+
+## [2.0.17] (2026-09-14)
+
+### Fixed
+- Remove stale hook-coverage allowances after routing cleanup.
+
+## [2.0.16] (2026-09-14)
+
+### Fixed
+- Remove duplicate denylist paths from legacy GitHub safety branches.
+- Deny merges and archives through the shared GitHub classifier.
+- Exercise GitHub routing branches through fresh hook processes.
+
+## [2.0.15] (2026-09-14)
+
+### Fixed
+- Cover GitHub routing through fresh hook entrypoints.
+- Test unavailable and malformed GitHub CLI denylist data.
+
+## [2.0.14] (2026-09-14)
+
+### Fixed
+- Deny the documented `gh agent-task` aliases.
+- Deny documented aliases for other banned GitHub CLI families.
+
+## [2.0.13] (2026-09-14)
+
+### Added
+- Add a configurable GitHub CLI command denylist.
+- Deny the requested GitHub CLI command families and paths.
+
 ## [2.0.12] (2026-09-14)
 
 ### Fixed

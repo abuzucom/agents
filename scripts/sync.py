@@ -31,6 +31,7 @@ MAX_POLICY_BYTES = 64 * 1024
 # design exists to prevent, so the files carrying decisions are listed here
 # and their hashes are committed in every repository holding them.
 SHARED_FILES = [
+    "hooks/github-command-denylist.txt",
     "hooks/_bash_parser.py",
     "hooks/_cmd_parser.py",
     "hooks/_gate_core.py",

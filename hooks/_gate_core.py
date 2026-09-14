@@ -31,6 +31,8 @@ import subprocess
 import sys
 import threading
 import urllib.parse
+from functools import lru_cache
+from pathlib import Path
 
 INTERACTIVE_MODES = frozenset({"default", "plan", "acceptEdits", "auto"})
 AMBIGUOUS_MARKERS = ("$", "`")
@@ -2618,12 +2620,90 @@ GH_SUBCOMMAND_VALUE_OPTIONS = frozenset({
     "--assignee", "--body", "--base", "--body-file", "--head", "--label",
     "--milestone", "--project", "--reviewer", "--title", "--template",
 })
+GH_COMMAND_VALUE_OPTIONS = (GH_GLOBAL_VALUE_OPTIONS
+                            | GH_SUBCOMMAND_VALUE_OPTIONS
+                            | frozenset({"-h", "-u"}))
 GH_BROAD_AUTH_SCOPES = frozenset({"admin:org", "admin:public_key",
                                   "admin:repo_hook", "delete_repo", "gist",
                                   "project", "repo", "user", "workflow",
                                   "write:discussion", "write:org",
                                   "write:packages"})
 GH_FALLBACK_CONFIG = "agents.githubfallback=confirmed"
+GH_COMMAND_DENYLIST = Path(__file__).with_name("github-command-denylist.txt")
+
+
+@lru_cache(maxsize=1)
+def _load_github_command_denylist() -> tuple[frozenset, frozenset]:
+    """Load GitHub CLI family and exact command-path bans."""
+    try:
+        lines = GH_COMMAND_DENYLIST.read_text(encoding="ascii").splitlines()
+    except OSError as error:
+        raise ValueError("GitHub CLI denylist is unavailable") from error
+    families = set()
+    paths = set()
+    for line_number, line in enumerate(lines, 1):
+        fields = line.split()
+        if not fields or fields[0].startswith("#"):
+            continue
+        if fields[0] == "family" and len(fields) == 2:
+            families.add((fields[1],))
+        elif fields[0] == "path" and len(fields) > 1:
+            paths.add(tuple(fields[1:]))
+        else:
+            raise ValueError(f"invalid GitHub CLI denylist line {line_number}")
+    return frozenset(families), frozenset(paths)
+
+
+def _github_command_denylist_verdict(command: list) -> tuple:
+    """Return a denial for a configured GitHub CLI command path."""
+    try:
+        families, paths = _load_github_command_denylist()
+    except ValueError as error:
+        return "deny", str(error)
+    command_path = _github_command_path(command)
+    if command_path and command_path[:1] in families:
+        if command_path[0] == "secret":
+            return "deny", "gh secret operations expose or change hosted secrets"
+        if command_path[0] == "variable":
+            return "deny", "gh variable operations expose or change hosted variables"
+        return "deny", f"gh {command_path[0]} is denied by policy"
+    for path in paths:
+        if command_path[:len(path)] == path:
+            if path == ("repo", "delete"):
+                return "deny", "gh repo delete removes work and is denied by policy"
+            return "deny", f"gh {' '.join(path)} is denied by policy"
+    return "", ""
+
+
+def _github_command_path(command: list) -> tuple:
+    """Return the noun and action after consuming option values."""
+    command_path = []
+    index = 0
+    while index < len(command) and len(command_path) < 2:
+        token = command[index]
+        if token == "--":
+            index += 1
+            continue
+        if token in GH_COMMAND_VALUE_OPTIONS:
+            index += 2
+            continue
+        lowered = token.casefold()
+        if any(lowered.startswith(option.casefold() + "=")
+               for option in GH_COMMAND_VALUE_OPTIONS if option.startswith("--")):
+            index += 1
+            continue
+        if any(token.casefold().startswith(option.casefold())
+               and len(token) > len(option)
+               for option in GH_COMMAND_VALUE_OPTIONS
+               if len(option) == 2):
+            index += 1
+            continue
+        if token.startswith("-"):
+            index += 1
+            continue
+        command_path.append(lowered)
+        index += 1
+    return tuple(command_path)
 
 
 def _github_command_args(args: list) -> list:
@@ -2684,15 +2764,10 @@ def _github_api_verdict(args: list) -> tuple:
 
 def _github_auth_verdict(args: list) -> tuple:
     """Protect GitHub credentials and broad authorization scopes."""
-    action = args[1].lower() if len(args) > 1 else ""
-    if action == "token":
-        return "deny", "gh auth token exposes an authentication credential"
     scopes = _option_value(args, frozenset({"--scopes", "-s"}))
     scope_set = {scope.strip().lower() for scope in scopes.split(",") if scope}
     if scope_set & GH_BROAD_AUTH_SCOPES:
         return "deny", "gh auth requests a broad write or deletion scope"
-    if action in {"login", "logout", "refresh", "setup-git", "switch"}:
-        return "deny", "agents cannot change GitHub authentication state"
     return "", ""
 
 
@@ -2820,24 +2895,21 @@ def github_cli_verdict(args: list, *, repo_owner: str = "") -> tuple:
     command = _github_command_args(args)
     if not command:
         return "", ""
-    words = [token.lower() for token in command if not token.startswith("-")]
+    decision, reason = _github_command_denylist_verdict(command)
+    if decision:
+        return decision, reason
+    words = _github_command_path(command)
     noun = words[0] if words else ""
     action = words[1] if len(words) > 1 else ""
     if noun == "api":
         return _github_api_verdict(command[1:])
     if noun == "auth":
         return _github_auth_verdict(command)
-    if noun == "pr" and action == "merge":
-        if "--admin" in command:
-            return "deny", "an administrative pull request merge bypasses protections"
-        return "ask", "a pull request merge changes the hosted repository"
     if noun == "repo" and action == "edit":
         visibility = _option_value(command, frozenset({"--visibility"})).lower()
         if visibility == "public" or is_ambiguous(visibility):
             return "deny", "public repository visibility can expose private content"
         return "ask", "repository edits change hosted settings"
-    if noun == "repo" and action == "archive":
-        return "ask", "repository archiving disables hosted development"
     return _external_target_verdict(args, command, noun, action, repo_owner)
 
 
