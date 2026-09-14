@@ -73,6 +73,20 @@ class SupportingPolicyTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "non-ASCII"):
                 hook.load_policy(root)
 
+    def test_load_policy_rejects_oversized_supporting_file(self):
+        hook = load_hook()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "AGENTS.md").write_text("canonical\n", encoding="utf-8")
+            for relative_name in hook.SUPPORTING_POLICY_FILES:
+                path = root / relative_name
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text("detail\n", encoding="utf-8")
+            oversized = root / hook.SUPPORTING_POLICY_FILES[0]
+            oversized.write_bytes(b"x" * (hook.MAX_POLICY_BYTES + 1))
+            with self.assertRaisesRegex(ValueError, "exceeds the policy size limit"):
+                hook.load_policy(root)
+
 
 if __name__ == "__main__":
     unittest.main()
