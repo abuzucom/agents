@@ -9,6 +9,19 @@ The house style bans that hyphen. `scripts/check_ascii.py` enforces the ban on
 this file.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.16] (2026-09-14)
+
+### Fixed
+- Remove duplicate denylist paths from legacy GitHub safety branches.
+- Deny merges and archives through the shared GitHub classifier.
+- Exercise GitHub routing branches through fresh hook processes.
+
+## [2.0.15] (2026-09-14)
+
+### Fixed
+- Cover GitHub routing through fresh hook entrypoints.
+- Test unavailable and malformed GitHub CLI denylist data.
+
 ## [2.0.14] (2026-09-14)
 
 ### Fixed

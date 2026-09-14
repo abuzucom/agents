@@ -2731,15 +2731,10 @@ def _github_api_verdict(args: list) -> tuple:
 
 def _github_auth_verdict(args: list) -> tuple:
     """Protect GitHub credentials and broad authorization scopes."""
-    action = args[1].lower() if len(args) > 1 else ""
-    if action == "token":
-        return "deny", "gh auth token exposes an authentication credential"
     scopes = _option_value(args, frozenset({"--scopes", "-s"}))
     scope_set = {scope.strip().lower() for scope in scopes.split(",") if scope}
     if scope_set & GH_BROAD_AUTH_SCOPES:
         return "deny", "gh auth requests a broad write or deletion scope"
-    if action in {"login", "logout", "refresh", "setup-git", "switch"}:
-        return "deny", "agents cannot change GitHub authentication state"
     return "", ""
 
 
@@ -2877,17 +2872,11 @@ def github_cli_verdict(args: list, *, repo_owner: str = "") -> tuple:
         return _github_api_verdict(command[1:])
     if noun == "auth":
         return _github_auth_verdict(command)
-    if noun == "pr" and action == "merge":
-        if "--admin" in command:
-            return "deny", "an administrative pull request merge bypasses protections"
-        return "ask", "a pull request merge changes the hosted repository"
     if noun == "repo" and action == "edit":
         visibility = _option_value(command, frozenset({"--visibility"})).lower()
         if visibility == "public" or is_ambiguous(visibility):
             return "deny", "public repository visibility can expose private content"
         return "ask", "repository edits change hosted settings"
-    if noun == "repo" and action == "archive":
-        return "ask", "repository archiving disables hosted development"
     return _external_target_verdict(args, command, noun, action, repo_owner)
 
 
