@@ -68,6 +68,10 @@ class TrustedRunnerSafetyTest(unittest.TestCase):
         self.assertEqual(result.returncode, 2)
         self.assertIn("removes work", result.stderr)
 
+    def test_failure_message_does_not_expose_exception_text(self):
+        secret = "token-secret-value"
+        self.assertNotIn(secret, trusted_gh.safe_failure_message(OSError(secret)))
+
     def test_literal_newline_escape_in_pr_body_is_rejected(self):
         result = subprocess.run(
             [sys.executable, str(REPOSITORY_ROOT / "scripts" / "trusted_gh.py"),
@@ -166,7 +170,7 @@ class RepositoryContextTest(unittest.TestCase):
                 with patch.object(trusted_gh, "run_gh", side_effect=run_gh):
                     trusted_gh._run_requested_command(root, ["pr", "create"])
         self.assertEqual(captured["arguments"], [
-            "pr", "create", "--repo", "owner/repo", "--head", "owner:feature/test"
+            "pr", "create", "--head", "owner:feature/test", "--repo", "owner/repo"
         ])
 
     def test_explicit_repo_argument_is_preserved(self):
@@ -195,6 +199,24 @@ class RepositoryContextTest(unittest.TestCase):
                 root, ["pr", "create", "--head=owner:other"]
             )
             self.assertEqual(arguments.count("--head=owner:other"), 1)
+
+    def test_injected_flags_precede_end_of_options(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self.write_config(root, "https://github.com/owner/repo.git")
+            arguments = trusted_gh.with_repository_context(
+                root, ["pr", "view", "--", "12"]
+            )
+            self.assertEqual(arguments, ["pr", "view", "--repo", "owner/repo", "--", "12"])
+
+    def test_repo_commands_do_not_receive_unsupported_context_flag(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self.write_config(root, "https://github.com/owner/repo.git")
+            self.assertEqual(
+                trusted_gh.with_repository_context(root, ["repo", "view"]),
+                ["repo", "view"],
+            )
 
     def test_invalid_branch_fails_closed(self):
         with tempfile.TemporaryDirectory() as temporary:

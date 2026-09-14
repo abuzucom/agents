@@ -20,7 +20,7 @@ MANAGED_PROXY_HOST = "127.0.0.1"
 MANAGED_PROXY_PORT = 9
 LOGIN = re.compile(r"\A[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?\Z")
 TEXT_OPTIONS = frozenset(("--body", "--title"))
-REPOSITORY_COMMANDS = frozenset(("pr", "issue", "repo", "run"))
+REPOSITORY_COMMANDS = frozenset(("pr", "issue", "run"))
 REPOSITORY_NAME = re.compile(r"\A[A-Za-z0-9](?:[A-Za-z0-9._-]{0,98}[A-Za-z0-9])?\Z")
 BRANCH_NAME = re.compile(r"\A[A-Za-z0-9][A-Za-z0-9._/-]{0,199}\Z")
 GLOBAL_VALUE_OPTIONS = frozenset(("-R", "--repo", "--hostname"))
@@ -195,12 +195,15 @@ def with_repository_context(repository: Path, arguments: list[str]) -> list[str]
             or _has_repository_option(arguments)):
         return list(arguments)
     target = repository_target(repository)
-    context = [*arguments, "--repo", target]
+    delimiter = arguments.index("--") if "--" in arguments else len(arguments)
+    context = [*arguments[:delimiter], "--repo", target, *arguments[delimiter:]]
     command = arguments[position:position + 2]
     has_head = any(argument == "--head" or argument.startswith("--head=")
                    for argument in arguments)
     if command == ["pr", "create"] and not has_head:
-        context.extend(("--head", f"{target.split('/')[0]}:{repository_branch(repository)}"))
+        context[delimiter:delimiter] = (
+            "--head", f"{target.split('/')[0]}:{repository_branch(repository)}"
+        )
     return context
 
 
@@ -345,6 +348,17 @@ def authenticated_account(repo_root) -> dict:
     return parse_account(result.stdout)
 
 
+def safe_failure_message(error: Exception) -> str:
+    """Return a non-sensitive failure category and recovery action."""
+    if isinstance(error, subprocess.TimeoutExpired):
+        return "GitHub CLI timed out; verify connectivity and retry"
+    if isinstance(error, ValueError):
+        return "GitHub CLI input or repository metadata is invalid; inspect and retry"
+    if isinstance(error, FileNotFoundError):
+        return "GitHub CLI or repository metadata is unavailable; inspect installation"
+    return "GitHub CLI execution failed; inspect connectivity and repository context"
+
+
 def _run_requested_command(repo_root, arguments: list[str]) -> int:
     """Run one authenticated GitHub CLI command with bounded output."""
     if not arguments:
@@ -364,7 +378,7 @@ def _run_requested_command(repo_root, arguments: list[str]) -> int:
     try:
         import _gate_core as gate_core
     except ImportError as error:
-        print(f"error: GitHub safety policy is unavailable ({error})", file=sys.stderr)
+        print("error: GitHub safety policy is unavailable; repair adoption", file=sys.stderr)
         return 2
     decision, reason = gate_core.forge_verdict("gh", arguments)
     if decision == "deny":
@@ -379,7 +393,7 @@ def _run_requested_command(repo_root, arguments: list[str]) -> int:
         authenticated_account(repo_root)
         result = run_gh(repo_root, effective_arguments)
     except (OSError, subprocess.TimeoutExpired, ValueError) as error:
-        print(f"error: {error}", file=sys.stderr)
+        print(f"error: {safe_failure_message(error)}", file=sys.stderr)
         return 1
     sys.stdout.write(result.stdout[:COMMAND_OUTPUT_LIMIT])
     sys.stderr.write(result.stderr[:COMMAND_OUTPUT_LIMIT])
@@ -396,7 +410,7 @@ def main() -> int:
     try:
         account = authenticated_account(os.getcwd())
     except (OSError, subprocess.TimeoutExpired, ValueError) as error:
-        print(f"error: {error}", file=sys.stderr)
+        print(f"error: {safe_failure_message(error)}", file=sys.stderr)
         return 1
     print(json.dumps(account, sort_keys=True))
     return 0

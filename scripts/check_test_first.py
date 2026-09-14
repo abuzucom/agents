@@ -20,7 +20,7 @@ def _revision(value: str) -> str:
 def changed_files(base: str, head: str) -> list[str]:
     """Return changed paths from a validated revision range."""
     result = subprocess.run(
-        ["git", "diff", "--name-only", f"{base}..{head}", "--"],
+        ["git", "diff", "--name-only", f"{base}...{head}", "--"],
         capture_output=True, text=True, check=False,
     )
     if result.returncode:
