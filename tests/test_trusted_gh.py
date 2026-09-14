@@ -68,7 +68,7 @@ class TrustedRunnerSafetyTest(unittest.TestCase):
             check=False,
         )
         self.assertEqual(result.returncode, 2)
-        self.assertIn("removes work", result.stderr)
+        self.assertIn("denied by policy", result.stderr)
 
     def test_failure_message_does_not_expose_exception_text(self):
         with patch.object(trusted_gh, "authenticated_account",
