@@ -9,6 +9,11 @@ The house style bans that hyphen. `scripts/check_ascii.py` enforces the ban on
 this file.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.17] (2026-09-14)
+
+### Fixed
+- Remove stale hook-coverage allowances after routing cleanup.
+
 ## [2.0.16] (2026-09-14)
 
 ### Fixed
