@@ -25,6 +25,7 @@ SOURCE = "AGENTS.md"
 SHARED_MANIFEST = "shared-files.json"
 REPOSITORY_ONLY_START = "<!-- repository-only:start -->"
 REPOSITORY_ONLY_END = "<!-- repository-only:end -->"
+MAX_POLICY_BYTES = 64 * 1024
 # Files that must be byte-identical wherever these gates are installed. A
 # decision reached by one gate and not the other is the failure the whole
 # design exists to prevent, so the files carrying decisions are listed here
@@ -57,6 +58,41 @@ COPIES = [
     ".copilot-instructions",
     ".github/copilot-instructions.md",
 ]
+SUPPORTING_POLICY_FILES = (
+    "docs/agent-policy/adoption.md",
+    "docs/agent-policy/enforcement.md",
+    "docs/agent-policy/clients.md",
+    "docs/agent-policy/github.md",
+    "docs/agent-policy/security.md",
+)
+
+
+def policy_bytes(root: Path) -> bytes:
+    """Return canonical policy plus approved local supporting documents."""
+    source, _ = _inspect_source(root)
+    if source.stat().st_size > MAX_POLICY_BYTES:
+        raise ValueError("AGENTS.md exceeds the policy size limit")
+    raw = source.read_bytes()
+    parts = []
+    root_resolved = root.resolve()
+    for relative_name in SUPPORTING_POLICY_FILES:
+        path = _lexical_path(root, relative_name)
+        if not path.exists():
+            raise ValueError(f"{relative_name} is missing")
+        details = path.lstat()
+        if not stat.S_ISREG(details.st_mode):
+            raise ValueError("supporting policy is not a regular file")
+        if details.st_size > MAX_POLICY_BYTES:
+            raise ValueError("supporting policy exceeds the policy size limit")
+        if not path.resolve().is_relative_to(root_resolved):
+            raise ValueError("supporting policy escapes the repository")
+        content = path.read_bytes()
+        content.decode("ascii")
+        parts.append(content + (b"\n" if not content.endswith(b"\n") else b""))
+    assembled = raw + (b"\n" if not raw.endswith(b"\n") else b"") + b"".join(parts)
+    if len(assembled) > MAX_POLICY_BYTES:
+        raise ValueError("AGENTS.md exceeds the policy size limit")
+    return assembled
 
 
 def adoptable_content(content: str) -> str:
@@ -76,7 +112,7 @@ def print_adoptable(root: Path) -> int:
     """Print adoptable policy content without changing files."""
     try:
         source, _ = _inspect_source(root)
-        content = source.read_text(encoding="utf-8")
+        content = policy_bytes(source.parent).decode("ascii")
         print(adoptable_content(content), end="")
     except (OSError, UnicodeDecodeError, ValueError):
         print("error: adoptable policy generation failed", file=sys.stderr)
@@ -179,10 +215,9 @@ def files_match(source: Path, target: Path) -> bool:
         _regular_state(source)
         if _target_state(target) is None:
             return False
-        return (
-            source.read_text(encoding="utf-8").replace("\r\n", "\n")
-            == target.read_text(encoding="utf-8").replace("\r\n", "\n")
-        )
+        expected = policy_bytes(source.parent)
+        actual = target.read_bytes().replace(b"\r\n", b"\n")
+        return expected.replace(b"\r\n", b"\n") == actual
     except (OSError, RuntimeError, UnicodeDecodeError, ValueError):
         return False
 
@@ -195,6 +230,9 @@ def _copy_to_temp(source: Path, parent: Path) -> Path:
     try:
         os.close(descriptor)
         shutil.copyfile(source, temp_path)
+        assembled = policy_bytes(source.parent)
+        if assembled != source.read_bytes():
+            temp_path.write_bytes(assembled)
         with temp_path.open("ab") as temp_file:
             temp_file.flush()
             os.fsync(temp_file.fileno())

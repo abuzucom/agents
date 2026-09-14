@@ -1,6 +1,18 @@
 repos:
   - repo: local
     hooks:
+      - id: check-changelog
+        name: Check versioned changelog (SemVer)
+        entry: python scripts/check_changelog.py --staged
+        language: python
+        pass_filenames: false
+        always_run: true
+      - id: check-policy-size
+        name: Check canonical policy size
+        entry: python scripts/check_policy_size.py
+        language: python
+        pass_filenames: false
+        always_run: true
       - id: convention-sync-check
         name: Convention Sync Check
         entry: python scripts/sync.py --check
@@ -46,7 +58,7 @@ repos:
         entry: python scripts/run_tests.py
         language: python
         additional_dependencies: [PyYAML==6.0.3]
-        files: ^(hooks/.*\.py|tests/.*\.py|\.(claude/settings|codex/hooks|gemini/settings|agents/hooks)\.json|\.codex/config\.toml|\.github/workflows/.*\.ya?ml|scripts/(sync|trusted_gh|trusted_git|read_git_state|run_tests|prose_policy|check_gate_adoption|check_hook_coverage|check_(banned_agents|branch_name|commit_attribution|commit_message|compliance_tree|dockerfile_root|external_pr_refs|git_identity|hedging|persist_credentials|pull_request_message|secrets_heuristic|weak_hashing))\.py|scripts/prose_bans\.txt)$
+        files: ^(hooks/.*\.py|tests/.*\.py|\.(claude/settings|codex/hooks|gemini/settings|agents/hooks)\.json|\.codex/config\.toml|\.github/workflows/.*\.ya?ml|scripts/(sync|trusted_gh|trusted_git|read_git_state|run_tests|prose_policy|check_changelog|check_gate_adoption|check_hook_coverage|check_(banned_agents|branch_name|commit_attribution|commit_message|compliance_tree|dockerfile_root|external_pr_refs|git_identity|hedging|persist_credentials|pull_request_message|secrets_heuristic|weak_hashing))\.py|scripts/prose_bans\.txt)$
         pass_filenames: false
       - id: check-git-identity
         name: Check git identity (Rule 14)

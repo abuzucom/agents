@@ -9,6 +9,13 @@ import sys
 from pathlib import Path
 
 MAX_POLICY_BYTES = 64 * 1024
+SUPPORTING_POLICY_FILES = (
+    "docs/agent-policy/adoption.md",
+    "docs/agent-policy/enforcement.md",
+    "docs/agent-policy/clients.md",
+    "docs/agent-policy/github.md",
+    "docs/agent-policy/security.md",
+)
 MAX_ROOT_DEPTH = 100
 MAX_CHUNK_CHARS = 8500
 CLAUDE_CHUNK_COUNT = 8
@@ -65,11 +72,36 @@ def load_policy(root: Path) -> tuple[str, str]:
     if not stat.S_ISREG(details.st_mode) or details.st_size > MAX_POLICY_BYTES:
         raise ValueError("AGENTS.md is not a bounded regular file")
     raw = path.read_bytes()
-    if len(raw) > MAX_POLICY_BYTES:
+    supporting = []
+    root_resolved = root.resolve()
+    for relative_name in SUPPORTING_POLICY_FILES:
+        supporting_path = root / relative_name
+        if not supporting_path.exists():
+            raise ValueError(f"{relative_name} is missing")
+        details = supporting_path.lstat()
+        if not stat.S_ISREG(details.st_mode):
+            raise ValueError(f"{relative_name} is not a regular file")
+        if details.st_size > MAX_POLICY_BYTES:
+            raise ValueError(f"{relative_name} exceeds the policy size limit")
+        resolved_path = supporting_path.resolve()
+        if not resolved_path.is_relative_to(root_resolved):
+            raise ValueError(f"{relative_name} escapes the policy root")
+        supporting_raw = supporting_path.read_bytes()
+        try:
+            supporting_raw.decode("ascii")
+        except UnicodeDecodeError as error:
+            raise ValueError(f"{relative_name} contains non-ASCII characters") from error
+        supporting.append((relative_name, supporting_raw))
+    supporting_bytes = b"".join(
+        content + (b"\n" if not content.endswith(b"\n") else b"")
+        for _name, content in supporting
+    )
+    assembled = raw + (b"\n" if not raw.endswith(b"\n") else b"") + supporting_bytes
+    if len(assembled) > MAX_POLICY_BYTES:
         raise ValueError("AGENTS.md exceeds the policy size limit")
-    text = raw.decode("utf-8").replace("\r\n", "\n")
+    text = assembled.decode("utf-8").replace("\r\n", "\n")
     text.encode("ascii")
-    return text, hashlib.sha256(raw).hexdigest()
+    return text, hashlib.sha256(assembled).hexdigest()
 
 
 def split_policy(policy: str, chunk_count: int) -> list[str]:

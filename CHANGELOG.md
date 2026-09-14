@@ -9,7 +9,35 @@ The house style bans that hyphen. `scripts/check_ascii.py` enforces the ban on
 this file.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [2.0.12] (2026-09-14)
+
+### Fixed
+- Avoid duplicate violations and correct changelog version typing.
+- Remove the stale hook-coverage record for `load_policy`.
+- Trace oversized supporting-file rejection through a hook subprocess.
+- Cover both canonical policy file guard paths.
+- Cover oversized canonical policy rejection in hook tests.
+- Validate pre-release ordering and malformed release headings.
+- Test and report oversized supporting policy files distinctly.
+- Bound assembled synchronized policy output to the hook limit.
+- Fetch full history for CI changelog range checks.
+- Fail closed when linked policy files are missing or unsafe.
+- Handle changelog revision inspection errors without crashing.
+- Assemble generated policy copies from canonical content first.
+
+## [2.0.2] (2026-09-13)
+
+### Fixed
+- Reject incomplete linked-policy bundles during loading and synchronization.
+- Enforce SemVer advancement across pull request revisions in CI.
+
+## [2.0.1] (2026-09-13)
+
+### Fixed
+- Treat the managed `cat` pager placeholder as safe during Git reads.
+- Cover linked-policy loading and fail-closed supporting-file validation.
+
+## [2.0.0] (2026-09-13)
 
 ### Added
 - Require trusted GitHub CLI routing for hosted resource operations.
@@ -17,6 +45,11 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   proxy settings.
 - Deny agent changes to Git Credential Manager and GitHub authentication state.
 - Deny browser-based GitHub token recovery by agents.
+- Add schema-safe Antigravity `PreToolUse` output.
+- Add CI and pre-commit coverage for trusted GitHub CLI routing.
+- Add linked policy loading and a 32 KiB canonical policy limit.
+- Require a versioned SemVer entry for every repository change.
+- Add test-first changelog enforcement through hooks and CI.
 
 ## [1.14.0] (2026-09-13)
 

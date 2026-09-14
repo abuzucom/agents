@@ -1,4 +1,4 @@
-.PHONY: sync check lint test identity
+.PHONY: sync check lint test identity changelog
 
 # Overridable so a platform without this name can supply its own:
 #   make test PYTHON=py
@@ -15,6 +15,9 @@ sync:
 
 check:
 	$(PYTHON) scripts/sync.py --check
+
+changelog:
+	$(PYTHON) scripts/check_changelog.py
 
 lint:
 	$(PYTHON) scripts/lint_style.py

@@ -1,15 +1,20 @@
 # AGENTS.md template
 
-Bootstrap instruction conventions for AI coding agents and human
-collaborators across ABUZUCOM projects. Copy the template into a repository.
-Adapt the template to verified project facts. Retain applicable rules.
+Instruction conventions for ABUZUCOM projects. Copy this template into a
+repository. Adapt it to verified project facts.
 
 ## Overview
 
-`AGENTS.md` is the canonical, tool-neutral instruction file. The file contains:
+`AGENTS.md` is the canonical tool-neutral instruction file. It contains:
+
+- Complete mandatory rules and code-quality and prose-style rules.
+- Approved local links to supporting policy detail.
+- Instructions for agents that add rules or request policy moves.
+- A hard 32 KiB byte limit.
+- A required versioned SemVer changelog entry for every change.
 
 - A short non-negotiable summary at the top.
-- Seventeen critical rules covering injection, destructive actions, tests,
+- Twenty critical rules covering injection, destructive actions, tests,
   scope, draft pull requests, API compatibility, hashing, secrets,
   dependencies, workflow state, CI credentials, container users,
   enforcement claims, git identity, infrastructure access, GitHub routing, and
@@ -20,16 +25,17 @@ Adapt the template to verified project facts. Retain applicable rules.
   architecture, operational notes, and required reading.
 - A marked source-repository orientation block excluded from adoptable output.
 
-The repository supplies portable checkers, Claude Code hooks, synchronized
-tool copies, CI workflows, tests, and optional policy templates. Instructions
-remain authoritative without a mechanical check. Each checker covers only
-the inspected files and behavior.
+The repository supplies checkers, agent hooks, synchronized copies, CI
+workflows, tests, and optional policy templates. Required hooks and CI enforce
+the covered rules. Human review and external controls cover the rest.
+Each checker covers only its inspected files and behavior.
 
 ## Components
 
 | Component | Purpose |
 |---|---|
 | `AGENTS.md` | Canonical instruction template |
+| `docs/agent-policy/` | Approved supporting policy detail |
 | `CLAUDE.md`, `GEMINI.md`, `CONVENTIONS.md` | Full synchronized copies for tools that use other names |
 | `.cursorrules`, `.clinerules`, `.windsurfrules` | Synchronized editor and agent copies |
 | `.github/copilot-instructions.md`, `.copilot-instructions` | Synchronized Copilot copies |
@@ -43,7 +49,7 @@ the inspected files and behavior.
 | `scripts/prose_policy.py` | Shared advisory prose analysis for files and metadata |
 | `scripts/prose_bans.txt` | Scoped exact vocabulary entries for prose analysis |
 | `scripts/check_pull_request_message.py` | Safe advisory pull request title and body checks |
-| `hooks/` | Claude Code prompts and blocking hooks |
+| `hooks/` | Agent lifecycle, consent, and command gates |
 | `.claude/settings.json` | Live hook registrations for this repository |
 | `hooks/claude-code-settings.example.json` | Hook registrations for adopters |
 | `tests/` | Standard-library `unittest` suite for checkers, hooks, and wiring |
@@ -65,7 +71,7 @@ checker suite:
 python -m pip install --requirement requirements-checkers.txt
 ```
 
-Run local targets only after the active user authorizes command execution:
+Run local targets after active-user authorization:
 
 | Command | Runs |
 |---|---|
@@ -73,6 +79,7 @@ Run local targets only after the active user authorizes command execution:
 | `make check` | `python3 scripts/sync.py --check` by default |
 | `make lint` | Style, spelling, language, and conflict-marker checks |
 | `make sync` | Regenerates synchronized copies from `AGENTS.md` |
+| `python scripts/check_changelog.py` | Checks versioned changelog policy |
 | `make identity` | Reports git identity, `gh` account, and `user.useConfigOnly` advice |
 
 Set another interpreter with `make test PYTHON=python` or the equivalent
@@ -81,11 +88,10 @@ target. Direct commands are `python scripts/sync.py`,
 `python scripts/run_tests.py`. Run one module with
 `python -m unittest tests.<module> -v`.
 
-`scripts/run_tests.py` verifies that class sharding preserves every test ID.
-The runner then executes four classes concurrently. Each class receives a
-300-second timeout. Persistent worker requests receive a separate 30-second
-deadline. Failures retain a nonzero exit. The standard-library `unittest`
-loader still defines discovery.
+`scripts/run_tests.py` verifies test IDs before running four concurrent class
+shards. Each class has a 300-second timeout. Persistent workers have a
+30-second deadline. Failures retain a nonzero exit. `unittest` defines
+discovery.
 
 ### GitHub Access
 
@@ -95,18 +101,23 @@ Run hosted GitHub operations through:
 python scripts/trusted_gh.py run <gh arguments>
 ```
 
-The wrapper resolves GitHub CLI outside the repository. The wrapper verifies
-the authenticated account before the requested operation. Shell gates deny
-direct `gh` lookup and clear Git or HTTP substitutes. High-risk hosted
-mutations deny. Confirmable hosted state changes ask. Normal local Git and
-ordinary fetch, pull, and push transport remain available.
+The wrapper resolves `gh` outside the repository and verifies authentication.
+Shell gates deny direct `gh`, Git, and HTTP substitutes. High-risk hosted
+mutations deny. Confirmable changes ask. Local Git and ordinary fetch, pull,
+and push transport remain available.
 
 Hosted resource edits must use the wrapper. The managed Codex sandbox can set
-`127.0.0.1:9` as a loopback proxy placeholder. That endpoint failing does not
-show that GitHub CLI is broken. The wrapper clears only that exact placeholder
+`127.0.0.1:9` as a loopback proxy placeholder. Failure at that endpoint does
+not prove GitHub CLI failure. The wrapper clears only that exact placeholder
 and preserves valid proxy settings. Agents cannot modify Git Credential Manager
 or GitHub authentication state. Agents cannot open a browser to refresh a
 GitHub token.
+
+CI runs trusted GitHub CLI routing tests. Pre-commit runs policy tests when
+routing code changes. Shared gates deny direct GitHub CLI lookup, GitHub HTTP
+substitutes, hosted Git substitutes, Git Credential Manager commands, and
+GitHub authentication browser launches. Antigravity uses `injectSteps` only
+for `PreInvocation`. `PreToolUse` emits `{}`.
 
 `.pre-commit-config.yaml` runs each check on owned paths. `sync-check.yml`
 runs tests and authored pull request checks on `pull_request`. The same
@@ -451,16 +462,20 @@ require trust. Hosted tools do not pass through `PreToolUse`.
 
 Gemini receives complete policy context at `SessionStart` and before every
 model request. Antigravity receives complete policy context as an ephemeral
-message before every model invocation. Both clients permit project hook
-disablement. Client documentation does not promise hook inheritance for every
-subagent implementation.
+message before every model invocation. The Antigravity reinjection hook emits
+`injectSteps` only for `PreInvocation`. A `PreToolUse` call emits `{}` because
+the runtime schema does not accept `injectSteps` there. Both clients permit
+project hook disablement. Client documentation does not promise hook
+inheritance for every subagent implementation.
 
-## Claude Code Hooks
+## Agent Hooks
 
-`.claude/settings.json` activates every hook below in this repository.
-The example settings file carries the same registrations for adopters.
-`SessionStart` can add context. `PreToolUse` can return `ask` or deny with exit
-2. In unattended modes, gated actions deny because no user can answer.
+The client configurations activate the applicable hooks below. Claude Code
+uses `.claude/settings.json`. Codex uses `.codex/hooks.json`. Gemini uses its
+client settings. Antigravity uses `.agents/hooks.json`. The example settings
+file carries Claude Code registrations for adopters. `SessionStart` can add
+context. `PreToolUse` can return `ask` or deny with exit 2. In unattended modes,
+gated actions deny because no user can answer.
 
 The tested command corpus and known command writers bound these claims. A
 writer or command form outside those sets can pass. PowerShell and CMD tests

@@ -1344,6 +1344,7 @@ EXEC_CAPABLE_SUBSECTIONS = {
     "gpg": ("program",),
     "merge": ("driver",),
 }
+SAFE_PAGER_VALUES = frozenset({"cat"})
 
 
 def _read_config_path(path: str):
@@ -1696,13 +1697,11 @@ def _read_invocation_configs(state: dict, environment: dict,
 def _environment_exec_key(environment: dict) -> str:
     """Return the first environment variable that makes a git read execute."""
     pager = environment.get("GIT_PAGER")
-    if pager is None:
-        pager = environment.get("PAGER")
-        pager_name = "PAGER"
-    else:
-        pager_name = "GIT_PAGER"
-    if pager:
-        return pager_name
+    if pager and pager.strip().lower() not in SAFE_PAGER_VALUES:
+        return "GIT_PAGER"
+    pager = environment.get("PAGER")
+    if pager and pager.strip().lower() not in SAFE_PAGER_VALUES:
+        return "PAGER"
     if environment.get("GIT_EXTERNAL_DIFF"):
         return "GIT_EXTERNAL_DIFF"
     return ""
