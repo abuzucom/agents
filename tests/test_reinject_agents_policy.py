@@ -69,6 +69,7 @@ class PolicyContentTest(unittest.TestCase):
     def setUpClass(cls):
         cls.hook = load_hook_module()
         cls.policy = POLICY_PATH.read_text(encoding="utf-8")
+        cls.complete_policy, _digest = cls.hook.load_policy(REPO_ROOT)
 
     def test_claude_chunks_reconstruct_exact_policy(self):
         chunks = self.hook.split_policy(self.policy, self.hook.CLAUDE_CHUNK_COUNT)
@@ -80,7 +81,7 @@ class PolicyContentTest(unittest.TestCase):
         result = run_hook("codex", payload)
         self.assertEqual(result.returncode, 0, result.stderr)
         context = json.loads(result.stdout)["hookSpecificOutput"]["additionalContext"]
-        self.assertTrue(context.endswith(self.policy))
+        self.assertTrue(context.endswith(self.complete_policy))
 
     def test_gemini_preserves_request_and_adds_policy(self):
         payload = {
@@ -96,7 +97,7 @@ class PolicyContentTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         request = json.loads(result.stdout)["hookSpecificOutput"]["llm_request"]
         self.assertEqual(request["messages"][1]["content"], "hello")
-        self.assertTrue(request["messages"][0]["content"].endswith(self.policy))
+        self.assertTrue(request["messages"][0]["content"].endswith(self.complete_policy))
 
     def test_antigravity_receives_ephemeral_policy(self):
         payload = {
@@ -107,7 +108,7 @@ class PolicyContentTest(unittest.TestCase):
         result = run_hook("antigravity", payload)
         self.assertEqual(result.returncode, 0, result.stderr)
         message = json.loads(result.stdout)["injectSteps"][0]["ephemeralMessage"]
-        self.assertTrue(message.endswith(self.policy))
+        self.assertTrue(message.endswith(self.complete_policy))
 
     def test_antigravity_pre_tool_use_output_is_schema_safe(self):
         payload = {
@@ -139,7 +140,7 @@ class PolicyContentTest(unittest.TestCase):
         result = run_hook("gemini", payload)
         self.assertEqual(result.returncode, 0, result.stderr)
         context = json.loads(result.stdout)["hookSpecificOutput"]
-        self.assertTrue(context["additionalContext"].endswith(self.policy))
+        self.assertTrue(context["additionalContext"].endswith(self.complete_policy))
 
 
 class PolicyValidationTest(unittest.TestCase):
@@ -157,6 +158,10 @@ class PolicyValidationTest(unittest.TestCase):
         (root / ".git").mkdir()
         (root / "AGENTS.md").write_bytes(policy)
         (root / "CLAUDE.md").write_bytes(policy)
+        for relative_name in self.hook.SUPPORTING_POLICY_FILES:
+            path = root / relative_name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text("detail\n", encoding="utf-8")
         return root
 
     def test_root_search_rejects_files_and_missing_projects(self):

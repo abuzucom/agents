@@ -2,6 +2,7 @@
 """Block malformed or unversioned changelogs."""
 import argparse
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -102,7 +103,7 @@ def check_range(repository: Path, base: str, head: str) -> int:
         head_text = run_git(
             repository, ["show", f"{head}:CHANGELOG.md"], check=True,
         ).stdout
-    except (OSError, UnicodeError, ValueError):
+    except (OSError, UnicodeError, ValueError, subprocess.SubprocessError):
         print("error: cannot inspect changelog revision range", file=sys.stderr)
         return 1
     findings = find_range_violations(base_text, head_text, changed)
@@ -124,7 +125,7 @@ def check_staged(repository: Path) -> int:
         previous_result = run_git(
             repository, ["show", "HEAD:CHANGELOG.md"], check=False,
         )
-    except (OSError, UnicodeError, ValueError):
+    except (OSError, UnicodeError, ValueError, subprocess.SubprocessError):
         print("error: cannot inspect staged changelog", file=sys.stderr)
         return 1
     findings = find_violations(current)

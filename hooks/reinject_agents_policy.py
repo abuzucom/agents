@@ -73,22 +73,28 @@ def load_policy(root: Path) -> tuple[str, str]:
         raise ValueError("AGENTS.md is not a bounded regular file")
     raw = path.read_bytes()
     supporting = []
-    requires_supporting = (root / "docs" / "agent-policy").is_dir()
+    root_resolved = root.resolve()
     for relative_name in SUPPORTING_POLICY_FILES:
         supporting_path = root / relative_name
         if not supporting_path.exists():
-            if requires_supporting:
-                raise ValueError(f"{relative_name} is missing")
-            continue
+            raise ValueError(f"{relative_name} is missing")
         details = supporting_path.lstat()
         if not stat.S_ISREG(details.st_mode):
             raise ValueError(f"{relative_name} is not a regular file")
+        resolved_path = supporting_path.resolve()
+        if not resolved_path.is_relative_to(root_resolved):
+            raise ValueError(f"{relative_name} escapes the policy root")
         supporting_raw = supporting_path.read_bytes()
+        try:
+            supporting_raw.decode("ascii")
+        except UnicodeDecodeError as error:
+            raise ValueError(f"{relative_name} contains non-ASCII characters") from error
         supporting.append((relative_name, supporting_raw))
-    assembled = b"".join(
+    supporting_bytes = b"".join(
         content + (b"\n" if not content.endswith(b"\n") else b"")
         for _name, content in supporting
-    ) + raw
+    )
+    assembled = raw + (b"\n" if not raw.endswith(b"\n") else b"") + supporting_bytes
     if len(assembled) > MAX_POLICY_BYTES:
         raise ValueError("AGENTS.md exceeds the policy size limit")
     text = assembled.decode("utf-8").replace("\r\n", "\n")

@@ -71,19 +71,20 @@ def policy_bytes(root: Path) -> bytes:
     source, _ = _inspect_source(root)
     raw = source.read_bytes()
     parts = []
-    requires_supporting = (root / "docs" / "agent-policy").is_dir()
+    root_resolved = root.resolve()
     for relative_name in SUPPORTING_POLICY_FILES:
         path = _lexical_path(root, relative_name)
         if not path.exists():
-            if requires_supporting:
-                raise ValueError(f"{relative_name} is missing")
-            continue
+            raise ValueError(f"{relative_name} is missing")
         details = path.lstat()
         if not stat.S_ISREG(details.st_mode):
             raise ValueError("supporting policy is not a regular file")
+        if not path.resolve().is_relative_to(root_resolved):
+            raise ValueError("supporting policy escapes the repository")
         content = path.read_bytes()
+        content.decode("ascii")
         parts.append(content + (b"\n" if not content.endswith(b"\n") else b""))
-    return b"".join(parts) + raw
+    return raw + (b"\n" if not raw.endswith(b"\n") else b"") + b"".join(parts)
 
 
 def adoptable_content(content: str) -> str:

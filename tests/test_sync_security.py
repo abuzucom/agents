@@ -21,6 +21,11 @@ class SyncSecurityTest(unittest.TestCase):
         self.workspace = Path(self.tmp.name)
         self.root = self.workspace / "repo"
         (self.root / "scripts").mkdir(parents=True)
+        supporting = self.root / "docs" / "agent-policy"
+        supporting.mkdir(parents=True)
+        for relative_name in sync.SUPPORTING_POLICY_FILES:
+            (self.root / relative_name).write_text(
+                "detail\n", encoding="utf-8")
         self.source = self.root / sync.SOURCE
         self.target = self.root / "COPY.md"
 
@@ -105,6 +110,16 @@ class SyncSecurityTest(unittest.TestCase):
             self.assertNotEqual(result, 0)
         self.assertEqual(
             self.target.read_text(encoding="utf-8"), "old destination\n")
+
+    def test_missing_supporting_file_fails_closed(self):
+        (self.root / sync.SUPPORTING_POLICY_FILES[0]).unlink()
+        self.source.write_text("source\n", encoding="utf-8")
+        self.assertNotEqual(self.run_sync("COPY.md"), 0)
+
+    def test_non_ascii_supporting_file_fails_closed(self):
+        self.source.write_text("source\n", encoding="utf-8")
+        (self.root / sync.SUPPORTING_POLICY_FILES[0]).write_bytes(b"bad\xc3\xa9\n")
+        self.assertNotEqual(self.run_sync("COPY.md"), 0)
 
     @unittest.skipIf(os.name == "nt", "Windows does not expose POSIX file modes")
     def test_copy_preserves_source_mode(self):
