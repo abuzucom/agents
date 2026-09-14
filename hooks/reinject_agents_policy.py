@@ -79,7 +79,8 @@ def load_policy(root: Path) -> tuple[str, str]:
         if not supporting_path.exists():
             raise ValueError(f"{relative_name} is missing")
         details = supporting_path.lstat()
-        if not stat.S_ISREG(details.st_mode):
+        if (not stat.S_ISREG(details.st_mode)
+                or details.st_size > MAX_POLICY_BYTES):
             raise ValueError(f"{relative_name} is not a regular file")
         resolved_path = supporting_path.resolve()
         if not resolved_path.is_relative_to(root_resolved):

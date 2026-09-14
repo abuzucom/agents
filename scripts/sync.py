@@ -25,6 +25,7 @@ SOURCE = "AGENTS.md"
 SHARED_MANIFEST = "shared-files.json"
 REPOSITORY_ONLY_START = "<!-- repository-only:start -->"
 REPOSITORY_ONLY_END = "<!-- repository-only:end -->"
+MAX_POLICY_BYTES = 64 * 1024
 # Files that must be byte-identical wherever these gates are installed. A
 # decision reached by one gate and not the other is the failure the whole
 # design exists to prevent, so the files carrying decisions are listed here
@@ -69,6 +70,8 @@ SUPPORTING_POLICY_FILES = (
 def policy_bytes(root: Path) -> bytes:
     """Return canonical policy plus approved local supporting documents."""
     source, _ = _inspect_source(root)
+    if source.stat().st_size > MAX_POLICY_BYTES:
+        raise ValueError("AGENTS.md exceeds the policy size limit")
     raw = source.read_bytes()
     parts = []
     root_resolved = root.resolve()
@@ -77,14 +80,18 @@ def policy_bytes(root: Path) -> bytes:
         if not path.exists():
             raise ValueError(f"{relative_name} is missing")
         details = path.lstat()
-        if not stat.S_ISREG(details.st_mode):
+        if (not stat.S_ISREG(details.st_mode)
+                or details.st_size > MAX_POLICY_BYTES):
             raise ValueError("supporting policy is not a regular file")
         if not path.resolve().is_relative_to(root_resolved):
             raise ValueError("supporting policy escapes the repository")
         content = path.read_bytes()
         content.decode("ascii")
         parts.append(content + (b"\n" if not content.endswith(b"\n") else b""))
-    return raw + (b"\n" if not raw.endswith(b"\n") else b"") + b"".join(parts)
+    assembled = raw + (b"\n" if not raw.endswith(b"\n") else b"") + b"".join(parts)
+    if len(assembled) > MAX_POLICY_BYTES:
+        raise ValueError("AGENTS.md exceeds the policy size limit")
+    return assembled
 
 
 def adoptable_content(content: str) -> str:
@@ -104,7 +111,7 @@ def print_adoptable(root: Path) -> int:
     """Print adoptable policy content without changing files."""
     try:
         source, _ = _inspect_source(root)
-        content = source.read_text(encoding="utf-8")
+        content = policy_bytes(source.parent).decode("ascii")
         print(adoptable_content(content), end="")
     except (OSError, UnicodeDecodeError, ValueError):
         print("error: adoptable policy generation failed", file=sys.stderr)

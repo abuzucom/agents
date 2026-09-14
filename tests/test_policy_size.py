@@ -1,4 +1,5 @@
 import unittest
+import tempfile
 from pathlib import Path
 
 from scripts.check_policy_size import find_violations
@@ -21,6 +22,11 @@ class PolicySizeTests(unittest.TestCase):
             "Grok",
         ):
             self.assertIn(required, text)
+
+    def test_missing_policy_reports_violation(self):
+        with tempfile.TemporaryDirectory() as directory:
+            missing = Path(directory) / "AGENTS.md"
+            self.assertTrue(find_violations(missing))
 
 
 if __name__ == "__main__":

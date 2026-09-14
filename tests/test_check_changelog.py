@@ -1,5 +1,6 @@
 """Test the blocking SemVer changelog checker."""
 import importlib.util
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -53,6 +54,16 @@ class ChangelogCheckerTest(unittest.TestCase):
         findings = checker.find_range_violations(
             base, head, ["README.md", "CHANGELOG.md"])
         self.assertEqual(findings, [])
+
+    def test_revision_arguments_reject_options(self):
+        self.assertFalse(checker.valid_revision("-s:CHANGELOG.md"))
+
+    def test_staged_version_regression_fails(self):
+        with tempfile.TemporaryDirectory() as directory:
+            repository = Path(directory)
+            (repository / "CHANGELOG.md").write_text(
+                "## [1.0.0]\n\n- New.\n", encoding="utf-8")
+            self.assertNotEqual(checker.check_staged(repository), 0)
 
 
 if __name__ == "__main__":

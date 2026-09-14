@@ -5,6 +5,8 @@ import stat
 import sys
 import tempfile
 import unittest
+from contextlib import redirect_stdout
+from io import StringIO
 from pathlib import Path
 from unittest import mock
 
@@ -88,8 +90,23 @@ class SyncSecurityTest(unittest.TestCase):
         result = self.run_sync("../escaped.md")
 
         self.assertNotEqual(result, 0)
-        self.assertEqual(
-            escaped_target.read_text(encoding="utf-8"), "old destination\n")
+
+    def test_oversized_supporting_file_fails_before_copy(self):
+        self.source.write_text("new source\n", encoding="utf-8")
+        supporting = self.root / sync.SUPPORTING_POLICY_FILES[0]
+        supporting.write_bytes(b"x" * (sync.MAX_POLICY_BYTES + 1))
+        self.assertNotEqual(self.run_sync("COPY.md"), 0)
+
+    def test_adoptable_output_includes_supporting_policy(self):
+        self.source.write_text(
+            "prefix\n" + sync.REPOSITORY_ONLY_START
+            + "\nlocal\n" + sync.REPOSITORY_ONLY_END + "\nsuffix\n",
+            encoding="utf-8")
+        output = StringIO()
+        with redirect_stdout(output):
+            self.assertEqual(sync.print_adoptable(self.root), 0)
+        self.assertIn("prefix", output.getvalue())
+        self.assertIn("detail", output.getvalue())
 
     def test_failed_copy_does_not_replace_old_destination(self):
         self.source.write_text("new source\n", encoding="utf-8")

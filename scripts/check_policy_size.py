@@ -17,8 +17,11 @@ REQUIRED_TEXT = (
 
 
 def find_violations(path: Path) -> list[str]:
-    data = path.read_bytes()
     violations = []
+    try:
+        data = path.read_bytes()
+    except OSError as error:
+        return [f"{path}: cannot read policy: {error}"]
     if len(data) > MAX_POLICY_BYTES:
         violations.append(
             f"{path}: {len(data)} bytes exceeds {MAX_POLICY_BYTES} bytes"

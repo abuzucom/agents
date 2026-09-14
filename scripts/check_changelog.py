@@ -14,6 +14,12 @@ except ModuleNotFoundError:
 VERSION_PATTERN = re.compile(r"^## \[(\d+)\.(\d+)\.(\d+)\](?:-([0-9A-Za-z.-]+))? \((\d{4}-\d{2}-\d{2})\)$")
 HEADING_PATTERN = re.compile(r"^## \[(.+)\] (.+)$")
 UNRELEASED_PATTERN = re.compile(r"^## \[Unreleased\]$")
+REVISION_PATTERN = re.compile(r"^(?:[0-9A-Fa-f]{7,40}|[A-Za-z0-9_./-]+)$")
+
+
+def valid_revision(value: str) -> bool:
+    """Return whether a CLI revision is safe to pass to Git."""
+    return bool(value and not value.startswith("-") and REVISION_PATTERN.fullmatch(value))
 
 
 def _version_key(match: re.Match[str]) -> tuple[int, int, int]:
@@ -93,6 +99,9 @@ def find_range_violations(base: str, head: str, changed: list[str]) -> list[str]
 
 def check_range(repository: Path, base: str, head: str) -> int:
     """Require a valid, newer changelog across a Git revision range."""
+    if not valid_revision(base) or not valid_revision(head):
+        print("error: invalid Git revision", file=sys.stderr)
+        return 1
     try:
         changed = run_git(
             repository, ["diff", "--name-only", f"{base}..{head}"], check=True,
@@ -133,7 +142,7 @@ def check_staged(repository: Path) -> int:
     previous_version = _first_version(previous_result.stdout)
     if "CHANGELOG.md" not in staged:
         findings.append("staged changes require a versioned CHANGELOG.md entry")
-    elif current_version == previous_version:
+    elif previous_version is not None and current_version <= previous_version:
         findings.append("CHANGELOG.md version must advance with staged changes")
     for finding in findings:
         print(f"error: CHANGELOG.md: {finding}", file=sys.stderr)
