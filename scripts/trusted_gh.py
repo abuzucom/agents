@@ -348,17 +348,6 @@ def authenticated_account(repo_root) -> dict:
     return parse_account(result.stdout)
 
 
-def safe_failure_message(error: Exception) -> str:
-    """Return a non-sensitive failure category and recovery action."""
-    if isinstance(error, subprocess.TimeoutExpired):
-        return "GitHub CLI timed out; verify connectivity and retry"
-    if isinstance(error, ValueError):
-        return "GitHub CLI input or repository metadata is invalid; inspect and retry"
-    if isinstance(error, FileNotFoundError):
-        return "GitHub CLI or repository metadata is unavailable; inspect installation"
-    return "GitHub CLI execution failed; inspect connectivity and repository context"
-
-
 def _run_requested_command(repo_root, arguments: list[str]) -> int:
     """Run one authenticated GitHub CLI command with bounded output."""
     if not arguments:
@@ -392,8 +381,20 @@ def _run_requested_command(repo_root, arguments: list[str]) -> int:
             return 2
         authenticated_account(repo_root)
         result = run_gh(repo_root, effective_arguments)
-    except (OSError, subprocess.TimeoutExpired, ValueError) as error:
-        print(f"error: {safe_failure_message(error)}", file=sys.stderr)
+    except subprocess.TimeoutExpired:
+        print("error: GitHub CLI timed out; verify connectivity and retry", file=sys.stderr)
+        return 1
+    except ValueError:
+        print("error: GitHub CLI input or repository metadata is invalid; inspect and retry",
+              file=sys.stderr)
+        return 1
+    except FileNotFoundError:
+        print("error: GitHub CLI or repository metadata is unavailable; inspect installation",
+              file=sys.stderr)
+        return 1
+    except OSError:
+        print("error: GitHub CLI execution failed; inspect connectivity and repository context",
+              file=sys.stderr)
         return 1
     sys.stdout.write(result.stdout[:COMMAND_OUTPUT_LIMIT])
     sys.stderr.write(result.stderr[:COMMAND_OUTPUT_LIMIT])
@@ -409,8 +410,18 @@ def main() -> int:
         return _run_requested_command(os.getcwd(), sys.argv[2:])
     try:
         account = authenticated_account(os.getcwd())
-    except (OSError, subprocess.TimeoutExpired, ValueError) as error:
-        print(f"error: {safe_failure_message(error)}", file=sys.stderr)
+    except subprocess.TimeoutExpired:
+        print("error: GitHub CLI timed out; verify connectivity and retry", file=sys.stderr)
+        return 1
+    except ValueError:
+        print("error: GitHub account metadata is invalid; inspect authentication", file=sys.stderr)
+        return 1
+    except FileNotFoundError:
+        print("error: GitHub CLI is unavailable; inspect installation", file=sys.stderr)
+        return 1
+    except OSError:
+        print("error: GitHub authentication failed; inspect connectivity and account state",
+              file=sys.stderr)
         return 1
     print(json.dumps(account, sort_keys=True))
     return 0

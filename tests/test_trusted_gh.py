@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 """Tests for trusted GitHub CLI lookup and account parsing."""
 import os
+import io
 import subprocess
 import sys
 import tempfile
 import unittest
+from contextlib import redirect_stderr
 from pathlib import Path
 from unittest.mock import patch
 
@@ -69,8 +71,14 @@ class TrustedRunnerSafetyTest(unittest.TestCase):
         self.assertIn("removes work", result.stderr)
 
     def test_failure_message_does_not_expose_exception_text(self):
-        secret = "token-secret-value"
-        self.assertNotIn(secret, trusted_gh.safe_failure_message(OSError(secret)))
+        with patch.object(trusted_gh, "authenticated_account",
+                          side_effect=OSError("token-secret-value")):
+            with patch.object(trusted_gh.sys, "argv", ["trusted_gh.py", "run", "api", "user"]):
+                output = io.StringIO()
+                with redirect_stderr(output):
+                    result = trusted_gh.main()
+        self.assertEqual(result, 1)
+        self.assertNotIn("token-secret-value", output.getvalue())
 
     def test_literal_newline_escape_in_pr_body_is_rejected(self):
         result = subprocess.run(
