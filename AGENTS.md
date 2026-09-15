@@ -47,6 +47,10 @@ gate overrides general execution authorization. Each gated act requires
 confirmation immediately before execution. Consent applies only to the named
 act and target.
 
+Never claim elevated or external execution without a runtime approval result.
+Label requests as pending. Label approved execution only after approval.
+Report rejection as rejection. Treat ordinary sandbox execution as ordinary.
+
 ### Precedence
 
 Apply rules in this order when requirements conflict:
