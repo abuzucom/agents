@@ -16,10 +16,6 @@ Pull request creation also receives a validated `--head OWNER:BRANCH` target
 when no head option exists. Global options may precede the GitHub command.
 Normal checkouts and worktrees work on Windows, macOS, and Linux.
 
-Argument arrays carry every value. Shell interpretation and dynamic command
-construction remain prohibited. Repository names, options, URLs, paths, and
-revisions require validation before use.
-
 Executable changes require a behavioral test. Required CI checks the changed
 range and fails when an executable change lacks a changed test.
 
