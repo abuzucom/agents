@@ -16,19 +16,8 @@ Pull request creation also receives a validated `--head OWNER:BRANCH` target
 when no head option exists. Global options may precede the GitHub command.
 Normal checkouts and worktrees work on Windows, macOS, and Linux.
 
-Argument arrays carry every value. Shell interpretation and dynamic command
-construction remain prohibited. Repository names, options, URLs, paths, and
-revisions require validation before use.
-
 Executable changes require a behavioral test. Required CI checks the changed
 range and fails when an executable change lacks a changed test.
-
-Strict branch preflight remains a prerequisite for every repository action.
-Detached or invalid branches cannot use read-only inspection as a bypass. After
-preflight passes, local Git reads, feature branch creation, commits, and
-non-force pushes to feature branches remain available through native Git
-transport. Draft pull request creation uses the trusted wrapper and remains a
-draft.
 
 Read-only repository inspection, checks, workflow reads, and pull request
 diffs remain available through the wrapper.
@@ -51,9 +40,6 @@ A failed wrapper operation permits one semantically equivalent Git fallback
 only after active-human confirmation. Mark it with
 `-c agents.githubFallback=confirmed`. The gate does not retain cross-process
 usage state. Human review enforces the one-use limit.
-
-Pass repository names, refs, titles, bodies, and paths as separate arguments.
-Do not interpolate them into shell commands, API paths, or evaluated code.
 
 Never modify Git Credential Manager or GitHub authentication state. Never open
 a browser to refresh or recover a GitHub token.

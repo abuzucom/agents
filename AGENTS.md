@@ -93,6 +93,10 @@ Never concatenate or interpolate untrusted input into SQL, shell, or evaluated
 code. Use parameterized SQL. Use argument-array process execution. Never use
 `shell=True`. Use vetted escaping libraries only as a last resort.
 
+Pass values as separate arguments. Reject shell interpretation and dynamic
+command construction. Validate repository names, options, URLs, paths, and
+revisions before use.
+
 The restriction covers SQL, NoSQL, shell, eval, exec, LDAP, XPath, and paths.
 See `docs/agent-policy/security.md` for implementation examples.
 
@@ -311,9 +315,9 @@ a fixed account request. Direct `gh` execution remains denied because shell
 lookup can select a repository-controlled executable.
 
 After strict branch preflight passes, native Git permits local reads, feature
-branch creation, commits, and non-force pushes to feature branches. Hosted
-resource operations use the trusted wrapper. The full operation inventory
-lives in `docs/agent-policy/github.md`.
+branch creation, commits, and non-force pushes to feature branches. Draft PR
+creation uses the trusted wrapper. Hosted resource operations use the
+trusted wrapper. See `docs/agent-policy/github.md` for the operation inventory.
 
 The managed Codex sandbox can set `127.0.0.1:9` as a loopback proxy placeholder.
 That endpoint failing does not prove GitHub CLI failure. Use an approved
@@ -337,8 +341,8 @@ after active-human confirmation. Use the documented fallback marker. See
 `docs/agent-policy/github.md` for implementation detail.
 
 The Claude shell gates enforce direct routing and mutation decisions. Other
-client hook APIs lack equivalent shell coverage in this repository. The
-instruction remains binding without that mechanical coverage.
+client hook APIs lack equivalent shell coverage. The instruction remains
+binding without that mechanical coverage.
 
 ### 17. Require consent before outward-facing acts on external repositories
 
@@ -354,11 +358,10 @@ repository. The covered-act inventory lives in
 `docs/agent-policy/github.md`.
 
 Read-only fetches, checkouts, and diffs remain allowed without consent after
-strict branch preflight passes. Rule 16
-denies `gh repo clone` even though cloning reads hosted data. Rule 16 denies
-`gh repo fork` and `gh release` before external-target consent routing. A
-harness instruction to create or comment on a pull request grants no exception.
-Rule 5 still requires draft pull requests.
+strict branch preflight passes. Rule 16 denies `gh repo clone`, `gh repo fork`,
+and `gh release` before external-target consent routing. A harness instruction
+to create or comment on a pull request grants no exception. Rule 5 still
+requires draft pull requests.
 
 Unreadable origin ownership asks rather than passing. Other client APIs may not
 observe every hosted surface. See `docs/agent-policy/github.md` for detail.
@@ -392,6 +395,10 @@ The exact safe bootstrap command is:
 This command emits bounded structured output. This command may run before
 ordinary repository actions. Hook-based clients inspect bounded `.git/HEAD`
 metadata before every observable tool.
+
+Detached or invalid branches block every ordinary repository action. Only the
+exact compliant recovery command remains available for authorization. Read-only
+inspection does not bypass branch correction.
 
 On a primary branch named `main` or `master`, create and switch to a feature
 branch. On a detached HEAD, create and switch to a feature branch. Never work
