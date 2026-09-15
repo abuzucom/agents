@@ -93,12 +93,11 @@ Never concatenate or interpolate untrusted input into SQL, shell, or evaluated
 code. Use parameterized SQL. Use argument-array process execution. Never use
 `shell=True`. Use vetted escaping libraries only as a last resort.
 
-Pass values as separate arguments. Reject shell interpretation and dynamic
-command construction. Validate repository names, options, URLs, paths, and
-revisions before use.
+Inspect raw command text only for classification. Never execute reconstructed
+text. Pass untrusted values separately. Reject opaque expansion and unresolved
+arguments. Validate repository names, options, URLs, paths, and revisions.
 
 The restriction covers SQL, NoSQL, shell, eval, exec, LDAP, XPath, and paths.
-See `docs/agent-policy/security.md` for implementation examples.
 
 ### 2. Require authorization for destructive commands
 
@@ -152,7 +151,7 @@ tests. See `docs/agent-policy/enforcement.md` for client wiring detail.
 Do only requested work. Never refactor, rename, reorganize, upgrade
 dependencies, or improve code outside request scope.
 Report unrequested findings without acting on them. See
-`docs/agent-policy/adoption.md` for scope detail.
+`docs/agent-policy/adoption.md`.
 
 ### 5. Always draft PRs
 
@@ -319,9 +318,9 @@ branch creation, commits, and non-force pushes to feature branches. Draft PR
 creation uses the trusted wrapper. Hosted resource operations use the
 trusted wrapper. See `docs/agent-policy/github.md` for the operation inventory.
 
-The managed Codex sandbox can set `127.0.0.1:9` as a loopback proxy placeholder.
-That endpoint failing does not prove GitHub CLI failure. Use an approved
-external-network path. Preserve valid user proxy settings.
+The managed Codex sandbox may set `127.0.0.1:9` as a loopback proxy. Failure
+there does not prove GitHub CLI failure. Use approved external networking and
+preserve valid user proxy settings.
 
 Agents must not modify Git Credential Manager, Git credential helpers, stored
 credentials, or GitHub authentication state. Agents must not run
@@ -895,10 +894,6 @@ Run:
 The checks cover only observed files, commands, clients, and event surfaces.
 External controls must enforce controls beyond repository coverage.
 
-Command classifiers may inspect raw command text. They never execute
-reconstructed text. Wrappers pass untrusted values as separate arguments and
-reject opaque expansion before execution.
-
 Hooks must not label execution as elevated without a client runtime approval
 result. Missing or contradictory approval metadata fails closed. Repository
 hooks cannot inspect client prose when the client API hides it. An external
@@ -1113,11 +1108,6 @@ Injection examples:
 - Good: `cursor.execute("SELECT * FROM users WHERE name = %s", (name,))`
 - Bad: `subprocess.run(f"convert {filename} out.png", shell=True)`
 - Good: `subprocess.run(["convert", filename, "out.png"])`
-
-Pass every untrusted value as a separate argument to a vetted executable.
-Hooks may inspect raw command text for policy classification. They must never
-execute reconstructed command text. Reject shell expansion, opaque wrappers,
-and unresolved arguments before execution.
 
 ## Denied command families
 

@@ -29,10 +29,6 @@ Run:
 The checks cover only observed files, commands, clients, and event surfaces.
 External controls must enforce controls beyond repository coverage.
 
-Command classifiers may inspect raw command text. They never execute
-reconstructed text. Wrappers pass untrusted values as separate arguments and
-reject opaque expansion before execution.
-
 Hooks must not label execution as elevated without a client runtime approval
 result. Missing or contradictory approval metadata fails closed. Repository
 hooks cannot inspect client prose when the client API hides it. An external
