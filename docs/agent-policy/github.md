@@ -7,6 +7,13 @@ Run hosted GitHub operations through:
 The wrapper resolves `gh` outside the repository and verifies the authenticated
 account through a fixed account request. Direct `gh` lookup remains denied.
 
+Strict branch preflight remains a prerequisite for every repository action.
+Detached or invalid branches cannot use read-only inspection as a bypass. After
+preflight passes, local Git reads, feature branch creation, commits, and
+non-force pushes to feature branches remain available through native Git
+transport. Draft pull request creation uses the trusted wrapper and remains a
+draft.
+
 Read-only repository inspection, checks, workflow reads, and pull request
 diffs remain available through the wrapper.
 
@@ -28,6 +35,9 @@ A failed wrapper operation permits one semantically equivalent Git fallback
 only after active-human confirmation. Mark it with
 `-c agents.githubFallback=confirmed`. The gate does not retain cross-process
 usage state. Human review enforces the one-use limit.
+
+Pass repository names, refs, titles, bodies, and paths as separate arguments.
+Do not interpolate them into shell commands, API paths, or evaluated code.
 
 Never modify Git Credential Manager or GitHub authentication state. Never open
 a browser to refresh or recover a GitHub token.

@@ -62,6 +62,11 @@ Injection examples:
 - Bad: `subprocess.run(f"convert {filename} out.png", shell=True)`
 - Good: `subprocess.run(["convert", filename, "out.png"])`
 
+Pass every untrusted value as a separate argument to a vetted executable.
+Hooks may inspect raw command text for policy classification. They must never
+execute reconstructed command text. Reject shell expansion, opaque wrappers,
+and unresolved arguments before execution.
+
 ## Denied command families
 
 The denial covers AWS CLI, SAM, CDK, Azure CLI and PowerShell, Google Cloud

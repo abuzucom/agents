@@ -15,6 +15,16 @@ browser token recovery, and incomplete policy loading.
 The gates route consent-required acts to the active human. Unattended sessions
 refuse those acts.
 
+Strict branch preflight runs before shared command routing. Detached or invalid
+branches block every ordinary repository tool. Only the exact compliant
+recovery command remains available for authorization. Read-only inspection
+does not bypass branch correction.
+
+After preflight passes, local Git reads, feature branch creation, commits, and
+non-force pushes to feature branches use native Git transport. Hosted GitHub
+resource operations use the trusted wrapper and their normal denial or consent
+paths.
+
 Designed denials, prompts, refusals, opaque-command blocks, and exit code 2 on
 missing shared modules are policy outcomes. They are not defects.
 
@@ -28,6 +38,10 @@ Run:
 
 The checks cover only observed files, commands, clients, and event surfaces.
 External controls must enforce controls beyond repository coverage.
+
+Command classifiers may inspect raw command text. They never execute
+reconstructed text. Wrappers pass untrusted values as separate arguments and
+reject opaque expansion before execution.
 
 The complete adoption inventory and recovery procedure cover every hook,
 registration, shared module, test, checker, manifest, policy file, and

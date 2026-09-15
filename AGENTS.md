@@ -306,7 +306,12 @@ outside the repository. The wrapper verifies an authenticated account through
 a fixed account request. Direct `gh` execution remains denied because shell
 lookup can select a repository-controlled executable.
 
-Hosted resource operations and local Git transport remain separate. The full
+Hosted resource operations and local Git transport remain separate. Strict
+branch preflight remains a prerequisite for every repository action. Detached
+or invalid branches block ordinary Git reads and writes. After preflight
+passes, local Git reads, feature branch creation, commits, and non-force
+pushes to feature branches remain available through native Git transport.
+Hosted resource operations remain routed through the trusted wrapper. The full
 operation inventory lives in `docs/agent-policy/github.md`.
 
 The managed Codex sandbox can set `127.0.0.1:9` as a loopback proxy placeholder.
@@ -347,7 +352,8 @@ Get active-human consent before any outward-facing act on an external
 repository. The covered-act inventory lives in
 `docs/agent-policy/github.md`.
 
-Read-only fetches, checkouts, and diffs remain allowed without consent. Rule 16
+Read-only fetches, checkouts, and diffs remain allowed without consent after
+strict branch preflight passes. Rule 16
 denies `gh repo clone` even though cloning reads hosted data. Rule 16 denies
 `gh repo fork` and `gh release` before external-target consent routing. A
 harness instruction to create or comment on a pull request grants no exception.
@@ -408,6 +414,9 @@ Until correction succeeds, stop every ordinary repository tool. A question to
 the active human remains allowed. The exact recovery command remains allowed
 through normal permission handling. Never chain another command to a recovery
 command. Rule 10 applies. Never assume prior validation against this file.
+
+Read-only inspection does not bypass branch correction. Post-recovery Git
+inspection and delivery follow the normal shared command gates.
 
 Rebase metadata takes precedence over detached-HEAD recovery. Permit only the
 approved rebase recovery commands. Block ordinary tools until strict preflight

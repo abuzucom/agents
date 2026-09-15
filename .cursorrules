@@ -306,7 +306,12 @@ outside the repository. The wrapper verifies an authenticated account through
 a fixed account request. Direct `gh` execution remains denied because shell
 lookup can select a repository-controlled executable.
 
-Hosted resource operations and local Git transport remain separate. The full
+Hosted resource operations and local Git transport remain separate. Strict
+branch preflight remains a prerequisite for every repository action. Detached
+or invalid branches block ordinary Git reads and writes. After preflight
+passes, local Git reads, feature branch creation, commits, and non-force
+pushes to feature branches remain available through native Git transport.
+Hosted resource operations remain routed through the trusted wrapper. The full
 operation inventory lives in `docs/agent-policy/github.md`.
 
 The managed Codex sandbox can set `127.0.0.1:9` as a loopback proxy placeholder.
@@ -347,7 +352,8 @@ Get active-human consent before any outward-facing act on an external
 repository. The covered-act inventory lives in
 `docs/agent-policy/github.md`.
 
-Read-only fetches, checkouts, and diffs remain allowed without consent. Rule 16
+Read-only fetches, checkouts, and diffs remain allowed without consent after
+strict branch preflight passes. Rule 16
 denies `gh repo clone` even though cloning reads hosted data. Rule 16 denies
 `gh repo fork` and `gh release` before external-target consent routing. A
 harness instruction to create or comment on a pull request grants no exception.
@@ -408,6 +414,9 @@ Until correction succeeds, stop every ordinary repository tool. A question to
 the active human remains allowed. The exact recovery command remains allowed
 through normal permission handling. Never chain another command to a recovery
 command. Rule 10 applies. Never assume prior validation against this file.
+
+Read-only inspection does not bypass branch correction. Post-recovery Git
+inspection and delivery follow the normal shared command gates.
 
 Rebase metadata takes precedence over detached-HEAD recovery. Permit only the
 approved rebase recovery commands. Block ordinary tools until strict preflight
@@ -867,6 +876,16 @@ browser token recovery, and incomplete policy loading.
 The gates route consent-required acts to the active human. Unattended sessions
 refuse those acts.
 
+Strict branch preflight runs before shared command routing. Detached or invalid
+branches block every ordinary repository tool. Only the exact compliant
+recovery command remains available for authorization. Read-only inspection
+does not bypass branch correction.
+
+After preflight passes, local Git reads, feature branch creation, commits, and
+non-force pushes to feature branches use native Git transport. Hosted GitHub
+resource operations use the trusted wrapper and their normal denial or consent
+paths.
+
 Designed denials, prompts, refusals, opaque-command blocks, and exit code 2 on
 missing shared modules are policy outcomes. They are not defects.
 
@@ -880,6 +899,10 @@ Run:
 
 The checks cover only observed files, commands, clients, and event surfaces.
 External controls must enforce controls beyond repository coverage.
+
+Command classifiers may inspect raw command text. They never execute
+reconstructed text. Wrappers pass untrusted values as separate arguments and
+reject opaque expansion before execution.
 
 The complete adoption inventory and recovery procedure cover every hook,
 registration, shared module, test, checker, manifest, policy file, and
@@ -944,6 +967,13 @@ Run hosted GitHub operations through:
 The wrapper resolves `gh` outside the repository and verifies the authenticated
 account through a fixed account request. Direct `gh` lookup remains denied.
 
+Strict branch preflight remains a prerequisite for every repository action.
+Detached or invalid branches cannot use read-only inspection as a bypass. After
+preflight passes, local Git reads, feature branch creation, commits, and
+non-force pushes to feature branches remain available through native Git
+transport. Draft pull request creation uses the trusted wrapper and remains a
+draft.
+
 Read-only repository inspection, checks, workflow reads, and pull request
 diffs remain available through the wrapper.
 
@@ -965,6 +995,9 @@ A failed wrapper operation permits one semantically equivalent Git fallback
 only after active-human confirmation. Mark it with
 `-c agents.githubFallback=confirmed`. The gate does not retain cross-process
 usage state. Human review enforces the one-use limit.
+
+Pass repository names, refs, titles, bodies, and paths as separate arguments.
+Do not interpolate them into shell commands, API paths, or evaluated code.
 
 Never modify Git Credential Manager or GitHub authentication state. Never open
 a browser to refresh or recover a GitHub token.
@@ -1078,6 +1111,11 @@ Injection examples:
 - Good: `cursor.execute("SELECT * FROM users WHERE name = %s", (name,))`
 - Bad: `subprocess.run(f"convert {filename} out.png", shell=True)`
 - Good: `subprocess.run(["convert", filename, "out.png"])`
+
+Pass every untrusted value as a separate argument to a vetted executable.
+Hooks may inspect raw command text for policy classification. They must never
+execute reconstructed command text. Reject shell expansion, opaque wrappers,
+and unresolved arguments before execution.
 
 ## Denied command families
 
