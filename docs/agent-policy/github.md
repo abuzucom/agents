@@ -7,7 +7,21 @@ Run hosted GitHub operations through:
 The wrapper resolves `gh` outside the repository and verifies the authenticated
 account through a fixed account request. Direct `gh` lookup remains denied.
 
-Pass `--repo owner/repo` when a GitHub command would infer repository context.
+Repository-bound commands receive a validated `--repo OWNER/REPOSITORY` target.
+The wrapper resolves `origin` from the local checkout or worktree metadata.
+The wrapper fails closed when that context is missing or unsafe. The wrapper
+keeps `gh` execution in an external safe directory.
+
+Pull request creation also receives a validated `--head OWNER:BRANCH` target
+when no head option exists. Global options may precede the GitHub command.
+Normal checkouts and worktrees work on Windows, macOS, and Linux.
+
+Argument arrays carry every value. Shell interpretation and dynamic command
+construction remain prohibited. Repository names, options, URLs, paths, and
+revisions require validation before use.
+
+Executable changes require a behavioral test. Required CI checks the changed
+range and fails when an executable change lacks a changed test.
 
 Strict branch preflight remains a prerequisite for every repository action.
 Detached or invalid branches cannot use read-only inspection as a bypass. After

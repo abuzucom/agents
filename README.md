@@ -102,6 +102,11 @@ python scripts/trusted_gh.py run <gh arguments>
 ```
 
 The wrapper resolves `gh` outside the repository and verifies authentication.
+Repository-bound commands receive validated repository context from the local
+checkout or worktree. The wrapper fails closed when context is missing or
+unsafe. The wrapper keeps `gh` execution outside the repository.
+Pull request creation receives validated head context when no head option is
+provided. Windows, macOS, and Linux worktree layouts are supported.
 Shell gates deny direct `gh`, Git, and HTTP substitutes. High-risk hosted
 mutations deny. Confirmable changes ask. Local Git and ordinary fetch, pull,
 and push transport remain available.
@@ -118,6 +123,10 @@ routing code changes. Shared gates deny direct GitHub CLI lookup, GitHub HTTP
 substitutes, hosted Git substitutes, Git Credential Manager commands, and
 GitHub authentication browser launches. Antigravity uses `injectSteps` only
 for `PreInvocation`. `PreToolUse` emits `{}`.
+
+Agents must not claim elevated or external execution without a runtime approval
+result. Repository hooks enforce observable command gates. An external harness
+must enforce client output claims when the client API hides them.
 
 `.pre-commit-config.yaml` runs each check on owned paths. `sync-check.yml`
 runs tests and authored pull request checks on `pull_request`. The same

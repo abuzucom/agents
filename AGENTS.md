@@ -47,6 +47,10 @@ gate overrides general execution authorization. Each gated act requires
 confirmation immediately before execution. Consent applies only to the named
 act and target.
 
+Never claim elevated or external execution without a runtime approval result.
+Label requests as pending. Label approved execution only after approval.
+Report rejection as rejection. Treat ordinary sandbox execution as ordinary.
+
 ### Precedence
 
 Apply rules in this order when requirements conflict:
@@ -306,15 +310,10 @@ outside the repository. The wrapper verifies an authenticated account through
 a fixed account request. Direct `gh` execution remains denied because shell
 lookup can select a repository-controlled executable.
 
-Pass `--repo owner/repo` when a GitHub command would infer repository context.
-
-Hosted resource operations and local Git transport remain separate. Strict
-branch preflight remains a prerequisite for every repository action. Detached
-or invalid branches block ordinary Git reads and writes. After preflight
-passes, local Git reads, feature branch creation, commits, and non-force
-pushes to feature branches remain available through native Git transport.
-Hosted resource operations remain routed through the trusted wrapper. The full
-operation inventory lives in `docs/agent-policy/github.md`.
+After strict branch preflight passes, native Git permits local reads, feature
+branch creation, commits, and non-force pushes to feature branches. Hosted
+resource operations use the trusted wrapper. The full operation inventory
+lives in `docs/agent-policy/github.md`.
 
 The managed Codex sandbox can set `127.0.0.1:9` as a loopback proxy placeholder.
 That endpoint failing does not prove GitHub CLI failure. Use an approved
@@ -416,9 +415,6 @@ Until correction succeeds, stop every ordinary repository tool. A question to
 the active human remains allowed. The exact recovery command remains allowed
 through normal permission handling. Never chain another command to a recovery
 command. Rule 10 applies. Never assume prior validation against this file.
-
-Read-only inspection does not bypass branch correction. Post-recovery Git
-inspection and delivery follow the normal shared command gates.
 
 Rebase metadata takes precedence over detached-HEAD recovery. Permit only the
 approved rebase recovery commands. Block ordinary tools until strict preflight

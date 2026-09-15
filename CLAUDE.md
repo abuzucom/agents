@@ -47,6 +47,10 @@ gate overrides general execution authorization. Each gated act requires
 confirmation immediately before execution. Consent applies only to the named
 act and target.
 
+Never claim elevated or external execution without a runtime approval result.
+Label requests as pending. Label approved execution only after approval.
+Report rejection as rejection. Treat ordinary sandbox execution as ordinary.
+
 ### Precedence
 
 Apply rules in this order when requirements conflict:
@@ -306,15 +310,10 @@ outside the repository. The wrapper verifies an authenticated account through
 a fixed account request. Direct `gh` execution remains denied because shell
 lookup can select a repository-controlled executable.
 
-Pass `--repo owner/repo` when a GitHub command would infer repository context.
-
-Hosted resource operations and local Git transport remain separate. Strict
-branch preflight remains a prerequisite for every repository action. Detached
-or invalid branches block ordinary Git reads and writes. After preflight
-passes, local Git reads, feature branch creation, commits, and non-force
-pushes to feature branches remain available through native Git transport.
-Hosted resource operations remain routed through the trusted wrapper. The full
-operation inventory lives in `docs/agent-policy/github.md`.
+After strict branch preflight passes, native Git permits local reads, feature
+branch creation, commits, and non-force pushes to feature branches. Hosted
+resource operations use the trusted wrapper. The full operation inventory
+lives in `docs/agent-policy/github.md`.
 
 The managed Codex sandbox can set `127.0.0.1:9` as a loopback proxy placeholder.
 That endpoint failing does not prove GitHub CLI failure. Use an approved
@@ -416,9 +415,6 @@ Until correction succeeds, stop every ordinary repository tool. A question to
 the active human remains allowed. The exact recovery command remains allowed
 through normal permission handling. Never chain another command to a recovery
 command. Rule 10 applies. Never assume prior validation against this file.
-
-Read-only inspection does not bypass branch correction. Post-recovery Git
-inspection and delivery follow the normal shared command gates.
 
 Rebase metadata takes precedence over detached-HEAD recovery. Permit only the
 approved rebase recovery commands. Block ordinary tools until strict preflight
@@ -906,6 +902,11 @@ Command classifiers may inspect raw command text. They never execute
 reconstructed text. Wrappers pass untrusted values as separate arguments and
 reject opaque expansion before execution.
 
+Hooks must not label execution as elevated without a client runtime approval
+result. Missing or contradictory approval metadata fails closed. Repository
+hooks cannot inspect client prose when the client API hides it. An external
+harness must enforce those claims.
+
 The complete adoption inventory and recovery procedure cover every hook,
 registration, shared module, test, checker, manifest, policy file, and
 synchronized copy. A designed-denial defect report includes the exact input,
@@ -969,7 +970,21 @@ Run hosted GitHub operations through:
 The wrapper resolves `gh` outside the repository and verifies the authenticated
 account through a fixed account request. Direct `gh` lookup remains denied.
 
-Pass `--repo owner/repo` when a GitHub command would infer repository context.
+Repository-bound commands receive a validated `--repo OWNER/REPOSITORY` target.
+The wrapper resolves `origin` from the local checkout or worktree metadata.
+The wrapper fails closed when that context is missing or unsafe. The wrapper
+keeps `gh` execution in an external safe directory.
+
+Pull request creation also receives a validated `--head OWNER:BRANCH` target
+when no head option exists. Global options may precede the GitHub command.
+Normal checkouts and worktrees work on Windows, macOS, and Linux.
+
+Argument arrays carry every value. Shell interpretation and dynamic command
+construction remain prohibited. Repository names, options, URLs, paths, and
+revisions require validation before use.
+
+Executable changes require a behavioral test. Required CI checks the changed
+range and fails when an executable change lacks a changed test.
 
 Strict branch preflight remains a prerequisite for every repository action.
 Detached or invalid branches cannot use read-only inspection as a bypass. After

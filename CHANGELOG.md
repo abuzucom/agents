@@ -9,7 +9,7 @@ The house style bans that hyphen. `scripts/check_ascii.py` enforces the ban on
 this file.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.0.21] (2026-09-15)
+## [2.0.28] (2026-09-15)
 
 ### Changed
 - Clarify strict branch-first ordering before Git inspection and delivery.
@@ -20,6 +20,46 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   pushes, and draft pull request creation.
 - Document injection-safe argument handling and rejection of opaque expansion.
 - Document explicit repository targets for trusted GitHub commands.
+
+## [2.0.27] (2026-09-14)
+
+### Fixed
+- Prevent untrusted command options from entering wrapper error output.
+
+## [2.0.26] (2026-09-14)
+
+### Fixed
+- Prevent CodeQL-tainted exception data from reaching wrapper output.
+
+## [2.0.25] (2026-09-14)
+
+### Fixed
+- Harden GitHub CLI option parsing and repository context injection.
+- Compare pull request changes from the merge base.
+
+## [2.0.24] (2026-09-14)
+
+### Fixed
+- Prevent trusted GitHub CLI error output from exposing exception text.
+
+## [2.0.23] (2026-09-14)
+
+### Fixed
+- Handle global GitHub CLI options before repository commands.
+- Preserve explicit pull request head options.
+- Bound worktree metadata and accept valid SSH remotes on all platforms.
+
+## [2.0.22] (2026-09-14)
+
+### Fixed
+- Require accurate reporting of runtime elevation approval state.
+
+## [2.0.21] (2026-09-14)
+
+### Fixed
+- Resolve GitHub repository context from Windows worktrees.
+- Pass validated repository context to repository-bound GitHub CLI commands.
+- Require behavioral tests for executable pull request changes.
 
 ## [2.0.20] (2026-09-14)
 
