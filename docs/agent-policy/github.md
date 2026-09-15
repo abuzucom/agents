@@ -7,6 +7,8 @@ Run hosted GitHub operations through:
 The wrapper resolves `gh` outside the repository and verifies the authenticated
 account through a fixed account request. Direct `gh` lookup remains denied.
 
+Pass `--repo owner/repo` when a GitHub command would infer repository context.
+
 Strict branch preflight remains a prerequisite for every repository action.
 Detached or invalid branches cannot use read-only inspection as a bypass. After
 preflight passes, local Git reads, feature branch creation, commits, and

@@ -19,6 +19,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Align policy guidance with post-preflight feature branch commits, non-force
   pushes, and draft pull request creation.
 - Document injection-safe argument handling and rejection of opaque expansion.
+- Document explicit repository targets for trusted GitHub commands.
 
 ## [2.0.20] (2026-09-14)
 

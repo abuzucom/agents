@@ -306,6 +306,8 @@ outside the repository. The wrapper verifies an authenticated account through
 a fixed account request. Direct `gh` execution remains denied because shell
 lookup can select a repository-controlled executable.
 
+Pass `--repo owner/repo` when a GitHub command would infer repository context.
+
 Hosted resource operations and local Git transport remain separate. Strict
 branch preflight remains a prerequisite for every repository action. Detached
 or invalid branches block ordinary Git reads and writes. After preflight
