@@ -304,6 +304,11 @@ credentials or project configuration. Protected credential directories, state,
 source, manifest, and project paths are listed in
 `docs/agent-policy/security.md`.
 
+Pages deployment allowed. Permit builds and
+`wrangler pages deploy <workspace-path> --project-name <name>` with optional
+`--branch <branch>`. Require local paths. Deny other Wrangler, Cloudflare
+administration, dashboard, and infrastructure-as-code operations.
+
 Shell gates deny protected commands and shell paths. Client coverage is limited.
 The instruction remains binding without mechanical coverage. See
 `docs/agent-policy/enforcement.md`.
@@ -885,6 +890,9 @@ The gates refuse destructive commands, unsafe infrastructure access, direct
 GitHub CLI lookup, unsafe GitHub HTTP substitutes, credential-manager access,
 browser token recovery, and incomplete policy loading.
 
+The shared command classifier permits only a local, explicitly named
+Cloudflare Pages deployment. It denies other Wrangler operations.
+
 The gates route consent-required acts to the active human. Unattended sessions
 refuse those acts.
 
@@ -1127,6 +1135,15 @@ commands.
 
 Git transport over SSH remains allowed through Git. Direct SSH clients remain
 denied.
+
+Cloudflare Pages deployment is a limited exception to the cloud-tool denial.
+Permit a local build and `wrangler pages deploy <workspace-path>
+--project-name <name>` with an optional literal `--branch <branch>`. Require
+the deployment path to resolve inside the workspace and require an explicit
+project name. Deny every other Wrangler operation, including Workers,
+account, zone, DNS, WAF, Turnstile, KV, D1, R2, Queues, Durable Objects,
+secret, configuration, inspection, and API operations. Keep dashboard
+automation and infrastructure-as-code denied.
 
 Protected content includes AWS, Azure, Google Cloud, SSH, Kubernetes,
 Terraform, FTP, and Netrc credentials, Terraform source, variables, state,

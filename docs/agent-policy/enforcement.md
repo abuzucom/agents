@@ -12,6 +12,9 @@ The gates refuse destructive commands, unsafe infrastructure access, direct
 GitHub CLI lookup, unsafe GitHub HTTP substitutes, credential-manager access,
 browser token recovery, and incomplete policy loading.
 
+The shared command classifier permits only a local, explicitly named
+Cloudflare Pages deployment. It denies other Wrangler operations.
+
 The gates route consent-required acts to the active human. Unattended sessions
 refuse those acts.
 

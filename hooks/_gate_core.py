@@ -581,7 +581,7 @@ PROHIBITED_COMMANDS = frozenset({
     "sfc", "sfdisk", "sftp", "shred", "ssh", "ssh-add", "ssh-agent", "ssh-keygen",
     "ssh-keyscan", "sshd", "swapoff", "telnet", "terraform", "terragrunt",
     "tftp", "tofu", "ufw", "unlink", "update-grub", "userdel", "usermod",
-    "winrm", "wipe",
+    "winrm", "wipe", "wrangler",
 })
 PROHIBITED_COMMAND_PREFIXES = ("mkfs.", "newfs_")
 INFRASTRUCTURE_PATH_MARKERS = (
@@ -620,9 +620,68 @@ def _account_delete_command(name: str, args: list) -> bool:
     return False
 
 
+def _safe_pages_value(value: str) -> bool:
+    """Return whether a Pages option value is a literal argument."""
+    return bool(value and not value.startswith("-") and not is_ambiguous(value))
+
+
+def cloudflare_pages_verdict(program: str, args: list, cwd: str = "") -> tuple:
+    """Allow only a local, explicitly targeted Cloudflare Pages deployment."""
+    name = normalize_windows_command_name(program)
+    if name != "wrangler":
+        return "", ""
+    lowered = [token.casefold() for token in args]
+    if len(args) < 3 or lowered[0:2] != ["pages", "deploy"]:
+        return "deny", "only Wrangler Pages deployment is allowed"
+
+    deploy_path = args[2]
+    if deploy_path.startswith("-") or is_ambiguous(deploy_path):
+        return "deny", "Pages deployment path must be a literal workspace path"
+    root = os.path.realpath(os.path.abspath(cwd or os.getcwd()))
+    resolved_path = os.path.realpath(os.path.abspath(os.path.join(root, deploy_path)))
+    try:
+        within_workspace = os.path.commonpath((root, resolved_path)) == root
+    except ValueError:
+        within_workspace = False
+    if not within_workspace or not os.path.isdir(resolved_path):
+        return "deny", "Pages deployment path must be an existing workspace directory"
+
+    project_name = ""
+    index = 3
+    while index < len(args):
+        option = args[index]
+        lowered_option = option.casefold()
+        if lowered_option.startswith("--project-name="):
+            project_name = option.split("=", 1)[1]
+        elif lowered_option == "--project-name":
+            index += 1
+            if index >= len(args):
+                return "deny", "Pages deployment requires a project name"
+            project_name = args[index]
+        elif lowered_option.startswith("--branch="):
+            branch = option.split("=", 1)[1]
+            if not _safe_pages_value(branch):
+                return "deny", "Pages deployment branch must be literal"
+        elif lowered_option == "--branch":
+            index += 1
+            if index >= len(args) or not _safe_pages_value(args[index]):
+                return "deny", "Pages deployment branch must be literal"
+        else:
+            return "deny", "Wrangler Pages option is outside the deployment allowance"
+        index += 1
+    if not _safe_pages_value(project_name):
+        return "deny", "Pages deployment requires a literal project name"
+    return "", ""
+
+
 def prohibited_command_verdict(program: str, args: list) -> tuple:
     """Deny commands prohibited on every host and through every shell."""
     name = normalize_windows_command_name(program)
+    pages_verdict = cloudflare_pages_verdict(program, args)
+    if pages_verdict[0]:
+        return pages_verdict
+    if name == "wrangler":
+        return "", ""
     if name in PROHIBITED_COMMANDS or name.startswith(PROHIBITED_COMMAND_PREFIXES):
         return "deny", f"{sanitize(name)} is prohibited for agent execution"
     _verb, separator, noun = name.partition("-")
