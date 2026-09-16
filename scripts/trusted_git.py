@@ -28,9 +28,10 @@ AMBIGUOUS_MARKERS = ("$", "`", "%")
 def _is_inside(path: Path, directory: Path) -> bool:
     """Return whether `path` is within `directory`."""
     try:
-        path.relative_to(directory)
-        return True
-    except ValueError:
+        path_value = os.path.normcase(os.path.abspath(path))
+        directory_value = os.path.normcase(os.path.abspath(directory))
+        return os.path.commonpath((path_value, directory_value)) == directory_value
+    except (ValueError, OSError):
         return False
 
 
