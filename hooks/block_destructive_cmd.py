@@ -95,7 +95,8 @@ def classify_named_program(
     arguments: tuple[str, ...],
 ) -> tuple[str, str]:
     """Return the direct policy verdict for one normalized CMD program."""
-    prohibited = core.prohibited_command_verdict(program_name, list(arguments))
+    prohibited = core.prohibited_command_verdict(
+        program_name, list(arguments), _CWD[0])
     if prohibited[0]:
         return prohibited
     if program_name in STORAGE_DESTRUCTION_PROGRAMS:

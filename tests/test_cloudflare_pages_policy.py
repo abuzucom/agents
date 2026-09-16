@@ -28,7 +28,8 @@ class CloudflarePagesPolicyTest(unittest.TestCase):
         return _gate_core.cloudflare_pages_verdict(
             "wrangler", list(arguments), str(self.root))
 
-    def hook_verdict(self, tool_name: str, command: str) -> tuple:
+    def hook_verdict(self, tool_name: str, command: str,
+                     cwd: str = "") -> tuple:
         """Run one real shell gate and return its exit code and decision."""
         hook_name = {
             "Bash": "block_destructive_bash.py",
@@ -43,7 +44,7 @@ class CloudflarePagesPolicyTest(unittest.TestCase):
             "hook_event_name": "PreToolUse",
             "tool_name": tool_name,
             "permission_mode": "default",
-            "cwd": str(self.root),
+            "cwd": cwd or str(self.root),
             "tool_input": {"command": command},
         }
         code, stdout, _stderr = worker.invoke(payload)
@@ -53,6 +54,17 @@ class CloudflarePagesPolicyTest(unittest.TestCase):
                 "permissionDecision"
             ]
         return code, decision
+
+    def test_real_gates_use_payload_cwd(self) -> None:
+        """Resolve Pages paths against the hook payload working directory."""
+        workspace = Path(self.temp_root.name) / "isolated-workspace"
+        output_path = workspace / "dist"
+        output_path.mkdir(parents=True)
+        command = "wrangler pages deploy dist --project-name site"
+        for tool_name in ("Bash", "PowerShell", "Cmd"):
+            with self.subTest(tool_name=tool_name):
+                result = self.hook_verdict(tool_name, command, str(workspace))
+                self.assertEqual(result, (0, ""))
 
     def test_real_gates_reach_pages_policy(self) -> None:
         """Exercise the shared Pages policy through every shell gate."""
@@ -76,6 +88,7 @@ class CloudflarePagesPolicyTest(unittest.TestCase):
                     f"wrangler pages deploy {self.output_argument} --project-name",
                     f"wrangler pages deploy {self.output_argument} --project-name site --branch",
                     f"wrangler pages deploy {self.output_argument} --project-name site --branch=$BRANCH",
+                    f"wrangler pages deploy {self.output_argument} --project-name site --project-name other",
                     f"wrangler pages deploy {self.output_argument} --project-name site --unsupported",
                     f"wrangler pages deploy {self.output_argument} --branch preview",
                     f"wrangler pages deploy {self.output_argument} --project-name site",

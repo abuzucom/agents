@@ -32,7 +32,7 @@
     "_gate_core.py::_resolve_git_write_context": 2,
     "_gate_core.py::_segment_program": 1,
     "_gate_core.py::_shell_alias_write_label": 12,
-    "_gate_core.py::cloudflare_pages_verdict": 3,
+    "_gate_core.py::cloudflare_pages_verdict": 4,
     "_gate_core.py::device_write_verdict": 2,
     "_gate_core.py::environment_assignment_verdict": 1,
     "_gate_core.py::forge_verdict": 1,

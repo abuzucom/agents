@@ -195,7 +195,7 @@ def _named_program_verdict(program: str, args: list,
     so the caller runs it past every other check instead.
     """
     lowered = program.lower()
-    prohibited = core.prohibited_command_verdict(program, args)
+    prohibited = core.prohibited_command_verdict(program, args, _CWD[0])
     if prohibited[0]:
         return prohibited
     curl_verdict = core.curl_transfer_verdict(program, args)

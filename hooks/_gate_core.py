@@ -690,10 +690,16 @@ def cloudflare_pages_verdict(program: str, args: list, cwd: str = "") -> tuple:
         return path_verdict
 
     project_name = ""
+    seen_options = set()
     index = 3
     while index < len(args):
         option = args[index]
         lowered_option = option.casefold()
+        option_name = lowered_option.split("=", 1)[0]
+        if option_name in {"--project-name", "--branch"}:
+            if option_name in seen_options:
+                return "deny", "Wrangler Pages options cannot be repeated"
+            seen_options.add(option_name)
         if lowered_option.startswith("--project-name="):
             project_name = option.split("=", 1)[1]
         elif lowered_option == "--project-name":
@@ -717,10 +723,10 @@ def cloudflare_pages_verdict(program: str, args: list, cwd: str = "") -> tuple:
     return "", ""
 
 
-def prohibited_command_verdict(program: str, args: list) -> tuple:
+def prohibited_command_verdict(program: str, args: list, cwd: str = "") -> tuple:
     """Deny commands prohibited on every host and through every shell."""
     name = normalize_windows_command_name(program)
-    pages_verdict = cloudflare_pages_verdict(program, args)
+    pages_verdict = cloudflare_pages_verdict(program, args, cwd)
     if pages_verdict[0]:
         return pages_verdict
     if name == "wrangler":
