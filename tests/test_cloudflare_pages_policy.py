@@ -115,6 +115,14 @@ class CloudflarePagesPolicyTest(unittest.TestCase):
             ("", ""),
         )
 
+    def test_prohibited_classifier_does_not_classify_pages(self) -> None:
+        """Leave Wrangler policy decisions to the CWD-aware shell gates."""
+        self.assertEqual(
+            _gate_core.prohibited_command_verdict(
+                "wrangler", ["pages", "deploy", ".", "--project-name", "site"]),
+            ("", ""),
+        )
+
     def test_rejects_other_wrangler_commands(self) -> None:
         self.assertEqual(self.verdict("deploy", "dist" )[0], "deny")
         self.assertEqual(self.verdict("pages", "project", "list")[0], "deny")

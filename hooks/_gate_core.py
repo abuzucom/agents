@@ -723,12 +723,9 @@ def cloudflare_pages_verdict(program: str, args: list, cwd: str = "") -> tuple:
     return "", ""
 
 
-def prohibited_command_verdict(program: str, args: list, cwd: str = "") -> tuple:
+def prohibited_command_verdict(program: str, args: list) -> tuple:
     """Deny commands prohibited on every host and through every shell."""
     name = normalize_windows_command_name(program)
-    pages_verdict = cloudflare_pages_verdict(program, args, cwd)
-    if pages_verdict[0]:
-        return pages_verdict
     if name == "wrangler":
         return "", ""
     if name in PROHIBITED_COMMANDS or name.startswith(PROHIBITED_COMMAND_PREFIXES):
