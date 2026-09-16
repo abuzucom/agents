@@ -2,7 +2,9 @@
 """Resolve and run Git without repository-controlled executable lookup."""
 import os
 import subprocess
+import sys
 import tempfile
+import urllib.parse
 from pathlib import Path
 
 SAFE_CONFIG = (
@@ -19,6 +21,8 @@ SAFE_CONFIG = (
     "-c",
     "protocol.ext.allow=never",
 )
+GITHUB_HOSTS = frozenset(("github.com", "www.github.com"))
+AMBIGUOUS_MARKERS = ("$", "`", "%")
 
 
 def _is_inside(path: Path, directory: Path) -> bool:
@@ -147,3 +151,79 @@ def run_git(
         check=check,
         timeout=timeout,
     )
+
+
+def _literal(value: str) -> bool:
+    """Return whether a CLI value has no shell expansion markers."""
+    return bool(value and not value.startswith("-")
+                and not any(marker in value for marker in AMBIGUOUS_MARKERS))
+
+
+def _github_source(value: str) -> bool:
+    """Return whether a clone or fetch source names GitHub safely."""
+    if not _literal(value):
+        return False
+    if value.startswith("git@"):
+        return value.startswith("git@github.com:")
+    parsed = urllib.parse.urlsplit(value)
+    return parsed.scheme == "https" and parsed.hostname in GITHUB_HOSTS
+
+
+def _workspace_path(workspace: Path, value: str, *, must_exist: bool) -> Path | None:
+    """Resolve a literal path inside the current workspace."""
+    if not _literal(value):
+        return None
+    candidate = (workspace / value).resolve()
+    if not _is_inside(candidate, workspace) or candidate == workspace:
+        return None
+    if must_exist and not candidate.is_dir():
+        return None
+    if not must_exist and candidate.exists():
+        return None
+    return candidate
+
+
+def _transport_arguments(workspace: Path, arguments: list[str]) -> list[str] | None:
+    """Validate the fixed clone and fetch CLI surface."""
+    if not arguments or arguments[0] not in {"clone", "fetch"}:
+        return None
+    operation = arguments[0]
+    if operation == "clone":
+        if len(arguments) != 3 or not _github_source(arguments[1]):
+            return None
+        destination = _workspace_path(workspace, arguments[2], must_exist=False)
+        if destination is None:
+            return None
+        return ["clone", "--", arguments[1], str(destination)]
+    if len(arguments) < 2:
+        return None
+    repository = _workspace_path(workspace, arguments[1], must_exist=True)
+    if repository is None or not (repository / ".git").exists():
+        return None
+    remaining = arguments[2:]
+    if any(not _literal(value) for value in remaining):
+        return None
+    return ["-C", str(repository), "fetch", *remaining]
+
+
+def main(argv: list[str] | None = None) -> int:
+    """Run one validated GitHub clone or fetch operation."""
+    arguments = list(sys.argv[1:] if argv is None else argv)
+    workspace = Path.cwd().resolve()
+    command = _transport_arguments(workspace, arguments)
+    if command is None:
+        print("usage: trusted_git.py clone <github-url> <new-directory>",
+              file=sys.stderr)
+        print("       trusted_git.py fetch <repository-directory> [refspec... ]",
+              file=sys.stderr)
+        return 2
+    result = run_git(workspace, command)
+    if result.stdout:
+        print(result.stdout, end="")
+    if result.stderr:
+        print(result.stderr, end="", file=sys.stderr)
+    return result.returncode
+
+
+if __name__ == "__main__":
+    sys.exit(main())

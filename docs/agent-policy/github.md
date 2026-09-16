@@ -20,7 +20,11 @@ Executable changes require a behavioral test. Required CI checks the changed
 range and fails when an executable change lacks a changed test.
 
 Read-only repository inspection, checks, workflow reads, and pull request
-diffs remain available through the wrapper.
+diffs remain available through the wrapper. GitHub clone and fetch use the
+fixed commands `python scripts/trusted_git.py clone <github-url> <directory>`
+and `python scripts/trusted_git.py fetch <repository> [refspec...]`. The
+transport CLI rejects arbitrary Git options, shell expansion, and paths outside
+the current workspace.
 
 Pull request creation, issue creation, comments, reviews, reactions, forks,
 stars, watches, releases, and hosted state changes require active-human

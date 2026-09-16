@@ -36,6 +36,43 @@ class TrustedGitRunnerTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0)
         self.assertEqual(result.stdout, "\ufffd")
 
+    def test_transport_clone_is_narrow_and_workspace_bound(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            workspace = Path(temporary)
+            self.assertEqual(
+                trusted_git._transport_arguments(
+                    workspace,
+                    ["clone", "https://github.com/OWNER/REPO.git", "copy"]),
+                ["clone", "--", "https://github.com/OWNER/REPO.git",
+                 str(workspace / "copy")],
+            )
+            (workspace / "copy").mkdir()
+            self.assertIsNone(
+                trusted_git._transport_arguments(
+                    workspace,
+                    ["clone", "https://github.com/OWNER/REPO.git", "copy"])
+            )
+            self.assertIsNone(
+                trusted_git._transport_arguments(
+                    workspace,
+                    ["clone", "https://github.com/OWNER/REPO.git", "$DEST"])
+            )
+
+    def test_transport_fetch_requires_existing_repository(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            workspace = Path(temporary)
+            repository = workspace / "repo"
+            (repository / ".git").mkdir(parents=True)
+            self.assertEqual(
+                trusted_git._transport_arguments(
+                    workspace, ["fetch", "repo", "origin"]),
+                ["-C", str(repository), "fetch", "origin"],
+            )
+            self.assertIsNone(
+                trusted_git._transport_arguments(
+                    workspace, ["fetch", "repo", "--upload-pack=bad"])
+            )
+
 
 class GitStateTextTest(unittest.TestCase):
     """Untrusted Git values become bounded printable ASCII."""

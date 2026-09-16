@@ -321,10 +321,11 @@ outside the repository. The wrapper verifies an authenticated account through
 a fixed account request. Direct `gh` execution remains denied because shell
 lookup can select a repository-controlled executable.
 
-After strict branch preflight passes, native Git permits local reads, feature
-branch creation, commits, and non-force pushes to feature branches. Draft PR
-creation uses the trusted wrapper. Hosted resource operations use the
-trusted wrapper. See `docs/agent-policy/github.md` for the operation inventory.
+After strict branch preflight, native Git permits local reads, feature
+branches, commits, and non-force pushes. Use fixed
+`scripts/trusted_git.py` clone and fetch commands for GitHub. Draft PR creation
+and hosted resource operations use trusted wrappers. See
+`docs/agent-policy/github.md` for the operation inventory.
 
 The managed Codex sandbox may set `127.0.0.1:9` as a loopback proxy. Failure
 there does not prove GitHub CLI failure. Use approved external networking and
@@ -993,7 +994,11 @@ Executable changes require a behavioral test. Required CI checks the changed
 range and fails when an executable change lacks a changed test.
 
 Read-only repository inspection, checks, workflow reads, and pull request
-diffs remain available through the wrapper.
+diffs remain available through the wrapper. GitHub clone and fetch use the
+fixed commands `python scripts/trusted_git.py clone <github-url> <directory>`
+and `python scripts/trusted_git.py fetch <repository> [refspec...]`. The
+transport CLI rejects arbitrary Git options, shell expansion, and paths outside
+the current workspace.
 
 Pull request creation, issue creation, comments, reviews, reactions, forks,
 stars, watches, releases, and hosted state changes require active-human
