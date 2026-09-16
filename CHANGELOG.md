@@ -9,6 +9,17 @@ The house style bans that hyphen. `scripts/check_ascii.py` enforces the ban on
 this file.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.30] (2026-09-16)
+
+### Changed
+- Set UTF-8 encoding and LF line endings as the default code style.
+
+### Fixed
+- Decode script subprocess output with explicit UTF-8 replacement handling.
+
+### Added
+- Document the Python UTF-8 diagnostic workaround for Windows log failures.
+
 ## [2.0.29] (2026-09-15)
 
 ### Fixed

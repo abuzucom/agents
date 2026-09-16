@@ -633,6 +633,11 @@ Unicode out of policy documentation and comments. A domain requirement can
 license Unicode inside required data. `check_ascii.py` enforces the documented
 prose scope.
 
+**Text encoding and line endings.** Use UTF-8 encoding and LF line endings for
+source, documentation, configuration, and test files. Retain another encoding
+or line ending only when an external format or runtime interface requires it.
+Document the exception in a nearby code or configuration comment.
+
 **American English spelling.** Use American spelling in code, comments, commit
 messages, and documentation. British variants include `-our`,
 `-ise`/`-isation`, `-re`, and doubled consonants before a suffix. Valid ASCII

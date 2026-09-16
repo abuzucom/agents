@@ -118,6 +118,18 @@ and preserves valid proxy settings. Agents cannot modify Git Credential Manager
 or GitHub authentication state. Agents cannot open a browser to refresh a
 GitHub token.
 
+The wrapper decodes GitHub CLI output as UTF-8 and replaces malformed bytes.
+If a Windows log request reports a codec error, enable Python UTF-8 mode for
+diagnosis and rerun the command:
+
+```powershell
+$env:PYTHONUTF8 = "1"
+python scripts/trusted_gh.py run <gh arguments>
+```
+
+The environment setting diagnoses codec selection. It does not replace the
+wrapper's explicit decoding behavior.
+
 CI runs trusted GitHub CLI routing tests. Pre-commit runs policy tests when
 routing code changes. Shared gates deny direct GitHub CLI lookup, GitHub HTTP
 substitutes, hosted Git substitutes, Git Credential Manager commands, and
