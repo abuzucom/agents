@@ -166,7 +166,10 @@ def _github_source(value: str) -> bool:
     if value.startswith("git@"):
         return value.startswith("git@github.com:")
     parsed = urllib.parse.urlsplit(value)
-    return parsed.scheme == "https" and parsed.hostname in GITHUB_HOSTS
+    return (parsed.scheme == "https" and parsed.hostname in GITHUB_HOSTS
+            and not parsed.username and not parsed.password
+            and not parsed.query and not parsed.fragment
+            and bool(parsed.path))
 
 
 def _workspace_path(workspace: Path, value: str, *, must_exist: bool) -> Path | None:

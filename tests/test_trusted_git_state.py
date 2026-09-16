@@ -57,6 +57,17 @@ class TrustedGitRunnerTest(unittest.TestCase):
                     workspace,
                     ["clone", "https://github.com/OWNER/REPO.git", "$DEST"])
             )
+            for source in (
+                "https://user:token@github.com/OWNER/REPO.git",
+                "https://github.com/OWNER/REPO.git?token=secret",
+                "https://github.com/OWNER/REPO.git#fragment",
+                "https://example.com/OWNER/REPO.git",
+            ):
+                with self.subTest(source=source):
+                    self.assertIsNone(
+                        trusted_git._transport_arguments(
+                            workspace, ["clone", source, "new-copy"])
+                    )
 
     def test_transport_fetch_requires_existing_repository(self):
         with tempfile.TemporaryDirectory() as temporary:
