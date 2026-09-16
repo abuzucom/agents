@@ -9,6 +9,11 @@ The house style bans that hyphen. `scripts/check_ascii.py` enforces the ban on
 this file.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.35] (2026-09-16)
+
+### Fixed
+- Exercise the public GitHub CLI denylist classifier in option tests.
+
 ## [2.0.34] (2026-09-16)
 
 ### Fixed
