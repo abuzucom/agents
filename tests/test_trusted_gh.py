@@ -115,6 +115,19 @@ class TrustedRunnerSafetyTest(unittest.TestCase):
         self.assertEqual(captured["env"]["ALL_PROXY"],
                          "http://proxy.example.test:8080")
 
+    def test_runner_decodes_malformed_output_with_utf8_replacement(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            with patch.object(trusted_gh, "resolve_gh", return_value=sys.executable):
+                with patch.object(trusted_gh, "_safe_directory", return_value=root):
+                    result = trusted_gh.run_gh(
+                        root,
+                        ["-c", "import sys; sys.stdout.buffer.write(bytes([129]))"],
+                    )
+
+        self.assertEqual(result.returncode, 0)
+        self.assertEqual(result.stdout, "\ufffd")
+
 
 class RepositoryContextTest(unittest.TestCase):
     """Repository-bound commands receive safe explicit context."""
