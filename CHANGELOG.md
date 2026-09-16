@@ -9,6 +9,11 @@ The house style bans that hyphen. `scripts/check_ascii.py` enforces the ban on
 this file.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.29] (2026-09-15)
+
+### Fixed
+- Enforce LF line endings for policy files before byte-limit checks.
+
 ## [2.0.28] (2026-09-15)
 
 ### Changed

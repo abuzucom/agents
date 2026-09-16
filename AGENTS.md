@@ -220,6 +220,9 @@ Verify actual state before inferring workflow scope. State examples live in
 Use `python scripts/read_git_state.py all` when the adopted tooling includes the
 safe reader. Ask when request scope remains unclear. Never guess.
 
+Policy files must use LF line endings in the working tree. The policy-size
+checker validates the checked-out bytes and rejects CRLF line endings.
+
 ### 11. Prevent persisted git credentials in CI workflows
 
 Every `actions/checkout` step must set `persist-credentials: false`
