@@ -19,6 +19,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 - Document the Python UTF-8 diagnostic workaround for Windows log failures.
+- Enforce LF line endings for policy files before byte-limit checks.
 
 ## [2.0.28] (2026-09-15)
 
