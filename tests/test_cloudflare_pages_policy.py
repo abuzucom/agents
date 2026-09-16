@@ -66,18 +66,26 @@ class CloudflarePagesPolicyTest(unittest.TestCase):
                 self.assertEqual(allowed, (0, ""))
                 self.assertEqual(denied, (2, "deny"))
 
+                protected_file = self.output_path / ".env.production"
+                protected_file.write_text("TOKEN=secret\n")
                 cases = (
+                    "wrangler pages deploy . --project-name site",
+                    "wrangler pages deploy .git --project-name site",
+                    "wrangler pages deploy .agents --project-name site",
+                    "wrangler pages deploy hooks --project-name site",
                     f"wrangler pages deploy {self.output_argument} --project-name",
                     f"wrangler pages deploy {self.output_argument} --project-name site --branch",
                     f"wrangler pages deploy {self.output_argument} --project-name site --branch=$BRANCH",
                     f"wrangler pages deploy {self.output_argument} --project-name site --unsupported",
                     f"wrangler pages deploy {self.output_argument} --branch preview",
+                    f"wrangler pages deploy {self.output_argument} --project-name site",
                     "wrangler pages deploy $PATH --project-name site",
                     "wrangler pages deploy .. --project-name site",
                 )
                 for command in cases:
                     with self.subTest(tool_name=tool_name, command=command):
                         self.assertEqual(self.hook_verdict(tool_name, command)[0], 2)
+                protected_file.unlink()
 
     def test_allows_named_pages_deployment(self) -> None:
         self.assertEqual(
