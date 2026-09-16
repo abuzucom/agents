@@ -639,10 +639,10 @@ def cloudflare_pages_verdict(program: str, args: list, cwd: str = "") -> tuple:
         return "deny", "Pages deployment path must be a literal workspace path"
     root = os.path.realpath(os.path.abspath(cwd or os.getcwd()))
     resolved_path = os.path.realpath(os.path.abspath(os.path.join(root, deploy_path)))
-    try:
-        within_workspace = os.path.commonpath((root, resolved_path)) == root
-    except ValueError:
-        within_workspace = False
+    root_drive = os.path.splitdrive(root)[0].casefold()
+    path_drive = os.path.splitdrive(resolved_path)[0].casefold()
+    within_workspace = (root_drive == path_drive
+                        and os.path.commonpath((root, resolved_path)) == root)
     if not within_workspace or not os.path.isdir(resolved_path):
         return "deny", "Pages deployment path must be an existing workspace directory"
 
