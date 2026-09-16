@@ -89,9 +89,6 @@ def _git_dir(git_entry: Path) -> Path:
     git_dir = (git_entry.parent / value.strip()).resolve()
     if not git_dir.is_dir():
         raise ValueError("repository context has a missing Git worktree directory")
-    common_file = git_dir / "commondir"
-    if common_file.is_file():
-        return git_dir
     return git_dir
 
 
