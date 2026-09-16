@@ -164,9 +164,15 @@ def _github_source(value: str) -> bool:
     if not _literal(value):
         return False
     if value.startswith("git@"):
-        return value.startswith("git@github.com:")
-    parsed = urllib.parse.urlsplit(value)
-    return (parsed.scheme == "https" and parsed.hostname in GITHUB_HOSTS
+        ssh_path = value.removeprefix("git@github.com:")
+        return (value.startswith("git@github.com:") and bool(ssh_path)
+                and "?" not in ssh_path and "#" not in ssh_path)
+    try:
+        parsed = urllib.parse.urlsplit(value)
+        hostname = parsed.hostname
+    except ValueError:
+        return False
+    return (parsed.scheme == "https" and hostname in GITHUB_HOSTS
             and not parsed.username and not parsed.password
             and not parsed.query and not parsed.fragment
             and bool(parsed.path))

@@ -62,6 +62,9 @@ class TrustedGitRunnerTest(unittest.TestCase):
                 "https://github.com/OWNER/REPO.git?token=secret",
                 "https://github.com/OWNER/REPO.git#fragment",
                 "https://example.com/OWNER/REPO.git",
+                "git@github.com:",
+                "git@github.com:OWNER/REPO.git?ref=main",
+                "https://[invalid/OWNER/REPO.git",
             ):
                 with self.subTest(source=source):
                     self.assertIsNone(
