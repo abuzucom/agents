@@ -1,11 +1,10 @@
 """Test the shared Cloudflare Pages deployment allowance."""
 import unittest
 import json
-import subprocess
-import sys
 from pathlib import Path
 
 from hooks import _gate_core
+from tests import gate_corpus
 
 
 class CloudflarePagesPolicyTest(unittest.TestCase):
@@ -13,6 +12,11 @@ class CloudflarePagesPolicyTest(unittest.TestCase):
 
     def setUp(self) -> None:
         self.root = Path(__file__).resolve().parents[1]
+        self.workers = {}
+
+    def tearDown(self) -> None:
+        for worker in self.workers.values():
+            worker.close()
 
     def verdict(self, *arguments: str) -> tuple:
         return _gate_core.cloudflare_pages_verdict(
@@ -25,6 +29,10 @@ class CloudflarePagesPolicyTest(unittest.TestCase):
             "PowerShell": "block_destructive_powershell.py",
             "Cmd": "block_destructive_cmd.py",
         }[tool_name]
+        worker = self.workers.get(tool_name)
+        if worker is None:
+            worker = gate_corpus.HookWorker(self.root / "hooks" / hook_name)
+            self.workers[tool_name] = worker
         payload = {
             "hook_event_name": "PreToolUse",
             "tool_name": tool_name,
@@ -32,20 +40,13 @@ class CloudflarePagesPolicyTest(unittest.TestCase):
             "cwd": str(self.root),
             "tool_input": {"command": command},
         }
-        result = subprocess.run(
-            [sys.executable, str(self.root / "hooks" / hook_name)],
-            input=json.dumps(payload),
-            cwd=self.root,
-            capture_output=True,
-            text=True,
-            check=False,
-        )
+        code, stdout, _stderr = worker.invoke(payload)
         decision = ""
-        if result.stdout.strip():
-            decision = json.loads(result.stdout)["hookSpecificOutput"][
+        if stdout.strip():
+            decision = json.loads(stdout)["hookSpecificOutput"][
                 "permissionDecision"
             ]
-        return result.returncode, decision
+        return code, decision
 
     def test_real_gates_reach_pages_policy(self) -> None:
         """Exercise the shared Pages policy through every shell gate."""
