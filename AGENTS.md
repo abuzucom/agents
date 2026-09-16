@@ -304,10 +304,10 @@ credentials or project configuration. Protected credential directories, state,
 source, manifest, and project paths are listed in
 `docs/agent-policy/security.md`.
 
-Pages deployment allowed. Permit builds and
-`wrangler pages deploy <workspace-path> --project-name <name>` with optional
-`--branch <branch>`. Require local paths. Deny other Wrangler, Cloudflare
-administration, dashboard, and infrastructure-as-code operations.
+Permit local builds and `wrangler pages deploy <workspace-path> --project-name
+<name>` with optional `--branch <branch>`. Deny Cloudflare operations. Require
+non-hidden `build` or `dist` paths. Reject roots, protected names, `.env`, or
+credentials.
 
 Shell gates deny protected commands and shell paths. Client coverage is limited.
 The instruction remains binding without mechanical coverage. See

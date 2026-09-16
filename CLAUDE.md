@@ -304,10 +304,10 @@ credentials or project configuration. Protected credential directories, state,
 source, manifest, and project paths are listed in
 `docs/agent-policy/security.md`.
 
-Pages deployment allowed. Permit builds and
-`wrangler pages deploy <workspace-path> --project-name <name>` with optional
-`--branch <branch>`. Require local paths. Deny other Wrangler, Cloudflare
-administration, dashboard, and infrastructure-as-code operations.
+Permit local builds and `wrangler pages deploy <workspace-path> --project-name
+<name>` with optional `--branch <branch>`. Deny Cloudflare operations. Require
+non-hidden `build` or `dist` paths. Reject roots, protected names, `.env`, or
+credentials.
 
 Shell gates deny protected commands and shell paths. Client coverage is limited.
 The instruction remains binding without mechanical coverage. See
@@ -891,7 +891,9 @@ GitHub CLI lookup, unsafe GitHub HTTP substitutes, credential-manager access,
 browser token recovery, and incomplete policy loading.
 
 The shared command classifier permits only a local, explicitly named
-Cloudflare Pages deployment. It denies other Wrangler operations.
+Cloudflare Pages deployment from a dedicated non-hidden output directory named
+`build` or `dist`. It rejects repository roots, hidden paths, and protected
+credential contents. It denies other Wrangler operations.
 
 The gates route consent-required acts to the active human. Unattended sessions
 refuse those acts.
@@ -1144,6 +1146,9 @@ project name. Deny every other Wrangler operation, including Workers,
 account, zone, DNS, WAF, Turnstile, KV, D1, R2, Queues, Durable Objects,
 secret, configuration, inspection, and API operations. Keep dashboard
 automation and infrastructure-as-code denied.
+Require the path to target a dedicated non-hidden output directory named
+`build` or `dist`. Reject the workspace root, hidden directories, protected
+credential names, and outputs containing `.env` or protected credential files.
 
 Protected content includes AWS, Azure, Google Cloud, SSH, Kubernetes,
 Terraform, FTP, and Netrc credentials, Terraform source, variables, state,

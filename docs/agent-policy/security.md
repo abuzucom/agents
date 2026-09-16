@@ -81,6 +81,9 @@ project name. Deny every other Wrangler operation, including Workers,
 account, zone, DNS, WAF, Turnstile, KV, D1, R2, Queues, Durable Objects,
 secret, configuration, inspection, and API operations. Keep dashboard
 automation and infrastructure-as-code denied.
+Require the path to target a dedicated non-hidden output directory named
+`build` or `dist`. Reject the workspace root, hidden directories, protected
+credential names, and outputs containing `.env` or protected credential files.
 
 Protected content includes AWS, Azure, Google Cloud, SSH, Kubernetes,
 Terraform, FTP, and Netrc credentials, Terraform source, variables, state,

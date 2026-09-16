@@ -625,6 +625,46 @@ def _safe_pages_value(value: str) -> bool:
     return bool(value and not value.startswith("-") and not is_ambiguous(value))
 
 
+_PAGES_PROTECTED_NAMES = {
+    ".aws",
+    ".git",
+    ".netrc",
+    ".npmrc",
+    ".ssh",
+    "credentials",
+    "credentials.json",
+    "secrets",
+    "secrets.json",
+}
+_PAGES_OUTPUT_NAMES = {"build", "dist"}
+
+
+def _pages_deployment_path_verdict(root: str, resolved_path: str) -> tuple:
+    """Reject repository roots, hidden paths, and protected output contents."""
+    relative_path = os.path.relpath(resolved_path, root)
+    path_parts = tuple(
+        part for part in relative_path.replace("\\", "/").split("/")
+        if part and part != "."
+    )
+    if not path_parts:
+        return "deny", "Pages deployment must target a dedicated output directory"
+    if any(part.startswith(".") for part in path_parts):
+        return "deny", "Pages deployment cannot target hidden directories"
+    if path_parts[-1].casefold() not in _PAGES_OUTPUT_NAMES:
+        return "deny", "Pages deployment must target a dedicated output directory"
+    protected_names = tuple(name.casefold() for name in _PAGES_PROTECTED_NAMES)
+    if any(part.casefold() in protected_names for part in path_parts):
+        return "deny", "Pages deployment cannot target protected content"
+    for current_path, directory_names, file_names in os.walk(
+        resolved_path, followlinks=False
+    ):
+        for name in (*directory_names, *file_names):
+            lowered_name = name.casefold()
+            if lowered_name.startswith(".env") or lowered_name in protected_names:
+                return "deny", "Pages deployment cannot include protected credentials"
+    return "", ""
+
+
 def cloudflare_pages_verdict(program: str, args: list, cwd: str = "") -> tuple:
     """Allow only a local, explicitly targeted Cloudflare Pages deployment."""
     name = normalize_windows_command_name(program)
@@ -645,6 +685,9 @@ def cloudflare_pages_verdict(program: str, args: list, cwd: str = "") -> tuple:
                         and os.path.commonpath((root, resolved_path)) == root)
     if not within_workspace or not os.path.isdir(resolved_path):
         return "deny", "Pages deployment path must be an existing workspace directory"
+    path_verdict = _pages_deployment_path_verdict(root, resolved_path)
+    if path_verdict[0]:
+        return path_verdict
 
     project_name = ""
     index = 3

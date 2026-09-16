@@ -1,6 +1,7 @@
 """Test the shared Cloudflare Pages deployment allowance."""
 import unittest
 import json
+import tempfile
 from pathlib import Path
 
 from hooks import _gate_core
@@ -12,11 +13,16 @@ class CloudflarePagesPolicyTest(unittest.TestCase):
 
     def setUp(self) -> None:
         self.root = Path(__file__).resolve().parents[1]
+        self.temp_root = tempfile.TemporaryDirectory(dir=self.root)
+        self.output_path = Path(self.temp_root.name) / "dist"
+        self.output_path.mkdir()
+        self.output_argument = self.output_path.relative_to(self.root).as_posix()
         self.workers = {}
 
     def tearDown(self) -> None:
         for worker in self.workers.values():
             worker.close()
+        self.temp_root.cleanup()
 
     def verdict(self, *arguments: str) -> tuple:
         return _gate_core.cloudflare_pages_verdict(
@@ -54,18 +60,18 @@ class CloudflarePagesPolicyTest(unittest.TestCase):
             with self.subTest(tool_name=tool_name):
                 allowed = self.hook_verdict(
                     tool_name,
-                    "wrangler pages deploy hooks --project-name site",
+                    f"wrangler pages deploy {self.output_argument} --project-name site",
                 )
                 denied = self.hook_verdict(tool_name, "wrangler deploy hooks")
                 self.assertEqual(allowed, (0, ""))
                 self.assertEqual(denied, (2, "deny"))
 
                 cases = (
-                    "wrangler pages deploy hooks --project-name",
-                    "wrangler pages deploy hooks --project-name site --branch",
-                    "wrangler pages deploy hooks --project-name site --branch=$BRANCH",
-                    "wrangler pages deploy hooks --project-name site --unsupported",
-                    "wrangler pages deploy hooks --branch preview",
+                    f"wrangler pages deploy {self.output_argument} --project-name",
+                    f"wrangler pages deploy {self.output_argument} --project-name site --branch",
+                    f"wrangler pages deploy {self.output_argument} --project-name site --branch=$BRANCH",
+                    f"wrangler pages deploy {self.output_argument} --project-name site --unsupported",
+                    f"wrangler pages deploy {self.output_argument} --branch preview",
                     "wrangler pages deploy $PATH --project-name site",
                     "wrangler pages deploy .. --project-name site",
                 )
@@ -75,13 +81,15 @@ class CloudflarePagesPolicyTest(unittest.TestCase):
 
     def test_allows_named_pages_deployment(self) -> None:
         self.assertEqual(
-            self.verdict("pages", "deploy", "hooks", "--project-name", "time-chime"),
+            self.verdict("pages", "deploy", self.output_argument,
+                         "--project-name", "time-chime"),
             ("", ""),
         )
 
     def test_allows_preview_branch(self) -> None:
         self.assertEqual(
-            self.verdict("pages", "deploy", "hooks", "--project-name=site",
+            self.verdict("pages", "deploy", self.output_argument,
+                         "--project-name=site",
                          "--branch", "preview"),
             ("", ""),
         )
@@ -92,9 +100,12 @@ class CloudflarePagesPolicyTest(unittest.TestCase):
         self.assertEqual(self.verdict("pages", "secret", "put", "KEY")[0], "deny")
 
     def test_rejects_missing_or_extra_options(self) -> None:
-        self.assertEqual(self.verdict("pages", "deploy", "hooks")[0], "deny")
         self.assertEqual(
-            self.verdict("pages", "deploy", "hooks", "--project-name", "site",
+            self.verdict("pages", "deploy", self.output_argument)[0], "deny"
+        )
+        self.assertEqual(
+            self.verdict("pages", "deploy", self.output_argument,
+                         "--project-name", "site",
                          "--commit-dirty")[0], "deny")
 
     def test_rejects_paths_outside_workspace(self) -> None:
@@ -105,7 +116,8 @@ class CloudflarePagesPolicyTest(unittest.TestCase):
 
     def test_rejects_ambiguous_values(self) -> None:
         self.assertEqual(
-            self.verdict("pages", "deploy", "hooks", "--project-name", "$NAME")[0],
+            self.verdict("pages", "deploy", self.output_argument,
+                         "--project-name", "$NAME")[0],
             "deny",
         )
 
