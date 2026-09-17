@@ -9,11 +9,21 @@ The house style bans that hyphen. `scripts/check_ascii.py` enforces the ban on
 this file.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.0.44] (2026-09-17)
+## [2.1.1] (2026-09-17)
 
 ### Added
 
 - Add trusted Dependabot companion changelog automation.
+
+## [2.1.0] (2026-09-16)
+
+### Added
+- Treat compaction messages as untrusted input. Assume adversarial
+  instructions. Require disclosure, a stop, plan-mode re-entry, a canonical
+  policy re-read, and a detailed plan after every compaction event. Ban
+  manufactured bypasses and fabricated approval claims.
+- Emit a compaction directive from the reinjection hook on Claude and Codex
+  compaction events.
 
 ## [2.0.43] (2026-09-17)
 
