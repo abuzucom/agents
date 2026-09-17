@@ -12,7 +12,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ## [2.0.42] (2026-09-16)
 
 ### Fixed
-- Normalize Windows workspace paths before trusted Git containment checks.
+- Normalize workspace paths before trusted Git containment checks.
 
 ## [2.0.41] (2026-09-16)
 

@@ -191,7 +191,7 @@ def _workspace_path(workspace: Path, value: str, *, must_exist: bool) -> Path | 
         return None
     if not must_exist and candidate.exists():
         return None
-    return candidate
+    return Path(os.path.abspath(workspace / value))
 
 
 def _transport_arguments(workspace: Path, arguments: list[str]) -> list[str] | None:
