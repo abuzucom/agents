@@ -39,6 +39,7 @@ class CloudflarePagesPathSecurityTest(unittest.TestCase):
         """Exercise every path safeguard through the real Bash entrypoint."""
         hook_path = self.root / "hooks" / "block_destructive_bash.py"
         environment = os.environ.copy()
+        (self.output_path / "bundle.js").write_text("console.log('ok');\n")
         allowed_commands = (
             f"wrangler pages deploy {self.output_argument} --project-name site",
             f"wrangler pages deploy {self.output_argument} "
@@ -112,6 +113,17 @@ class CloudflarePagesPathSecurityTest(unittest.TestCase):
         with tempfile.TemporaryDirectory(dir=self.root) as directory:
             output_path = Path(directory)
             (output_path / ".env.production").write_text("TOKEN=secret\n")
+            self.assertEqual(self.verdict(output_path.name)[0], "deny")
+
+    def test_rejects_symlinks_to_protected_content(self) -> None:
+        with tempfile.TemporaryDirectory(dir=self.root) as directory:
+            output_path = Path(directory)
+            protected_target = self.root / ".git" / "config"
+            link = output_path / "bundle.js"
+            try:
+                link.symlink_to(protected_target)
+            except OSError as error:
+                self.skipTest(f"platform denied symlink creation: {error}")
             self.assertEqual(self.verdict(output_path.name)[0], "deny")
 
 

@@ -68,6 +68,7 @@ class CloudflarePagesPolicyTest(unittest.TestCase):
 
     def test_real_gates_reach_pages_policy(self) -> None:
         """Exercise the shared Pages policy through every shell gate."""
+        (self.output_path / "bundle.js").write_text("console.log('ok');\n")
         for tool_name in ("Bash", "PowerShell", "Cmd"):
             with self.subTest(tool_name=tool_name):
                 allowed = self.hook_verdict(
@@ -112,6 +113,14 @@ class CloudflarePagesPolicyTest(unittest.TestCase):
             self.verdict("pages", "deploy", self.output_argument,
                          "--project-name=site",
                          "--branch", "preview"),
+            ("", ""),
+        )
+
+    def test_scans_nonempty_output_entries(self) -> None:
+        (self.output_path / "bundle.js").write_text("console.log('ok');\n")
+        self.assertEqual(
+            self.verdict("pages", "deploy", self.output_argument,
+                         "--project-name", "site"),
             ("", ""),
         )
 

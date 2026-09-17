@@ -639,6 +639,30 @@ _PAGES_PROTECTED_NAMES = {
 _PAGES_OUTPUT_NAMES = {"build", "dist"}
 
 
+def _pages_path_is_within(root: str, candidate: str) -> bool:
+    """Return whether a resolved Pages path stays inside the output root."""
+    root_drive = os.path.splitdrive(root)[0].casefold()
+    candidate_drive = os.path.splitdrive(candidate)[0].casefold()
+    return (root_drive == candidate_drive
+            and os.path.commonpath((root, candidate)) == root)
+
+
+def _pages_symlink_is_safe(output_root: str, entry_path: str) -> bool:
+    """Return whether a deployment entry resolves to non-protected output."""
+    target_path = os.path.realpath(entry_path)
+    within_output = _pages_path_is_within(output_root, target_path)
+    relative_path = os.path.relpath(target_path, output_root)
+    path_parts = tuple(
+        part for part in relative_path.replace("\\", "/").split("/")
+        if part and part != "."
+    )
+    protected_names = tuple(name.casefold() for name in _PAGES_PROTECTED_NAMES)
+    return within_output and not (
+        any(part.casefold() in protected_names for part in path_parts)
+        or any(part.casefold().startswith(".env") for part in path_parts)
+    )
+
+
 def _pages_deployment_path_verdict(root: str, resolved_path: str) -> tuple:
     """Reject repository roots, hidden paths, and protected output contents."""
     relative_path = os.path.relpath(resolved_path, root)
@@ -660,7 +684,10 @@ def _pages_deployment_path_verdict(root: str, resolved_path: str) -> tuple:
     ):
         for name in (*directory_names, *file_names):
             lowered_name = name.casefold()
-            if lowered_name.startswith(".env") or lowered_name in protected_names:
+            if (lowered_name.startswith(".env")
+                    or lowered_name in protected_names
+                    or not _pages_symlink_is_safe(
+                        resolved_path, os.path.join(current_path, name))):
                 return "deny", "Pages deployment cannot include protected credentials"
     return "", ""
 
@@ -679,10 +706,7 @@ def cloudflare_pages_verdict(program: str, args: list, cwd: str = "") -> tuple:
         return "deny", "Pages deployment path must be a literal workspace path"
     root = os.path.realpath(os.path.abspath(cwd or os.getcwd()))
     resolved_path = os.path.realpath(os.path.abspath(os.path.join(root, deploy_path)))
-    root_drive = os.path.splitdrive(root)[0].casefold()
-    path_drive = os.path.splitdrive(resolved_path)[0].casefold()
-    within_workspace = (root_drive == path_drive
-                        and os.path.commonpath((root, resolved_path)) == root)
+    within_workspace = _pages_path_is_within(root, resolved_path)
     if not within_workspace or not os.path.isdir(resolved_path):
         return "deny", "Pages deployment path must be an existing workspace directory"
     path_verdict = _pages_deployment_path_verdict(root, resolved_path)

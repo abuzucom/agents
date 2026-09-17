@@ -101,6 +101,19 @@ def _safe_search_path(repository: Path) -> str:
     return os.pathsep.join(safe_entries)
 
 
+def _workspace_root(start: Path) -> Path | None:
+    """Find the nearest repository root without invoking Git."""
+    current = start.resolve()
+    while True:
+        dot_git = current / ".git"
+        if dot_git.is_dir() or dot_git.is_file():
+            return current
+        parent = current.parent
+        if parent == current:
+            return None
+        current = parent
+
+
 def run_git(
     repo_root, arguments: list[str], *, input_text=None, check=False,
     runner=None, timeout=None,
@@ -220,7 +233,10 @@ def _transport_arguments(workspace: Path, arguments: list[str]) -> list[str] | N
 def main(argv: list[str] | None = None) -> int:
     """Run one validated GitHub clone or fetch operation."""
     arguments = list(sys.argv[1:] if argv is None else argv)
-    workspace = Path.cwd().resolve()
+    workspace = _workspace_root(Path.cwd())
+    if workspace is None:
+        print("trusted Git must run inside a repository", file=sys.stderr)
+        return 2
     command = _transport_arguments(workspace, arguments)
     if command is None:
         print("usage: trusted_git.py clone <github-url> <new-directory>",

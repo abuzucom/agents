@@ -19,6 +19,14 @@ import trusted_git
 class TrustedGitRunnerTest(unittest.TestCase):
     """Git subprocess output uses resilient UTF-8 decoding."""
 
+    def test_workspace_root_from_nested_directory(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / ".git").mkdir()
+            nested = root / "packages" / "app"
+            nested.mkdir(parents=True)
+            self.assertEqual(trusted_git._workspace_root(nested), root.resolve())
+
     def test_runner_decodes_malformed_output_with_utf8_replacement(self):
         def runner(_command, **kwargs):
             return subprocess.run(

@@ -9,6 +9,13 @@ The house style bans that hyphen. `scripts/check_ascii.py` enforces the ban on
 this file.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.43] (2026-09-17)
+
+### Fixed
+- Normalize workspace paths before trusted Git containment checks.
+- Reject unsafe symlinks in Cloudflare Pages deployment output.
+- Resolve trusted Git workspaces from nested repository directories.
+
 ## [2.0.42] (2026-09-16)
 
 ### Fixed
