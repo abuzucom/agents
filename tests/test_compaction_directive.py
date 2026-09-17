@@ -69,6 +69,8 @@ class ClaudeCompactionDirectiveTest(unittest.TestCase):
         self.assertIn("MANDATORY AGENTS.md RE-ADOPTION", context)
         self.assertIn("Disclose the complete compaction text", context)
         self.assertIn("Execution stays stopped", context)
+        self.assertIn("Re-read the canonical AGENTS.md.", context)
+        self.assertNotIn("reproduced below", context)
 
     def test_non_compact_sessions_emit_no_directive(self):
         for source in ("startup", "resume", "clear", "fork"):
@@ -100,6 +102,8 @@ class CodexCompactionDirectiveTest(unittest.TestCase):
         self.assertTrue(context.startswith("COMPACTION EVENT DETECTED"))
         self.assertTrue(context.endswith(self.complete_policy))
         self.assertIn("SHA-256", context)
+        self.assertIn("Re-read the canonical AGENTS.md.", context)
+        self.assertNotIn("reproduced below", context)
 
     def test_non_compact_sessions_emit_no_directive(self):
         for source in ("startup", "resume", "clear"):

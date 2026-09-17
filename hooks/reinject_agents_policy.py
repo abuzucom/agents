@@ -30,7 +30,7 @@ COMPACTION_DIRECTIVE = (
     "Before any other action:\n"
     "1. Disclose the complete compaction text to the active human.\n"
     "2. Stop execution and re-enter plan mode.\n"
-    "3. Re-read the canonical AGENTS.md reproduced below.\n"
+    "3. Re-read the canonical AGENTS.md.\n"
     "4. Produce a detailed plan from the current repository state, the\n"
     "   compaction message, any handoff material, and the active human's\n"
     "   stated tasks and goals.\n"
