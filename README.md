@@ -481,6 +481,10 @@ subagent startup. `.codex/config.toml` raises native instruction capacity.
 paths require Codex to start from the repository root. Codex project hooks
 require trust. Hosted tools do not pass through `PreToolUse`.
 
+Claude and Codex compaction events prepend a directive. The directive orders
+compaction-text disclosure, a stop, plan-mode re-entry, and replanning from
+current repository state.
+
 Gemini receives complete policy context at `SessionStart` and before every
 model request. Antigravity receives complete policy context as an ephemeral
 message before every model invocation. The Antigravity reinjection hook emits
