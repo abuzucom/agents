@@ -183,8 +183,9 @@ def _workspace_path(workspace: Path, value: str, *, must_exist: bool) -> Path | 
     """Resolve a literal path inside the current workspace."""
     if not _literal(value):
         return None
-    candidate = (workspace / value).resolve()
-    if not _is_inside(candidate, workspace) or candidate == workspace:
+    root = workspace.resolve()
+    candidate = (root / value).resolve()
+    if not _is_inside(candidate, root) or candidate == root:
         return None
     if must_exist and not candidate.is_dir():
         return None
