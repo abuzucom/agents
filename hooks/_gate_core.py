@@ -581,7 +581,7 @@ PROHIBITED_COMMANDS = frozenset({
     "sfc", "sfdisk", "sftp", "shred", "ssh", "ssh-add", "ssh-agent", "ssh-keygen",
     "ssh-keyscan", "sshd", "swapoff", "telnet", "terraform", "terragrunt",
     "tftp", "tofu", "ufw", "unlink", "update-grub", "userdel", "usermod",
-    "winrm", "wipe",
+    "winrm", "wipe", "wrangler",
 })
 PROHIBITED_COMMAND_PREFIXES = ("mkfs.", "newfs_")
 INFRASTRUCTURE_PATH_MARKERS = (
@@ -620,9 +620,138 @@ def _account_delete_command(name: str, args: list) -> bool:
     return False
 
 
+def _safe_pages_value(value: str) -> bool:
+    """Return whether a Pages option value is a literal argument."""
+    return bool(value and not value.startswith("-") and not is_ambiguous(value))
+
+
+_PAGES_PROTECTED_NAMES = {
+    ".aws",
+    ".git",
+    ".netrc",
+    ".npmrc",
+    ".ssh",
+    "credentials",
+    "credentials.json",
+    "secrets",
+    "secrets.json",
+}
+_PAGES_OUTPUT_NAMES = {"build", "dist"}
+
+
+def _pages_path_is_within(root: str, candidate: str) -> bool:
+    """Return whether a resolved Pages path stays inside the output root."""
+    root_drive = os.path.splitdrive(root)[0].casefold()
+    candidate_drive = os.path.splitdrive(candidate)[0].casefold()
+    return (root_drive == candidate_drive
+            and os.path.commonpath((root, candidate)) == root)
+
+
+def _pages_symlink_is_safe(output_root: str, entry_path: str) -> bool:
+    """Return whether a deployment entry resolves to non-protected output."""
+    target_path = os.path.realpath(entry_path)
+    within_output = _pages_path_is_within(output_root, target_path)
+    relative_path = os.path.relpath(target_path, output_root)
+    path_parts = tuple(
+        part for part in relative_path.replace("\\", "/").split("/")
+        if part and part != "."
+    )
+    protected_names = tuple(name.casefold() for name in _PAGES_PROTECTED_NAMES)
+    return within_output and not (
+        any(part.casefold() in protected_names for part in path_parts)
+        or any(part.casefold().startswith(".env") for part in path_parts)
+    )
+
+
+def _pages_deployment_path_verdict(root: str, resolved_path: str) -> tuple:
+    """Reject repository roots, hidden paths, and protected output contents."""
+    relative_path = os.path.relpath(resolved_path, root)
+    path_parts = tuple(
+        part for part in relative_path.replace("\\", "/").split("/")
+        if part and part != "."
+    )
+    if not path_parts:
+        return "deny", "Pages deployment must target a dedicated output directory"
+    if any(part.startswith(".") for part in path_parts):
+        return "deny", "Pages deployment cannot target hidden directories"
+    if path_parts[-1].casefold() not in _PAGES_OUTPUT_NAMES:
+        return "deny", "Pages deployment must target a dedicated output directory"
+    protected_names = tuple(name.casefold() for name in _PAGES_PROTECTED_NAMES)
+    if any(part.casefold() in protected_names for part in path_parts):
+        return "deny", "Pages deployment cannot target protected content"
+    for current_path, directory_names, file_names in os.walk(
+        resolved_path, followlinks=False
+    ):
+        for name in (*directory_names, *file_names):
+            lowered_name = name.casefold()
+            if (lowered_name.startswith(".env")
+                    or lowered_name in protected_names
+                    or not _pages_symlink_is_safe(
+                        resolved_path, os.path.join(current_path, name))):
+                return "deny", "Pages deployment cannot include protected credentials"
+    return "", ""
+
+
+def cloudflare_pages_verdict(program: str, args: list, cwd: str = "") -> tuple:
+    """Allow only a local, explicitly targeted Cloudflare Pages deployment."""
+    name = normalize_windows_command_name(program)
+    if name != "wrangler":
+        return "", ""
+    lowered = [token.casefold() for token in args]
+    if len(args) < 3 or lowered[0:2] != ["pages", "deploy"]:
+        return "deny", "only Wrangler Pages deployment is allowed"
+
+    deploy_path = args[2]
+    if deploy_path.startswith("-") or is_ambiguous(deploy_path):
+        return "deny", "Pages deployment path must be a literal workspace path"
+    root = os.path.realpath(os.path.abspath(cwd or os.getcwd()))
+    resolved_path = os.path.realpath(os.path.abspath(os.path.join(root, deploy_path)))
+    within_workspace = _pages_path_is_within(root, resolved_path)
+    if not within_workspace or not os.path.isdir(resolved_path):
+        return "deny", "Pages deployment path must be an existing workspace directory"
+    path_verdict = _pages_deployment_path_verdict(root, resolved_path)
+    if path_verdict[0]:
+        return path_verdict
+
+    project_name = ""
+    seen_options = set()
+    index = 3
+    while index < len(args):
+        option = args[index]
+        lowered_option = option.casefold()
+        option_name = lowered_option.split("=", 1)[0]
+        if option_name in {"--project-name", "--branch"}:
+            if option_name in seen_options:
+                return "deny", "Wrangler Pages options cannot be repeated"
+            seen_options.add(option_name)
+        if lowered_option.startswith("--project-name="):
+            project_name = option.split("=", 1)[1]
+        elif lowered_option == "--project-name":
+            index += 1
+            if index >= len(args):
+                return "deny", "Pages deployment requires a project name"
+            project_name = args[index]
+        elif lowered_option.startswith("--branch="):
+            branch = option.split("=", 1)[1]
+            if not _safe_pages_value(branch):
+                return "deny", "Pages deployment branch must be literal"
+        elif lowered_option == "--branch":
+            index += 1
+            if index >= len(args) or not _safe_pages_value(args[index]):
+                return "deny", "Pages deployment branch must be literal"
+        else:
+            return "deny", "Wrangler Pages option is outside the deployment allowance"
+        index += 1
+    if not _safe_pages_value(project_name):
+        return "deny", "Pages deployment requires a literal project name"
+    return "", ""
+
+
 def prohibited_command_verdict(program: str, args: list) -> tuple:
     """Deny commands prohibited on every host and through every shell."""
     name = normalize_windows_command_name(program)
+    if name == "wrangler":
+        return "", ""
     if name in PROHIBITED_COMMANDS or name.startswith(PROHIBITED_COMMAND_PREFIXES):
         return "deny", f"{sanitize(name)} is prohibited for agent execution"
     _verb, separator, noun = name.partition("-")

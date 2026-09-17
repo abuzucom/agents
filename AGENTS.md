@@ -304,6 +304,11 @@ credentials or project configuration. Protected credential directories, state,
 source, manifest, and project paths are listed in
 `docs/agent-policy/security.md`.
 
+Permit local builds and `wrangler pages deploy <workspace-path> --project-name
+<name>` with optional `--branch <branch>`. Deny Cloudflare operations. Require
+non-hidden `build` or `dist` paths. Reject roots, protected names, `.env`, or
+credentials.
+
 Shell gates deny protected commands and shell paths. Client coverage is limited.
 The instruction remains binding without mechanical coverage. See
 `docs/agent-policy/enforcement.md`.
@@ -316,10 +321,11 @@ outside the repository. The wrapper verifies an authenticated account through
 a fixed account request. Direct `gh` execution remains denied because shell
 lookup can select a repository-controlled executable.
 
-After strict branch preflight passes, native Git permits local reads, feature
-branch creation, commits, and non-force pushes to feature branches. Draft PR
-creation uses the trusted wrapper. Hosted resource operations use the
-trusted wrapper. See `docs/agent-policy/github.md` for the operation inventory.
+After strict branch preflight, native Git permits local reads, feature
+branches, commits, and non-force pushes. Use fixed
+`scripts/trusted_git.py` clone and fetch commands for GitHub. Draft PR creation
+and hosted resource operations use trusted wrappers. See
+`docs/agent-policy/github.md` for the operation inventory.
 
 The managed Codex sandbox may set `127.0.0.1:9` as a loopback proxy. Failure
 there does not prove GitHub CLI failure. Use approved external networking and

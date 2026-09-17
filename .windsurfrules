@@ -304,6 +304,11 @@ credentials or project configuration. Protected credential directories, state,
 source, manifest, and project paths are listed in
 `docs/agent-policy/security.md`.
 
+Permit local builds and `wrangler pages deploy <workspace-path> --project-name
+<name>` with optional `--branch <branch>`. Deny Cloudflare operations. Require
+non-hidden `build` or `dist` paths. Reject roots, protected names, `.env`, or
+credentials.
+
 Shell gates deny protected commands and shell paths. Client coverage is limited.
 The instruction remains binding without mechanical coverage. See
 `docs/agent-policy/enforcement.md`.
@@ -316,10 +321,11 @@ outside the repository. The wrapper verifies an authenticated account through
 a fixed account request. Direct `gh` execution remains denied because shell
 lookup can select a repository-controlled executable.
 
-After strict branch preflight passes, native Git permits local reads, feature
-branch creation, commits, and non-force pushes to feature branches. Draft PR
-creation uses the trusted wrapper. Hosted resource operations use the
-trusted wrapper. See `docs/agent-policy/github.md` for the operation inventory.
+After strict branch preflight, native Git permits local reads, feature
+branches, commits, and non-force pushes. Use fixed
+`scripts/trusted_git.py` clone and fetch commands for GitHub. Draft PR creation
+and hosted resource operations use trusted wrappers. See
+`docs/agent-policy/github.md` for the operation inventory.
 
 The managed Codex sandbox may set `127.0.0.1:9` as a loopback proxy. Failure
 there does not prove GitHub CLI failure. Use approved external networking and
@@ -885,6 +891,11 @@ The gates refuse destructive commands, unsafe infrastructure access, direct
 GitHub CLI lookup, unsafe GitHub HTTP substitutes, credential-manager access,
 browser token recovery, and incomplete policy loading.
 
+The shared command classifier permits only a local, explicitly named
+Cloudflare Pages deployment from a dedicated non-hidden output directory named
+`build` or `dist`. It rejects repository roots, hidden paths, and protected
+credential contents. It denies other Wrangler operations.
+
 The gates route consent-required acts to the active human. Unattended sessions
 refuse those acts.
 
@@ -901,6 +912,16 @@ Run:
 
 The checks cover only observed files, commands, clients, and event surfaces.
 External controls must enforce controls beyond repository coverage.
+
+## Windows test environment
+
+Use the normal user temporary directory for Windows tests. Do not redirect
+`TEMP` or `TMP` into the repository or a worktree. `WinError 5` while a fixture
+creates or removes a temporary tree indicates an ACL problem in the temporary
+directory. Run the focused test once in an elevated PowerShell session to
+confirm the diagnosis. Repair or remove inaccessible stale fixture directories
+only with active-human authorization. Do not weaken, skip, or edit tests. Do
+not make elevation a routine CI requirement.
 
 Hooks must not label execution as elevated without a client runtime approval
 result. Missing or contradictory approval metadata fails closed. Repository
@@ -983,7 +1004,11 @@ Executable changes require a behavioral test. Required CI checks the changed
 range and fails when an executable change lacks a changed test.
 
 Read-only repository inspection, checks, workflow reads, and pull request
-diffs remain available through the wrapper.
+diffs remain available through the wrapper. GitHub clone and fetch use the
+fixed commands `python scripts/trusted_git.py clone <github-url> <directory>`
+and `python scripts/trusted_git.py fetch <repository> [refspec...]`. The
+transport CLI rejects arbitrary Git options, shell expansion, and paths outside
+the current workspace.
 
 Pull request creation, issue creation, comments, reviews, reactions, forks,
 stars, watches, releases, and hosted state changes require active-human
@@ -1127,6 +1152,18 @@ commands.
 
 Git transport over SSH remains allowed through Git. Direct SSH clients remain
 denied.
+
+Cloudflare Pages deployment is a limited exception to the cloud-tool denial.
+Permit a local build and `wrangler pages deploy <workspace-path>
+--project-name <name>` with an optional literal `--branch <branch>`. Require
+the deployment path to resolve inside the workspace and require an explicit
+project name. Deny every other Wrangler operation, including Workers,
+account, zone, DNS, WAF, Turnstile, KV, D1, R2, Queues, Durable Objects,
+secret, configuration, inspection, and API operations. Keep dashboard
+automation and infrastructure-as-code denied.
+Require the path to target a dedicated non-hidden output directory named
+`build` or `dist`. Reject the workspace root, hidden directories, protected
+credential names, and outputs containing `.env` or protected credential files.
 
 Protected content includes AWS, Azure, Google Cloud, SSH, Kubernetes,
 Terraform, FTP, and Netrc credentials, Terraform source, variables, state,

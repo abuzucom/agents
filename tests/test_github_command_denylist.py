@@ -52,8 +52,7 @@ class GithubCommandDenylistTest(unittest.TestCase):
         )
         for command in cases:
             with self.subTest(command=command):
-                decision, _reason = _gate_core._github_command_denylist_verdict(
-                    command)
+                decision, _reason = _gate_core.github_cli_verdict(command)
                 self.assertEqual(decision, "deny")
 
     def test_option_values_do_not_shift_legacy_guards(self):

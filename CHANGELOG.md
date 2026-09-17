@@ -9,6 +9,73 @@ The house style bans that hyphen. `scripts/check_ascii.py` enforces the ban on
 this file.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.43] (2026-09-17)
+
+### Fixed
+- Normalize workspace paths before trusted Git containment checks.
+- Reject unsafe symlinks in Cloudflare Pages deployment output.
+- Resolve trusted Git workspaces from nested repository directories.
+
+## [2.0.42] (2026-09-16)
+
+### Fixed
+- Normalize workspace paths before trusted Git containment checks.
+
+## [2.0.41] (2026-09-16)
+
+### Added
+- Document Windows temporary-directory ACL troubleshooting for tests.
+
+## [2.0.40] (2026-09-16)
+
+### Fixed
+- Remove redundant trusted Git metadata branching.
+
+## [2.0.39] (2026-09-16)
+
+### Fixed
+- Handle case-insensitive Windows paths in trusted Git transport checks.
+
+## [2.0.38] (2026-09-16)
+
+### Fixed
+- Reject malformed and incomplete trusted Git clone sources.
+
+## [2.0.37] (2026-09-16)
+
+### Fixed
+- Reject credentials and opaque URL components in trusted Git clone sources.
+
+## [2.0.36] (2026-09-16)
+
+### Added
+- Add fixed trusted GitHub clone and fetch transport commands.
+
+## [2.0.35] (2026-09-16)
+
+### Fixed
+- Exercise the public GitHub CLI denylist classifier in option tests.
+
+## [2.0.34] (2026-09-16)
+
+### Fixed
+- Centralize Wrangler Pages decisions in CWD-aware shell gates.
+
+## [2.0.33] (2026-09-16)
+
+### Fixed
+- Resolve Cloudflare Pages deployment paths from the hook payload CWD.
+
+## [2.0.32] (2026-09-16)
+
+### Fixed
+- Reject unsafe Cloudflare Pages deployment paths and credential contents.
+
+## [2.0.31] (2026-09-16)
+
+### Added
+- Permit narrowly scoped Cloudflare Pages deployments from workspace output.
+
 ## [2.0.30] (2026-09-16)
 
 ### Changed

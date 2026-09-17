@@ -73,6 +73,18 @@ commands.
 Git transport over SSH remains allowed through Git. Direct SSH clients remain
 denied.
 
+Cloudflare Pages deployment is a limited exception to the cloud-tool denial.
+Permit a local build and `wrangler pages deploy <workspace-path>
+--project-name <name>` with an optional literal `--branch <branch>`. Require
+the deployment path to resolve inside the workspace and require an explicit
+project name. Deny every other Wrangler operation, including Workers,
+account, zone, DNS, WAF, Turnstile, KV, D1, R2, Queues, Durable Objects,
+secret, configuration, inspection, and API operations. Keep dashboard
+automation and infrastructure-as-code denied.
+Require the path to target a dedicated non-hidden output directory named
+`build` or `dist`. Reject the workspace root, hidden directories, protected
+credential names, and outputs containing `.env` or protected credential files.
+
 Protected content includes AWS, Azure, Google Cloud, SSH, Kubernetes,
 Terraform, FTP, and Netrc credentials, Terraform source, variables, state,
 locks and CLI configuration, plus Kubernetes, Helm, and Kustomize manifests

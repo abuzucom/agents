@@ -19,6 +19,14 @@ import trusted_git
 class TrustedGitRunnerTest(unittest.TestCase):
     """Git subprocess output uses resilient UTF-8 decoding."""
 
+    def test_workspace_root_from_nested_directory(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / ".git").mkdir()
+            nested = root / "packages" / "app"
+            nested.mkdir(parents=True)
+            self.assertEqual(trusted_git._workspace_root(nested), root.resolve())
+
     def test_runner_decodes_malformed_output_with_utf8_replacement(self):
         def runner(_command, **kwargs):
             return subprocess.run(
@@ -35,6 +43,57 @@ class TrustedGitRunnerTest(unittest.TestCase):
 
         self.assertEqual(result.returncode, 0)
         self.assertEqual(result.stdout, "\ufffd")
+
+    def test_transport_clone_is_narrow_and_workspace_bound(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            workspace = Path(temporary)
+            self.assertEqual(
+                trusted_git._transport_arguments(
+                    workspace,
+                    ["clone", "https://github.com/OWNER/REPO.git", "copy"]),
+                ["clone", "--", "https://github.com/OWNER/REPO.git",
+                 str(workspace / "copy")],
+            )
+            (workspace / "copy").mkdir()
+            self.assertIsNone(
+                trusted_git._transport_arguments(
+                    workspace,
+                    ["clone", "https://github.com/OWNER/REPO.git", "copy"])
+            )
+            self.assertIsNone(
+                trusted_git._transport_arguments(
+                    workspace,
+                    ["clone", "https://github.com/OWNER/REPO.git", "$DEST"])
+            )
+            for source in (
+                "https://user:token@github.com/OWNER/REPO.git",
+                "https://github.com/OWNER/REPO.git?token=secret",
+                "https://github.com/OWNER/REPO.git#fragment",
+                "https://example.com/OWNER/REPO.git",
+                "git@github.com:",
+                "git@github.com:OWNER/REPO.git?ref=main",
+                "https://[invalid/OWNER/REPO.git",
+            ):
+                with self.subTest(source=source):
+                    self.assertIsNone(
+                        trusted_git._transport_arguments(
+                            workspace, ["clone", source, "new-copy"])
+                    )
+
+    def test_transport_fetch_requires_existing_repository(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            workspace = Path(temporary)
+            repository = workspace / "repo"
+            (repository / ".git").mkdir(parents=True)
+            self.assertEqual(
+                trusted_git._transport_arguments(
+                    workspace, ["fetch", "repo", "origin"]),
+                ["-C", str(repository), "fetch", "origin"],
+            )
+            self.assertIsNone(
+                trusted_git._transport_arguments(
+                    workspace, ["fetch", "repo", "--upload-pack=bad"])
+            )
 
 
 class GitStateTextTest(unittest.TestCase):

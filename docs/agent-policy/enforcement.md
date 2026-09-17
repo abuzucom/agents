@@ -12,6 +12,11 @@ The gates refuse destructive commands, unsafe infrastructure access, direct
 GitHub CLI lookup, unsafe GitHub HTTP substitutes, credential-manager access,
 browser token recovery, and incomplete policy loading.
 
+The shared command classifier permits only a local, explicitly named
+Cloudflare Pages deployment from a dedicated non-hidden output directory named
+`build` or `dist`. It rejects repository roots, hidden paths, and protected
+credential contents. It denies other Wrangler operations.
+
 The gates route consent-required acts to the active human. Unattended sessions
 refuse those acts.
 
@@ -28,6 +33,16 @@ Run:
 
 The checks cover only observed files, commands, clients, and event surfaces.
 External controls must enforce controls beyond repository coverage.
+
+## Windows test environment
+
+Use the normal user temporary directory for Windows tests. Do not redirect
+`TEMP` or `TMP` into the repository or a worktree. `WinError 5` while a fixture
+creates or removes a temporary tree indicates an ACL problem in the temporary
+directory. Run the focused test once in an elevated PowerShell session to
+confirm the diagnosis. Repair or remove inaccessible stale fixture directories
+only with active-human authorization. Do not weaken, skip, or edit tests. Do
+not make elevation a routine CI requirement.
 
 Hooks must not label execution as elevated without a client runtime approval
 result. Missing or contradictory approval metadata fails closed. Repository
