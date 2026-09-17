@@ -1,8 +1,12 @@
 # Enforcement
 
-Repository hooks provide defense in depth. Repository writers can modify them.
+Repository hooks provide defense in depth. They remain reviewable and
+disableable. A repository writer can alter hooks and `.claude/settings.json`.
 Tamper resistance requires an external harness, filesystem isolation, or
 server-side controls.
+
+The gates read command shape. They lack event-stream, rate, volume, and
+login-correlation telemetry.
 
 Adopt every gate with its registrations, shared modules, tests, and checkers.
 Missing artifacts indicate incomplete adoption. Complete the adoption and run
