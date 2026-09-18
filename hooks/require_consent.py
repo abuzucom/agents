@@ -116,14 +116,21 @@ def is_test_path(path: str) -> bool:
 def is_protected_path(target: str, project_dir: str) -> bool:
     """Return True if `target` is a file that decides whether gates run."""
     root = os.path.realpath(project_dir)
-    if not (target == root or target.startswith(root + os.sep)):
+    candidate = target if os.path.isabs(target) else os.path.join(project_dir, target)
+    dirname = os.path.dirname(candidate)
+    basename = core.strip_windows_decorations(os.path.basename(candidate))
+    candidate_real = os.path.realpath(os.path.join(dirname, basename))
+    try:
+        if os.path.commonpath([candidate_real, root]) != root:
+            return False
+        relative = os.path.relpath(candidate_real, root).replace(os.sep, "/")
+    except ValueError:
         return False
-    relative = os.path.relpath(target, root).replace(os.sep, "/")
-    stripped_relative = core.strip_windows_decorations(relative).lower()
-    head = stripped_relative.split("/", 1)[0]
+    stripped = relative.lower()
+    head = stripped.split("/", 1)[0]
     if head in PROTECTED_PARTS:
         return True
-    return stripped_relative == "scripts/banned_models.txt"
+    return stripped == "scripts/banned_models.txt"
 
 
 def _same_file(first: os.stat_result, second: os.stat_result) -> bool:
