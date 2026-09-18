@@ -9,6 +9,18 @@ The house style bans that hyphen. `scripts/check_ascii.py` enforces the ban on
 this file.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.1] (2026-09-18)
+
+### Added
+- Add trusted Dependabot companion changelog automation.
+
+### Fixed
+- Avoid false-positive workflow failures on non-Dependabot runs by filtering
+  open pull requests before resolving head commits.
+- Check open pull request state before creating companion changelog drafts.
+- Switch to the companion branch before writing changelog updates to the
+  workspace.
+
 ## [2.2.0] (2026-09-18)
 
 ### Added
