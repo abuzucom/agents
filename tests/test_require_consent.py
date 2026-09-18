@@ -287,6 +287,7 @@ class GateTest(TestFileFixture):
             with self.subTest(decorated=decorated):
                 target = str(Path(self.tmp.name) / decorated)
                 self.assertTrue(module.is_protected_path(target, self.tmp.name))
+        self.assertFalse(module.is_protected_path("/outside/path.txt", self.tmp.name))
 
 
 class PreservedTextEvasionTest(TestFileFixture):
