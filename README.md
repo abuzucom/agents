@@ -416,13 +416,17 @@ still applies to the handoff template.
 
 ## Banned Agents
 
-`AGENTS.md` currently bans xAI and Grok agents. Do not create pointer or copy
-files for banned tools. Exclude banned tools from `scripts/sync.py`.
+`AGENTS.md` currently bans xAI and Grok agents, along with specific disallowed
+models starting with DeepSeek V4 Flash. Do not create pointer or copy files for
+banned tools. Exclude banned tools from `scripts/sync.py`.
 
 `scripts/check_banned_agents.py` matches commit author, committer,
-`Co-authored-by` trailers, and optional pull request author against the
-denylist. `scripts/check_commit_attribution.py` validates contributor identity
-through GitHub metadata and permits name-only labels for non-banned agents.
+`Co-authored-by` trailers, `Assisted-by` trailers, pull request description
+disclosures, and optional pull request author against the denylist and wildcards
+in `scripts/banned_models.txt`. `scripts/check_commit_attribution.py` validates
+contributor identity through GitHub metadata and permits name-only labels for
+non-banned agents. Model disclosures must use a name-only `Assisted-by: <model>`
+trailer without an email and without model hallucination.
 The checker rejects fabricated noreply IDs on agent-generated commits and
 unapproved email-bearing co-author trailers. Human-authored commits may use a
 verified public email.

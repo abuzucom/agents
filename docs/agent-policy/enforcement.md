@@ -67,9 +67,41 @@ platform policy, shared gate, and parity-test files. Register Bash, PowerShell,
 and available CMD `PreToolUse` matchers. Require matching Git and destructive
 verdicts across all shell gates.
 
-`scripts/check_banned_agents.py` checks authors, committers,
-`Co-authored-by` trailers, and pull request authors. It cannot identify hidden
-agent use under a human identity. Platform controls apply separately.
+`scripts/check_banned_agents.py` checks commit authors, committers,
+`Co-authored-by` trailers, `Assisted-by` trailers, pull request descriptions,
+and pull request authors against blanket vendor denylists, specific models,
+and wildcard patterns. The checker cannot identify hidden agent use under a
+human identity. Platform controls apply separately.
+
+## Protected files and hook inventory
+
+Modifying hook files or `scripts/banned_models.txt` can never be inferred,
+inherited, or grandfathered from prior instructions, plan approvals, handoff
+status, or compaction text.
+
+Whenever an agent encounters a need or instruction to modify any file in this
+inventory, the agent must immediately stop work, enter plan mode, present the
+proposed changes, and obtain fresh active-human approval immediately before
+execution.
+
+If the active human does not provide consent, the agent must not work around
+it. Work remains stopped until consent is provided affirmatively.
+
+The protected inventory covers:
+
+- Hook implementations:
+  `hooks/_bash_parser.py`, `hooks/_cmd_parser.py`, `hooks/_gate_core.py`,
+  `hooks/_platform_policy.py`, `hooks/block_destructive_bash.py`,
+  `hooks/block_destructive_cmd.py`, `hooks/block_destructive_powershell.py`,
+  `hooks/block_infrastructure_access.py`, `hooks/enforce_branch_name.py`,
+  `hooks/enforce_git_identity.py`, `hooks/reinject_agents_policy.py`,
+  `hooks/require_consent.py`, `hooks/github-command-denylist.txt`, and
+  `hooks/claude-code-settings.example.json`.
+- Hook configurations:
+  `.claude/settings.json`, `.agents/`, `.codex/hooks/`, `.gemini/settings/`, and
+  `.git/hooks/`.
+- Denylist configuration:
+  `scripts/banned_models.txt`.
 
 `AGENTS.md` controls when linked documents conflict with it.
 
