@@ -73,20 +73,28 @@ def _event_data() -> dict:
 def _find_dependabot_pr(repository: str, head_sha: str) -> dict | None:
     """Resolve one trusted Dependabot PR from a workflow head SHA."""
     pulls = _api_json(f"repos/{repository}/commits/{head_sha}/pulls")
-    if not isinstance(pulls, list) or len(pulls) != 1:
-        raise ValueError("workflow head SHA does not resolve to one pull request")
-    pull = pulls[0]
-    if not isinstance(pull, dict):
-        raise ValueError("pull request metadata is invalid")
-    user = pull.get("user")
-    if not isinstance(user, dict) or user.get("id") != DEPENDABOT_ID:
+    if not isinstance(pulls, list):
+        raise ValueError("pull request list is invalid")
+    dependabot_pulls = [
+        pull for pull in pulls
+        if isinstance(pull, dict)
+        and isinstance(pull.get("user"), dict)
+        and pull["user"].get("id") == DEPENDABOT_ID
+        and pull.get("state") == "open"
+    ]
+    if not dependabot_pulls:
         return None
+    if len(dependabot_pulls) != 1:
+        raise ValueError("workflow head SHA resolves to multiple open Dependabot pull requests")
+    pull = dependabot_pulls[0]
     number = pull.get("number")
     if not isinstance(number, int) or number < 1:
         raise ValueError("pull request number is invalid")
     detail = _api_json(f"repos/{repository}/pulls/{number}")
     if not isinstance(detail, dict):
         raise ValueError("pull request detail is invalid")
+    if detail.get("state") != "open":
+        return None
     base = detail.get("base")
     head = detail.get("head")
     if (not isinstance(base, dict) or not isinstance(head, dict)
@@ -205,8 +213,9 @@ def create_companion(repository: Path, pull: dict) -> int:
     changelog = repository / "CHANGELOG.md"
     current = changelog.read_text(encoding="utf-8")
     version = _next_version(current)
-    changelog.write_text(_insert_entry(current, version, number), encoding="utf-8", newline="\n")
+    updated_changelog = _insert_entry(current, version, number)
     _git(repository, ["switch", "-c", branch])
+    changelog.write_text(updated_changelog, encoding="utf-8", newline="\n")
     _git(repository, ["add", "CHANGELOG.md"])
     _git(repository, ["commit", "-m", f"docs: add changelog for Dependabot #{number}"])
     _git(repository, ["push", "--set-upstream", "origin", branch])
@@ -216,7 +225,13 @@ def create_companion(repository: Path, pull: dict) -> int:
         body_text = _body(_repository(), pull, version, files)
         body_path.write_text(body_text, encoding="utf-8", newline="\n")
         title = f"docs: add changelog for Dependabot #{number}"
-        _run_gh(["pr", "create", "--draft", "--base", pull["base"]["ref"], "--head", branch, "--title", title, "--body-file", str(body_path)])
+        _run_gh([
+            "pr", "create", "--draft",
+            "--base", pull["base"]["ref"],
+            "--head", branch,
+            "--title", title,
+            "--body-file", str(body_path),
+        ])
     finally:
         body_path.unlink(missing_ok=True)
     return 0

@@ -48,8 +48,77 @@ class DependabotChangelogTest(unittest.TestCase):
 
     def test_non_dependabot_pull_request_has_no_companion(self):
         module = load_module()
-        module._api_json = lambda _path: [{"number": 81, "user": {"id": 7}}]
+        module._api_json = lambda _path: [{"number": 81, "user": {"id": 7}, "state": "open"}]
         self.assertIsNone(module._find_dependabot_pr("abuzucom/agents", "a" * 40))
+
+    def test_empty_pulls_list_returns_none(self):
+        module = load_module()
+        module._api_json = lambda _path: []
+        self.assertIsNone(module._find_dependabot_pr("abuzucom/agents", "a" * 40))
+
+    def test_multiple_non_dependabot_pulls_returns_none(self):
+        module = load_module()
+        module._api_json = lambda _path: [
+            {"number": 81, "user": {"id": 7}, "state": "open"},
+            {"number": 82, "user": {"id": 8}, "state": "open"},
+        ]
+        self.assertIsNone(module._find_dependabot_pr("abuzucom/agents", "a" * 40))
+
+    def test_closed_dependabot_pull_request_returns_none(self):
+        module = load_module()
+        module._api_json = lambda _path: [
+            {"number": 80, "user": {"id": module.DEPENDABOT_ID}, "state": "closed"}
+        ]
+        self.assertIsNone(module._find_dependabot_pr("abuzucom/agents", "a" * 40))
+
+    def test_closed_dependabot_detail_returns_none(self):
+        module = load_module()
+        module._api_json = lambda path: (
+            [{"number": 80, "user": {"id": module.DEPENDABOT_ID}, "state": "open"}]
+            if "commits" in path else
+            {"number": 80, "state": "closed", "base": {"ref": "main"}, "head": {"ref": "dependabot/pip/foo"}}
+        )
+        self.assertIsNone(module._find_dependabot_pr("abuzucom/agents", "a" * 40))
+
+    def test_open_dependabot_detail_returns_detail(self):
+        module = load_module()
+        expected = {
+            "number": 80,
+            "state": "open",
+            "base": {"ref": "main"},
+            "head": {"ref": "dependabot/pip/foo"},
+        }
+        module._api_json = lambda path: (
+            [{"number": 80, "user": {"id": module.DEPENDABOT_ID}, "state": "open"}]
+            if "commits" in path else
+            expected
+        )
+        self.assertEqual(module._find_dependabot_pr("abuzucom/agents", "a" * 40), expected)
+
+    def test_create_companion_switches_branch_before_writing(self):
+        import tempfile
+        module = load_module()
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp)
+            changelog = repo / "CHANGELOG.md"
+            changelog.write_text("## [2.2.0] (2026-09-18)\n\n### Added\n- Feature.\n", encoding="utf-8")
+            git_calls = []
+            module._existing_companion = lambda _b: False
+            module.run_git = lambda _r, args, **_kw: (
+                git_calls.append(args) or type("Result", (), {"stdout": ""})()
+            )
+            module._run_gh = lambda _args: ""
+            module._repository = lambda: "abuzucom/agents"
+            module._changed_files = lambda _r, _n: ["requirements.txt"]
+            pull = {
+                "number": 80,
+                "title": "bump foo from 1 to 2",
+                "base": {"ref": "main"},
+                "head": {"ref": "dependabot/pip/foo"},
+            }
+            module.create_companion(repo, pull)
+            self.assertEqual(git_calls[0], ["switch", "-c", "chore/dependabot-changelog-80"])
+            self.assertEqual(git_calls[1], ["add", "CHANGELOG.md"])
 
 
 if __name__ == "__main__":
