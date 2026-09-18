@@ -81,6 +81,22 @@ class TrailerTest(unittest.TestCase):
         self.assertEqual(len(violations), 1)
         self.assertIn("malformed assisted-by trailer", violations[0])
 
+    def test_trailer_with_trailing_non_trailer_text_is_flagged_and_has_agent_label(self):
+        checker = load_checker()
+        body = "change\n\nCo-authored-by: Claude Code\nNon trailer note\n"
+        self.assertTrue(checker.has_agent_label(body))
+        violations = checker.trailer_violations([commit(body)])
+        self.assertEqual(len(violations), 1)
+        self.assertIn("non-trailer text in terminal trailer paragraph", violations[0])
+
+    def test_assisted_by_with_trailing_note_flags_email_and_non_trailer(self):
+        checker = load_checker()
+        body = "change\n\nAssisted-by: Claude Sonnet 5 <agent@example.com>\nPlain text evasion\n"
+        violations = checker.trailer_violations([commit(body)])
+        self.assertEqual(len(violations), 2)
+        self.assertTrue(any("must not include an email" in v for v in violations))
+        self.assertTrue(any("non-trailer text in terminal trailer paragraph" in v for v in violations))
+
 
 class IdentityTest(unittest.TestCase):
     """Noreply IDs must match the resolved GitHub account."""

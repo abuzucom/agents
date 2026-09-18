@@ -47,15 +47,13 @@ def terminal_trailers(body: str) -> list[tuple[str, str]]:
     trailers = []
     for line in trailer_lines:
         if line.startswith((" ", "\t")):
-            if not trailers:
-                return []
-            key, value = trailers[-1]
-            trailers[-1] = (key, f"{value}\n{line.lstrip()}")
+            if trailers:
+                key, value = trailers[-1]
+                trailers[-1] = (key, f"{value}\n{line.lstrip()}")
             continue
         match = TRAILER_PATTERN.fullmatch(line)
-        if not match:
-            return []
-        trailers.append((match.group("key"), match.group("value")))
+        if match:
+            trailers.append((match.group("key"), match.group("value")))
     return trailers
 
 
@@ -64,7 +62,24 @@ def trailer_violations(commits: list[dict]) -> list[str]:
     violations = []
     for commit in commits:
         sha = commit["sha"][:12]
-        for key, value in terminal_trailers(commit.get("body", "")):
+        body = commit.get("body", "")
+        lines = body.splitlines()
+        while lines and not lines[-1].strip():
+            lines.pop()
+        trailer_lines = []
+        for line in reversed(lines):
+            if not line.strip():
+                break
+            trailer_lines.append(line)
+        trailer_lines.reverse()
+        has_trailer = any(TRAILER_PATTERN.fullmatch(line) for line in trailer_lines)
+        if has_trailer:
+            for line in trailer_lines:
+                if not line.startswith((" ", "\t")) and not TRAILER_PATTERN.fullmatch(line):
+                    violations.append(
+                        f"{sha}: non-trailer text in terminal trailer paragraph '{line}'"
+                    )
+        for key, value in terminal_trailers(body):
             norm_key = key.lower().replace(" ", "-")
             if norm_key == "co-authored-by":
                 match = COAUTHOR_PATTERN.fullmatch(value.strip())

@@ -54,21 +54,27 @@ def _compile_wildcard(pattern: str) -> re.Pattern[str]:
 def load_banned_models(
     file_path: Path | str | None = None,
 ) -> tuple[set[str], list[re.Pattern[str]]]:
-    """Load exact normalized model bans and compiled wildcard patterns."""
+    """Load exact normalized model bans and compiled wildcard patterns.
+
+    Fails closed: raises ValueError or FileNotFoundError if the denylist file
+    is missing, unreadable, or exceeds size limits.
+    """
     path = Path(file_path) if file_path else DEFAULT_BANNED_MODELS_PATH
     exact_bans = set(DENYLIST_MODELS)
     wildcard_patterns: list[re.Pattern[str]] = []
-    if not path.is_file():
-        return exact_bans, wildcard_patterns
+    if file_path is not None and not path.is_file():
+        raise FileNotFoundError(f"banned models file not found: {path}")
+    if file_path is None and not path.is_file():
+        raise FileNotFoundError(f"required banned models file is missing: {path}")
+    size = path.stat().st_size
+    if size > MAX_DENYLIST_FILE_BYTES:
+        raise ValueError(
+            f"{path}: {size} bytes exceeds the {MAX_DENYLIST_FILE_BYTES}-byte size limit"
+        )
     try:
-        size = path.stat().st_size
-        if size > MAX_DENYLIST_FILE_BYTES:
-            print(f"warning: {path} exceeds size limit", file=sys.stderr)
-            return exact_bans, wildcard_patterns
         text = path.read_text(encoding="utf-8")
     except (OSError, UnicodeError) as error:
-        print(f"warning: cannot read {path}: {error}", file=sys.stderr)
-        return exact_bans, wildcard_patterns
+        raise ValueError(f"cannot read {path}: {error}") from error
 
     for line in text.splitlines():
         cleaned = line.strip()
@@ -90,8 +96,10 @@ def _matches_denylist(
     email: str,
     exact_bans: set[str] | None = None,
     wildcards: list[re.Pattern[str]] | None = None,
+    *,
+    is_disclosure: bool = False,
 ) -> bool:
-    """Return True if a structured author/email field names a banned agent."""
+    """Return True if an author, committer, or model disclosure names a banned agent."""
     name_lower = name.strip().lower()
     local_part = email.strip().lower().split("@", 1)[0]
     normalized_name = re.sub(r"[^a-z0-9]", "", name_lower)
@@ -106,13 +114,28 @@ def _matches_denylist(
     ):
         return True
     active_exact = DENYLIST_MODELS if exact_bans is None else exact_bans
-    for model in active_exact:
-        if model in normalized_name or model in normalized_local:
-            return True
-    if wildcards:
-        for pattern in wildcards:
-            if pattern.match(normalized_name) or pattern.match(normalized_local):
+    if is_disclosure:
+        for model in active_exact:
+            if model in normalized_name or model in normalized_local:
                 return True
+        if wildcards:
+            for pattern in wildcards:
+                if pattern.match(normalized_name) or pattern.match(normalized_local):
+                    return True
+    else:
+        # Human/bot author or committer field: match exact model identifier or bot login
+        for model in active_exact:
+            if (
+                normalized_name == model
+                or normalized_local == model
+                or normalized_name == f"{model}bot"
+                or normalized_local == f"{model}bot"
+            ):
+                return True
+        if wildcards:
+            for pattern in wildcards:
+                if pattern.match(normalized_name) or pattern.match(normalized_local):
+                    return True
     return False
 
 
@@ -150,15 +173,13 @@ def _terminal_trailers(body: str) -> list[tuple[str, str]]:
     trailers = []
     for line in trailer_lines:
         if line.startswith((" ", "\t")):
-            if not trailers:
-                return []
-            key, value = trailers[-1]
-            trailers[-1] = (key, f"{value}\n{line.lstrip()}")
+            if trailers:
+                key, value = trailers[-1]
+                trailers[-1] = (key, f"{value}\n{line.lstrip()}")
             continue
         match = TRAILER_LINE.fullmatch(line)
-        if not match:
-            return []
-        trailers.append((match.group("key"), match.group("value")))
+        if match:
+            trailers.append((match.group("key"), match.group("value")))
     return trailers
 
 
@@ -180,7 +201,9 @@ def find_violations(
         for role in ("author", "committer"):
             name = commit[f"{role}_name"]
             email = commit[f"{role}_email"]
-            if _matches_denylist(name, email, exact_bans, wildcards):
+            if _matches_denylist(
+                name, email, exact_bans, wildcards, is_disclosure=False
+            ):
                 violations.append(f"{sha}: banned-agent {role} '{name} <{email}>'")
         for key, value in _terminal_trailers(commit.get("body", "")):
             norm_key = key.lower().replace(" ", "-")
@@ -191,19 +214,25 @@ def find_violations(
                 continue
             name = match.group("name").strip()
             email = match.group("email") or ""
-            if _matches_denylist(name, email, exact_bans, wildcards):
+            if _matches_denylist(
+                name, email, exact_bans, wildcards, is_disclosure=True
+            ):
                 if norm_key == "assisted-by":
                     violations.append(f"{sha}: banned-agent model '{name}'")
                 else:
                     violations.append(f"{sha}: banned-agent co-author '{name} <{email}>'")
-    if pr_author and _matches_denylist(pr_author, "", exact_bans, wildcards):
+    if pr_author and _matches_denylist(
+        pr_author, "", exact_bans, wildcards, is_disclosure=False
+    ):
         violations.append(f"PR author: banned-agent login '{pr_author}'")
     if pr_body:
         for disclosure in _extract_pr_disclosures(pr_body):
             match = CO_AUTHOR.fullmatch(disclosure)
             name = match.group("name").strip() if match else disclosure.strip()
             email = match.group("email") or "" if match else ""
-            if _matches_denylist(name, email, exact_bans, wildcards):
+            if _matches_denylist(
+                name, email, exact_bans, wildcards, is_disclosure=True
+            ):
                 violations.append(
                     f"PR description: banned-agent disclosure '{disclosure}'"
                 )
@@ -353,7 +382,7 @@ def main() -> int:
     except (
         OSError, subprocess.SubprocessError, UnicodeError, ValueError,
     ) as error:
-        print(f"error: git log failed: {error}", file=sys.stderr)
+        print(f"error: check_banned_agents failed: {error}", file=sys.stderr)
         return 1
 
 

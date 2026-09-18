@@ -457,6 +457,80 @@ class BannedAgentsTest(unittest.TestCase):
         violations = banned_agents.find_violations([], pr_body=body)
         self.assertEqual(violations, [])
 
+    def test_missing_banned_models_fails_closed(self):
+        with self.assertRaises(FileNotFoundError):
+            banned_agents.load_banned_models("nonexistent_models_file.txt")
+
+    def test_oversized_banned_models_fails_closed(self):
+        with tempfile.NamedTemporaryFile("wb", delete=False) as temp:
+            temp.write(b"a" * (64 * 1024 + 1))
+            temp_path = temp.name
+        try:
+            with self.assertRaises(ValueError):
+                banned_agents.load_banned_models(temp_path)
+        finally:
+            os.unlink(temp_path)
+
+    def test_exact_model_ban_does_not_false_positive_on_human_author(self):
+        with tempfile.NamedTemporaryFile("w", encoding="utf-8", delete=False) as temp:
+            temp.write("phi\nnova\nr1\n")
+            temp_path = temp.name
+        try:
+            # Human author Philip should not trigger exact model ban 'phi'
+            human_commit = {
+                "sha": "a" * 40,
+                "author_name": "Philip Morris",
+                "author_email": "philip@example.com",
+                "committer_name": "Philip Morris",
+                "committer_email": "philip@example.com",
+                "body": "feat: normal change\n",
+            }
+            violations = banned_agents.find_violations(
+                [human_commit], banned_models_file=temp_path
+            )
+            self.assertEqual(violations, [])
+
+            # Bot claiming exact model should be blocked
+            bot_commit = {
+                "sha": "b" * 40,
+                "author_name": "phi[bot]",
+                "author_email": "phi@users.noreply.github.com",
+                "committer_name": "phi[bot]",
+                "committer_email": "phi@users.noreply.github.com",
+                "body": "feat: bot change\n",
+            }
+            bot_violations = banned_agents.find_violations(
+                [bot_commit], banned_models_file=temp_path
+            )
+            self.assertEqual(len(bot_violations), 2)  # author and committer
+
+            # Model disclosure of 'phi' should be blocked
+            disclosure_commit = {
+                "sha": "c" * 40,
+                "author_name": "Human Author",
+                "author_email": "human@example.com",
+                "committer_name": "Human Author",
+                "committer_email": "human@example.com",
+                "body": "feat: change\n\nAssisted-by: phi\n",
+            }
+            disc_violations = banned_agents.find_violations(
+                [disclosure_commit], banned_models_file=temp_path
+            )
+            self.assertEqual(len(disc_violations), 1)
+            self.assertIn("banned-agent model", disc_violations[0])
+        finally:
+            os.unlink(temp_path)
+
+    def test_trailer_with_trailing_non_trailer_text_still_flags_banned_model(self):
+        body = (
+            "feat: change\n\n"
+            "Assisted-by: grok-4.6\n"
+            "Some plain text evasion attempt\n"
+        )
+        violations = banned_agents.find_violations([_commit(body)])
+        self.assertEqual(len(violations), 1)
+        self.assertIn("banned-agent model 'grok-4.6'", violations[0])
+
 
 class SecretsHeuristicTest(unittest.TestCase):
     """Environment variants and private-key formats remain blocked."""

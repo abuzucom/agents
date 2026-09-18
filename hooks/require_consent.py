@@ -119,10 +119,11 @@ def is_protected_path(target: str, project_dir: str) -> bool:
     if not (target == root or target.startswith(root + os.sep)):
         return False
     relative = os.path.relpath(target, root).replace(os.sep, "/")
-    head = relative.split("/", 1)[0].lower()
+    stripped_relative = core.strip_windows_decorations(relative).lower()
+    head = stripped_relative.split("/", 1)[0]
     if head in PROTECTED_PARTS:
         return True
-    return relative.lower() == "scripts/banned_models.txt"
+    return stripped_relative == "scripts/banned_models.txt"
 
 
 def _same_file(first: os.stat_result, second: os.stat_result) -> bool:

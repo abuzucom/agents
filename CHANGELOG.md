@@ -26,6 +26,15 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Extend `scripts/check_commit_attribution.py` to recognize `Assisted-by`
   trailers and enforce name-only attribution without emails.
 
+### Fixed
+- Fail closed in `scripts/check_banned_agents.py` on missing or unreadable model
+  denylist files.
+- Restrict exact model matching to model disclosures and bot logins to prevent
+  false positives on human contributor names and email usernames.
+- Harden trailer parsing against non-trailer lines in terminal paragraphs.
+- Strip Windows alternate data stream decorations for `scripts/banned_models.txt`
+  in consent hooks.
+
 ## [2.1.0] (2026-09-16)
 
 ### Added

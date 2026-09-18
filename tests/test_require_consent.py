@@ -277,6 +277,17 @@ class GateTest(TestFileFixture):
         self.assertEqual(code, BLOCKING_EXIT_CODE)
         self.assertEqual(decision_of(parsed), "deny")
 
+    def test_banned_models_windows_decorations_ask(self):
+        module = load_hook_module("require_consent_windows_decorations")
+        for decorated in (
+            "scripts/banned_models.txt:stream",
+            "scripts/banned_models.txt.",
+            "scripts/banned_models.txt ",
+        ):
+            with self.subTest(decorated=decorated):
+                target = str(Path(self.tmp.name) / decorated)
+                self.assertTrue(module.is_protected_path(target, self.tmp.name))
+
 
 class PreservedTextEvasionTest(TestFileFixture):
     """Keeping the old text somewhere in the new text is not keeping the test.
