@@ -56,6 +56,31 @@ class TrailerTest(unittest.TestCase):
         )
         self.assertEqual(checker.trailer_violations([commit(body)]), [])
 
+    def test_name_only_assisted_by_passes(self):
+        checker = load_checker()
+        for body in (
+            "change\n\nAssisted-by: Claude Sonnet 5\nCo-authored-by: Claude Code\n",
+            "change\n\nAssisted by: Claude Sonnet 5\nCo-authored by: Claude Code\n",
+            "change\n\nAssisted-by: DeepSeek V3\n",
+        ):
+            with self.subTest(body=body):
+                self.assertEqual(checker.trailer_violations([commit(body)]), [])
+                self.assertTrue(checker.has_agent_label(body))
+
+    def test_assisted_by_with_email_is_rejected(self):
+        checker = load_checker()
+        body = "change\n\nAssisted-by: Claude Sonnet 5 <agent@anthropic.com>\n"
+        violations = checker.trailer_violations([commit(body)])
+        self.assertEqual(len(violations), 1)
+        self.assertIn("assisted-by trailer must not include an email", violations[0])
+
+    def test_assisted_by_empty_is_rejected(self):
+        checker = load_checker()
+        body = "change\n\nAssisted-by: \n"
+        violations = checker.trailer_violations([commit(body)])
+        self.assertEqual(len(violations), 1)
+        self.assertIn("malformed assisted-by trailer", violations[0])
+
 
 class IdentityTest(unittest.TestCase):
     """Noreply IDs must match the resolved GitHub account."""

@@ -9,6 +9,23 @@ The house style bans that hyphen. `scripts/check_ascii.py` enforces the ban on
 this file.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.0] (2026-09-18)
+
+### Added
+- Add Non-negotiable Rule 22 requiring active-human consent before modifying
+  hook files or `scripts/banned_models.txt`. Require stopping work, entering plan
+  mode, and obtaining affirmative approval without workarounds.
+- Expand banned agent policy with `scripts/banned_models.txt` supporting the xAI
+  developer model inventory, wildcards, and organization models starting with
+  DeepSeek V4 Flash.
+- Require agents to disclose the active model with a name-only `Assisted-by:
+  <model>` trailer and PR description disclosure without model hallucination or
+  emails.
+- Extend `scripts/check_banned_agents.py` to enforce banned models, wildcards,
+  commit trailers, and pull request description disclosures.
+- Extend `scripts/check_commit_attribution.py` to recognize `Assisted-by`
+  trailers and enforce name-only attribution without emails.
+
 ## [2.1.0] (2026-09-16)
 
 ### Added

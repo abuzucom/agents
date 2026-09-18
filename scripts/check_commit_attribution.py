@@ -23,7 +23,7 @@ NOREPLY_PATTERN = re.compile(
     re.IGNORECASE,
 )
 TRAILER_PATTERN = re.compile(
-    r"^(?P<key>[A-Za-z0-9-]+):[ \t]*(?P<value>.*)$"
+    r"^(?P<key>[A-Za-z0-9]+(?:[- ][A-Za-z0-9]+)*):[ \t]*(?P<value>.*)$"
 )
 COAUTHOR_PATTERN = re.compile(r"\A(?P<name>[^<>]+?)\s*(?:<(?P<email>[^<>]+)>)?\Z")
 OBJECT_ID_PATTERN = re.compile(r"\A[0-9a-fA-F]{40,64}\Z")
@@ -60,24 +60,37 @@ def terminal_trailers(body: str) -> list[tuple[str, str]]:
 
 
 def trailer_violations(commits: list[dict]) -> list[str]:
-    """Return violations for unapproved co-author trailers."""
+    """Return violations for unapproved co-author and assisted-by trailers."""
     violations = []
     for commit in commits:
         sha = commit["sha"][:12]
         for key, value in terminal_trailers(commit.get("body", "")):
-            if key.lower() != "co-authored-by":
-                continue
-            match = COAUTHOR_PATTERN.fullmatch(value.strip())
-            if not match:
-                violations.append(f"{sha}: malformed co-author trailer")
-                continue
-            name = match.group("name").strip()
-            email = match.group("email")
-            if not email and name:
-                continue
-            if email and (name, email) in APPROVED_HUMAN_COAUTHORS:
-                continue
-            violations.append(f"{sha}: unapproved co-author trailer for '{name}'")
+            norm_key = key.lower().replace(" ", "-")
+            if norm_key == "co-authored-by":
+                match = COAUTHOR_PATTERN.fullmatch(value.strip())
+                if not match:
+                    violations.append(f"{sha}: malformed co-author trailer")
+                    continue
+                name = match.group("name").strip()
+                email = match.group("email")
+                if not email and name:
+                    continue
+                if email and (name, email) in APPROVED_HUMAN_COAUTHORS:
+                    continue
+                violations.append(f"{sha}: unapproved co-author trailer for '{name}'")
+            elif norm_key == "assisted-by":
+                stripped = value.strip()
+                if not stripped:
+                    violations.append(f"{sha}: malformed assisted-by trailer")
+                    continue
+                match = COAUTHOR_PATTERN.fullmatch(stripped)
+                if not match or not match.group("name").strip():
+                    violations.append(f"{sha}: malformed assisted-by trailer")
+                    continue
+                if match.group("email"):
+                    violations.append(
+                        f"{sha}: assisted-by trailer must not include an email"
+                    )
     return violations
 
 
@@ -157,7 +170,8 @@ def _identity_violation(role: str, commit: dict, identity: dict | None,
 def has_agent_label(body: str) -> bool:
     """Return whether a message contains a name-only agent label."""
     for key, value in terminal_trailers(body):
-        if key.lower() != "co-authored-by":
+        norm_key = key.lower().replace(" ", "-")
+        if norm_key not in ("co-authored-by", "assisted-by"):
             continue
         match = COAUTHOR_PATTERN.fullmatch(value.strip())
         if match and not match.group("email") and match.group("name").strip():

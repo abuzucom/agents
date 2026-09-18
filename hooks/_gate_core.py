@@ -1333,7 +1333,9 @@ POWERSHELL_WRITE_PARAMETERS = {
     "clear-content": PATH_PARAMETERS, "export-clixml": CONTENT_PARAMETERS,
     "export-csv": CONTENT_PARAMETERS, "rename-item": RENAME_PARAMETERS,
 }
-PROTECTED_PATH_PARTS = frozenset({"hooks", ".claude", "scripts"})
+PROTECTED_PATH_PARTS = frozenset(
+    {"hooks", ".claude", "scripts", ".agents", ".codex", ".gemini"}
+)
 
 
 def strip_windows_decorations(name: str) -> str:

@@ -404,6 +404,59 @@ class BannedAgentsTest(unittest.TestCase):
         self.assertEqual(len(violations), 1)
         self.assertIn("co-author", violations[0])
 
+    def test_assisted_by_banned_model_is_rejected(self):
+        for trailer in (
+            "Assisted-by: DeepSeek V4 Flash\n",
+            "Assisted by: DeepSeek V4 Flash\n",
+            "Assisted-by: grok-4.6\n",
+            "Assisted by: grok-4.20-0309-reasoning\n",
+            "Assisted-by: grok-build-0.1\n",
+            "Assisted-by: grok-5-preview\n",
+            "Assisted-by: deepseek-v4-flash-preview\n",
+        ):
+            with self.subTest(trailer=trailer):
+                body = f"Implement feature.\n\n{trailer}"
+                violations = banned_agents.find_violations([_commit(body)])
+                self.assertEqual(len(violations), 1)
+                self.assertIn("banned-agent model", violations[0])
+
+    def test_assisted_by_permitted_model_passes(self):
+        for trailer in (
+            "Assisted-by: Claude Sonnet 5\n",
+            "Assisted by: Claude Sonnet 5\n",
+            "Assisted-by: DeepSeek V3\n",
+            "Assisted-by: DeepSeek R1\n",
+        ):
+            with self.subTest(trailer=trailer):
+                body = f"Implement feature.\n\n{trailer}"
+                violations = banned_agents.find_violations([_commit(body)])
+                self.assertEqual(violations, [])
+
+    def test_pr_description_banned_model_is_rejected(self):
+        for line in (
+            "Assisted by: DeepSeek V4 Flash",
+            "Assisted-by: DeepSeek V4 Flash",
+            "- Assisted by: grok-4.20-0309-reasoning",
+            "**Assisted by:** grok-build-0.1",
+            "* Assisted by: grok-imagine-image-2.0",
+            "Assisted by: grok-5-future",
+        ):
+            with self.subTest(line=line):
+                body = f"PR summary.\n\n{line}\n\nMore details."
+                violations = banned_agents.find_violations([], pr_body=body)
+                self.assertEqual(len(violations), 1)
+                self.assertIn("PR description: banned-agent disclosure", violations[0])
+
+    def test_pr_description_permitted_model_passes(self):
+        body = (
+            "PR summary.\n\n"
+            "- Assisted by: Claude Sonnet 5\n"
+            "- Co-authored by: Claude Code\n"
+            "Assisted by: DeepSeek V3\n"
+        )
+        violations = banned_agents.find_violations([], pr_body=body)
+        self.assertEqual(violations, [])
+
 
 class SecretsHeuristicTest(unittest.TestCase):
     """Environment variants and private-key formats remain blocked."""
