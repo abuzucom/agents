@@ -671,8 +671,6 @@ def _recovery_tokens(tokens: list, project_dir: str) -> list:
     """Remove one verified current-repository Git context prefix."""
     if len(tokens) < 3 or tokens[1] != "-C":
         return tokens
-    if not project_dir:
-        return []
     if os.path.realpath(tokens[2]) != os.path.realpath(project_dir):
         return []
     return [tokens[0], *tokens[3:]]
@@ -681,8 +679,8 @@ def _recovery_tokens(tokens: list, project_dir: str) -> list:
 def _valid_recovery(
     command: str,
     branch: str,
+    project_dir: str,
     rebase_active: bool = False,
-    project_dir: str = "",
 ) -> bool:
     """Return True only for one exact branch correction command."""
     if (len(command) > bash_parser.MAX_COMMAND_CHARACTERS
@@ -831,7 +829,7 @@ def _handle_invalid_branch(
         if _valid_bootstrap(command_text, project_dir):
             return 0
         if branch_name and _valid_recovery(
-                command_text, branch_name, rebase_active, project_dir):
+                command_text, branch_name, project_dir, rebase_active):
             return request_recovery_authorization(client, payload, branch_name, rebase_active)
         contexts = blocked_command(command_text, project_dir)
         if contexts:

@@ -15,11 +15,16 @@ from unittest.mock import patch
 REPOSITORY_ROOT = Path(__file__).resolve().parent.parent
 HOOK_PATH = REPOSITORY_ROOT / "hooks" / "enforce_gate_adoption.py"
 PROCESS_RUNNER = (
-    "import os, sys; "
-    "sys.path.insert(0, os.environ['TEST_HOOKS_DIR']); "
-    "import enforce_gate_adoption as hook; "
-    "hook.core.policy_root = lambda: os.environ['TEST_POLICY_ROOT']; "
-    "sys.exit(hook.main())"
+    "import os\n"
+    "import sys\n"
+    "sys.path.insert(0, os.environ['TEST_HOOKS_DIR'])\n"
+    "import enforce_gate_adoption as hook\n"
+    "hook.core.policy_root = lambda: os.environ['TEST_POLICY_ROOT']\n"
+    "if os.environ.get('TEST_CHECKER_ERROR'):\n"
+    "    def fail_checker(*args, **kwargs):\n"
+    "        raise OSError('test checker error')\n"
+    "    hook.subprocess.run = fail_checker\n"
+    "sys.exit(hook.main())\n"
 )
 
 
@@ -48,11 +53,19 @@ class GateAdoptionHookTest(unittest.TestCase):
                         result = self.hook.main()
         return result, stderr.getvalue()
 
-    def run_process(self, payload: dict, root: Path, client: str) -> subprocess.CompletedProcess:
+    def run_process(
+        self,
+        payload: object,
+        root: Path,
+        client: str,
+        checker_error: bool = False,
+    ) -> subprocess.CompletedProcess:
         """Run the checked-in hook in a traced child interpreter."""
         environment = dict(os.environ)
         environment["TEST_HOOKS_DIR"] = str(HOOK_PATH.parent)
         environment["TEST_POLICY_ROOT"] = str(root)
+        if checker_error:
+            environment["TEST_CHECKER_ERROR"] = "1"
         return subprocess.run(
             [sys.executable, "-c", PROCESS_RUNNER, "--client", client],
             cwd=REPOSITORY_ROOT,
@@ -85,6 +98,31 @@ class GateAdoptionHookTest(unittest.TestCase):
         self.assertEqual(result.returncode, 2, result.stderr)
         self.assertIn("gate-adoption checker rejected", result.stderr)
 
+    def test_process_denies_missing_checker(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            result = self.run_process(
+                {"tool_name": "Bash", "tool_input": {"CommandLine": "git status"}},
+                Path(temporary),
+                "claude",
+            )
+        self.assertEqual(result.returncode, 2, result.stderr)
+        self.assertIn("checker is missing", result.stderr)
+
+    def test_process_denies_checker_error(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            checker = root / "scripts" / "check_gate_adoption.py"
+            checker.parent.mkdir()
+            checker.write_text("raise SystemExit(0)\n", encoding="utf-8")
+            result = self.run_process(
+                {"tool_name": "Bash", "tool_input": {"command": "git status"}},
+                root,
+                "claude",
+                checker_error=True,
+            )
+        self.assertEqual(result.returncode, 2, result.stderr)
+        self.assertIn("test checker error", result.stderr)
+
     def test_process_denies_antigravity_incomplete_set(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -98,6 +136,21 @@ class GateAdoptionHookTest(unittest.TestCase):
             )
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn('"decision": "deny"', result.stdout)
+
+    def test_process_denies_malformed_antigravity_call(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            checker = root / "scripts" / "check_gate_adoption.py"
+            checker.parent.mkdir()
+            checker.write_text("import sys\nsys.exit(1)\n", encoding="utf-8")
+            result = self.run_process({"toolCall": None}, root, "antigravity")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('"decision": "deny"', result.stdout)
+
+    def test_process_denies_missing_payload(self) -> None:
+        result = self.run_process(None, REPOSITORY_ROOT, "claude")
+        self.assertEqual(result.returncode, 2, result.stderr)
+        self.assertIn("payload cannot be inspected", result.stderr)
 
     def test_complete_set_allows_ordinary_tool(self) -> None:
         result, output = self.run_hook(
