@@ -420,6 +420,12 @@ the active human remains allowed. The exact recovery command remains allowed
 through normal permission handling. Never chain another command to a recovery
 command. Rule 10 applies. Never assume prior validation against this file.
 
+A client mode restriction does not authorize delegation of branch recovery.
+Submit the recovery command through the native permission path. A single
+`git -C <current-repository> ` prefix receives the same authorization request.
+Reject wrappers and foreign paths. Record an actual client rejection. Use one
+approved equivalent. Never ask an active human to run the recovery command.
+
 Rebase metadata takes precedence over detached-HEAD recovery. Permit only the
 approved rebase recovery commands. Block ordinary tools until strict preflight
 passes. Block `claude/` targets, aliases, and metadata writes.

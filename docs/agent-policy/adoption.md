@@ -169,6 +169,9 @@ Detect rebase metadata before detached-HEAD recovery. Permit only `git rebase
 preflight after recovery. For an invalid branch, use the exact approved
 `git branch -m <type>/<kebab-description>` command. For a primary or detached
 state, use `git switch -c <type>/<kebab-description>`. Run no chained command.
+`git -C <current-repository> branch -m <type>/<kebab-description>` receives the
+same native authorization request. Reject wrappers and foreign paths. A client
+mode restriction never authorizes delegation of the recovery command.
 
 ## Git identity recovery
 
