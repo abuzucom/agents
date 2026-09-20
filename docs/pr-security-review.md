@@ -63,7 +63,7 @@ together. Provider endpoints stay allowlisted in the adapter.
 
 Foucault's `adopters/README.md` asks each adopter to add `adopters/<repo>.md`
 in `abuzucom/foucault` recording the pinned revision and whether the reusable
-workflow is wired. That record is opened as `adopters/agents.md` in
-`abuzucom/foucault#27`, pending merge, stating: adopter `abuzucom/agents`,
-`AUDIT.md` pinned at `62851df1ef177593adbb9e06b223f5a6dce66fc0`, the reusable
-workflow wired at the same commit, and no customization of `AUDIT.md`.
+workflow is wired. That record is merged as `adopters/agents.md` via
+`abuzucom/foucault#27`, stating: adopter `abuzucom/agents`, `AUDIT.md` pinned
+at `62851df1ef177593adbb9e06b223f5a6dce66fc0`, the reusable workflow wired at
+the same commit, and no customization of `AUDIT.md`.
