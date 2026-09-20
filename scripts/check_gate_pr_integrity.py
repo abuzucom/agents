@@ -88,6 +88,16 @@ def _fetch_head(root: Path, number: int) -> None:
         raise RuntimeError("trusted fetch of the pull-request head failed")
 
 
+def _has_revision(root: Path, revision: str) -> bool:
+    """Return whether one validated commit already exists locally."""
+    result = _run(
+        ["git", "cat-file", "-e", f"{revision}^{{commit}}"],
+        root,
+        GIT_TIMEOUT_SECONDS,
+    )
+    return result.returncode == 0
+
+
 def _changed_paths(root: Path, base: str, head: str) -> list[str]:
     """Return validated repository-relative paths changed by one pull request."""
     result = _run(
@@ -118,7 +128,8 @@ def main(argv: list[str]) -> int:
             raise ValueError("pull-request number must be positive")
         labels = _labels(options.labels_json)
         root = Path.cwd().resolve(strict=True)
-        _fetch_head(root, options.pr_number)
+        if not _has_revision(root, head):
+            _fetch_head(root, options.pr_number)
         paths = _changed_paths(root, base, head)
     except (OSError, RuntimeError, ValueError, subprocess.TimeoutExpired) as error:
         print(f"gate integrity check failed: {error}", file=sys.stderr)

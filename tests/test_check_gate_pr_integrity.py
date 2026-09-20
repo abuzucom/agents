@@ -3,6 +3,7 @@
 import sys
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 import check_gate_pr_integrity as integrity
@@ -23,6 +24,19 @@ class ProtectedPathTest(unittest.TestCase):
     def test_approval_label_matches_exact_value(self) -> None:
         self.assertTrue(integrity.has_approval_label([integrity.APPROVAL_LABEL]))
         self.assertFalse(integrity.has_approval_label(["gate-change-approved-now"]))
+
+    def test_existing_head_skips_trusted_fetch(self) -> None:
+        with patch.object(integrity, "_has_revision", return_value=True):
+            with patch.object(integrity, "_fetch_head") as fetch_head:
+                with patch.object(integrity, "_changed_paths", return_value=[]):
+                    result = integrity.main([
+                        "--base", "a" * 40,
+                        "--head", "b" * 40,
+                        "--pr-number", "1",
+                        "--labels-json", "[]",
+                    ])
+        self.assertEqual(result, 0)
+        fetch_head.assert_not_called()
 
 
 if __name__ == "__main__":

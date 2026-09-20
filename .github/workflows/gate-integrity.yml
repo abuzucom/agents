@@ -38,6 +38,7 @@ jobs:
           PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           PR_LABELS_JSON: ${{ toJSON(github.event.pull_request.labels.*.name) }}
+          GIT_ALTERNATE_OBJECT_DIRECTORIES: ${{ github.workspace }}/pr-head/.git/objects
         run: |
           if [ -f scripts/check_gate_pr_integrity.py ]; then
             python scripts/check_gate_pr_integrity.py --base "$PR_BASE_SHA" --head "$PR_HEAD_SHA" --pr-number "$PR_NUMBER" --labels-json "$PR_LABELS_JSON"
