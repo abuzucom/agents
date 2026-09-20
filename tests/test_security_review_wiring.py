@@ -8,13 +8,17 @@ import yaml
 
 ROOT = Path(__file__).resolve().parent.parent
 WORKFLOW_PATH = ROOT / ".github" / "workflows" / "security-review-pr.yml"
-PINNED_COMMIT = "551a8000a33ba1955d5e9ed79c9f08daacc4ae99"
+PINNED_COMMIT = "62851df1ef177593adbb9e06b223f5a6dce66fc0"
 FULL_SHA = re.compile(r"[0-9a-f]{40}")
 CI_ADAPTER_FILES = (
     "ci/build_pr_case.py",
     "ci/run_model_command.py",
     "ci/call_model.py",
     "ci/model_providers.json",
+    # Run by the reusable workflow from the caller's own checkout (not the
+    # separate .foucault checkout that holds AUDIT.md), so it must live in
+    # this repository's scripts/ directory, not ci/.
+    "scripts/check_pr_review_response.py",
 )
 
 

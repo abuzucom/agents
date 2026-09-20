@@ -14,7 +14,7 @@ the configured provider, posts a fenced report, and publishes a
 `security-review` check run.
 
 Both the reusable workflow and `audit_ref` are pinned to foucault commit
-`551a8000a33ba1955d5e9ed79c9f08daacc4ae99`, release 3.3.8. Keeping one
+`62851df1ef177593adbb9e06b223f5a6dce66fc0`, release 3.3.10. Keeping one
 revision for both means the policy and its runner never diverge. Change the
 pin deliberately, and record the change in `CHANGELOG.md`.
 
@@ -22,6 +22,13 @@ pin deliberately, and record the change in `CHANGELOG.md`.
 `ci/model_providers.json` are copied from that same foucault revision and run
 from this repository's checkout. Foucault supplies only `AUDIT.md` at
 runtime.
+
+`scripts/check_pr_review_response.py` is also copied from that revision. The
+reusable workflow's "Validate report structure" step runs it from the
+caller's checkout (not from the `.foucault` checkout that holds `AUDIT.md`),
+so it must live in this repository's own `scripts/` directory. Foucault's own
+`docs/pr-security-review.md` omits this file from its adopter checklist;
+flagged upstream rather than assumed away.
 
 `fail_on_block: true`, so a `BLOCK` or `NEEDS-HUMAN` verdict fails the check.
 
@@ -58,5 +65,5 @@ Foucault's `adopters/README.md` asks each adopter to add `adopters/<repo>.md`
 in `abuzucom/foucault` recording the pinned revision and whether the reusable
 workflow is wired. That record is filed as `adopters/agents.md` in
 `abuzucom/foucault`, stating: adopter `abuzucom/agents`, `AUDIT.md` pinned at
-`551a8000a33ba1955d5e9ed79c9f08daacc4ae99`, the reusable workflow wired at the
+`62851df1ef177593adbb9e06b223f5a6dce66fc0`, the reusable workflow wired at the
 same commit, and no customization of `AUDIT.md`.

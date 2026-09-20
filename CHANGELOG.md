@@ -13,8 +13,9 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 - Wire the `abuzucom/foucault` pull request security review at commit
-  `551a8000a33ba1955d5e9ed79c9f08daacc4ae99`, with the `ci/` provider
-  adapters and a caller workflow gating on the model verdict.
+  `62851df1ef177593adbb9e06b223f5a6dce66fc0` (release 3.3.10), with the
+  `ci/` provider adapters, `scripts/check_pr_review_response.py`, and a
+  caller workflow gating on the model verdict.
 
 ## [2.2.1] (2026-09-18)
 
