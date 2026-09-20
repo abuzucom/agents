@@ -751,6 +751,9 @@ read-only discovery, writes below `.gate-staging/`, and the bounded installer.
 Reject staging paths that escape the fixed directory. Restore prior targets
 after an installer failure.
 
+Map each adopted client schema to the bounded recovery surface. Antigravity
+uses `TargetFile` for `write_to_file` and `replace_file_content`.
+
 Verify the manifest, imports, registrations, client launch, allowed operations,
 expected denials, and recovery before activation. Use an independent integrity
 source outside the mutable adoption change. Do not alter validation artifacts to
@@ -995,6 +998,10 @@ staged candidate before writing. It replaces non-registration artifacts first.
 It replaces client registrations last. An interrupted installation remains
 recoverable through the same bounded command. A copy failure restores every
 prior target before the installer returns failure.
+
+Antigravity recovery accepts `view_file`, `list_dir`, `find_by_name`, and
+`grep_search`. It accepts `write_to_file` and `replace_file_content` only when
+`TargetFile` resolves below `.gate-staging/`.
 `scripts/check_hook_launchers.py` launches the transaction hook through every
 configured launcher. `scripts/check_hook_coverage.py` requires test reachability.
 

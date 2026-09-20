@@ -19,8 +19,12 @@ GATE = "enforce_gate_adoption.py"
 CHECKER_PATH = os.path.join("scripts", "check_gate_adoption.py")
 CHECKER_TIMEOUT_SECONDS = 10
 QUESTION_TOOLS = frozenset({"AskUserQuestion", "ask_question"})
-READ_ONLY_TOOLS = frozenset({"Read", "Glob", "Grep"})
-STAGING_WRITE_TOOLS = frozenset({"Edit", "MultiEdit", "NotebookEdit", "Write"})
+READ_ONLY_TOOLS = frozenset({
+    "Read", "Glob", "Grep", "view_file", "list_dir", "find_by_name", "grep_search",
+})
+STAGING_WRITE_TOOLS = frozenset({
+    "Edit", "MultiEdit", "NotebookEdit", "Write", "write_to_file", "replace_file_content",
+})
 STAGING_DIRECTORY = ".gate-staging"
 RECOVERY_COMMANDS = frozenset({
     "python scripts/check_gate_adoption.py",
@@ -77,7 +81,9 @@ def _staging_write(tool_name: object, tool_input: object) -> bool:
     """Return whether one file write stays below the fixed staging directory."""
     if tool_name not in STAGING_WRITE_TOOLS or not isinstance(tool_input, dict):
         return False
-    value = tool_input.get("file_path", tool_input.get("notebook_path"))
+    value = tool_input.get(
+        "file_path", tool_input.get("notebook_path", tool_input.get("TargetFile")),
+    )
     if not isinstance(value, str) or not value:
         return False
     root = core.policy_root()

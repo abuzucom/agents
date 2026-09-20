@@ -8,7 +8,7 @@
     "hooks/block_destructive_bash.py": "f4c5884e64dcee4643eea20e5263b8a244654cbcefb12ca3b2742b83cfa14626",
     "hooks/block_destructive_cmd.py": "7740e565354e175db1031690a9fb021db01c4ac8205f1c83cfa045e99e2a27d5",
     "hooks/block_destructive_powershell.py": "07bcf8d15e7bd1b65cc6f948a5c2df28c60e5c4d90d40569a23d916dc7d6d549",
-    "hooks/enforce_gate_adoption.py": "55b2f821711335d5bd511613f7a9e0765f358177bf70f56b4e98e26d748f60ce",
+    "hooks/enforce_gate_adoption.py": "85fbd00d2a45e1c2b593523b123638a7365abacb54c6584ac282dd2ae1a9dbec",
     "hooks/github-command-denylist.txt": "76f3cb2f01e9771c772e35d7d10545afc47bde44b77c1c274f8c36af5612a6b6",
     "hooks/reinject_agents_policy.py": "20cede35468f17c651e75b101efc071b6dcfd22d17eb95c44afe7d7c832126d8",
     "hooks/require_consent.py": "2a831d57e883717f5c7eb04fc86f4abbd318a2f6d9f2a9c90d600bf8ea07818d",
@@ -26,7 +26,7 @@
     "tests/test_check_gate_pr_integrity.py": "9144c4f15a9f13d1f36c3315d246abd686f2f55504d9705ab0a7c84f82fc034d",
     "tests/test_check_hook_launchers.py": "826c48aa1d080bcb0ac70c5f11afe40d6427a1450d315945cb5face571445350",
     "tests/test_complete_gate_adoption.py": "dcbdbe73a094600ec4720504699bca79acbf1f95dfc0e06715b6b79fa089c5e6",
-    "tests/test_enforce_gate_adoption.py": "4fe3cd4edbc6f754fd90c3a72a9df7e0397725ba3afd688c1d4fcfca6ee06fbf",
+    "tests/test_enforce_gate_adoption.py": "ec6a6b02dbb68c20ee53a5aee2860cbb0ec7ec3f977fdceb7df3cfbb7cf82cd8",
     "tests/test_gate_adoption_transaction.py": "fe03b777db0daabfe094d023bad97bb6cbf7d09b69a770f411bcab2e9100ec9e",
     "tests/test_platform_policy.py": "769d5ab1a4a6580ba54a5a3cd6fa8c13dc646bb877085047a5298a1bfe9a70c5"
   }

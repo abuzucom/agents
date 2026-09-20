@@ -40,6 +40,9 @@ read-only discovery, writes below `.gate-staging/`, and the bounded installer.
 Reject staging paths that escape the fixed directory. Restore prior targets
 after an installer failure.
 
+Map each adopted client schema to the bounded recovery surface. Antigravity
+uses `TargetFile` for `write_to_file` and `replace_file_content`.
+
 Verify the manifest, imports, registrations, client launch, allowed operations,
 expected denials, and recovery before activation. Use an independent integrity
 source outside the mutable adoption change. Do not alter validation artifacts to

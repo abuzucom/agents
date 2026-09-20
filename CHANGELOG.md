@@ -26,6 +26,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Permit trusted gate fetching from the verified workspace root.
 - Permit bounded staged recovery writes and read-only discovery.
 - Restore prior gate artifacts after a staged installation failure.
+- Permit bounded Antigravity staging and discovery tool schemas.
 
 ## [2.2.1] (2026-09-18)
 

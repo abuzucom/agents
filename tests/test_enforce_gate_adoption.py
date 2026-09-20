@@ -239,6 +239,38 @@ class GateAdoptionHookTest(unittest.TestCase):
         self.assertEqual(result, 2)
         self.assertIn("codex registration is absent", output)
 
+    def test_antigravity_allows_native_recovery_tools(self) -> None:
+        read_payload = {
+            "toolCall": {"name": "view_file", "args": {"AbsolutePath": "README.md"}},
+        }
+        write_payload = {
+            "toolCall": {
+                "name": "write_to_file",
+                "args": {"TargetFile": ".gate-staging/release/hooks/example.py"},
+            },
+        }
+        for payload in (read_payload, write_payload):
+            with self.subTest(payload=payload), \
+                    patch.object(sys, "argv", [str(HOOK_PATH), "--client", "antigravity"]), \
+                    patch.object(self.hook.core, "read_payload", return_value=payload), \
+                    patch.object(self.hook, "_check_complete_set", return_value="gate is absent"):
+                self.assertEqual(self.hook.main(), 0)
+
+    def test_antigravity_rejects_native_write_outside_staging(self) -> None:
+        payload = {
+            "toolCall": {
+                "name": "replace_file_content",
+                "args": {"TargetFile": "hooks/example.py"},
+            },
+        }
+        output = io.StringIO()
+        with patch.object(sys, "argv", [str(HOOK_PATH), "--client", "antigravity"]), \
+                patch.object(self.hook.core, "read_payload", return_value=payload), \
+                patch.object(self.hook, "_check_complete_set", return_value="gate is absent"), \
+                contextlib.redirect_stdout(output):
+            self.assertEqual(self.hook.main(), 0)
+        self.assertEqual(json.loads(output.getvalue())["decision"], "deny")
+
     def test_incomplete_set_denies_unbounded_transaction(self) -> None:
         result, output = self.run_hook(
             {
