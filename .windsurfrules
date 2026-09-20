@@ -986,7 +986,8 @@ recoverable only through the same bounded command.
 `scripts/check_hook_launchers.py` launches the transaction hook through every
 configured launcher. `scripts/check_hook_coverage.py` requires test reachability.
 
-`gate-integrity.yml` uses `pull_request_target` and checks out the base revision.
+`gate-integrity.yml` uses read-only `pull_request` execution and checks out the
+base revision.
 It runs base-branch `scripts/check_gate_pr_integrity.py` against the pull-request
 diff. Protected gate changes require the exact `gate-change-approved` label.
 Configure GitHub branch protection to require this job. Repository files cannot

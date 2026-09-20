@@ -70,7 +70,8 @@ class AdvisoryWorkflowTest(unittest.TestCase):
 
     def test_integrity_workflow_uses_trusted_base_code(self):
         text = INTEGRITY_WORKFLOW.read_text(encoding="utf-8")
-        self.assertIn("pull_request_target", text)
+        self.assertIn("pull_request", text)
+        self.assertNotIn("pull_request_target", text)
         self.assertIn("github.event.pull_request.base.sha", text)
         self.assertIn("python scripts/check_gate_pr_integrity.py", text)
         self.assertIn("persist-credentials: false", text)
