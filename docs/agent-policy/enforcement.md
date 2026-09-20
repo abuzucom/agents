@@ -73,6 +73,43 @@ and pull request authors against blanket vendor denylists, specific models,
 and wildcard patterns. The checker cannot identify hidden agent use under a
 human identity. Platform controls apply separately.
 
+## Agent-attributed prose gate
+
+`scripts/check_us_spelling.py`, `scripts/check_english_only.py`,
+`scripts/check_hedging.py`, and `scripts/check_pull_request_message.py`
+always exit 0. That leniency covers human-authored prose, where the
+pattern checks misfire on legitimate writing and semantic review covers
+what they miss. It does not relax AGENTS.md's rules for an agent. Those
+rules bind every AI system regardless of what CI reports.
+
+`scripts/check_agent_prose_gate.py` runs the same analyzers as the four
+checks above and fails on their findings, but only for a pull request that
+discloses agent authorship. Attribution reuses
+`scripts/check_commit_attribution.py::has_agent_label`, the name-only
+`Assisted-by`/`Co-authored-by` trailer AGENTS.md Rule 14 already requires
+on agent-assisted commits, checked against every commit in the pull
+request, plus a matching disclosure line in the pull request description
+alone (`scripts/check_banned_agents.py::_extract_pr_disclosures`). A pull
+request with no disclosure anywhere stays exactly as advisory as today:
+the gate reads no file and runs no analyzer for it.
+
+**Limitation.** An agent that never adds the required disclosure trailer
+is invisible to this signal, the same documented gap
+`scripts/check_banned_agents.py` already states for banned-agent
+authorship. No mechanical check closes it.
+
+**Anti-bypass constraint.** Removing, editing, or omitting an attribution
+trailer specifically to stop this gate from firing, or to evade Rule 14's
+disclosure requirement, is a rule violation, not a remediation, on the
+same footing as editing a test to make it pass. The only compliant fix for
+a prose-gate failure is to fix the flagged prose. The gate's own failure
+output states this constraint at the point of failure. Detecting trailer
+removal across a force-push is out of scope and mechanically unenforced
+here. A single pull-request-range check only sees the current head, not a
+prior push's message. This prohibition binds as policy independent of
+that mechanical limit, the same way Rule 3 binds without every possible
+test edit being mechanically caught.
+
 ## Protected files and hook inventory
 
 Modifying hook files or `scripts/banned_models.txt` can never be inferred,
