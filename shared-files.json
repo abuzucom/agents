@@ -26,7 +26,7 @@
     "tests/test_check_gate_pr_integrity.py": "587d18abc4adcecd0606157a321e66061334da3d625d77297b454ba8e35e33b3",
     "tests/test_check_hook_launchers.py": "826c48aa1d080bcb0ac70c5f11afe40d6427a1450d315945cb5face571445350",
     "tests/test_complete_gate_adoption.py": "88044f2ec7b8e616fa315029d634596400a7e94787fb772cda83949affd33c67",
-    "tests/test_enforce_gate_adoption.py": "c048672882b3b45a5681b2ed2ad2bb35b356c0ee26d921e4885f431212385066",
+    "tests/test_enforce_gate_adoption.py": "575098521dec5b7256b04c733bdc233e09de9b6de8d473ce8a091c011ac2832d",
     "tests/test_gate_adoption_transaction.py": "fe03b777db0daabfe094d023bad97bb6cbf7d09b69a770f411bcab2e9100ec9e",
     "tests/test_platform_policy.py": "769d5ab1a4a6580ba54a5a3cd6fa8c13dc646bb877085047a5298a1bfe9a70c5"
   }

@@ -108,6 +108,18 @@ class GateAdoptionHookTest(unittest.TestCase):
         self.assertEqual(result.returncode, 2, result.stderr)
         self.assertIn("checker is missing", result.stderr)
 
+    def test_process_denies_empty_tool_input(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            checker = root / "scripts" / "check_gate_adoption.py"
+            checker.parent.mkdir()
+            checker.write_text("import sys\nsys.exit(1)\n", encoding="utf-8")
+            result = self.run_process(
+                {"tool_name": "Bash", "tool_input": {}}, root, "claude"
+            )
+        self.assertEqual(result.returncode, 2, result.stderr)
+        self.assertIn("checker rejected", result.stderr)
+
     def test_process_denies_checker_error(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
