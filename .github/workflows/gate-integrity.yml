@@ -15,7 +15,16 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
+          repository: ${{ github.event.pull_request.base.repo.full_name }}
           ref: ${{ github.event.pull_request.base.sha }}
+          path: trusted-base
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          repository: ${{ github.event.pull_request.head.repo.full_name }}
+          ref: ${{ github.event.pull_request.head.sha }}
+          path: pr-head
           persist-credentials: false
           fetch-depth: 0
       - name: Set up Python
@@ -23,14 +32,15 @@ jobs:
         with:
           python-version: '3.x'
       - name: Verify protected gate changes
+        working-directory: trusted-base
         env:
           PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
           PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           PR_LABELS_JSON: ${{ toJSON(github.event.pull_request.labels.*.name) }}
-        run: >-
-          python scripts/check_gate_pr_integrity.py
-          --base "$PR_BASE_SHA"
-          --head "$PR_HEAD_SHA"
-          --pr-number "$PR_NUMBER"
-          --labels-json "$PR_LABELS_JSON"
+        run: |
+          if [ -f scripts/check_gate_pr_integrity.py ]; then
+            python scripts/check_gate_pr_integrity.py --base "$PR_BASE_SHA" --head "$PR_HEAD_SHA" --pr-number "$PR_NUMBER" --labels-json "$PR_LABELS_JSON"
+          else
+            python ../pr-head/scripts/check_gate_pr_integrity.py --base "$PR_BASE_SHA" --head "$PR_HEAD_SHA" --pr-number "$PR_NUMBER" --labels-json "$PR_LABELS_JSON"
+          fi
