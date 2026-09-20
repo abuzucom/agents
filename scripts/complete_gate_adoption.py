@@ -106,6 +106,68 @@ def _ordered_paths(paths: list[str]) -> list[str]:
     return ordinary + registrations
 
 
+def _backup_path(backup: Path, relative: str) -> Path:
+    """Return one backup path below the transaction-owned directory."""
+    path = backup / relative
+    path.parent.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def _restore_paths(
+    root: Path,
+    backup: Path,
+    replaced: list[tuple[str, bool]],
+    created_directories: list[Path],
+) -> None:
+    """Restore all replaced targets in reverse order after transaction failure."""
+    for relative, existed in reversed(replaced):
+        target = _target_path(root, relative)
+        if existed:
+            _replace_file(_backup_path(backup, relative), target)
+        elif target.exists():
+            target.unlink()
+    for directory in created_directories:
+        directory.rmdir()
+
+
+def _create_target_parents(root: Path, target: Path) -> list[Path]:
+    """Create missing target parents and return only transaction-owned paths."""
+    created = []
+    current = target.parent
+    while current != root and not current.exists():
+        created.append(current)
+        current = current.parent
+    target.parent.mkdir(parents=True, exist_ok=True)
+    return created
+
+
+def _install_paths(
+    root: Path, candidate: Path, paths: list[str], validate=None,
+) -> None:
+    """Install paths and restore every changed target if any replacement fails."""
+    with tempfile.TemporaryDirectory(prefix=".gate-adoption-", dir=root) as temporary:
+        backup = Path(temporary)
+        replaced = []
+        created_directories = []
+        try:
+            for relative in paths:
+                target = _target_path(root, relative)
+                created_directories.extend(_create_target_parents(root, target))
+                existed = target.exists()
+                if existed:
+                    _replace_file(target, _backup_path(backup, relative))
+                _replace_file(candidate / relative, target)
+                replaced.append((relative, existed))
+            if validate is not None:
+                validate()
+        except (OSError, ValueError, subprocess.TimeoutExpired) as error:
+            try:
+                _restore_paths(root, backup, replaced, created_directories)
+            except (OSError, ValueError, subprocess.TimeoutExpired) as restore_error:
+                raise OSError(f"{error}; rollback failed: {restore_error}") from restore_error
+            raise
+
+
 def main(argv: list[str]) -> int:
     """Install a complete staged candidate and verify the resulting target."""
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
@@ -116,9 +178,7 @@ def main(argv: list[str]) -> int:
         candidate = _candidate(root, options.candidate)
         _validate_candidate(root, candidate)
         paths = _ordered_paths(_candidate_paths(candidate))
-        for relative in paths:
-            _replace_file(candidate / relative, _target_path(root, relative))
-        _validate_candidate(root, root)
+        _install_paths(root, candidate, paths, lambda: _validate_candidate(root, root))
     except (OSError, ValueError, json.JSONDecodeError, subprocess.TimeoutExpired) as error:
         print(f"gate adoption transaction failed: {error}", file=sys.stderr)
         return 1

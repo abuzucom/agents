@@ -22,6 +22,11 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Add staged complete-set recovery for incomplete cross-client activation.
 - Add trusted-base CI label enforcement for protected gate changes.
 
+### Fixed
+- Permit trusted gate fetching from the verified workspace root.
+- Permit bounded staged recovery writes and read-only discovery.
+- Restore prior gate artifacts after a staged installation failure.
+
 ## [2.2.1] (2026-09-18)
 
 ### Added

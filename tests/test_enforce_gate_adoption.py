@@ -196,6 +196,49 @@ class GateAdoptionHookTest(unittest.TestCase):
         )
         self.assertEqual(result, 0, output)
 
+    def test_incomplete_set_allows_read_only_discovery(self) -> None:
+        result, output = self.run_hook(
+            {"tool_name": "Read", "tool_input": {"file_path": "hooks/example.py"}},
+            "codex registration is absent",
+        )
+        self.assertEqual(result, 0, output)
+
+    def test_incomplete_set_allows_only_staging_writes(self) -> None:
+        allowed, output = self.run_hook(
+            {
+                "tool_name": "Write",
+                "tool_input": {
+                    "file_path": ".gate-staging/release/hooks/example.py",
+                    "content": "content",
+                },
+            },
+            "codex registration is absent",
+        )
+        blocked, blocked_output = self.run_hook(
+            {
+                "tool_name": "Write",
+                "tool_input": {"file_path": "hooks/example.py", "content": "content"},
+            },
+            "codex registration is absent",
+        )
+        self.assertEqual(allowed, 0, output)
+        self.assertEqual(blocked, 2)
+        self.assertIn("codex registration is absent", blocked_output)
+
+    def test_incomplete_set_rejects_staging_path_escape(self) -> None:
+        result, output = self.run_hook(
+            {
+                "tool_name": "Write",
+                "tool_input": {
+                    "file_path": ".gate-staging/release/../../hooks/example.py",
+                    "content": "content",
+                },
+            },
+            "codex registration is absent",
+        )
+        self.assertEqual(result, 2)
+        self.assertIn("codex registration is absent", output)
+
     def test_incomplete_set_denies_unbounded_transaction(self) -> None:
         result, output = self.run_hook(
             {

@@ -5,6 +5,7 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 REPOSITORY_ROOT = Path(__file__).resolve().parent.parent
 SCRIPT_PATH = REPOSITORY_ROOT / "scripts" / "complete_gate_adoption.py"
@@ -56,6 +57,77 @@ class CompleteGateAdoptionTest(unittest.TestCase):
         ])
         self.assertEqual(paths[0], "hooks/example.py")
         self.assertEqual(paths[-2:], [".claude/settings.json", ".codex/hooks.json"])
+
+    def test_install_failure_restores_prior_files(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            candidate = root / ".gate-staging" / "release"
+            first = "hooks/first.py"
+            second = "hooks/second.py"
+            for relative, content in ((first, "new first"), (second, "new second")):
+                path = candidate / relative
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text(content, encoding="utf-8")
+            (root / first).parent.mkdir(parents=True)
+            (root / first).write_text("old first", encoding="utf-8")
+            (root / second).write_text("old second", encoding="utf-8")
+            original_copy = self.script.shutil.copyfile
+
+            def fail_second(source, destination):
+                if Path(source) == candidate / second:
+                    raise OSError("simulated failure")
+                return original_copy(source, destination)
+
+            with patch.object(self.script.shutil, "copyfile", side_effect=fail_second):
+                with self.assertRaises(OSError):
+                    self.script._install_paths(root, candidate, [first, second])
+
+            self.assertEqual((root / first).read_text(encoding="utf-8"), "old first")
+            self.assertEqual((root / second).read_text(encoding="utf-8"), "old second")
+
+    def test_install_failure_removes_transaction_owned_directories(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            candidate = root / ".gate-staging" / "release"
+            new_path = "new/directory/first.py"
+            failing_path = "hooks/second.py"
+            for relative in (new_path, failing_path):
+                path = candidate / relative
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text("new content", encoding="utf-8")
+            original_copy = self.script.shutil.copyfile
+
+            def fail_second(source, destination):
+                if Path(source) == candidate / failing_path:
+                    raise OSError("simulated failure")
+                return original_copy(source, destination)
+
+            with patch.object(self.script.shutil, "copyfile", side_effect=fail_second):
+                with self.assertRaises(OSError):
+                    self.script._install_paths(root, candidate, [new_path, failing_path])
+
+            self.assertFalse((root / new_path).exists())
+            self.assertFalse((root / "new").exists())
+
+    def test_validation_failure_restores_replaced_file(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            candidate = root / ".gate-staging" / "release"
+            relative = "hooks/example.py"
+            source = candidate / relative
+            source.parent.mkdir(parents=True)
+            source.write_text("new content", encoding="utf-8")
+            target = root / relative
+            target.parent.mkdir(parents=True)
+            target.write_text("old content", encoding="utf-8")
+
+            def fail_validation() -> None:
+                raise OSError("simulated validation failure")
+
+            with self.assertRaises(OSError):
+                self.script._install_paths(root, candidate, [relative], fail_validation)
+
+            self.assertEqual(target.read_text(encoding="utf-8"), "old content")
 
 
 if __name__ == "__main__":

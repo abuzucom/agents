@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 """Test trusted base-ref checks for protected gate changes."""
 import sys
+import shutil
+import subprocess
+import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -37,6 +40,52 @@ class ProtectedPathTest(unittest.TestCase):
                     ])
         self.assertEqual(result, 0)
         fetch_head.assert_not_called()
+
+    def test_fetch_head_uses_workspace_root_with_real_git(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            source = root / "source.git"
+            seed = root / "seed"
+            workspace = root / "workspace"
+            subprocess.run(["git", "init", "--bare", str(source)], check=True)
+            subprocess.run(["git", "init", str(seed)], check=True)
+            subprocess.run(["git", "-C", str(seed), "config", "user.name", "Test User"], check=True)
+            subprocess.run(
+                ["git", "-C", str(seed), "config", "user.email", "test@example.test"],
+                check=True,
+            )
+            (seed / "fixture.txt").write_text("fixture\n", encoding="utf-8")
+            subprocess.run(["git", "-C", str(seed), "add", "fixture.txt"], check=True)
+            subprocess.run(["git", "-C", str(seed), "commit", "-m", "test: add fixture"], check=True)
+            revision = subprocess.run(
+                ["git", "-C", str(seed), "rev-parse", "HEAD"],
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                check=True,
+            ).stdout.strip()
+            subprocess.run(
+                ["git", "-C", str(seed), "push", str(source), "HEAD:refs/pull/1/head"],
+                check=True,
+            )
+            subprocess.run(["git", "init", str(workspace)], check=True)
+            subprocess.run(
+                ["git", "-C", str(workspace), "remote", "add", "origin", str(source)],
+                check=True,
+            )
+            subprocess.run(
+                ["git", "-C", str(workspace), "config", "protocol.file.allow", "always"],
+                check=True,
+            )
+            (workspace / "scripts").mkdir()
+            shutil.copyfile(
+                Path(integrity.__file__).parent / "trusted_git.py",
+                workspace / "scripts" / "trusted_git.py",
+            )
+
+            integrity._fetch_head(workspace, 1)
+
+            self.assertTrue(integrity._has_revision(workspace, revision))
 
 
 if __name__ == "__main__":

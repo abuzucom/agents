@@ -63,12 +63,14 @@ integrity controls must validate the independent source and staged activation.
 
 `hooks/enforce_gate_adoption.py` calls `scripts/check_gate_adoption.py` before
 ordinary work on Claude Code, Codex, Gemini, and Antigravity. The hook permits
-only fixed verification, questions, and a staged transaction when the check
-fails. Run `python scripts/complete_gate_adoption.py --candidate
+only questions, fixed verification, read-only discovery, writes below
+`.gate-staging/`, and a staged transaction when the check fails. Staging writes
+must resolve below that directory. Run `python scripts/complete_gate_adoption.py --candidate
 .gate-staging/<candidate>` from the adoption root. The installer verifies the
 staged candidate before writing. It replaces non-registration artifacts first.
 It replaces client registrations last. An interrupted installation remains
-recoverable only through the same bounded command.
+recoverable through the same bounded command. A copy failure restores every
+prior target before the installer returns failure.
 `scripts/check_hook_launchers.py` launches the transaction hook through every
 configured launcher. `scripts/check_hook_coverage.py` requires test reachability.
 

@@ -35,6 +35,11 @@ Partial hook or gate adoption is a prohibited destructive action. Stage and
 verify the complete candidate before activation. Preserve the last verified set
 after a failed transaction. Keep the fixed recovery verifier reachable.
 
+During an incomplete adoption, allow only questions, fixed verification,
+read-only discovery, writes below `.gate-staging/`, and the bounded installer.
+Reject staging paths that escape the fixed directory. Restore prior targets
+after an installer failure.
+
 Verify the manifest, imports, registrations, client launch, allowed operations,
 expected denials, and recovery before activation. Use an independent integrity
 source outside the mutable adoption change. Do not alter validation artifacts to

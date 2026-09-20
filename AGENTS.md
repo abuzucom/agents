@@ -368,17 +368,18 @@ observe every hosted surface. See `docs/agent-policy/github.md` for detail.
 
 ### 18. Adopt gates whole
 
-One transaction covers every adopted client. It activates complete coverage for
-all or changes nothing. Never omit the initiating or another client. Partial
-hook or gate adoption is destructive and prohibited. Keep the last verified set.
+One transaction covers every adopted client. It activates complete coverage or
+changes nothing. Never omit any client. Partial hook or gate adoption is
+destructive and prohibited. Keep the last verified set.
 
 Record a failed path. Use one approved equivalent. Do not delegate permitted
 recovery. Do not alter validation artifacts to hide omissions. An independent
 integrity source must verify adoption results.
 
 **Gate behavior is not a defect.** Denials, prompts, and blocks are policy
-outcomes. A failed transaction preserves the verified set. Run recovery. A
-blocking gate authorizes no other act. Report failure. See
+outcomes. Failed transactions preserve the verified set. Run recovery.
+Blocking gates permit fixed checks, reads, and `.gate-staging/` writes only.
+Report failure. See
 `docs/agent-policy/enforcement.md` for the control procedure.
 
 ## Branch naming conventions

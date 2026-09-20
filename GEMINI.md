@@ -368,17 +368,18 @@ observe every hosted surface. See `docs/agent-policy/github.md` for detail.
 
 ### 18. Adopt gates whole
 
-One transaction covers every adopted client. It activates complete coverage for
-all or changes nothing. Never omit the initiating or another client. Partial
-hook or gate adoption is destructive and prohibited. Keep the last verified set.
+One transaction covers every adopted client. It activates complete coverage or
+changes nothing. Never omit any client. Partial hook or gate adoption is
+destructive and prohibited. Keep the last verified set.
 
 Record a failed path. Use one approved equivalent. Do not delegate permitted
 recovery. Do not alter validation artifacts to hide omissions. An independent
 integrity source must verify adoption results.
 
 **Gate behavior is not a defect.** Denials, prompts, and blocks are policy
-outcomes. A failed transaction preserves the verified set. Run recovery. A
-blocking gate authorizes no other act. Report failure. See
+outcomes. Failed transactions preserve the verified set. Run recovery.
+Blocking gates permit fixed checks, reads, and `.gate-staging/` writes only.
+Report failure. See
 `docs/agent-policy/enforcement.md` for the control procedure.
 
 ## Branch naming conventions
@@ -745,6 +746,11 @@ Partial hook or gate adoption is a prohibited destructive action. Stage and
 verify the complete candidate before activation. Preserve the last verified set
 after a failed transaction. Keep the fixed recovery verifier reachable.
 
+During an incomplete adoption, allow only questions, fixed verification,
+read-only discovery, writes below `.gate-staging/`, and the bounded installer.
+Reject staging paths that escape the fixed directory. Restore prior targets
+after an installer failure.
+
 Verify the manifest, imports, registrations, client launch, allowed operations,
 expected denials, and recovery before activation. Use an independent integrity
 source outside the mutable adoption change. Do not alter validation artifacts to
@@ -981,12 +987,14 @@ integrity controls must validate the independent source and staged activation.
 
 `hooks/enforce_gate_adoption.py` calls `scripts/check_gate_adoption.py` before
 ordinary work on Claude Code, Codex, Gemini, and Antigravity. The hook permits
-only fixed verification, questions, and a staged transaction when the check
-fails. Run `python scripts/complete_gate_adoption.py --candidate
+only questions, fixed verification, read-only discovery, writes below
+`.gate-staging/`, and a staged transaction when the check fails. Staging writes
+must resolve below that directory. Run `python scripts/complete_gate_adoption.py --candidate
 .gate-staging/<candidate>` from the adoption root. The installer verifies the
 staged candidate before writing. It replaces non-registration artifacts first.
 It replaces client registrations last. An interrupted installation remains
-recoverable only through the same bounded command.
+recoverable through the same bounded command. A copy failure restores every
+prior target before the installer returns failure.
 `scripts/check_hook_launchers.py` launches the transaction hook through every
 configured launcher. `scripts/check_hook_coverage.py` requires test reachability.
 

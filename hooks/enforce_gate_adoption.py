@@ -19,6 +19,9 @@ GATE = "enforce_gate_adoption.py"
 CHECKER_PATH = os.path.join("scripts", "check_gate_adoption.py")
 CHECKER_TIMEOUT_SECONDS = 10
 QUESTION_TOOLS = frozenset({"AskUserQuestion", "ask_question"})
+READ_ONLY_TOOLS = frozenset({"Read", "Glob", "Grep"})
+STAGING_WRITE_TOOLS = frozenset({"Edit", "MultiEdit", "NotebookEdit", "Write"})
+STAGING_DIRECTORY = ".gate-staging"
 RECOVERY_COMMANDS = frozenset({
     "python scripts/check_gate_adoption.py",
     "python3 scripts/check_gate_adoption.py",
@@ -70,6 +73,21 @@ def _is_recovery_command(command: str) -> bool:
     return command in RECOVERY_COMMANDS or bool(RECOVERY_TRANSACTION.fullmatch(command))
 
 
+def _staging_write(tool_name: object, tool_input: object) -> bool:
+    """Return whether one file write stays below the fixed staging directory."""
+    if tool_name not in STAGING_WRITE_TOOLS or not isinstance(tool_input, dict):
+        return False
+    value = tool_input.get("file_path", tool_input.get("notebook_path"))
+    if not isinstance(value, str) or not value:
+        return False
+    root = core.policy_root()
+    staging = core.resolved_under(root, STAGING_DIRECTORY)
+    candidate = core.resolved_under(root, value)
+    if staging is None or candidate is None:
+        return False
+    return candidate != staging and candidate.startswith(staging + os.sep)
+
+
 def _check_complete_set() -> str:
     """Return a bounded failure reason or an empty string for a valid set."""
     root = core.policy_root()
@@ -111,7 +129,9 @@ def main() -> int:
     if not failure:
         return 0
     tool_name, tool_input = _tool_call(payload, options.client)
-    if tool_name in QUESTION_TOOLS or _is_recovery_command(_command(tool_input)):
+    if (tool_name in QUESTION_TOOLS or tool_name in READ_ONLY_TOOLS
+            or _staging_write(tool_name, tool_input)
+            or _is_recovery_command(_command(tool_input))):
         return 0
     return _deny(options.client, failure)
 

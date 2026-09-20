@@ -192,13 +192,15 @@ def _github_source(value: str) -> bool:
             and bool(parsed.path))
 
 
-def _workspace_path(workspace: Path, value: str, *, must_exist: bool) -> Path | None:
+def _workspace_path(
+    workspace: Path, value: str, *, must_exist: bool, allow_root: bool = False,
+) -> Path | None:
     """Resolve a literal path inside the current workspace."""
     if not _literal(value):
         return None
     root = workspace.resolve()
     candidate = (root / value).resolve()
-    if not _is_inside(candidate, root) or candidate == root:
+    if not _is_inside(candidate, root) or (candidate == root and not allow_root):
         return None
     if must_exist and not candidate.is_dir():
         return None
@@ -221,7 +223,9 @@ def _transport_arguments(workspace: Path, arguments: list[str]) -> list[str] | N
         return ["clone", "--", arguments[1], str(destination)]
     if len(arguments) < 2:
         return None
-    repository = _workspace_path(workspace, arguments[1], must_exist=True)
+    repository = _workspace_path(
+        workspace, arguments[1], must_exist=True, allow_root=True,
+    )
     if repository is None or not (repository / ".git").exists():
         return None
     remaining = arguments[2:]
