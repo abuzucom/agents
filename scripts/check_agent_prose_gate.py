@@ -55,6 +55,7 @@ TARGET_FILES = (
     "CHANGELOG.md",
     "DRIFT.md",
     "docs/gate-threat-model.md",
+    "docs/pr-security-review.md",
     "adopters/1a2n-web-visualizer.md",
     "adopters/prolink-go.md",
     "plan/HANDOFF.md.example",
