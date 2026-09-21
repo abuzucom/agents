@@ -20,8 +20,7 @@ recovery actions to the active human.
 
 Every adopted client requires complete gate coverage. Do not install one
 client's hooks or registrations while omitting another client or the initiating
-client. Claude Code must not install Codex coverage while omitting its own.
-Codex must not install Claude Code coverage while omitting its own.
+client.
 
 Partial hook or gate adoption is a prohibited destructive action. Do not perform
 it. Preserve the verified gate set and reachable fixed recovery verifier after

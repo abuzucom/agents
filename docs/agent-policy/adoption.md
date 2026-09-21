@@ -68,7 +68,7 @@ local policy copies but never adoptable output. Missing source-only content is
 allowed for adopters. Missing adopter orientation content fails closed.
 
 Supporting files must remain regular files within the repository. Keep them
-ASCII and below the policy-size limit. Synchronization rejects missing,
+ASCII and below the policy size limit. Synchronization rejects missing,
 oversized, non-ASCII, or escaping supporting files.
 
 The source repository uses `scripts/sync.py` for copies and shared-file

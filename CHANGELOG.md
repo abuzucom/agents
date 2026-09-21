@@ -9,6 +9,12 @@ The house style bans that hyphen. `scripts/check_ascii.py` enforces the ban on
 this file.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.6.1] (2026-09-21)
+
+### Changed
+- Clarify supporting policy wording and reduce assembled policy size by 250
+  bytes without changing policy requirements.
+
 ## [2.6.0] (2026-09-21)
 
 ### Added
