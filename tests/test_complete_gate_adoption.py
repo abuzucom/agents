@@ -56,7 +56,7 @@ class CompleteGateAdoptionTest(unittest.TestCase):
             nested.mkdir()
             unresolved_root = nested / ".."
             target = self.script._target_path(unresolved_root, "hooks/example.py")
-        self.assertEqual(target, root / "hooks" / "example.py")
+        self.assertEqual(target, (root / "hooks" / "example.py").resolve())
 
     def test_transaction_configs_copy_last(self) -> None:
         paths = self.script._ordered_paths([

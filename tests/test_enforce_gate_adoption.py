@@ -149,6 +149,44 @@ class GateAdoptionHookTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn('"decision": "deny"', result.stdout)
 
+    def test_process_allows_antigravity_staging_write(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            checker = root / "scripts" / "check_gate_adoption.py"
+            checker.parent.mkdir()
+            checker.write_text("import sys\nsys.exit(1)\n", encoding="utf-8")
+            result = self.run_process(
+                {
+                    "toolCall": {
+                        "name": "write_to_file",
+                        "args": {"TargetFile": ".gate-staging/release/hooks/example.py"},
+                    },
+                },
+                root,
+                "antigravity",
+            )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout, "")
+
+    def test_process_denies_antigravity_write_outside_staging(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            checker = root / "scripts" / "check_gate_adoption.py"
+            checker.parent.mkdir()
+            checker.write_text("import sys\nsys.exit(1)\n", encoding="utf-8")
+            result = self.run_process(
+                {
+                    "toolCall": {
+                        "name": "replace_file_content",
+                        "args": {"TargetFile": "hooks/example.py"},
+                    },
+                },
+                root,
+                "antigravity",
+            )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('"decision": "deny"', result.stdout)
+
     def test_process_denies_malformed_antigravity_call(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

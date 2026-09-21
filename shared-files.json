@@ -25,8 +25,8 @@
     "tests/test_check_gate_adoption.py": "fa8fb93b8a0d06e36f93137c9f559c93a4ee9cd2b13e0ca9e2939255951c49c2",
     "tests/test_check_gate_pr_integrity.py": "9144c4f15a9f13d1f36c3315d246abd686f2f55504d9705ab0a7c84f82fc034d",
     "tests/test_check_hook_launchers.py": "826c48aa1d080bcb0ac70c5f11afe40d6427a1450d315945cb5face571445350",
-    "tests/test_complete_gate_adoption.py": "3a7d9dfb659998f596400234b6dac5c47093785520babaf5be6be48ed7e5cccc",
-    "tests/test_enforce_gate_adoption.py": "ec6a6b02dbb68c20ee53a5aee2860cbb0ec7ec3f977fdceb7df3cfbb7cf82cd8",
+    "tests/test_complete_gate_adoption.py": "8ef5a127b9b7d267d1ffde8f9f6120b2a1c86a5a911db04b85a5b4adba0d3d13",
+    "tests/test_enforce_gate_adoption.py": "82bebd92905b5fcfeccac9aa0aa8f4fa2993b9ef6e9f87c9e7f279405d268dd7",
     "tests/test_gate_adoption_transaction.py": "fe03b777db0daabfe094d023bad97bb6cbf7d09b69a770f411bcab2e9100ec9e",
     "tests/test_platform_policy.py": "769d5ab1a4a6580ba54a5a3cd6fa8c13dc646bb877085047a5298a1bfe9a70c5"
   }
