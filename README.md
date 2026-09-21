@@ -159,6 +159,14 @@ failure. An action startup failure can still fail the step. An action execution
 failure can still fail the step. An infrastructure failure can still fail the
 step. The workflow disables pull request comments.
 
+`security-review-pr.yml` triggers after `Immutable Compliance` completes and
+calls the `abuzucom/foucault` reusable model security review, pinned to one
+commit SHA for both the workflow and its audit revision. The review gates on
+`BLOCK` and `NEEDS-HUMAN` verdicts and skips fork pull requests, which receive
+no provider secret. See `docs/pr-security-review.md` for the pinned revision,
+the required `OLLAMA_API_KEY` repository secret, and why the check fails
+until that secret is added.
+
 ### Prose Checks
 
 Run file prose checks with:

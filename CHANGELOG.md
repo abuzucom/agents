@@ -9,6 +9,14 @@ The house style bans that hyphen. `scripts/check_ascii.py` enforces the ban on
 this file.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.4.0] (2026-09-20)
+
+### Added
+- Wire the `abuzucom/foucault` pull request security review at commit
+  `62851df1ef177593adbb9e06b223f5a6dce66fc0` (release 3.3.10), with the
+  `ci/` provider adapters, `scripts/check_pr_review_response.py`, and a
+  caller workflow gating on the model verdict.
+
 ## [2.3.0] (2026-09-20)
 
 ### Added
