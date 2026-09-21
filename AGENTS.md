@@ -7,7 +7,7 @@
    Record its authorization.
 3. Never weaken, skip, or delete a test to make code pass.
 4. Stay within request scope. Ask before acting beyond scope.
-5. Create draft PRs or MRs. Never push to protected branches. Never mark a PR
+5. Create draft PRs. Never push to protected branches. Never mark a PR
    ready or merge without consent.
 6. Preserve public API contracts. Use backward-compatible evolution.
 7. Never use MD5 or SHA-1 in security-sensitive contexts.
@@ -26,8 +26,7 @@
     create a cross-reference to an external repository.
 18. Gate adoption is atomic across clients. Each gets coverage or none activate.
     Partial hook or gate adoption is a prohibited destructive action.
-    Never remove, narrow, move, disable,
-    bypass, weaken, or misreport a gate.
+    Never remove, narrow, move, disable, bypass, weaken, or misreport a gate.
 19. Never modify Git Credential Manager or GitHub authentication state.
 20. Never open a browser to refresh or recover a GitHub token.
 21. On compaction, disclose, stop, and replan. Never resume without fresh
@@ -73,7 +72,7 @@ under higher-priority rules.
 ## Repository-only orientation
 
 This section applies only to the `abuzucom/agents` policy source repository.
-Adoption must omit this marked block. Local synchronized tool copies retain it.
+Adoption must omit this block. Local sync tool copies retain it.
 See `docs/agent-policy/adoption.md` for supporting orientation detail.
 <!-- repository-only:end -->
 
@@ -156,14 +155,14 @@ Report unrequested findings without acting on them. See
 
 ### 5. Always draft PRs
 
-Always open PRs or MRs as drafts across every integration tool.
+Always open PRs as drafts across every integration tool.
 Never push to protected branches. Never mark PRs ready without explicit human
 consent. Never merge without explicit human consent.
 
 ### 6. Preserve public API contracts
 
-Keep all public APIs backward compatible. Public APIs include:
-See `docs/agent-policy/adoption.md` for the public API category list.
+Keep all public APIs backward compatible. See `docs/agent-policy/adoption.md`
+for the public API category list.
 
 Apply these compatibility rules:
 - Renamed parameters. Accept both old and new names.
@@ -289,7 +288,7 @@ When a commit carries the wrong identity, report the defect and stop. See
 ### 15. Deny agent cloud and infrastructure access
 
 Agents must not execute cloud, infrastructure-as-code, orchestration, direct
-remote-shell, file-transfer, or firewall clients. The complete command inventory
+remote shell, file transfer, or firewall clients. The complete command inventory
 lives in `docs/agent-policy/security.md`.
 
 Git transport over SSH remains allowed through Git commands. Direct SSH client
@@ -605,18 +604,15 @@ meaning. See Variables. Inline only:
 data structures.
 
 **Complete all code work.** Never leave `TODO`, `FIXME`, `XXX`, `HACK`, or
-`later` markers. Never leave:
+`later` markers. Present incomplete work to an active human instead.
 See `docs/agent-policy/adoption.md` for supporting examples.
-
-Present incomplete work to an active human instead.
 
 ## Style
 
-**Impersonal active voice.** Use active voice. Omit first-person,
-second-person, and third-person personal pronouns. Name the actor or artifact
-when a sentence needs a subject. Use imperative sentences for instructions.
-Allow `it`, `its`, `itself`, `it's`, `it'll`, and `it'd`. Never use passive
-voice. Applies to all agent-authored prose.
+**Impersonal active voice.** Use active voice. Omit personal pronouns.
+Name the actor or artifact when a sentence needs a subject. Use imperative
+sentences for instructions. Allow `it`, `its`, `itself`, and `it's`. Never use
+passive voice. Applies to all agent-authored prose.
 
 **Omit needless words. Use single-clause sentences.** Keep every sentence
 concise. Use one independent clause per sentence. Move explanations into
@@ -653,9 +649,8 @@ does not make a British variant conforming. `scripts/check_us_spelling.py`
 provides warnings and always exits 0.
 
 **English only.** Write code, comments, commit messages, and documentation in
-English. Comments always use English. The rule covers products for Chinese,
-Japanese, and Korean markets. Required localized strings can contain other
-languages. Keep other languages out of identifiers, comments, and
+English. Comments always use English. Required localized strings can contain
+other languages. Keep other languages out of identifiers, comments, and
 documentation. A domain requirement cannot license other languages outside
 required string literals or data. `scripts/check_english_only.py` provides
 warnings and always exits 0.
@@ -700,9 +695,6 @@ include feat, fix, chore, docs, test, and ci. Use imperative mood. Limit subject
 to 50 characters. Omit a trailing period. Wrap bodies at 72 characters. Put
 extra detail in the body. Avoid subject truncation.
 `scripts/check_commit_message.py` checks shape, length, punctuation, and prose.
-The checker cannot verify imperative mood or body wrapping. Merge commits
-receive an exemption. `git merge` writes the merge subject. The required
-subject format cannot express a merge subject.
 
 **Variables.** Name for role (`active_user_records`, not `d`). Loop counters
 (`i, j, k`) and math variables (`x, y`) are exempt.
