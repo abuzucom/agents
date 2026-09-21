@@ -1074,6 +1074,19 @@ and pull request authors against blanket vendor denylists, specific models,
 and wildcard patterns. The checker cannot identify hidden agent use under a
 human identity. Platform controls apply separately.
 
+## Agent-attributed prose gate
+
+`scripts/check_us_spelling.py`, `scripts/check_english_only.py`,
+`scripts/check_hedging.py`, and `scripts/check_pull_request_message.py`
+stay advisory for human-authored prose. `scripts/check_agent_prose_gate.py`
+fails on the same findings for commits or pull requests that disclose
+agent authorship through the Rule 14 `Assisted-by`/`Co-authored-by`
+trailer (`check_commit_attribution.py::has_agent_label`) or a matching
+pull request description line. Undisclosed agent authorship stays
+invisible to this signal, the same documented gap
+`check_banned_agents.py` already states. Never remove or edit that
+trailer to evade this gate. Fix the flagged prose instead.
+
 ## Protected files and hook inventory
 
 Modifying hook files or `scripts/banned_models.txt` can never be inferred,

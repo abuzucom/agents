@@ -9,6 +9,16 @@ The house style bans that hyphen. `scripts/check_ascii.py` enforces the ban on
 this file.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.5.0] (2026-09-20)
+
+### Added
+- Add `scripts/check_agent_prose_gate.py`, a blocking gate that fails on
+  the same American-spelling, English-only, and prose-policy findings the
+  advisory checks already run, but only for commits and pull requests that
+  disclose agent authorship through the Rule 14 `Assisted-by`/
+  `Co-authored-by` trailer. Human-authored work stays exactly as advisory
+  as before. The four existing warning-only checks stay unchanged.
+
 ## [2.4.0] (2026-09-20)
 
 ### Added
