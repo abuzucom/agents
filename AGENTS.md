@@ -69,11 +69,6 @@ Required command syntax, public literals, and localized data retain exact form
 under higher-priority rules.
 
 <!-- repository-only:start -->
-## Repository-only orientation
-
-This section applies only to the `abuzucom/agents` policy source repository.
-Adoption must omit this block. Local sync tool copies retain it.
-See `docs/agent-policy/adoption.md` for supporting orientation detail.
 <!-- repository-only:end -->
 
 <!-- Per-repo orientation. See docs/agent-policy/adoption.md.

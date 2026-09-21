@@ -9,6 +9,13 @@ The house style bans that hyphen. `scripts/check_ascii.py` enforces the ban on
 this file.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.6.0] (2026-09-21)
+
+### Added
+- Separate adopter and source-repository orientation from `AGENTS.md`.
+- Include adopter orientation in synchronized and adoptable policy copies.
+- Preserve source-only orientation in local policy copies and reinjection.
+
 ## [2.5.2] (2026-09-21)
 
 ### Changed

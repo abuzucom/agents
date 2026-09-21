@@ -59,6 +59,21 @@ Record the canonical revision in controlled adopters. Keep local policy changes
 separate from generated copies. Use a draft pull request for outward-facing
 changes.
 
+Create `docs/project-orientation.md` for adopter-specific commands, protected
+paths, architecture, entry points, and operational notes. Keep source-repository
+facts out of that file. The synchronization and reinjection tools append it to
+the policy copies and adoptable output.
+
+The source repository may provide
+`docs/agent-policy/source-orientation.md`. Its content must use the
+`source-only:start` and `source-only:end` markers. Source-only content reaches
+local policy copies but never adoptable output. Missing source-only content is
+allowed for adopters. Missing adopter orientation content fails closed.
+
+Supporting files must remain regular files within the repository. Keep them
+ASCII and below the policy-size limit. Synchronization rejects missing,
+oversized, non-ASCII, or escaping supporting files.
+
 The source repository uses `scripts/sync.py` for copies and shared-file
 digests. `scripts/check_*.py` supplies portable checks. `hooks/` supplies
 client enforcement. `tests/` covers checks, hooks, distribution, and wiring.

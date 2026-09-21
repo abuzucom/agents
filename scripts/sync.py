@@ -25,6 +25,8 @@ SOURCE = "AGENTS.md"
 SHARED_MANIFEST = "shared-files.json"
 REPOSITORY_ONLY_START = "<!-- repository-only:start -->"
 REPOSITORY_ONLY_END = "<!-- repository-only:end -->"
+SOURCE_ONLY_START = "<!-- source-only:start -->"
+SOURCE_ONLY_END = "<!-- source-only:end -->"
 MAX_POLICY_BYTES = 64 * 1024
 # Files that must be byte-identical wherever these gates are installed. A
 # decision reached by one gate and not the other is the failure the whole
@@ -70,26 +72,31 @@ COPIES = [
     ".copilot-instructions",
     ".github/copilot-instructions.md",
 ]
-SUPPORTING_POLICY_FILES = (
+ADOPTER_POLICY_FILES = (
     "docs/agent-policy/adoption.md",
     "docs/agent-policy/enforcement.md",
     "docs/agent-policy/clients.md",
     "docs/agent-policy/github.md",
     "docs/agent-policy/security.md",
+    "docs/project-orientation.md",
 )
+SOURCE_ONLY_POLICY_FILES = ("docs/agent-policy/source-orientation.md",)
+SUPPORTING_POLICY_FILES = ADOPTER_POLICY_FILES
 
 
 def policy_bytes(root: Path) -> bytes:
-    """Return canonical policy plus approved local supporting documents."""
+    """Return canonical policy plus available supporting documents."""
     source, _ = _inspect_source(root)
     if source.stat().st_size > MAX_POLICY_BYTES:
         raise ValueError("AGENTS.md exceeds the policy size limit")
     raw = source.read_bytes()
     parts = []
     root_resolved = root.resolve()
-    for relative_name in SUPPORTING_POLICY_FILES:
+    for relative_name in ADOPTER_POLICY_FILES + SOURCE_ONLY_POLICY_FILES:
         path = _lexical_path(root, relative_name)
         if not path.exists():
+            if relative_name in SOURCE_ONLY_POLICY_FILES:
+                continue
             raise ValueError(f"{relative_name} is missing")
         details = path.lstat()
         if not stat.S_ISREG(details.st_mode):
@@ -117,7 +124,14 @@ def adoptable_content(content: str) -> str:
     _, suffix = remainder.split(REPOSITORY_ONLY_END, 1)
     if prefix.endswith("\n") and suffix.startswith("\n"):
         suffix = suffix[1:]
-    return prefix + suffix
+    content = prefix + suffix
+    if content.count(SOURCE_ONLY_START) != content.count(SOURCE_ONLY_END):
+        raise ValueError("source-only markers must be balanced")
+    while SOURCE_ONLY_START in content:
+        source_prefix, remainder = content.split(SOURCE_ONLY_START, 1)
+        _, source_suffix = remainder.split(SOURCE_ONLY_END, 1)
+        content = source_prefix + source_suffix
+    return content
 
 
 def print_adoptable(root: Path) -> int:

@@ -9,13 +9,16 @@ import sys
 from pathlib import Path
 
 MAX_POLICY_BYTES = 64 * 1024
-SUPPORTING_POLICY_FILES = (
+ADOPTER_POLICY_FILES = (
     "docs/agent-policy/adoption.md",
     "docs/agent-policy/enforcement.md",
     "docs/agent-policy/clients.md",
     "docs/agent-policy/github.md",
     "docs/agent-policy/security.md",
+    "docs/project-orientation.md",
 )
+SOURCE_ONLY_POLICY_FILES = ("docs/agent-policy/source-orientation.md",)
+SUPPORTING_POLICY_FILES = ADOPTER_POLICY_FILES
 MAX_ROOT_DEPTH = 100
 MAX_CHUNK_CHARS = 8500
 CLAUDE_CHUNK_COUNT = 8
@@ -94,9 +97,11 @@ def load_policy(root: Path) -> tuple[str, str]:
     raw = path.read_bytes()
     supporting = []
     root_resolved = root.resolve()
-    for relative_name in SUPPORTING_POLICY_FILES:
+    for relative_name in ADOPTER_POLICY_FILES + SOURCE_ONLY_POLICY_FILES:
         supporting_path = root / relative_name
         if not supporting_path.exists():
+            if relative_name in SOURCE_ONLY_POLICY_FILES:
+                continue
             raise ValueError(f"{relative_name} is missing")
         details = supporting_path.lstat()
         if not stat.S_ISREG(details.st_mode):

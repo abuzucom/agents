@@ -33,6 +33,20 @@ class SupportingPolicyTests(unittest.TestCase):
         self.assertTrue(policy.startswith("canonical\n"))
         self.assertIn("supporting\n", policy)
 
+    def test_load_policy_assembles_source_only_file_when_present(self):
+        hook = load_hook()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "AGENTS.md").write_text("canonical\n", encoding="utf-8")
+            for relative_name in hook.SUPPORTING_POLICY_FILES:
+                path = root / relative_name
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text("detail\n", encoding="utf-8")
+            source_only = root / hook.SOURCE_ONLY_POLICY_FILES[0]
+            source_only.write_text("source detail\n", encoding="utf-8")
+            policy, _digest = hook.load_policy(root)
+        self.assertIn("source detail\n", policy)
+
     def test_load_policy_rejects_non_regular_supporting_file(self):
         hook = load_hook()
         with tempfile.TemporaryDirectory() as directory:
