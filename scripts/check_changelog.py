@@ -97,9 +97,9 @@ def find_range_violations(base: str, head: str, changed: list[str]) -> list[str]
     head_version = _first_version(head)
     if "CHANGELOG.md" not in changed:
         findings.append("changed files require CHANGELOG.md")
-    if base_version is None or head_version is None:
-        findings.append("both revisions require a versioned release")
-    elif head_version <= base_version:
+    if head_version is None:
+        findings.append("head changelog requires a versioned release")
+    elif base_version is not None and head_version <= base_version:
         findings.append("head changelog version must exceed the base version")
     return findings
 
