@@ -91,6 +91,8 @@ jobs:
         run: python scripts/check_branch_name.py
       - name: Check gate adoption
         run: python scripts/check_gate_adoption.py
+      - name: Probe configured hook launchers
+        run: python scripts/check_hook_launchers.py
       - name: Check versioned changelog
         run: python scripts/check_changelog.py
       - name: Check changelog version advance

@@ -9,6 +9,25 @@ The house style bans that hyphen. `scripts/check_ascii.py` enforces the ban on
 this file.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.3.0] (2026-09-20)
+
+### Added
+- Require atomic gate adoption with manifest, launch, allowed-operation, recovery,
+  and independent-integrity verification before client-hook activation.
+- Preserve the verified gate set after a failed transaction. Prohibit permitted
+  recovery-work delegation to the active human.
+- Declare partial hook or gate adoption a prohibited destructive action.
+- Require complete equivalent gate coverage for every adopted client.
+- Document atomic multi-client gate adoption for adopters.
+- Add staged complete-set recovery for incomplete cross-client activation.
+- Add trusted-base CI label enforcement for protected gate changes.
+
+### Fixed
+- Permit trusted gate fetching from the verified workspace root.
+- Permit bounded staged recovery writes and read-only discovery.
+- Restore prior gate artifacts after a staged installation failure.
+- Permit bounded Antigravity staging and discovery tool schemas.
+
 ## [2.2.1] (2026-09-18)
 
 ### Added
