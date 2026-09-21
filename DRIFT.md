@@ -93,3 +93,4 @@ template maintainer then closes the issue.
 
 - [`1a2n-web-visualizer`](adopters/1a2n-web-visualizer.md)
 - [`prolink-go`](adopters/prolink-go.md)
+- [`viim`](adopters/viim.md)
