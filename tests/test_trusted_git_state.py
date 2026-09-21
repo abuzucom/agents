@@ -90,6 +90,12 @@ class TrustedGitRunnerTest(unittest.TestCase):
                     workspace, ["fetch", "repo", "origin"]),
                 ["-C", str(repository), "fetch", "origin"],
             )
+            (workspace / ".git").mkdir()
+            self.assertEqual(
+                trusted_git._transport_arguments(
+                    workspace, ["fetch", ".", "origin"]),
+                ["-C", str(workspace), "fetch", "origin"],
+            )
             self.assertIsNone(
                 trusted_git._transport_arguments(
                     workspace, ["fetch", "repo", "--upload-pack=bad"])

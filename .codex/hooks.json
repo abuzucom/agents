@@ -34,6 +34,12 @@
         "hooks": [
           {
             "type": "command",
+            "command": "python hooks/enforce_gate_adoption.py --client codex",
+            "commandWindows": "python hooks/enforce_gate_adoption.py --client codex",
+            "timeout": 30
+          },
+          {
+            "type": "command",
             "command": "python hooks/enforce_branch_name.py --client codex",
             "commandWindows": "python hooks/enforce_branch_name.py --client codex",
             "timeout": 30
