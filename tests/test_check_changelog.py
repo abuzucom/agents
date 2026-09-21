@@ -1,5 +1,6 @@
 """Test the blocking SemVer changelog checker."""
 import importlib.util
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -56,6 +57,25 @@ class ChangelogCheckerTest(unittest.TestCase):
             base, head, ["README.md", "CHANGELOG.md"])
         self.assertEqual(findings, [])
 
+    def test_range_missing_base_changelog_passes_with_versioned_head(self):
+        head = "## [1.0.0] (2026-09-13)\n\n### Added\n- First release.\n"
+        findings = checker.find_range_violations("", head, ["CHANGELOG.md"])
+        self.assertEqual(findings, [])
+
+    def test_range_unversioned_boilerplate_base_passes_with_versioned_head(self):
+        base = (
+            "# Changelog\n\n"
+            "All notable changes to this project will be documented here.\n\n"
+            "## [Unreleased]\n"
+        )
+        head = "## [1.0.0] (2026-09-13)\n\n### Added\n- First release.\n"
+        findings = checker.find_range_violations(base, head, ["CHANGELOG.md"])
+        self.assertEqual(findings, [])
+
+    def test_range_missing_base_changelog_still_requires_head_version(self):
+        findings = checker.find_range_violations("", "", ["CHANGELOG.md"])
+        self.assertTrue(findings)
+
     def test_revision_arguments_reject_options(self):
         self.assertFalse(checker.valid_revision("-s:CHANGELOG.md"))
         self.assertTrue(checker.valid_revision("HEAD~1"))
@@ -76,6 +96,31 @@ class ChangelogCheckerTest(unittest.TestCase):
             (repository / "CHANGELOG.md").write_text(
                 "## [1.0.0]\n\n- New.\n", encoding="utf-8")
             self.assertNotEqual(checker.check_staged(repository), 0)
+
+    def test_range_check_passes_for_a_repositorys_first_changelog(self):
+        with tempfile.TemporaryDirectory() as directory:
+            repository = Path(directory)
+            _run_git(repository, "init", "-q", "-b", "main")
+            _run_git(repository, "config", "user.name", "Test User")
+            _run_git(repository, "config", "user.email", "test@example.com")
+            (repository / "README.md").write_text("# Project\n", encoding="utf-8")
+            _run_git(repository, "add", "README.md")
+            _run_git(repository, "commit", "-q", "-m", "feat: initial commit")
+            base = _run_git(repository, "rev-parse", "HEAD").stdout.strip()
+            (repository / "CHANGELOG.md").write_text(
+                "## [1.0.0] (2026-09-13)\n\n### Added\n- First release.\n",
+                encoding="utf-8")
+            _run_git(repository, "add", "CHANGELOG.md")
+            _run_git(repository, "commit", "-q", "-m", "docs: add changelog")
+            head = _run_git(repository, "rev-parse", "HEAD").stdout.strip()
+            self.assertEqual(checker.check_range(repository, base, head), 0)
+
+
+def _run_git(repository: Path, *arguments: str) -> subprocess.CompletedProcess:
+    """Run a real git command in a throwaway test repository."""
+    return subprocess.run(
+        ["git", *arguments], cwd=repository, check=True,
+        capture_output=True, text=True)
 
 
 if __name__ == "__main__":

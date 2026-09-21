@@ -9,6 +9,18 @@ The house style bans that hyphen. `scripts/check_ascii.py` enforces the ban on
 this file.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.5.1] (2026-09-21)
+
+### Fixed
+- Fix `scripts/check_changelog.py` range mode so a repository's first
+  `CHANGELOG.md` no longer fails unconditionally. `find_range_violations`
+  required a versioned release in the base revision even when the base has
+  no `CHANGELOG.md` yet, or only carries an unversioned boilerplate stub
+  (such as a default "Keep a Changelog" template with just an
+  `## [Unreleased]` heading). The base revision now only needs a version to
+  enforce the version-advance requirement. The head revision still requires
+  its own versioned release, unchanged.
+
 ## [2.5.0] (2026-09-20)
 
 ### Added
