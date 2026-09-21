@@ -1,5 +1,4 @@
 # Enforcement
-
 Repository hooks provide defense in depth. They remain reviewable and
 disableable. A repository writer can alter hooks and `.claude/settings.json`.
 Tamper resistance requires an external harness, filesystem isolation, or
@@ -13,7 +12,6 @@ Missing artifacts indicate incomplete adoption. Complete the adoption and run
 the recovery check.
 
 ## Complete gate adoption
-
 Treat gate adoption as a transaction. A candidate includes every required hook,
 registration, shared module, test, checker, manifest, policy copy, and
 synchronization artifact. The candidate activates only after full verification.
@@ -22,8 +20,7 @@ recovery actions to the active human.
 
 Every adopted client requires complete gate coverage. Do not install one
 client's hooks or registrations while omitting another client or the initiating
-client. Claude Code must not install Codex coverage while omitting its own.
-Codex must not install Claude Code coverage while omitting its own.
+client.
 
 Partial hook or gate adoption is a prohibited destructive action. Do not perform
 it. Preserve the verified gate set and reachable fixed recovery verifier after
@@ -113,7 +110,6 @@ The checks cover only observed files, commands, clients, and event surfaces.
 External controls must enforce controls beyond repository coverage.
 
 ## Windows test environment
-
 Use the normal user temporary directory for Windows tests. Do not redirect
 `TEMP` or `TMP` into the repository or a worktree. `WinError 5` while a fixture
 creates or removes a temporary tree indicates an ACL problem in the temporary
@@ -148,7 +144,6 @@ and wildcard patterns. The checker cannot identify hidden agent use under a
 human identity. Platform controls apply separately.
 
 ## Agent-attributed prose gate
-
 `scripts/check_us_spelling.py`, `scripts/check_english_only.py`,
 `scripts/check_hedging.py`, and `scripts/check_pull_request_message.py`
 stay advisory for human-authored prose. `scripts/check_agent_prose_gate.py`
@@ -161,7 +156,6 @@ invisible to this signal, the same documented gap
 trailer to evade this gate. Fix the flagged prose instead.
 
 ## Protected files and hook inventory
-
 Modifying hook files or `scripts/banned_models.txt` can never be inferred,
 inherited, or grandfathered from prior instructions, plan approvals, handoff
 status, or compaction text.

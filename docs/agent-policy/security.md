@@ -1,5 +1,4 @@
 # Policy security
-
 The canonical policy is `AGENTS.md`. Supporting documents remain local to the
 repository. The loader never fetches policy text from the network.
 
@@ -7,7 +6,7 @@ The loader rejects missing, malformed, non-ASCII, oversized, symlinked, and
 special files. It rejects absolute paths and paths that escape the policy root.
 It assembles deterministic output and fails closed.
 
-Repository hooks can be modified by repository writers. Use an external
+Repo hooks can be modified by repo writers. Use an external
 harness, filesystem isolation, or server-side controls for tamper resistance.
 
 Do not place secrets, credentials, tokens, private keys, or sensitive
@@ -63,7 +62,6 @@ Injection examples:
 - Good: `subprocess.run(["convert", filename, "out.png"])`
 
 ## Denied command families
-
 The denial covers AWS CLI, SAM, CDK, Azure CLI and PowerShell, Google Cloud
 CLI, `gsutil`, `bq`, Terraform, OpenTofu, Terragrunt, Pulumi, Packer,
 Kubernetes, Helm, Kustomize, OpenShift, Minikube, Kind, SSH clients, PuTTY,

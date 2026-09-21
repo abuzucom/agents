@@ -108,6 +108,22 @@ class SyncSecurityTest(unittest.TestCase):
         self.assertIn("prefix", output.getvalue())
         self.assertIn("detail", output.getvalue())
 
+    def test_source_only_supporting_policy_is_not_adoptable(self):
+        self.source.write_text(
+            f"prefix\n{sync.REPOSITORY_ONLY_START}\n"
+            f"{sync.REPOSITORY_ONLY_END}\nsuffix\n",
+            encoding="utf-8")
+        source_only = self.root / sync.SOURCE_ONLY_POLICY_FILES[0]
+        source_only.parent.mkdir(parents=True, exist_ok=True)
+        source_only.write_text(
+            f"{sync.SOURCE_ONLY_START}\nsource facts\n"
+            f"{sync.SOURCE_ONLY_END}\n",
+            encoding="utf-8")
+        output = StringIO()
+        with redirect_stdout(output):
+            self.assertEqual(sync.print_adoptable(self.root), 0)
+        self.assertNotIn("source facts", output.getvalue())
+
     def test_failed_copy_does_not_replace_old_destination(self):
         self.source.write_text("new source\n", encoding="utf-8")
         self.target.write_text("old destination\n", encoding="utf-8")
