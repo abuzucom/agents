@@ -9,7 +9,7 @@ The house style bans that hyphen. `scripts/check_ascii.py` enforces the ban on
 this file.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.3.0] (2026-09-20)
+## [2.5.0] (2026-09-20)
 
 ### Added
 - Add `scripts/check_agent_prose_gate.py`, a blocking gate that fails on
@@ -18,6 +18,33 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   disclose agent authorship through the Rule 14 `Assisted-by`/
   `Co-authored-by` trailer. Human-authored work stays exactly as advisory
   as before. The four existing warning-only checks stay unchanged.
+
+## [2.4.0] (2026-09-20)
+
+### Added
+- Wire the `abuzucom/foucault` pull request security review at commit
+  `62851df1ef177593adbb9e06b223f5a6dce66fc0` (release 3.3.10), with the
+  `ci/` provider adapters, `scripts/check_pr_review_response.py`, and a
+  caller workflow gating on the model verdict.
+
+## [2.3.0] (2026-09-20)
+
+### Added
+- Require atomic gate adoption with manifest, launch, allowed-operation, recovery,
+  and independent-integrity verification before client-hook activation.
+- Preserve the verified gate set after a failed transaction. Prohibit permitted
+  recovery-work delegation to the active human.
+- Declare partial hook or gate adoption a prohibited destructive action.
+- Require complete equivalent gate coverage for every adopted client.
+- Document atomic multi-client gate adoption for adopters.
+- Add staged complete-set recovery for incomplete cross-client activation.
+- Add trusted-base CI label enforcement for protected gate changes.
+
+### Fixed
+- Permit trusted gate fetching from the verified workspace root.
+- Permit bounded staged recovery writes and read-only discovery.
+- Restore prior gate artifacts after a staged installation failure.
+- Permit bounded Antigravity staging and discovery tool schemas.
 
 ## [2.2.1] (2026-09-18)
 

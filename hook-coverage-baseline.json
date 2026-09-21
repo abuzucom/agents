@@ -48,7 +48,6 @@
     "_gate_core.py::prohibited_command_verdict": 1,
     "_gate_core.py::read_payload": 1,
     "_gate_core.py::remote_execution_verdict": 1,
-    "_gate_core.py::resolved_under": 1,
     "_gate_core.py::sanitize": 1,
     "_gate_core.py::schedule_verdict": 1,
     "_gate_core.py::su_target_verdict": 1,

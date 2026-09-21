@@ -24,9 +24,10 @@
 16. Route hosted GitHub operations through trusted authenticated `gh`.
 17. Get consent before outward-facing acts on external repositories. Never
     create a cross-reference to an external repository.
-18. Adopt gates whole. Repair a partial adoption by completing it. Run the
-    recovery. Never remove, narrow, move, or disable a gate. Never report
-    designed gate behavior as a defect.
+18. Gate adoption is atomic across clients. Each gets coverage or none activate.
+    Partial hook or gate adoption is a prohibited destructive action.
+    Never remove, narrow, move, disable,
+    bypass, weaken, or misreport a gate.
 19. Never modify Git Credential Manager or GitHub authentication state.
 20. Never open a browser to refresh or recover a GitHub token.
 21. On compaction, disclose, stop, and replan. Never resume without fresh
@@ -367,20 +368,19 @@ observe every hosted surface. See `docs/agent-policy/github.md` for detail.
 
 ### 18. Adopt gates whole
 
-One adoption change carries every hook, registration, shared module, test,
-checker, manifest, policy file, and synchronized copy. Do not remove, narrow,
-disable, bypass, or weaken a gate. Do not report designed gate behavior as a
-defect.
+One transaction covers every adopted client. It activates complete coverage or
+changes nothing. Never omit any client. Partial hook or gate adoption is
+destructive and prohibited. Keep the last verified set.
 
-**Gate behavior is not a defect.** Denials, prompts, and blocks are designed
-outcomes. Never report designed gate behavior as a defect. See
-`docs/agent-policy/enforcement.md` for report detail.
+Record a failed path. Use one approved equivalent. Do not delegate permitted
+recovery. Do not alter validation artifacts to hide omissions. An independent
+integrity source must verify adoption results.
 
-Repair partial adoption by adding absent files and registrations. Do not
-remove, narrow, or suspend a gate. Run `python scripts/check_gate_adoption.py`
-through the normal client authorization path. A blocking gate authorizes no
-other act. Report the blocked file, command, and message. Detailed recovery
-rules live in `docs/agent-policy/enforcement.md`.
+**Gate behavior is not a defect.** Denials, prompts, and blocks are policy
+outcomes. Failed transactions preserve the verified set. Run recovery.
+Blocking gates permit fixed checks, reads, and `.gate-staging/` writes only.
+Report failure. See
+`docs/agent-policy/enforcement.md` for the control procedure.
 
 ## Branch naming conventions
 
@@ -416,10 +416,11 @@ Use the task type and description to select a compliant replacement. Ask for
 consent before the applicable exact recovery command. See
 `docs/agent-policy/adoption.md` for commands and examples.
 
-Until correction succeeds, stop every ordinary repository tool. A question to
-the active human remains allowed. The exact recovery command remains allowed
-through normal permission handling. Never chain another command to a recovery
-command. Rule 10 applies. Never assume prior validation against this file.
+Until recovery succeeds, block ordinary tools. Allow questions and native
+recovery consent. Accept `git -C <current-repository>` recovery. Reject foreign
+paths, wrappers, and chains. Mode limits forbid delegation. Never ask the
+active human to run recovery. Record rejection. Use one equivalent path. Rule
+10 applies. Never assume it.
 
 Rebase metadata takes precedence over detached-HEAD recovery. Permit only the
 approved rebase recovery commands. Block ordinary tools until strict preflight
