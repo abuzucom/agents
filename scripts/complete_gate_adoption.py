@@ -73,6 +73,7 @@ def _validate_candidate(root: Path, candidate: Path) -> None:
 
 def _target_path(root: Path, relative: str) -> Path:
     """Return a non-symlink target path below the repository root."""
+    root = root.resolve(strict=True)
     path = root / relative
     if not _is_under(path.parent.resolve(strict=False), root):
         raise ValueError(f"target escapes repository: {relative}")
@@ -145,6 +146,7 @@ def _install_paths(
     root: Path, candidate: Path, paths: list[str], validate=None,
 ) -> None:
     """Install paths and restore every changed target if any replacement fails."""
+    root = root.resolve(strict=True)
     with tempfile.TemporaryDirectory(prefix=".gate-adoption-", dir=root) as temporary:
         backup = Path(temporary)
         replaced = []

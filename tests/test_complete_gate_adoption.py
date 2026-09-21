@@ -49,6 +49,15 @@ class CompleteGateAdoptionTest(unittest.TestCase):
         self.assertIn(".claude/settings.json", paths)
         self.assertIn(".codex/config.toml", paths)
 
+    def test_target_path_normalizes_root_before_containment_check(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            nested = root / "nested"
+            nested.mkdir()
+            unresolved_root = nested / ".."
+            target = self.script._target_path(unresolved_root, "hooks/example.py")
+        self.assertEqual(target, root / "hooks" / "example.py")
+
     def test_transaction_configs_copy_last(self) -> None:
         paths = self.script._ordered_paths([
             ".claude/settings.json",
