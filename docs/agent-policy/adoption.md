@@ -56,7 +56,8 @@ Edit `AGENTS.md` only. Regenerate synchronized copies. Do not edit generated
 copies directly.
 
 Record the canonical revision in controlled adopters. Keep local policy changes
-separate from generated copies. Use a draft review for outward-facing changes.
+separate from generated copies. Use a draft pull request for outward-facing
+changes.
 
 The source repository uses `scripts/sync.py` for copies and shared-file
 digests. `scripts/check_*.py` supplies portable checks. `hooks/` supplies
