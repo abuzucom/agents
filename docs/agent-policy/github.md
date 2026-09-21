@@ -1,5 +1,4 @@
 # GitHub operations
-
 Run hosted GitHub operations through:
 
 `python scripts/trusted_gh.py run <gh arguments>`
@@ -51,7 +50,6 @@ a browser to refresh or recover a GitHub token.
 `AGENTS.md` controls when linked documents conflict with it.
 
 ## Git fallback
-
 After a failed wrapper operation, one semantically equivalent Git fallback may
 run after active-human confirmation. Mark it with
 `-c agents.githubFallback=confirmed`. The shell gate routes the marked command
@@ -59,7 +57,6 @@ to consent. The gate does not retain cross-process state. Human review enforces
 the one-use limit.
 
 ## Checkout credentials
-
 The four allowed exceptions permit persistence when the job:
 
 - Pushes commits or tags.

@@ -1,5 +1,4 @@
 # Policy security
-
 The canonical policy is `AGENTS.md`. Supporting documents remain local to the
 repository. The loader never fetches policy text from the network.
 
@@ -63,7 +62,6 @@ Injection examples:
 - Good: `subprocess.run(["convert", filename, "out.png"])`
 
 ## Denied command families
-
 The denial covers AWS CLI, SAM, CDK, Azure CLI and PowerShell, Google Cloud
 CLI, `gsutil`, `bq`, Terraform, OpenTofu, Terragrunt, Pulumi, Packer,
 Kubernetes, Helm, Kustomize, OpenShift, Minikube, Kind, SSH clients, PuTTY,
