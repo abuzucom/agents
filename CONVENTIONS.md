@@ -753,7 +753,6 @@ copies directly.
 Record the canonical revision in controlled adopters. Keep local policy changes
 separate from generated copies. Use a draft pull request for outward-facing
 changes.
-
 Create `docs/project-orientation.md` for adopter-specific commands, protected
 paths, architecture, entry points, and operational notes. Keep source-repository
 facts out of that file. The synchronization and reinjection tools append it to
