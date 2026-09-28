@@ -80,6 +80,7 @@ exact base and head revisions. The bootstrap path uses the exact head checker
 until the base revision contains the checker. Later runs use the base checker.
 It runs base-branch `scripts/check_gate_pr_integrity.py` against the pull-request
 diff. Protected gate changes require the exact `gate-change-approved` label.
+The checker cannot identify who applied the label.
 Configure GitHub branch protection to require this job. Repository files cannot
 enforce the branch rule.
 
