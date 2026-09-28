@@ -630,6 +630,10 @@ The portable checker keeps primary and detached operational exemptions by
 default. `--strict-agent-preflight` removes those exemptions for agent hooks.
 Dependabot keeps its branch-shape exception through trusted pull request author
 metadata. A branch name cannot claim the automation exception.
+`scripts/trusted_bot_identities.py` lists every exempt bot and its branch
+prefix. A third-party bot also needs its numeric account ID in the pull request
+event. A commit that carries a bot noreply identity fails unless that bot
+authored the pull request.
 
 ### Identity Gate
 

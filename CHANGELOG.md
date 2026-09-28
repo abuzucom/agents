@@ -9,6 +9,24 @@ The house style bans that hyphen. `scripts/check_ascii.py` enforces the ban on
 this file.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.7.0] (2026-09-28)
+
+### Added
+- Add `scripts/trusted_bot_identities.py`, a registry of bots that may skip
+  branch naming on their own branch prefix. It covers `dependabot[bot]` and
+  `code-coverage-agent[bot]` (account ID `295130552`).
+- `scripts/check_branch_name.py` applies the registry in pull request CI when
+  the event file proves the bot identity.
+
+### Security
+- Bind third-party bot exemptions to the numeric account ID and head ref in
+  the pull request event. A re-registered App slug cannot claim them.
+- Reject commits in a pull request range that carry a bot noreply identity
+  other than the pull request author's. An agent can no longer commit as an
+  exempt bot to bypass checks.
+- Report unreadable pull request event files as violations instead of
+  granting or silently denying an exemption.
+
 ## [2.6.3] (2026-09-28)
 
 ### Fixed
