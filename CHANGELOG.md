@@ -30,6 +30,15 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Rewrite ten passive-voice, pronoun, and comma-clause lines in `AGENTS.md`,
   `README.md`, and `SECURITY.md.example` without changing requirements.
 
+## [2.6.3] (2026-09-28)
+
+### Fixed
+- Classify GitHub CLI account-check failures as authentication, network, or
+  unclassified. Network and unclassified failures no longer report a missing
+  account.
+- Clear the managed Codex `127.0.0.1:9` proxy placeholder in
+  `scripts/trusted_git.py` as well as `scripts/trusted_gh.py`.
+
 ## [2.6.2] (2026-09-21)
 
 ### Added

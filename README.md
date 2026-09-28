@@ -113,8 +113,11 @@ and push transport remain available.
 
 Hosted resource edits must use the wrapper. The managed Codex sandbox can set
 `127.0.0.1:9` as a loopback proxy placeholder. Failure at that endpoint does
-not prove GitHub CLI failure. The wrapper clears only that exact placeholder
-and preserves valid proxy settings. Agents cannot modify Git Credential Manager
+not prove GitHub CLI failure. The GitHub CLI and Git wrappers clear only that
+exact placeholder and preserve valid proxy settings. A failed account check
+reports an authentication, network, or unclassified category. A network
+failure lists proxy variable names without values. Only the authentication
+category reports a missing account. Agents cannot modify Git Credential Manager
 or GitHub authentication state. Agents cannot open a browser to refresh a
 GitHub token.
 
