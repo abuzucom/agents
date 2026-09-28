@@ -808,6 +808,8 @@ unexplained `NotImplementedError`.
 Install `scripts/check_branch_name.py`. Register it in pre-push and supported
 client hooks. Run its tests in CI and pre-commit. Dependabot receives its
 documented branch and commit-message exemption through trusted metadata.
+Copy `scripts/trusted_bot_identities.py` with it. That registry lists every
+branch-exempt bot. A third-party bot also needs its account ID in the event.
 
 Source commands include `python -m pip install --requirement
 requirements-checkers.txt`, `python scripts/run_tests.py`, `make lint
@@ -867,6 +869,8 @@ files.
 Dependabot receives a branch-name and commit-message exemption because it does
 not support those format settings. CI identifies it through trusted pull
 request author metadata. A branch prefix cannot claim the exemption.
+`code-coverage-agent[bot]` receives only the branch-name exemption. A commit
+under a bot noreply identity fails unless that bot opened the pull request.
 
 Never rewrite pushed history on a shared branch. Never force-push, rebase,
 amend, or reset published commits without explicit human consent. Add new

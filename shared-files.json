@@ -13,7 +13,7 @@
     "hooks/reinject_agents_policy.py": "ff694eddfab42ad065dd2fe8f7daf2872fbc4e751aa654ed720f40aff9e17572",
     "hooks/require_consent.py": "2a831d57e883717f5c7eb04fc86f4abbd318a2f6d9f2a9c90d600bf8ea07818d",
     "scripts/check_gate_adoption.py": "b57269a0a54bc90111fb3cb29927ad3f836317d8958bb58181b4a9aa138648d8",
-    "scripts/check_gate_pr_integrity.py": "75b1e0a4776bbf75c91682d803c817604b84a2decdc769679ae103a3a4d39b30",
+    "scripts/check_gate_pr_integrity.py": "06341903e068984c70f2881cf5a62fcdeab980823e95f2347aadad7e6ee50ff6",
     "scripts/check_hook_launchers.py": "e089850f9bab0b5280ccd3e1bd331a0c6d9d1137eb50cee03c1a25aed2cd05d5",
     "scripts/complete_gate_adoption.py": "0d411030287e7ac56049c0137ae0dc7a43d404fdfcfcf97e5e91c4e88643ff81",
     "tests/gate_corpus.py": "cdd1a64831a8001fabc592df45f9c80ef2705c963cae31e20e75eb67dc44000a",

@@ -26,6 +26,7 @@ PROTECTED_FILES = frozenset({
     "scripts/check_hook_coverage.py",
     "scripts/check_hook_launchers.py",
     "scripts/sync.py",
+    "scripts/trusted_bot_identities.py",
 })
 FETCH_TIMEOUT_SECONDS = 30
 GIT_TIMEOUT_SECONDS = 10
