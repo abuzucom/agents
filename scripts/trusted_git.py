@@ -23,6 +23,31 @@ SAFE_CONFIG = (
 )
 GITHUB_HOSTS = frozenset(("github.com", "www.github.com"))
 AMBIGUOUS_MARKERS = ("$", "`", "%")
+PROXY_VARIABLES = ("HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY",
+                   "http_proxy", "https_proxy", "all_proxy")
+# The managed Codex sandbox points proxies at this closed loopback port.
+MANAGED_PROXY_HOST = "127.0.0.1"
+MANAGED_PROXY_PORT = 9
+
+
+def is_managed_proxy_placeholder(value: str) -> bool:
+    """Return whether a proxy value is the managed Codex placeholder."""
+    candidate = value.strip()
+    try:
+        parsed = urllib.parse.urlsplit(candidate if "://" in candidate
+                                       else "//" + candidate)
+        port = parsed.port
+    except ValueError:
+        return False
+    return parsed.hostname == MANAGED_PROXY_HOST and port == MANAGED_PROXY_PORT
+
+
+def sanitize_managed_proxy(environment: dict) -> None:
+    """Remove only managed proxy placeholders from an environment."""
+    for variable in PROXY_VARIABLES:
+        value = environment.get(variable)
+        if value and is_managed_proxy_placeholder(value):
+            environment.pop(variable, None)
 
 
 def _is_inside(path: Path, directory: Path) -> bool:
@@ -141,6 +166,7 @@ def run_git(
     environment["GIT_TERMINAL_PROMPT"] = "0"
     environment["PATH"] = _safe_search_path(repository)
     environment.pop("GIT_EXTERNAL_DIFF", None)
+    sanitize_managed_proxy(environment)
     if os.name == "nt":
         environment["NoDefaultCurrentDirectoryInExePath"] = "1"
     command = [
