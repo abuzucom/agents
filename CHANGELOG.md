@@ -9,6 +9,15 @@ The house style bans that hyphen. `scripts/check_ascii.py` enforces the ban on
 this file.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.6.3] (2026-09-28)
+
+### Fixed
+- Classify GitHub CLI account-check failures as authentication, network, or
+  unclassified. Network and unclassified failures no longer report a missing
+  account.
+- Clear the managed Codex `127.0.0.1:9` proxy placeholder in
+  `scripts/trusted_git.py` as well as `scripts/trusted_gh.py`.
+
 ## [2.6.2] (2026-09-21)
 
 ### Added

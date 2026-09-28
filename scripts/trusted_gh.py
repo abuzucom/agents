@@ -9,15 +9,31 @@ import tempfile
 import urllib.parse
 from pathlib import Path
 
+# The proxy constants stay importable from this module for existing callers.
+try:
+    from scripts.trusted_git import (
+        MANAGED_PROXY_HOST, MANAGED_PROXY_PORT, PROXY_VARIABLES,
+        is_managed_proxy_placeholder, sanitize_managed_proxy,
+    )
+except ModuleNotFoundError:
+    from trusted_git import (
+        MANAGED_PROXY_HOST, MANAGED_PROXY_PORT, PROXY_VARIABLES,
+        is_managed_proxy_placeholder, sanitize_managed_proxy,
+    )
+
 
 ACCOUNT_OUTPUT_LIMIT = 256
 COMMAND_OUTPUT_LIMIT = 1024 * 1024
 METADATA_OUTPUT_LIMIT = 65536
 GH_TIMEOUT_SECONDS = 5
-PROXY_VARIABLES = ("HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY",
-                   "http_proxy", "https_proxy", "all_proxy")
-MANAGED_PROXY_HOST = "127.0.0.1"
-MANAGED_PROXY_PORT = 9
+# GitHub CLI exits with 4 when a command requires authentication.
+GH_AUTH_REQUIRED_EXIT = 4
+AUTHENTICATION_FAILURE = re.compile(r"HTTP 401\b")
+NETWORK_FAILURE = re.compile(
+    r"proxyconnect|connection refused|dial tcp|no such host|i/o timeout"
+    r"|TLS handshake",
+    re.IGNORECASE,
+)
 LOGIN = re.compile(r"\A[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?\Z")
 TEXT_OPTIONS = frozenset(("--body", "--title"))
 REPOSITORY_COMMANDS = frozenset(("pr", "issue", "run"))
@@ -279,22 +295,56 @@ def _safe_search_path(repository: Path) -> str:
 
 def _is_managed_proxy_placeholder(value: str) -> bool:
     """Return whether a proxy value is the managed Codex placeholder."""
-    candidate = value.strip()
-    try:
-        parsed = urllib.parse.urlsplit(candidate if "://" in candidate
-                                       else "//" + candidate)
-        port = parsed.port
-    except ValueError:
-        return False
-    return parsed.hostname == MANAGED_PROXY_HOST and port == MANAGED_PROXY_PORT
+    return is_managed_proxy_placeholder(value)
 
 
 def _sanitize_proxy_environment(environment: dict) -> None:
     """Remove only managed proxy placeholders from an environment."""
-    for variable in PROXY_VARIABLES:
-        value = environment.get(variable)
-        if value and _is_managed_proxy_placeholder(value):
-            environment.pop(variable, None)
+    sanitize_managed_proxy(environment)
+
+
+def proxy_variable_names(environment: dict) -> list[str]:
+    """Return proxy variable names that survive placeholder removal."""
+    remaining = dict(environment)
+    sanitize_managed_proxy(remaining)
+    return [name for name in PROXY_VARIABLES if remaining.get(name)]
+
+
+class GitHubAccessError(OSError):
+    """A GitHub CLI account check failed with a diagnosed category."""
+
+    MESSAGES = {
+        "authentication": "GitHub CLI has no authenticated account; "
+                          "an active human must sign in",
+        "network": "GitHub CLI could not reach GitHub; this is not an "
+                   "authentication result",
+        "unclassified": "GitHub CLI account check failed with exit {returncode}; "
+                        "this does not prove missing authentication",
+    }
+
+    def __init__(self, category: str, returncode: int):
+        super().__init__(self.MESSAGES[category].format(returncode=returncode))
+        self.category = category
+        self.returncode = returncode
+
+
+def classify_gh_failure(returncode: int, stderr: str) -> str:
+    """Return the failure category for a nonzero GitHub CLI result."""
+    if returncode == GH_AUTH_REQUIRED_EXIT or AUTHENTICATION_FAILURE.search(stderr):
+        return "authentication"
+    if NETWORK_FAILURE.search(stderr):
+        return "network"
+    return "unclassified"
+
+
+def describe_access_error(error: GitHubAccessError) -> str:
+    """Return a user-facing message that names proxy variables, not values."""
+    message = str(error)
+    if error.category != "network":
+        return message
+    names = proxy_variable_names(dict(os.environ))
+    listed = ", ".join(names) if names else "none set"
+    return f"{message}; inspect proxy variables: {listed}"
 
 
 def run_gh(repo_root, arguments: list[str], *, runner=None, timeout=None):
@@ -343,7 +393,8 @@ def authenticated_account(repo_root) -> dict:
         timeout=GH_TIMEOUT_SECONDS,
     )
     if result.returncode != 0:
-        raise OSError("GitHub CLI has no authenticated account")
+        category = classify_gh_failure(result.returncode, result.stderr or "")
+        raise GitHubAccessError(category, result.returncode)
     return parse_account(result.stdout)
 
 
@@ -390,6 +441,9 @@ def _run_requested_command(repo_root, arguments: list[str]) -> int:
         print("error: GitHub CLI or repository metadata is unavailable; inspect installation",
               file=sys.stderr)
         return 1
+    except GitHubAccessError as error:
+        print(f"error: {describe_access_error(error)}", file=sys.stderr)
+        return 1
     except OSError:
         print("error: GitHub CLI execution failed; inspect connectivity and repository context",
               file=sys.stderr)
@@ -416,6 +470,9 @@ def main() -> int:
         return 1
     except FileNotFoundError:
         print("error: GitHub CLI is unavailable; inspect installation", file=sys.stderr)
+        return 1
+    except GitHubAccessError as error:
+        print(f"error: {describe_access_error(error)}", file=sys.stderr)
         return 1
     except OSError:
         print("error: GitHub authentication failed; inspect connectivity and account state",
