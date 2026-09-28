@@ -39,9 +39,6 @@ placeholder. Failure through that endpoint does not prove that GitHub CLI is
 unavailable. Use the approved external network path. Do not change proxy
 settings to bypass policy.
 
-Never modify Git Credential Manager or GitHub authentication state. Never open
-a browser to refresh or recover a GitHub token.
-
 `AGENTS.md` controls when linked documents conflict with it.
 
 ## Git fallback

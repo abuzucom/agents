@@ -814,6 +814,8 @@ unexplained `NotImplementedError`.
 Install `scripts/check_branch_name.py`. Register it in pre-push and supported
 client hooks. Run its tests in CI and pre-commit. Dependabot receives its
 documented branch and commit-message exemption through trusted metadata.
+Copy `scripts/trusted_bot_identities.py` with it. That registry lists every
+branch-exempt bot. A third-party bot also needs its account ID in the event.
 
 Source commands include `python -m pip install --requirement
 requirements-checkers.txt`, `python scripts/run_tests.py`, `make lint
@@ -873,6 +875,8 @@ files.
 Dependabot receives a branch-name and commit-message exemption because it does
 not support those format settings. CI identifies it through trusted pull
 request author metadata. A branch prefix cannot claim the exemption.
+`code-coverage-agent[bot]` receives only the branch-name exemption. A commit
+under a bot noreply identity fails unless that bot opened the pull request.
 
 Never rewrite pushed history on a shared branch. Never force-push, rebase,
 amend, or reset published commits without explicit human consent. Add new
@@ -1216,9 +1220,6 @@ placeholder. Failure through that endpoint does not prove that GitHub CLI is
 unavailable. Use the approved external network path. Do not change proxy
 settings to bypass policy.
 
-Never modify Git Credential Manager or GitHub authentication state. Never open
-a browser to refresh or recover a GitHub token.
-
 `AGENTS.md` controls when linked documents conflict with it.
 
 ## Git fallback
@@ -1282,9 +1283,6 @@ repository. The loader never fetches policy text from the network.
 The loader rejects missing, malformed, non-ASCII, oversized, symlinked, and
 special files. It rejects absolute paths and paths that escape the policy root.
 It assembles deterministic output and fails closed.
-
-Repo hooks can be modified by repo writers. Use an external
-harness, filesystem isolation, or server-side controls for tamper resistance.
 
 Do not place secrets, credentials, tokens, private keys, or sensitive
 vulnerability details in policy documents, examples, logs, handoffs, or

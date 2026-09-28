@@ -9,7 +9,7 @@ The house style bans that hyphen. `scripts/check_ascii.py` enforces the ban on
 this file.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.7.0] (2026-09-28)
+## [2.8.0] (2026-09-28)
 
 ### Added
 - Add Rule 23 and Critical rule 19 to ban agent label changes on pull
@@ -25,10 +25,30 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `docs/agent-policy/github.md` without changing requirements.
 - State that the integrity checker cannot identify who applied
   `gate-change-approved`.
-- Remove three duplicated paragraphs from `docs/agent-policy/github.md` and
+- Remove five duplicated paragraphs from `docs/agent-policy/github.md` and
   `docs/agent-policy/security.md` without changing requirements.
 - Rewrite ten passive-voice, pronoun, and comma-clause lines in `AGENTS.md`,
   `README.md`, and `SECURITY.md.example` without changing requirements.
+
+## [2.7.0] (2026-09-28)
+
+### Added
+- Add `scripts/trusted_bot_identities.py`, a registry of bots that may skip
+  branch naming on a registered branch prefix. It covers `dependabot[bot]` and
+  `code-coverage-agent[bot]` (account ID `295130552`).
+- `scripts/check_branch_name.py` applies the registry in pull request CI when
+  the event file proves the bot identity.
+
+### Security
+- Bind third-party bot exemptions to the numeric account ID and head ref in
+  the pull request event. A re-registered App slug cannot claim the exemption.
+- Reject commits in a pull request range that carry a bot noreply identity
+  other than the pull request author's. An agent can no longer commit as an
+  exempt bot to bypass checks.
+- Report unreadable pull request event files as violations instead of
+  granting or silently denying an exemption.
+- Add the registry to `PROTECTED_FILES`. Registry edits require the
+  `gate-change-approved` label.
 
 ## [2.6.3] (2026-09-28)
 

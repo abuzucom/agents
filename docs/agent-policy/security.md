@@ -6,9 +6,6 @@ The loader rejects missing, malformed, non-ASCII, oversized, symlinked, and
 special files. It rejects absolute paths and paths that escape the policy root.
 It assembles deterministic output and fails closed.
 
-Repo hooks can be modified by repo writers. Use an external
-harness, filesystem isolation, or server-side controls for tamper resistance.
-
 Do not place secrets, credentials, tokens, private keys, or sensitive
 vulnerability details in policy documents, examples, logs, handoffs, or
 generated copies.
