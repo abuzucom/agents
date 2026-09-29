@@ -17,7 +17,8 @@ include the following actions:
 - The gates detect truncating redirects without a delete in the line. Examples
   include `> file` and `cat /dev/null > file`.
 - The gates detect pipes into interpreters. Sources include downloads and shell
-  history.
+  history. List operators end a pipeline. A group opened after a pipe stays in
+  that pipeline.
 - The gates classify history rewrites and published-ref deletion. Covered forms
   include `--force`, `--force-with-lease`, `--mirror`, `--delete`, `--prune`, a
   forced or empty refspec, `--amend`, `rebase`, `filter-branch`, `reset --hard`,
@@ -300,7 +301,7 @@ reason.
   payloads, dynamic targets, and plain shell transitions.
 - Branch enforcement retains malformed lifecycle payloads and uncommon Git target positions in
   `alias_names_prohibited_branch`, `command_names_prohibited_branch`,
-  `command_names_prohibited_metadata`, `handle_context_event`, and `main`.
+  `command_names_prohibited_metadata`, `handle_context_event`, and `_run`.
   Hook tests cover every lifecycle event and client consent response.
   Tests also cover exact recovery, aliases, metadata, and branch publication.
 - `read_payload`, `resolved_under`, and `sanitize` retain defensive exceptions

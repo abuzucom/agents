@@ -184,16 +184,29 @@ def _tokenize_line(line: str) -> tuple:
     return tokens, True
 
 
-def command_segments(command: str) -> tuple:
-    """Return parsed segments and whether every line parsed completely."""
+def command_segments_and_tokens(command: str) -> tuple:
+    """Return segments, the token stream, and whether every line parsed.
+
+    The stream joins lines with a newline token, so a caller can walk the
+    whole command without tokenizing it a second time.
+    """
     if not isinstance(command, str) or len(command) > MAX_COMMAND_CHARACTERS:
-        return [], False
+        return [], [], False
     segments = []
+    stream = []
     complete = True
     for line in command.splitlines():
         tokens, parsed = _tokenize_line(line)
         segments.extend(_split_segments(tokens))
+        stream.extend(tokens)
+        stream.append("\n")
         complete = complete and parsed
+    return segments, stream, complete
+
+
+def command_segments(command: str) -> tuple:
+    """Return parsed segments and whether every line parsed completely."""
+    segments, _stream, complete = command_segments_and_tokens(command)
     return segments, complete
 
 

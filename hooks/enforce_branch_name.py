@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Enforce strict branch preflight through supported agent hook schemas."""
 import argparse
+import functools
 import json
 import os
 import shlex
@@ -915,6 +916,7 @@ def handle_context_event(project_dir: str, event_name: str) -> int:
 
 
 def main() -> int:
+    """Run the branch gate, denying in the client's format on any unexpected error."""
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--client",
@@ -922,6 +924,11 @@ def main() -> int:
         default="claude",
     )
     args = parser.parse_args()
+    return core.run_fail_closed(functools.partial(_run, args),
+                                functools.partial(_deny, args.client))
+
+
+def _run(args: argparse.Namespace) -> int:
     payload = _read_payload()
     if args.client == "antigravity":
         workspaces = payload.get("workspacePaths", [])

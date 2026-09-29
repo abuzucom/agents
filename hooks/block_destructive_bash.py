@@ -45,6 +45,7 @@ variable holding the program name is invisible. Repository writers can alter
 this hook or its settings. Tamper resistance requires controls outside the
 writable repository.
 """
+import functools
 import json
 import os
 import sys
@@ -123,10 +124,10 @@ def _powershell_interpreter_verdict(program: str, args: list,
     return None
 
 
-def _interpreter_argument_verdict(token: str, rest: list, depth: int):
+def _interpreter_argument_verdict(token: str, has_payload: bool):
     """Return a command-payload verdict for one interpreter argument."""
     if core.is_shell_payload_flag(token):
-        if not rest:
+        if not has_payload:
             return "deny", "a shell command-string flag has no payload"
         return "deny", "a shell interpreter executes a command-string payload"
     return None
@@ -138,19 +139,27 @@ def _interpreter_verdict(program: str, args: list, depth: int) -> tuple:
     Only the payload after -c, /c, or /k is another command. A shell
     invoked without one runs a script or a REPL, which this gate cannot
     read either way, so it is not gated on the interpreter's own name.
+    A shell name among the arguments (busybox sh -c) hands the rest to that
+    shell. The scan follows it in place rather than recursing, so a long
+    run of names cannot exhaust the stack and crash the gate open.
     """
     verdict = _powershell_interpreter_verdict(program, args, depth)
     if verdict is not None:
         return verdict
+    start = 0
     for index, token in enumerate(args):
-        rest = args[index + 1:]
-        verdict = _interpreter_argument_verdict(token, rest, depth)
+        verdict = _interpreter_argument_verdict(token, index + 1 < len(args))
         if verdict is not None:
             return verdict
-        # busybox sh -c: the applet name precedes the flag
         lowered = token.lower()
-        if not token.startswith(("-", "/")) and lowered in INTERPRETERS:
-            return _interpreter_verdict(lowered, rest, depth)
+        if token.startswith(("-", "/")) or lowered not in INTERPRETERS:
+            continue
+        start = index + 1
+        if lowered in core.POWERSHELL_PROGRAMS:
+            verdict = _powershell_interpreter_verdict(lowered, args[start:], depth)
+            if verdict is not None:
+                return verdict
+    args = args[start:]
     if any(argument.casefold() == "--version" for argument in args):
         return "", ""
     fixed_script = next(
@@ -274,10 +283,11 @@ def classify(command: str, depth: int = 0) -> tuple:
     """Return the strongest (decision, reason) across the command's segments."""
     if not isinstance(command, str):
         return "ask", "the command is not a string, so the gate cannot read it"
-    segments, complete = bash_parser.command_segments(command)
+    segments, tokens, complete = bash_parser.command_segments_and_tokens(command)
     if not complete:
         return core.unparseable_verdict(command, GATED_KEYWORDS)
-    verdict = core.remote_execution_verdict(segments)
+    verdict = core.pipeline_execution_verdict(
+        segments, tokens, bash_parser._is_separator, core.BASH_LIST_OPERATORS)
     for segment in segments:
         verdict = core.strongest(verdict, _segment_verdict(segment, depth))
     return verdict
@@ -289,6 +299,11 @@ def emit(decision: str, reason: str) -> int:
 
 
 def main() -> int:
+    """Classify one Bash tool call, denying on any unexpected error."""
+    return core.run_fail_closed(_run, functools.partial(emit, "deny"))
+
+
+def _run() -> int:
     payload = core.read_payload()
     if payload is None:
         return emit("deny", "the hook payload could not be parsed, so the gate cannot clear this command")
