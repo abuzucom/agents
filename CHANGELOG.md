@@ -31,6 +31,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Ask on every non-dry-run `git clean` and on delete plus force in any
   `git branch` spelling.
 - Deny git alias definitions written through `--file` or `git config set`.
+- Drop two hook coverage baseline entries that the new tests now reach.
 
 ## [2.8.0] (2026-09-29)
 

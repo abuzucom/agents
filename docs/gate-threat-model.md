@@ -268,7 +268,7 @@ reason.
   alias-depth variants and shell-alias variants. Absent config sources and
   error-reporting arms also remain.
 - `_is_system_root`, `_mentions_device`,
-  `_segment_program`, `device_write_verdict`, `forge_verdict`,
+  `device_write_verdict`, `forge_verdict`,
   `logging_verdict`, `mass_operation_verdict`, `posix_delete_verdict`,
   `remote_execution_verdict`, `schedule_verdict`, `unparseable_verdict`, and
   `volume_verdict` retain platform, device, mount, and uncommon-program arms.
