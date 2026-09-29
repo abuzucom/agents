@@ -75,12 +75,6 @@ except ImportError as error:  # pragma: no cover (exercised by the adoption test
 GATED_TOOLS = frozenset({"Edit", "Write", "MultiEdit", "NotebookEdit"})
 PATH_KEYS = ("file_path", "notebook_path")
 PROTECTED_PARTS = ("hooks", ".claude", ".git", ".agents", ".codex", ".gemini")
-POLICY_FILES = frozenset({
-    "agents.md", "claude.md", "gemini.md", "conventions.md", ".cursorrules",
-    ".clinerules", ".windsurfrules", ".copilot-instructions",
-    ".github/copilot-instructions.md",
-})
-POLICY_PREFIXES = ("docs/agent-policy/",)
 POLICY_REASON = "rewrites agent policy text that later sessions load as instructions"
 SKIP_WALK_DIRS = frozenset({".git", "node_modules", ".venv", "__pycache__"})
 MAX_INODE_WALK = 20000
@@ -144,9 +138,7 @@ def is_protected_path(target: str, project_dir: str) -> bool:
 def is_policy_path(target: str, project_dir: str) -> bool:
     """Return True if `target` is agent policy text loaded as instructions."""
     stripped = _relative_name(target, project_dir)
-    if stripped is None:
-        return False
-    return stripped in POLICY_FILES or stripped.startswith(POLICY_PREFIXES)
+    return stripped is not None and core.is_policy_relative(stripped)
 
 
 def _same_file(first: os.stat_result, second: os.stat_result) -> bool:

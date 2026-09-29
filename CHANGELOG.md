@@ -32,6 +32,14 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `git branch` spelling.
 - Deny git alias definitions written through `--file` or `git config set`.
 - Drop two hook coverage baseline entries that the new tests now reach.
+- Route shell writes to `docs/agent-policy/` and
+  `.github/copilot-instructions.md` to consent. Share one policy path list
+  between the shell gates and the consent hook.
+- Deny only `/proc/<entry>/environ` instead of every `environ` directory.
+  Deny Windows GitHub CLI storage under `GitHub CLI`.
+- Run each trusted GitHub CLI call inside a private temporary directory.
+  Shared `gh-cli-cache` ownership no longer blocks other accounts or
+  sandboxes. Name the unwritable path when temporary storage fails.
 
 ## [2.8.0] (2026-09-29)
 

@@ -604,9 +604,11 @@ INFRASTRUCTURE_PATH_MARKERS = (
     "/etc/ssh/",
     # Process environments and developer credential stores hold the same
     # tokens an agent must never read into its context.
-    "/environ/", "/.config/gh/",
+    "/.config/gh/", "/github cli/",
     "/.git-credentials/", "/.docker/config.json/",
 )
+PROCESS_FILESYSTEM_ROOT = "/proc/"
+PROCESS_ENVIRONMENT_NAME = "environ"
 KUBERNETES_DIRECTORY_MARKERS = ("/charts/", "/helm/", "/k8s/", "/kubernetes/")
 KUBERNETES_FILENAMES = frozenset({
     "chart.yaml", "chart.yml", "helmfile.yaml", "helmfile.yml",
@@ -807,6 +809,9 @@ def is_protected_infrastructure_path(path: str, cwd: str = "", content: str = ""
     padded = normalized + ("/" if not normalized.endswith("/") else "")
     basename = normalized.rsplit("/", 1)[-1]
     if any(marker in padded for marker in INFRASTRUCTURE_PATH_MARKERS):
+        return True
+    if (normalized.startswith(PROCESS_FILESYSTEM_ROOT)
+            and basename == PROCESS_ENVIRONMENT_NAME):
         return True
     if any(marker in padded for marker in KUBERNETES_DIRECTORY_MARKERS):
         return True
@@ -1352,10 +1357,20 @@ POWERSHELL_WRITE_PARAMETERS = {
 }
 PROTECTED_PATH_PARTS = frozenset({
     "hooks", ".claude", "scripts", ".agents", ".codex", ".gemini", ".git",
-    # The canonical policy and its synced copies load as agent instructions.
+})
+# The canonical policy, its synced copies, and supporting policy documents
+# load as agent instructions.
+POLICY_FILES = frozenset({
     "agents.md", "claude.md", "gemini.md", "conventions.md", ".cursorrules",
     ".clinerules", ".windsurfrules", ".copilot-instructions",
+    ".github/copilot-instructions.md",
 })
+POLICY_PREFIXES = ("docs/agent-policy/",)
+
+
+def is_policy_relative(relative: str) -> bool:
+    """Return True if a lowercased root-relative path names agent policy text."""
+    return relative in POLICY_FILES or relative.startswith(POLICY_PREFIXES)
 
 
 def strip_windows_decorations(name: str) -> str:
@@ -1467,8 +1482,9 @@ def _protected_path(path: str, cwd: str) -> bool:
         return False
     if relative == os.pardir or relative.startswith(os.pardir + os.sep):
         return False
-    head = relative.replace("\\", "/").split("/", 1)[0].lower()
-    return head in PROTECTED_PATH_PARTS
+    normalized = relative.replace("\\", "/").lower()
+    head = normalized.split("/", 1)[0]
+    return head in PROTECTED_PATH_PARTS or is_policy_relative(normalized)
 
 
 def protected_write_verdict(program: str, args: list,

@@ -231,5 +231,27 @@ class PolicyEditConsentTest(unittest.TestCase):
         self.assertEqual(self.decision("src/app.py"), "")
 
 
+class ReviewFollowUpTest(ExpectationTable):
+    """Review follow-up: nested policy paths, environ scope, Windows gh storage."""
+
+    def test_nested_policy_writes_ask(self):
+        self.assert_verdicts((
+            ("echo x > docs/agent-policy/github.md", "ask"),
+            ("tee .github/copilot-instructions.md", "ask"),
+        ))
+
+    def test_environ_marker_targets_proc_only(self):
+        self.assert_verdicts((
+            ("cat src/environ/app.py", ""),
+            ("cat /proc/1/environ", "deny"),
+            ("cat /proc/self/environ", "deny"),
+        ))
+
+    def test_windows_gh_credentials_deny(self):
+        self.assert_verdicts((
+            ('cat "C:/Users/u/AppData/Roaming/GitHub CLI/hosts.yml"', "deny"),
+        ))
+
+
 if __name__ == "__main__":
     unittest.main()

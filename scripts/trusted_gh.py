@@ -3,6 +3,7 @@
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -40,6 +41,13 @@ REPOSITORY_COMMANDS = frozenset(("pr", "issue", "run"))
 REPOSITORY_NAME = re.compile(r"\A[A-Za-z0-9](?:[A-Za-z0-9._-]{0,98}[A-Za-z0-9])?\Z")
 BRANCH_NAME = re.compile(r"\A[A-Za-z0-9][A-Za-z0-9._/-]{0,199}\Z")
 GLOBAL_VALUE_OPTIONS = frozenset(("-R", "--repo", "--hostname"))
+# gh caches under $TMPDIR/gh-cli-cache. A shared temp root lets the first
+# account or sandbox own that folder and deny every later caller, so each
+# call gets a private directory. Go reads TMPDIR on POSIX and TMP, then
+# TEMP, on Windows.
+PRIVATE_TEMP_PREFIX = "trusted-gh-"
+TEMP_VARIABLES = ("TMPDIR", "TMP", "TEMP")
+MAX_REPORTED_PATH = 200
 
 
 def find_literal_escape_sequences(arguments: list[str]) -> list[str]:
@@ -360,17 +368,46 @@ def run_gh(repo_root, arguments: list[str], *, runner=None, timeout=None):
     if os.name == "nt":
         environment["NoDefaultCurrentDirectoryInExePath"] = "1"
     execute = runner or subprocess.run
-    return execute(
-        [str(executable), *arguments],
-        cwd=_safe_directory(repository, executable),
-        env=environment,
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        check=False,
-        timeout=timeout,
-    )
+    private = tempfile.mkdtemp(
+        prefix=PRIVATE_TEMP_PREFIX, dir=_safe_directory(repository, executable))
+    try:
+        for name in TEMP_VARIABLES:
+            environment[name] = private
+        return execute(
+            [str(executable), *arguments],
+            cwd=private,
+            env=environment,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+            timeout=timeout,
+        )
+    finally:
+        _remove_private_directory(private)
+
+
+def _remove_private_directory(path: str) -> None:
+    """Remove one private gh temp directory, warning when removal fails."""
+    try:
+        shutil.rmtree(path)
+    except OSError as error:
+        print(f"warning: could not remove GitHub CLI temp directory "
+              f"{_bounded_path(path)} ({type(error).__name__}); remove it manually",
+              file=sys.stderr)
+
+
+def _bounded_path(path: object) -> str:
+    """Return a path as bounded printable ASCII for diagnostics."""
+    return ascii(str(path))[1:-1][:MAX_REPORTED_PATH]
+
+
+def describe_permission_error(error: PermissionError) -> str:
+    """Return a message naming the unwritable path and the recovery step."""
+    location = _bounded_path(error.filename) if error.filename else "the temp directory"
+    return (f"error: GitHub CLI temporary storage is not writable ({location}); "
+            "set TMPDIR to a writable directory and retry")
 
 
 def parse_account(output: str) -> dict:
@@ -444,6 +481,9 @@ def _run_requested_command(repo_root, arguments: list[str]) -> int:
     except GitHubAccessError as error:
         print(f"error: {describe_access_error(error)}", file=sys.stderr)
         return 1
+    except PermissionError as error:
+        print(describe_permission_error(error), file=sys.stderr)
+        return 1
     except OSError:
         print("error: GitHub CLI execution failed; inspect connectivity and repository context",
               file=sys.stderr)
@@ -473,6 +513,9 @@ def main() -> int:
         return 1
     except GitHubAccessError as error:
         print(f"error: {describe_access_error(error)}", file=sys.stderr)
+        return 1
+    except PermissionError as error:
+        print(describe_permission_error(error), file=sys.stderr)
         return 1
     except OSError:
         print("error: GitHub authentication failed; inspect connectivity and account state",
