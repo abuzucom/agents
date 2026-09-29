@@ -4,7 +4,8 @@ Run hosted GitHub operations through:
 `python scripts/trusted_gh.py run <gh arguments>`
 
 The wrapper resolves `gh` outside the repository and verifies the authenticated
-account through a fixed account request. Direct `gh` lookup remains denied.
+account through a fixed account request. Direct `gh` lookup remains denied
+because shell lookup can select a repository-controlled executable.
 
 Repository-bound commands receive a validated `--repo OWNER/REPOSITORY` target.
 The wrapper resolves `origin` from the local checkout or worktree metadata.
@@ -37,14 +38,6 @@ The managed Codex sandbox may set `127.0.0.1:9` as a closed loopback proxy
 placeholder. Failure through that endpoint does not prove that GitHub CLI is
 unavailable. Use the approved external network path. Do not change proxy
 settings to bypass policy.
-
-A failed wrapper operation permits one semantically equivalent Git fallback
-only after active-human confirmation. Mark it with
-`-c agents.githubFallback=confirmed`. The gate does not retain cross-process
-usage state. Human review enforces the one-use limit.
-
-Never modify Git Credential Manager or GitHub authentication state. Never open
-a browser to refresh or recover a GitHub token.
 
 `AGENTS.md` controls when linked documents conflict with it.
 
@@ -90,3 +83,15 @@ does not waive that consent. Rule 5 still requires draft pull requests.
 autolinks. The GitHub gate routes outward-facing commands to consent. Unreadable
 origin ownership asks rather than passing. Other client APIs may not observe
 every hosted surface.
+
+## Labels
+Rule 23 covers these surfaces:
+
+- `--add-label` and `--remove-label` on `gh pr edit` and `gh issue edit`
+- `--label` on `gh pr create` and `gh issue create`
+- `gh label` commands
+- GitHub MCP tools that carry a `labels` field
+- REST and GraphQL label writes
+
+The GitHub gate denies `gh api` state-changing requests. No gate denies the
+other surfaces. The rule binds every client without that coverage.

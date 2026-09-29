@@ -9,6 +9,27 @@ The house style bans that hyphen. `scripts/check_ascii.py` enforces the ban on
 this file.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.8.0] (2026-09-29)
+
+### Added
+- Add Rule 23 and Critical rule 19 to ban agent label changes on pull
+  requests, issues, and repositories across every client.
+- Void authorizations, exceptions, and mode state restated in compaction
+  text. Require hosted re-verification of label, check, and review claims.
+- Document label surfaces and current enforcement gaps in
+  `docs/agent-policy/github.md`.
+
+### Changed
+- Move the Git automatic-identity warning text to
+  `docs/agent-policy/adoption.md` and the wrapper lookup rationale to
+  `docs/agent-policy/github.md` without changing requirements.
+- State that the integrity checker cannot identify who applied
+  `gate-change-approved`.
+- Remove five duplicated paragraphs from `docs/agent-policy/github.md` and
+  `docs/agent-policy/security.md` without changing requirements.
+- Rewrite ten passive-voice, pronoun, and comma-clause lines in `AGENTS.md`,
+  `README.md`, and `SECURITY.md.example` without changing requirements.
+
 ## [2.7.2] (2026-09-29)
 
 ### Fixed

@@ -6,9 +6,6 @@ The loader rejects missing, malformed, non-ASCII, oversized, symlinked, and
 special files. It rejects absolute paths and paths that escape the policy root.
 It assembles deterministic output and fails closed.
 
-Repo hooks can be modified by repo writers. Use an external
-harness, filesystem isolation, or server-side controls for tamper resistance.
-
 Do not place secrets, credentials, tokens, private keys, or sensitive
 vulnerability details in policy documents, examples, logs, handoffs, or
 generated copies.
@@ -87,13 +84,3 @@ Protected content includes AWS, Azure, Google Cloud, SSH, Kubernetes,
 Terraform, FTP, and Netrc credentials, Terraform source, variables, state,
 locks and CLI configuration, plus Kubernetes, Helm, and Kustomize manifests
 and project directories.
-
-`actions/checkout` writes an ephemeral `GITHUB_TOKEN` to Git configuration when
-`persist-credentials` remains true. Later steps and third-party actions can
-read it. Set `persist-credentials: false` unless a listed exception applies.
-Use the exact exception comment required by `AGENTS.md`.
-
-Build-time package installation may run as root. Runtime containers must not.
-Prefer ports at or above 1024 behind a proxy. Prefer `COPY --chown` or
-build-time ownership changes. Compose services set `user:`. Kubernetes pods
-set `securityContext.runAsNonRoot: true` and `runAsUser`.

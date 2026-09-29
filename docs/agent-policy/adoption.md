@@ -195,6 +195,12 @@ same native authorization request. Reject wrappers and foreign paths. A client
 mode restriction never authorizes delegation of the recovery command.
 
 ## Git identity recovery
+If either value remains unset, Git builds an identity from the machine account
+name and hostname. Git prints this warning and commits anyway:
+
+`Your name and email address were configured automatically based on your
+username and hostname`
+
 Verify `git config user.name` and `git config user.email` before the first
 commit. If either is absent, resolve the authenticated account through the
 trusted wrapper. Derive `<id>+<login>@users.noreply.github.com`. Show the

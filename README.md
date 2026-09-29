@@ -105,8 +105,8 @@ The wrapper resolves `gh` outside the repository and verifies authentication.
 Repository-bound commands receive validated repository context from the local
 checkout or worktree. The wrapper fails closed when context is missing or
 unsafe. The wrapper keeps `gh` execution outside the repository.
-Pull request creation receives validated head context when no head option is
-provided. Windows, macOS, and Linux worktree layouts are supported.
+Pull request creation receives validated head context when the command omits
+a head option. The wrapper supports Windows, macOS, and Linux worktree layouts.
 Shell gates deny direct `gh`, Git, and HTTP substitutes. High-risk hosted
 mutations deny. Confirmable changes ask. Local Git and ordinary fetch, pull,
 and push transport remain available.
@@ -141,7 +141,7 @@ for `PreInvocation`. `PreToolUse` emits `{}`.
 
 Agents must not claim elevated or external execution without a runtime approval
 result. Repository hooks enforce observable command gates. An external harness
-must enforce client output claims when the client API hides them.
+must enforce client output claims when the client API hides those claims.
 
 `.pre-commit-config.yaml` runs each check on owned paths. `sync-check.yml`
 runs tests and authored pull request checks on `pull_request`. The same
@@ -165,10 +165,10 @@ step. The workflow disables pull request comments.
 `security-review-pr.yml` triggers after `Immutable Compliance` completes and
 calls the `abuzucom/foucault` reusable model security review, pinned to one
 commit SHA for both the workflow and its audit revision. The review gates on
-`BLOCK` and `NEEDS-HUMAN` verdicts and skips fork pull requests, which receive
-no provider secret. See `docs/pr-security-review.md` for the pinned revision,
-the required `OLLAMA_API_KEY` repository secret, and why the check fails
-until that secret is added.
+`BLOCK` and `NEEDS-HUMAN` verdicts and skips fork pull requests. Fork pull
+requests receive no provider secret. See `docs/pr-security-review.md` for the
+pinned revision, the required `OLLAMA_API_KEY` repository secret, and why the
+check fails until the repository has that secret.
 
 ### Prose Checks
 
