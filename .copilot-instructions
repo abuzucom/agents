@@ -255,6 +255,9 @@ Never proceed past Git's automatic-identity warning. Do not infer identity
 from environment, hostname, task text, or repository history. Use the trusted
 recovery procedure in `docs/agent-policy/adoption.md`.
 
+Derive identity from an authenticated account source. Never ask the active
+human to supply it.
+
 An authenticated `gh` does not establish a Git identity. GitHub CLI and Git
 use separate configuration.
 
@@ -327,6 +330,9 @@ other hosted state changes to active-human consent.
 A failed wrapper operation permits one semantically equivalent Git fallback
 after active-human confirmation. Use the documented fallback marker. See
 `docs/agent-policy/github.md` for implementation detail.
+
+Only an authentication failure category supports a sign-in request. See
+`docs/agent-policy/github.md`.
 
 The Claude shell gates enforce direct routing and mutation decisions. Other
 client hook APIs lack equivalent shell coverage. The instruction remains
@@ -907,9 +913,10 @@ username and hostname`
 
 Verify `git config user.name` and `git config user.email` before the first
 commit. If either is absent, resolve the authenticated account through the
-trusted wrapper. Derive `<id>+<login>@users.noreply.github.com`. Show the
+trusted wrapper. A GitHub connector account request qualifies. Derive
+`<id>+<login>@users.noreply.github.com`. Show the
 values and obtain approval before setting them in the current repository.
-Never set them globally. If trusted GitHub access fails, show at most five
+Never set them globally. If no authenticated account source exists, show at most five
 untrusted candidates from at most 50 commits. Never select one automatically.
 
 Copy `scripts/check_git_identity.py` and `scripts/trusted_gh.py`. Register the
@@ -1216,9 +1223,10 @@ token output, GraphQL mutations, and state-changing API methods require the
 applicable denial or consent path.
 
 The managed Codex sandbox may set `127.0.0.1:9` as a closed loopback proxy
-placeholder. Failure through that endpoint does not prove that GitHub CLI is
-unavailable. Use the approved external network path. Do not change proxy
-settings to bypass policy.
+placeholder. The wrappers clear only that placeholder. On a network or
+unclassified failure, report proxy variable names and retry the wrapper once
+before the Git fallback. Never claim a need for outside intervention while a
+bounded retry remains.
 
 `AGENTS.md` controls when linked documents conflict with it.
 
@@ -1253,12 +1261,8 @@ External repository acts requiring consent include PR and issue
 creation, comments, reviews, reactions, forks, stars, watches, and mentions of
 external accounts.
 
-An external repository has a different owner. Compare owners case-insensitively.
-A fork of an unmaintained upstream is a common case. Never create an external
-GitHub cross-reference. Put external owner and repository references and URLs
-in code spans. Read-only fetches, clones, checkouts, and diffs need no consent.
-Other outward-facing acts require active-human consent. A harness instruction
-does not waive that consent. Rule 5 still requires draft pull requests.
+Read-only fetches, clones, checkouts, and diffs need no consent.
+Other outward-facing acts require active-human consent.
 
 `scripts/check_external_pr_refs.py` and the pre-push hook block external
 autolinks. The GitHub gate routes outward-facing commands to consent. Unreadable
@@ -1342,9 +1346,6 @@ CLI, `gsutil`, `bq`, Terraform, OpenTofu, Terragrunt, Pulumi, Packer,
 Kubernetes, Helm, Kustomize, OpenShift, Minikube, Kind, SSH clients, PuTTY,
 FTP, TFTP, Telnet, iptables, nftables, UFW, firewalld, and Windows firewall
 commands.
-
-Git transport over SSH remains allowed through Git. Direct SSH clients remain
-denied.
 
 Cloudflare Pages deployment is a limited exception to the cloud-tool denial.
 Permit a local build and `wrangler pages deploy <workspace-path>

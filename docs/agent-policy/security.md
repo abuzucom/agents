@@ -65,9 +65,6 @@ Kubernetes, Helm, Kustomize, OpenShift, Minikube, Kind, SSH clients, PuTTY,
 FTP, TFTP, Telnet, iptables, nftables, UFW, firewalld, and Windows firewall
 commands.
 
-Git transport over SSH remains allowed through Git. Direct SSH clients remain
-denied.
-
 Cloudflare Pages deployment is a limited exception to the cloud-tool denial.
 Permit a local build and `wrangler pages deploy <workspace-path>
 --project-name <name>` with an optional literal `--branch <branch>`. Require

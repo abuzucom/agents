@@ -440,7 +440,8 @@ def bootstrap_identity_advisory(repo=None) -> str:
             pass
     candidates = history_identity_candidates(repository)
     if not candidates:
-        return "identity candidate unavailable; ask for a repository-local name and email"
+        return ("identity candidate unavailable; derive name and email from an "
+                "authenticated account source, then request approval")
     rendered = "; ".join(f"'{name}' <{email}>" for name, email in candidates)
     return (
         "local history candidates for explicit confirmation only; never auto-select: "

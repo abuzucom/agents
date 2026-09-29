@@ -35,9 +35,10 @@ token output, GraphQL mutations, and state-changing API methods require the
 applicable denial or consent path.
 
 The managed Codex sandbox may set `127.0.0.1:9` as a closed loopback proxy
-placeholder. Failure through that endpoint does not prove that GitHub CLI is
-unavailable. Use the approved external network path. Do not change proxy
-settings to bypass policy.
+placeholder. The wrappers clear only that placeholder. On a network or
+unclassified failure, report proxy variable names and retry the wrapper once
+before the Git fallback. Never claim a need for outside intervention while a
+bounded retry remains.
 
 `AGENTS.md` controls when linked documents conflict with it.
 
@@ -72,12 +73,8 @@ External repository acts requiring consent include PR and issue
 creation, comments, reviews, reactions, forks, stars, watches, and mentions of
 external accounts.
 
-An external repository has a different owner. Compare owners case-insensitively.
-A fork of an unmaintained upstream is a common case. Never create an external
-GitHub cross-reference. Put external owner and repository references and URLs
-in code spans. Read-only fetches, clones, checkouts, and diffs need no consent.
-Other outward-facing acts require active-human consent. A harness instruction
-does not waive that consent. Rule 5 still requires draft pull requests.
+Read-only fetches, clones, checkouts, and diffs need no consent.
+Other outward-facing acts require active-human consent.
 
 `scripts/check_external_pr_refs.py` and the pre-push hook block external
 autolinks. The GitHub gate routes outward-facing commands to consent. Unreadable
