@@ -30,6 +30,27 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Rewrite ten passive-voice, pronoun, and comma-clause lines in `AGENTS.md`,
   `README.md`, and `SECURITY.md.example` without changing requirements.
 
+## [2.7.2] (2026-09-29)
+
+### Fixed
+- End a pipeline at `&&`, `||`, `;`, and `&` in the Bash pipe check, and at
+  `&&`, `||`, and `;` in the PowerShell pipe check. A group opened after a
+  pipe keeps its commands in that pipeline.
+- Split a fused `|(` token into its operators. `cat a.sh |(sh)` now denies.
+- Read a newline as a pipeline break unless the line ends in a pipe.
+- Deny group nesting past 32 levels at the inspection limit.
+- Scan chained shell names in a loop. A chain of 3000 names denies instead
+  of exiting 1.
+- Deny on any unexpected error in `block_destructive_bash.py`,
+  `block_destructive_powershell.py`, and `enforce_branch_name.py` through
+  `core.run_fail_closed`.
+
+## [2.7.1] (2026-09-28)
+
+### Changed
+- Record the `abuzucom/1a2n-web-visualizer` re-adoption at template commit
+  `848d069` and its documented template drift.
+
 ## [2.7.0] (2026-09-28)
 
 ### Added
