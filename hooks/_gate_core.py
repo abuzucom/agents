@@ -2559,6 +2559,7 @@ def split_pipelines(tokens: list, is_separator, list_operators: frozenset):
     for token in [part for token in tokens for part in operator_parts(token)]:
         if not is_separator(token):
             segment.append(token)
+            previous = token
             continue
         if token == "\n" and previous in PIPE_OPERATORS:
             continue

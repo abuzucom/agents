@@ -16,6 +16,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `&&`, `||`, and `;` in the PowerShell pipe check. A group opened after a
   pipe keeps its commands in that pipeline.
 - Split a fused `|(` token into its operators. `cat a.sh |(sh)` now denies.
+- Read a newline as a pipeline break unless the line ends in a pipe.
 - Scan chained shell names in a loop. A chain of 3000 names denies instead
   of exiting 1.
 - Deny on any unexpected error in `block_destructive_bash.py`,
