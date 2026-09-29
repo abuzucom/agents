@@ -9,6 +9,29 @@ The house style bans that hyphen. `scripts/check_ascii.py` enforces the ban on
 this file.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.8.1] (2026-09-29)
+
+### Fixed
+- Classify commands inside `<( )` and `>( )` process substitution.
+- Route shell writes to `.git/` and agent policy copies to consent.
+- Classify a wrapper with no program as the wrapper itself. A bare `env`
+  now asks.
+- Deny shell access to process environments, GitHub CLI credentials,
+  `.git-credentials`, and Docker credentials.
+- Deny `gh auth status --show-token`, `gh issue delete`, and every
+  `gh label` command. Route `gh gist create` and `gh gist edit` to consent.
+- Match unique long-option prefixes for gated git push, reset, commit,
+  branch, clean, and rm flags.
+- Apply git verdicts to `git.exe` and mixed-case `Git` in the Bash and
+  PowerShell gates.
+- Require `gate-change-approved` for the denylist, the trusted wrappers,
+  the trusted checkers, `requirements-checkers.txt`, and agent policy.
+- Route Edit and Write on `AGENTS.md`, its synced copies, and
+  `docs/agent-policy/` to consent.
+- Ask on every non-dry-run `git clean` and on delete plus force in any
+  `git branch` spelling.
+- Deny git alias definitions written through `--file` or `git config set`.
+
 ## [2.8.0] (2026-09-29)
 
 ### Added

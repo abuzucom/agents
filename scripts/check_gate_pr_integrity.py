@@ -18,15 +18,26 @@ PROTECTED_PREFIXES = (
     ".agents/",
     ".gemini/",
     ".github/workflows/",
+    "docs/agent-policy/",
 )
 PROTECTED_FILES = frozenset({
+    "AGENTS.md",
+    "requirements-checkers.txt",
     "shared-files.json",
+    "scripts/banned_models.txt",
+    "scripts/check_banned_agents.py",
+    "scripts/check_branch_name.py",
+    "scripts/check_compliance_tree.py",
     "scripts/check_gate_adoption.py",
     "scripts/check_gate_pr_integrity.py",
     "scripts/check_hook_coverage.py",
     "scripts/check_hook_launchers.py",
+    "scripts/complete_gate_adoption.py",
+    "scripts/read_git_state.py",
     "scripts/sync.py",
     "scripts/trusted_bot_identities.py",
+    "scripts/trusted_gh.py",
+    "scripts/trusted_git.py",
 })
 FETCH_TIMEOUT_SECONDS = 30
 GIT_TIMEOUT_SECONDS = 10
