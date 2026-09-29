@@ -60,7 +60,7 @@
     "_platform_policy.py::is_remote_endpoint": 2,
     "block_destructive_bash.py::_interpreter_argument_verdict": 1,
     "block_destructive_bash.py::_nested_command_verdict": 1,
-    "block_destructive_bash.py::_powershell_interpreter_verdict": 2,
+    "block_destructive_bash.py::_powershell_interpreter_verdict": 1,
     "block_destructive_bash.py::_segment_verdict": 1,
     "block_destructive_bash.py::classify": 1,
     "block_destructive_cmd.py::classify_cmd_command": 1,
