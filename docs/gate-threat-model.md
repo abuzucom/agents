@@ -18,7 +18,7 @@ include the following actions:
   include `> file` and `cat /dev/null > file`.
 - The gates detect pipes into interpreters. Sources include downloads and shell
   history. List operators end a pipeline. A group opened after a pipe stays in
-  that pipeline.
+  that pipeline. Group nesting past 32 levels denies at the inspection limit.
 - The gates classify history rewrites and published-ref deletion. Covered forms
   include `--force`, `--force-with-lease`, `--mirror`, `--delete`, `--prune`, a
   forced or empty refspec, `--amend`, `rebase`, `filter-branch`, `reset --hard`,

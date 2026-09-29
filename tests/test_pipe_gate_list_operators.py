@@ -18,14 +18,41 @@ import unittest.mock
 from pathlib import Path
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import test_block_destructive_bash as bash_tests
-import test_block_destructive_powershell as powershell_tests
+import gate_corpus
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 HOOKS = REPO_ROOT / "hooks"
 BLOCKING_EXIT_CODE = 2
 # Enough repeated interpreter names to exceed Python's default recursion limit.
 INTERPRETER_CHAIN_LENGTH = 3000
+# One level past MAX_GROUP_DEPTH in hooks/_gate_core.py.
+EXCESS_GROUP_DEPTH = 33
+_WORKERS = {}
+
+
+def invoke_gate(tool_name: str, command: str) -> tuple:
+    """Return the gate's (exit code, decision, stderr) for one command."""
+    hook = {"Bash": "block_destructive_bash.py",
+            "PowerShell": "block_destructive_powershell.py"}[tool_name]
+    if hook not in _WORKERS:
+        _WORKERS[hook] = gate_corpus.HookWorker(HOOKS / hook)
+    payload = {"hook_event_name": "PreToolUse", "tool_name": tool_name,
+               "permission_mode": "default", "tool_input": {"command": command}}
+    code, stdout, stderr = _WORKERS[hook].invoke(payload)
+    decision = ""
+    if stdout.strip():
+        decision = json.loads(stdout)["hookSpecificOutput"]["permissionDecision"]
+    return code, decision, stderr
+
+
+def run_bash(command: str) -> tuple:
+    """Return the Bash gate's (exit code, decision) for `command`."""
+    return invoke_gate("Bash", command)[:2]
+
+
+def run_powershell(command: str) -> tuple:
+    """Return the PowerShell gate's (exit code, decision) for `command`."""
+    return invoke_gate("PowerShell", command)[:2]
 
 
 def load_hook(name: str):
@@ -68,13 +95,15 @@ class PipelineSplitTest(unittest.TestCase):
         "cat a.sh |(sh)",
     )
 
-    def test_group_nesting_past_the_bound_reads_as_one_pipeline(self):
-        command = "( " * 33 + "node a.js && node b.js" + " )" * 33
-        payload = {"hook_event_name": "PreToolUse", "tool_name": "Bash",
-                   "permission_mode": "default", "tool_input": {"command": command}}
-        code, _stdout, stderr = bash_tests.hook_worker().invoke(payload)
-        self.assertEqual(code, BLOCKING_EXIT_CODE)
-        self.assertIn("group nesting over 32 levels read as one pipeline", stderr)
+    def test_group_nesting_past_the_bound_denies(self):
+        for inner in ("node a.js && node b.js", "ls && echo hi"):
+            with self.subTest(inner=inner):
+                command = "( " * EXCESS_GROUP_DEPTH + inner + " )" * EXCESS_GROUP_DEPTH
+                code, decision, stderr = invoke_gate("Bash", command)
+                self.assertEqual(code, BLOCKING_EXIT_CODE)
+                self.assertEqual(decision, "deny")
+                self.assertIn("group nesting over 32 levels exceeds the inspection limit",
+                              stderr)
 
     POWERSHELL_ALLOW = (
         "node a.js; node b.js",
@@ -90,26 +119,26 @@ class PipelineSplitTest(unittest.TestCase):
     def test_bash_list_operators_do_not_read_as_pipes(self):
         for command in self.BASH_ALLOW:
             with self.subTest(command=command):
-                _, decision = bash_tests.run_hook(command)
+                _, decision = run_bash(command)
                 self.assertEqual(decision, "")
 
     def test_bash_real_pipes_into_interpreters_still_deny(self):
         for command in self.BASH_DENY:
             with self.subTest(command=command):
-                code, decision = bash_tests.run_hook(command)
+                code, decision = run_bash(command)
                 self.assertEqual(code, BLOCKING_EXIT_CODE)
                 self.assertEqual(decision, "deny")
 
     def test_powershell_list_operators_do_not_read_as_pipes(self):
         for command in self.POWERSHELL_ALLOW:
             with self.subTest(command=command):
-                _, decision = powershell_tests.run_hook(command)
+                _, decision = run_powershell(command)
                 self.assertEqual(decision, "")
 
     def test_powershell_real_pipes_into_interpreters_still_deny(self):
         for command in self.POWERSHELL_DENY:
             with self.subTest(command=command):
-                code, decision = powershell_tests.run_hook(command)
+                code, decision = run_powershell(command)
                 self.assertEqual(code, BLOCKING_EXIT_CODE)
                 self.assertEqual(decision, "deny")
 
@@ -141,7 +170,7 @@ class InterpreterChainDepthTest(unittest.TestCase):
                                   ("bash pwsh -Command Get-Date", "deny"),
                                   ("bash pwsh script.ps1", "ask")):
             with self.subTest(command=command):
-                _, decision = bash_tests.run_hook(command)
+                _, decision = run_bash(command)
                 self.assertEqual(decision, expected)
 
 

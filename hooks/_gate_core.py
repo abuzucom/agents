@@ -2519,9 +2519,8 @@ POWERSHELL_LIST_OPERATORS = frozenset({"&&", "||", ";"})
 PIPE_OPERATORS = frozenset({"|", "|&"})
 GROUP_OPENERS = frozenset({"(", "{"})
 GROUP_CLOSERS = frozenset({")", "}"})
-# Deeper nesting reads the whole command as one pipeline, the stricter reading.
+# Deeper nesting exceeds the inspection limit and denies.
 MAX_GROUP_DEPTH = 32
-GROUP_DEPTH_NOTE = f" (group nesting over {MAX_GROUP_DEPTH} levels read as one pipeline)"
 FUSED_OPERATOR_CHARACTERS = frozenset("();|&")
 TWO_CHARACTER_OPERATORS = frozenset({"&&", "||", "|&"})
 
@@ -2589,14 +2588,15 @@ def pipeline_execution_verdict(segments: list, tokens: list, is_separator,
     """Return the strongest pipe-into-interpreter verdict across pipelines.
 
     A backtick substitution appends its segments out of order, so the
-    whole command is read as one pipeline, as is nesting past the bound.
+    whole command is read as one pipeline. Nesting past the bound denies,
+    as the gate cannot read the pipelines inside it.
     """
     if "`" in tokens:
         return remote_execution_verdict(segments)
     pipelines = split_pipelines(tokens, is_separator, list_operators)
     if pipelines is None:
-        decision, reason = remote_execution_verdict(segments)
-        return (decision, reason + GROUP_DEPTH_NOTE) if decision else (decision, reason)
+        return "deny", (f"group nesting over {MAX_GROUP_DEPTH} levels exceeds "
+                        "the inspection limit")
     verdict = ("", "")
     for pipeline in pipelines:
         verdict = strongest(verdict, remote_execution_verdict(pipeline))
