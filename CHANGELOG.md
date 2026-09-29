@@ -40,6 +40,9 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Run each trusted GitHub CLI call inside a private temporary directory.
   Shared `gh-cli-cache` ownership no longer blocks other accounts or
   sandboxes. Name the unwritable path when temporary storage fails.
+- Reject an `Assisted-by` trailer that names no versioned model, such as
+  bare `Claude`. Reject a name-only agent co-author label without an
+  `Assisted-by` trailer. Commits with no agent label still pass.
 
 ## [2.8.0] (2026-09-29)
 
