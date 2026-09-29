@@ -2511,6 +2511,114 @@ def remote_execution_verdict(segments: list) -> tuple:
     return "", ""
 
 
+# Operators that start the next command after the previous one ends rather
+# than feeding it that command's output. PowerShell's & is its call
+# operator, so each shell supplies its own set.
+BASH_LIST_OPERATORS = frozenset({"&&", "||", ";", "&"})
+POWERSHELL_LIST_OPERATORS = frozenset({"&&", "||", ";"})
+PIPE_OPERATORS = frozenset({"|", "|&"})
+GROUP_OPENERS = frozenset({"(", "{"})
+GROUP_CLOSERS = frozenset({")", "}"})
+# Deeper nesting exceeds the inspection limit and denies.
+MAX_GROUP_DEPTH = 32
+FUSED_OPERATOR_CHARACTERS = frozenset("();|&")
+TWO_CHARACTER_OPERATORS = frozenset({"&&", "||", "|&"})
+
+
+def operator_parts(token: str) -> list:
+    """Split a fused run of shell punctuation such as `|(` into its operators.
+
+    shlex joins adjacent punctuation, so `curl x |(bash)` arrives as `|(`.
+    The walk splits it so the pipe stays visible.
+    """
+    if len(token) < 2 or not set(token) <= FUSED_OPERATOR_CHARACTERS:
+        return [token]
+    parts = []
+    index = 0
+    while index < len(token):
+        step = 2 if token[index:index + 2] in TWO_CHARACTER_OPERATORS else 1
+        parts.append(token[index:index + step])
+        index += step
+    return parts
+
+
+def split_pipelines(tokens: list, is_separator, list_operators: frozenset):
+    """Return the command's pipelines, or None past MAX_GROUP_DEPTH.
+
+    A pipeline is the run of segments joined by pipes. A list operator ends
+    it, except inside a group opened on the receiving side of a pipe:
+    `curl x | (cd /; bash)` still feeds curl's output to bash. A newline
+    right after a pipe continues the pipeline, as Bash does.
+    """
+    pipelines = [[]]
+    segment = []
+    depth = 0
+    piped_depth = None
+    previous = ""
+    for token in [part for token in tokens for part in operator_parts(token)]:
+        if not is_separator(token):
+            segment.append(token)
+            previous = token
+            continue
+        if token == "\n" and previous in PIPE_OPERATORS:
+            continue
+        if segment:
+            pipelines[-1].append(segment)
+            segment = []
+        if token in GROUP_OPENERS:
+            depth += 1
+            if depth > MAX_GROUP_DEPTH:
+                return None
+            if piped_depth is None and previous in PIPE_OPERATORS:
+                piped_depth = depth
+        elif token in GROUP_CLOSERS:
+            if piped_depth == depth:
+                piped_depth = None
+            depth = max(depth - 1, 0)
+        elif piped_depth is None and (token in list_operators or token == "\n"):
+            pipelines.append([])
+        previous = token
+    if segment:
+        pipelines[-1].append(segment)
+    return [pipeline for pipeline in pipelines if pipeline]
+
+
+def pipeline_execution_verdict(segments: list, tokens: list, is_separator,
+                               list_operators: frozenset) -> tuple:
+    """Return the strongest pipe-into-interpreter verdict across pipelines.
+
+    A backtick substitution appends its segments out of order, so the
+    whole command is read as one pipeline. Nesting past the bound denies,
+    as the gate cannot read the pipelines inside it.
+    """
+    if "`" in tokens:
+        return remote_execution_verdict(segments)
+    pipelines = split_pipelines(tokens, is_separator, list_operators)
+    if pipelines is None:
+        return "deny", (f"group nesting over {MAX_GROUP_DEPTH} levels exceeds "
+                        "the inspection limit")
+    verdict = ("", "")
+    for pipeline in pipelines:
+        verdict = strongest(verdict, remote_execution_verdict(pipeline))
+    return verdict
+
+
+def run_fail_closed(entrypoint, deny) -> int:
+    """Run a hook entrypoint and deny when it raises.
+
+    Claude Code treats any exit code other than 2 as a non-blocking error,
+    so an exception escaping a gate would let the command run. Only a broad
+    catch fails closed on an error nobody anticipated. SystemExit and
+    KeyboardInterrupt are not Exception subclasses and still propagate.
+    """
+    try:
+        return entrypoint()
+    except Exception as error:
+        return deny(f"gate internal error {type(error).__name__}: "
+                    f"{sanitize(error)}. The command was denied. Report it "
+                    "to the repository maintainers.")
+
+
 # Moving a file to a device discards it. The command reads as a move, and
 # the file is gone with no delete anywhere in the line.
 DISCARD_DESTINATIONS = ("/dev/null", "/dev/random", "/dev/urandom",
