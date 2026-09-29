@@ -9,7 +9,7 @@ The house style bans that hyphen. `scripts/check_ascii.py` enforces the ban on
 this file.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.8.0] (2026-09-28)
+## [2.8.0] (2026-09-29)
 
 ### Added
 - Add Rule 23 and Critical rule 19 to ban agent label changes on pull
