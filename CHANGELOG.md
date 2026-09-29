@@ -9,6 +9,12 @@ The house style bans that hyphen. `scripts/check_ascii.py` enforces the ban on
 this file.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.7.1] (2026-09-28)
+
+### Changed
+- Record the `abuzucom/1a2n-web-visualizer` re-adoption at template commit
+  `848d069` and its documented template drift.
+
 ## [2.7.0] (2026-09-28)
 
 ### Added
