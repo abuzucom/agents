@@ -45,7 +45,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   bare `Claude`. Reject a name-only agent co-author label without an
   `Assisted-by` trailer. Commits with no agent label still pass.
 - Require `gate-change-approved` for changes to
-  `scripts/check_commit_attribution.py`.
+  `scripts/check_commit_attribution.py`, `scripts/check_git_identity.py`,
+  and `scripts/check_agent_prose_gate.py`.
 - Scope the checkout temp root in `tests/test_trusted_gh.py` to that
   module. Later test modules in the same process keep the system temp root.
 
