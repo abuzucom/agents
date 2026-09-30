@@ -203,9 +203,10 @@ username and hostname`
 
 Verify `git config user.name` and `git config user.email` before the first
 commit. If either is absent, resolve the authenticated account through the
-trusted wrapper. Derive `<id>+<login>@users.noreply.github.com`. Show the
+trusted wrapper. A GitHub connector account request qualifies. Derive
+`<id>+<login>@users.noreply.github.com`. Show the
 values and obtain approval before setting them in the current repository.
-Never set them globally. If trusted GitHub access fails, show at most five
+Never set them globally. If no authenticated account source exists, show at most five
 untrusted candidates from at most 50 commits. Never select one automatically.
 
 Copy `scripts/check_git_identity.py` and `scripts/trusted_gh.py`. Register the
