@@ -96,10 +96,6 @@ adopted tooling provides it. The reader emits bounded structured output.
 Branch examples include `fix/branch-name-validation`,
 `chore/synchronize-policy-copies`, and `docs/clarify-agent-branch-rules`.
 Avoid random or opaque names such as `chore/kind-thompson`.
-For an invalid branch, use `git branch -m <type>/<kebab-description>`.
-For a primary or detached state, use `git switch -c <type>/<kebab-description>`.
-During a rebase, allow only `git rebase --abort`, `git rebase --continue`, or
-`git rebase --skip`. Run strict preflight after recovery.
 
 Code-quality examples include caching compiled regular expressions, joining
 strings instead of concatenating in loops, using hash lookups, and batching
@@ -181,15 +177,15 @@ commits instead. `--force-with-lease` receives no exception. The lease in
 but does not remove the consent requirement. Branch age does not create an
 exception.
 
-Verify the current branch, remote URLs, and relevant file contents before
-inferring workflow scope. Use the bounded reader for repository state.
-
 ## Branch recovery
 Detect rebase metadata before detached-HEAD recovery. Permit only `git rebase
 --abort`, `git rebase --continue`, or `git rebase --skip`. Rerun strict
 preflight after recovery. For an invalid branch, use the exact approved
-`git branch -m <type>/<kebab-description>` command. For a primary or detached
-state, use `git switch -c <type>/<kebab-description>`. Run no chained command.
+`git branch -m <type>/<kebab-description>` command. On the primary branch or a
+detached state, use `git switch -c <type>/<kebab-description>`. On `master`,
+use `git switch main` when `main` exists. Otherwise tell the active human that
+`master` is not allowed and the repository needs conversion to `main`. Run no
+chained command.
 `git -C <current-repository> branch -m <type>/<kebab-description>` receives the
 same native authorization request. Reject wrappers and foreign paths. A client
 mode restriction never authorizes delegation of the recovery command.

@@ -177,8 +177,8 @@ The protected inventory covers:
   `hooks/block_destructive_cmd.py`, `hooks/block_destructive_powershell.py`,
   `hooks/block_infrastructure_access.py`, `hooks/enforce_branch_name.py`,
   `hooks/enforce_git_identity.py`, `hooks/reinject_agents_policy.py`,
-  `hooks/require_consent.py`, `hooks/github-command-denylist.txt`, and
-  `hooks/claude-code-settings.example.json`.
+  `hooks/require_consent.py`, `hooks/github-command-denylist.txt`,
+  `hooks/primary-branch.txt`, and `hooks/claude-code-settings.example.json`.
 - Hook configurations:
   `.claude/settings.json`, `.agents/`, `.codex/hooks/`, `.gemini/settings/`, and
   `.git/hooks/`.

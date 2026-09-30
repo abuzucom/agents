@@ -396,13 +396,14 @@ This command emits bounded structured output. This command may run before
 ordinary repository actions. Hook-based clients inspect bounded `.git/HEAD`
 metadata before every observable tool.
 
-Detached or invalid branches block every ordinary repository action. Only the
-exact compliant recovery command remains available for authorization. Read-only
+Invalid branches block every ordinary repository action. Only the exact
+compliant recovery command remains available for authorization. Read-only
 inspection does not bypass branch correction.
 
-On a primary branch named `main` or `master`, create and switch to a feature
-branch. On a detached HEAD, create and switch to a feature branch. Never work
-directly on a primary branch or detached HEAD.
+The primary branch `main`, or the name in `hooks/primary-branch.txt`, and a
+detached HEAD permit read-only inspection and planning. Create and switch to a
+feature branch before any write. `master` is not allowed. Tell the active human
+to convert the repository to `main`. Never perform the conversion.
 
 Use the format `<type>/<short-kebab-description>`. The description must state
 the work performed in the branch. Select it from the task context.
@@ -806,10 +807,6 @@ adopted tooling provides it. The reader emits bounded structured output.
 Branch examples include `fix/branch-name-validation`,
 `chore/synchronize-policy-copies`, and `docs/clarify-agent-branch-rules`.
 Avoid random or opaque names such as `chore/kind-thompson`.
-For an invalid branch, use `git branch -m <type>/<kebab-description>`.
-For a primary or detached state, use `git switch -c <type>/<kebab-description>`.
-During a rebase, allow only `git rebase --abort`, `git rebase --continue`, or
-`git rebase --skip`. Run strict preflight after recovery.
 
 Code-quality examples include caching compiled regular expressions, joining
 strings instead of concatenating in loops, using hash lookups, and batching
@@ -891,15 +888,15 @@ commits instead. `--force-with-lease` receives no exception. The lease in
 but does not remove the consent requirement. Branch age does not create an
 exception.
 
-Verify the current branch, remote URLs, and relevant file contents before
-inferring workflow scope. Use the bounded reader for repository state.
-
 ## Branch recovery
 Detect rebase metadata before detached-HEAD recovery. Permit only `git rebase
 --abort`, `git rebase --continue`, or `git rebase --skip`. Rerun strict
 preflight after recovery. For an invalid branch, use the exact approved
-`git branch -m <type>/<kebab-description>` command. For a primary or detached
-state, use `git switch -c <type>/<kebab-description>`. Run no chained command.
+`git branch -m <type>/<kebab-description>` command. On the primary branch or a
+detached state, use `git switch -c <type>/<kebab-description>`. On `master`,
+use `git switch main` when `main` exists. Otherwise tell the active human that
+`master` is not allowed and the repository needs conversion to `main`. Run no
+chained command.
 `git -C <current-repository> branch -m <type>/<kebab-description>` receives the
 same native authorization request. Reject wrappers and foreign paths. A client
 mode restriction never authorizes delegation of the recovery command.
@@ -1121,8 +1118,8 @@ The protected inventory covers:
   `hooks/block_destructive_cmd.py`, `hooks/block_destructive_powershell.py`,
   `hooks/block_infrastructure_access.py`, `hooks/enforce_branch_name.py`,
   `hooks/enforce_git_identity.py`, `hooks/reinject_agents_policy.py`,
-  `hooks/require_consent.py`, `hooks/github-command-denylist.txt`, and
-  `hooks/claude-code-settings.example.json`.
+  `hooks/require_consent.py`, `hooks/github-command-denylist.txt`,
+  `hooks/primary-branch.txt`, and `hooks/claude-code-settings.example.json`.
 - Hook configurations:
   `.claude/settings.json`, `.agents/`, `.codex/hooks/`, `.gemini/settings/`, and
   `.git/hooks/`.

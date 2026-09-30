@@ -3,11 +3,15 @@
 import argparse
 import functools
 import json
+import ntpath
 import os
+import re
 import shlex
 import stat
 import subprocess
 import sys
+import tempfile
+from pathlib import Path
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -66,6 +70,66 @@ SEARCH_FLAGS = frozenset({
     "-F", "--fixed-strings", "--files", "--hidden", "-g", "--glob", "-e", "--regexp", "--",
 })
 MAX_WORKFLOW_ARGUMENTS = 64
+# The primary branch and a detached HEAD permit inspection and planning only.
+DEFAULT_PRIMARY_BRANCH = "main"
+PRIMARY_BRANCH_FILE = "hooks/primary-branch.txt"
+MAX_PRIMARY_BRANCH_BYTES = 256
+MAX_PACKED_REFS_BYTES = 1024 * 1024
+MAX_GEMINI_SETTINGS_BYTES = 1024 * 1024
+BRANCH_NAME_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9._/-]{0,199}")
+REJECTED_PRIMARY_BRANCHES = frozenset({"master", "HEAD"})
+READ_ONLY_TOOLS = frozenset({
+    "Read", "Grep", "Glob", "view_file", "list_dir", "find_by_name", "grep_search",
+    "read_file", "read_many_files", "list_directory", "glob", "search_file_content",
+})
+PLANNING_TOOLS = frozenset({
+    "EnterPlanMode", "ExitPlanMode", "TodoWrite", "TaskCreate", "TaskGet", "TaskList",
+    "TaskUpdate",
+})
+PLAN_WRITE_TOOLS = frozenset({
+    "Edit", "MultiEdit", "Write", "write_file", "replace", "write_to_file",
+    "replace_file_content",
+})
+BASH_READ_PROGRAMS = frozenset({
+    "echo", "printf", "pwd", "cat", "head", "tail", "wc", "ls", "dir",
+})
+POWERSHELL_READ_PROGRAMS = frozenset({
+    "echo", "cat", "ls", "dir", "pwd", "get-content", "get-childitem", "get-location",
+    "select-string", "write-output",
+})
+CMD_READ_PROGRAMS = frozenset({"type", "dir", "echo", "more", "cd"})
+READ_ONLY_FORBIDDEN_CHARACTERS = frozenset("<>`$%!^(){}\0\n\r")
+GIT_READ_SUBCOMMANDS = frozenset({
+    "status", "log", "diff", "show", "rev-parse", "ls-files", "ls-tree", "cat-file",
+    "blame", "grep", "describe", "shortlog",
+})
+GIT_BRANCH_LIST_OPTIONS = frozenset({
+    "--list", "-l", "-a", "--all", "-r", "--remotes", "-v", "-vv", "--verbose",
+    "--show-current", "--no-color",
+})
+GIT_FETCH_OPTIONS = frozenset({"--prune", "-p", "--tags", "-t", "--quiet", "-q", "--dry-run"})
+# These options write a file or start a program from an inspection command.
+GIT_UNSAFE_READ_OPTIONS = ("--output", "--open-files-in-pager", "-O", "--ext-diff", "--exec",
+                           "--upload-pack")
+READ_ONLY_WORKFLOW_ARGUMENTS = {
+    "scripts/run_tests.py": ((),),
+    "scripts/read_git_state.py": WORKFLOW_SCRIPT_ARGUMENTS["scripts/read_git_state.py"],
+    "scripts/sync.py": (("--check",), ("--check-shared",), ("--print-adoptable",)),
+    "scripts/check_action_pins.py": ((),),
+    "scripts/check_gate_adoption.py": ((),),
+}
+WINDOWS_RESERVED_NAMES = frozenset(
+    {"CON", "PRN", "AUX", "NUL", "CONIN$", "CONOUT$"}
+    | {f"COM{number}" for number in range(1, 10)}
+    | {f"LPT{number}" for number in range(1, 10)}
+)
+MASTER_BRANCH_MESSAGE = (
+    "`master` is not allowed. Convert this repository to use `main`. If a local "
+    "`main` exists, run git switch main. Otherwise the active human must convert "
+    "the repository to `main`. Renaming, deleting, or keeping `master`, and "
+    "creating `main`, are active-human decisions. Relay this message to the "
+    "active human and stop."
+)
 
 
 def _read_payload() -> dict:
@@ -471,11 +535,12 @@ def blocked_command(command: str, project_dir: str = "") -> list:
 
 
 def _handle_session_start(project_dir: str) -> int:
-    """Inject a stop-and-rename instruction into the session context."""
-    violation = find_violation(project_dir)
+    """Inject a stop-and-rename instruction or a read-only note into the context."""
+    branch_name, violation = read_branch_preflight(project_dir)
     if not violation:
         return 0
-    warning = build_warning(violation)
+    _state, message = _lifecycle_message(branch_name, project_dir)
+    warning = message or build_warning(violation)
     output = {
         "hookSpecificOutput": {
             "hookEventName": "SessionStart",
@@ -802,6 +867,373 @@ def _request_authorization(client: str, payload: dict, authorization_reason: str
     return _deny(client, authorization_reason)
 
 
+class PrimaryBranchError(ValueError):
+    """The primary branch override file cannot name one branch."""
+
+
+def primary_branch_name(project_dir: str) -> str:
+    """Return the primary branch from hooks/primary-branch.txt, or main."""
+    path = os.path.join(os.path.realpath(project_dir), *PRIMARY_BRANCH_FILE.split("/"))
+    if not os.path.lexists(path):
+        return DEFAULT_PRIMARY_BRANCH
+    try:
+        content = _read_regular(path, MAX_PRIMARY_BRANCH_BYTES)
+    except (OSError, UnicodeDecodeError) as error:
+        raise PrimaryBranchError(f"cannot be read ({type(error).__name__})") from error
+    lines = content.splitlines()
+    if not content.isascii() or len(lines) != 1:
+        raise PrimaryBranchError("must hold exactly one ASCII line")
+    name = lines[0]
+    if name in REJECTED_PRIMARY_BRANCHES or not BRANCH_NAME_PATTERN.fullmatch(name):
+        raise PrimaryBranchError("must name one valid branch other than master or HEAD")
+    return name
+
+
+def _primary_branch_failure(error: PrimaryBranchError) -> str:
+    """Return the fail-closed message for an unusable override file."""
+    return (f"{PRIMARY_BRANCH_FILE} {error}. Every tool stays denied until an "
+            "active human repairs the file.")
+
+
+def branch_state(branch_name: str, project_dir: str) -> str:
+    """Classify a failed preflight as read-only, master, or invalid."""
+    try:
+        if rebase_is_active(project_dir):
+            return "invalid"
+    except OSError:
+        return "invalid"
+    primary = primary_branch_name(project_dir)
+    if branch_name == "master":
+        return "master"
+    if branch_name in (primary, "HEAD"):
+        return "read-only"
+    return "invalid"
+
+
+def _branch_label(branch_name: str) -> str:
+    """Name a read-only state for messages."""
+    return "detached HEAD" if branch_name == "HEAD" else f"`{core.sanitize(branch_name)}`"
+
+
+def _read_only_reason(branch_name: str) -> str:
+    """Return the denial text for a write attempt in a read-only state."""
+    return (f"{_branch_label(branch_name)} permits read-only inspection; run "
+            "git switch -c <type>/<description> before writing")
+
+
+def _local_branch_exists(project_dir: str, name: str) -> bool:
+    """Return whether bounded Git metadata holds one local branch."""
+    if not BRANCH_NAME_PATTERN.fullmatch(name) or ".." in name.split("/"):
+        return False
+    for root in _metadata_roots(project_dir):
+        if os.path.isfile(os.path.join(root, "refs", "heads", *name.split("/"))):
+            return True
+        try:
+            packed = _read_regular(os.path.join(root, "packed-refs"), MAX_PACKED_REFS_BYTES)
+        except (OSError, UnicodeDecodeError):
+            continue
+        suffix = " refs/heads/" + name
+        if any(line.endswith(suffix) and not line.startswith("#")
+               for line in packed.splitlines()):
+            return True
+    return False
+
+
+def _windows_path_hazard(path: str) -> bool:
+    """Reject UNC, device, alternate data stream, and reserved-name paths."""
+    if path.startswith(("\\\\", "//")):
+        return True
+    _drive, rest = ntpath.splitdrive(path)
+    if ":" in rest:
+        return True
+    return any(part.split(".")[0].rstrip(" ").upper() in WINDOWS_RESERVED_NAMES
+               for part in re.split(r"[\\/]", rest))
+
+
+def _relative_parts(path: str, base: str, pathmod) -> list:
+    """Return path components strictly below base, or an empty list."""
+    candidate = pathmod.normcase(pathmod.normpath(path))
+    root = pathmod.normcase(pathmod.normpath(base))
+    try:
+        if pathmod.commonpath((candidate, root)) != root or candidate == root:
+            return []
+    except ValueError:
+        return []
+    return candidate[len(root):].lstrip(pathmod.sep).split(pathmod.sep)
+
+
+def _spec_matches(path: str, spec: tuple, pathmod) -> bool:
+    """Match one client write-root specification."""
+    kind, base = spec
+    parts = _relative_parts(path, base, pathmod)
+    if not parts:
+        return False
+    if kind == "tree":
+        return True
+    if kind == "child":
+        return len(parts) >= 2
+    if kind == "gemini_plans":
+        return len(parts) >= 3 and parts[1] == "plans"
+    if kind == "scratchpad":
+        return parts[0].startswith("claude-") and "scratchpad" in parts[1:-1]
+    return False
+
+
+def is_allowed_write_path(path: str, specs: tuple, pathmod=os.path) -> bool:
+    """Return whether an absolute path falls under one client write root."""
+    if not isinstance(path, str) or not path or "\0" in path:
+        return False
+    if pathmod is ntpath and _windows_path_hazard(path):
+        return False
+    if not pathmod.isabs(path):
+        return False
+    return any(_spec_matches(path, spec, pathmod) for spec in specs)
+
+
+def _is_within(path: str, directory: str) -> bool:
+    """Return whether a resolved path equals or lies below a directory."""
+    try:
+        path_value = os.path.normcase(path)
+        directory_value = os.path.normcase(directory)
+        return os.path.commonpath((path_value, directory_value)) == directory_value
+    except ValueError:
+        return False
+
+
+def _gemini_user_plan_directory(home: str) -> str:
+    """Return the plan directory from Gemini user settings, or an empty string.
+
+    Project settings can come from the repository under inspection, so only
+    the user settings file counts. A directory that holds the home directory
+    or is a filesystem root would open every user file and is ignored.
+    """
+    path = os.path.join(home, ".gemini", "settings.json")
+    try:
+        settings = json.loads(_read_regular(path, MAX_GEMINI_SETTINGS_BYTES))
+        directory = settings["general"]["plan"]["directory"]
+    except (OSError, UnicodeDecodeError, ValueError, KeyError, TypeError):
+        return ""
+    if not isinstance(directory, str) or not os.path.isabs(os.path.expanduser(directory)):
+        return ""
+    resolved = os.path.realpath(os.path.expanduser(directory))
+    if _is_within(home, resolved) or os.path.dirname(resolved) == resolved:
+        return ""
+    return resolved
+
+
+def _client_write_specs(client: str) -> tuple:
+    """Return the plan and scratch write roots for one client."""
+    home = os.path.realpath(str(Path.home()))
+    if client == "claude":
+        specs = [("tree", os.path.join(home, ".claude", "plans")),
+                 ("scratchpad", os.path.realpath(tempfile.gettempdir()))]
+        if os.name != "nt":
+            specs.append(("scratchpad", os.path.realpath("/tmp")))
+        return tuple(specs)
+    if client == "gemini":
+        specs = [("gemini_plans", os.path.join(home, ".gemini", "tmp"))]
+        custom = _gemini_user_plan_directory(home)
+        if custom:
+            specs.append(("tree", custom))
+        return tuple(specs)
+    if client == "antigravity":
+        return (("child", os.path.join(home, ".gemini", "antigravity", "brain")),)
+    return ()
+
+
+def _plan_write_allowed(tool_input: dict, project_dir: str, client: str) -> bool:
+    """Allow a file write only under a client root and outside the repository."""
+    raw = tool_input.get("TargetFile" if client == "antigravity" else "file_path")
+    if not isinstance(raw, str) or not raw or "\0" in raw or not os.path.isabs(raw):
+        return False
+    resolved = os.path.realpath(raw)
+    repository = (os.path.realpath(project_dir), *_metadata_roots(project_dir))
+    if any(_is_within(resolved, root) for root in repository):
+        return False
+    specs = _client_write_specs(client)
+    return (is_allowed_write_path(raw, specs, os.path)
+            and is_allowed_write_path(resolved, specs, os.path))
+
+
+def _read_only_programs(tool_name: str) -> frozenset:
+    """Return the inspection programs for one shell tool."""
+    if tool_name in CMD_TOOLS:
+        return CMD_READ_PROGRAMS
+    if tool_name == "PowerShell":
+        return POWERSHELL_READ_PROGRAMS
+    return BASH_READ_PROGRAMS
+
+
+def _read_only_git_reason(arguments: list) -> str:
+    """Accept only inspection subcommands with no file-writing options."""
+    if arguments[:1] == ["--no-pager"]:
+        arguments = arguments[1:]
+    if not arguments:
+        return "git requires an inspection subcommand"
+    subcommand, options = arguments[0], arguments[1:]
+    if any(option.startswith(GIT_UNSAFE_READ_OPTIONS) for option in options):
+        return "git option writes a file or starts a program"
+    if subcommand in GIT_READ_SUBCOMMANDS:
+        return ""
+    if subcommand == "branch" and all(option in GIT_BRANCH_LIST_OPTIONS for option in options):
+        return ""
+    if subcommand == "worktree" and options in (["list"], ["list", "--porcelain"]):
+        return ""
+    if subcommand == "fetch" and all(
+            option in GIT_FETCH_OPTIONS if option.startswith("-")
+            else ":" not in option and not option.startswith("+")
+            for option in options):
+        return ""
+    return f"git {core.sanitize(subcommand)} is not an inspection operation"
+
+
+def _read_only_segment_reason(segment: list, tool_name: str, project_dir: str,
+                              roots: tuple) -> str:
+    """Return why one command segment is not an inspection."""
+    program = core.normalize_windows_command_name(segment[0])
+    if segment[0].casefold() not in (program, program + ".exe"):
+        return "A script or executable path cannot claim an inspection program"
+    if program == "git":
+        reason = _read_only_git_reason(segment[1:])
+    elif program not in _read_only_programs(tool_name):
+        reason = f"{core.sanitize(program)} is not an inspection command"
+    elif program == "cd" and len(segment) > 1:
+        reason = "cd accepts no argument"
+    else:
+        reason = ""
+    if reason or (program != "git" and program not in INSPECTABLE_PROGRAMS):
+        return reason
+    return _segment_execution_reason(segment, project_dir, roots)
+
+
+def read_only_command_reason(command: str, project_dir: str, tool_name: str) -> str:
+    """Return why a shell command is not a read-only inspection."""
+    if (not command or len(command) > bash_parser.MAX_COMMAND_CHARACTERS
+            or any(character in READ_ONLY_FORBIDDEN_CHARACTERS for character in command)):
+        return "Command uses redirection, expansion, grouping, or multiple lines"
+    segments, complete = _parsed_command_segments(command, tool_name)
+    if not complete or not segments:
+        return "Command syntax is incomplete"
+    roots = _metadata_roots(project_dir)
+    for segment in segments:
+        reason = _read_only_segment_reason(segment, tool_name, project_dir, roots)
+        if reason:
+            return reason
+    return ""
+
+
+def _read_only_workflow(command: str, project_dir: str) -> bool:
+    """Return whether a consent-routed workflow only inspects the repository."""
+    if not _workflow_needs_consent(command, project_dir):
+        return False
+    tokens, _complete = bash_parser._tokenize_line(command)
+    if tokens[0] == "rg" or tokens[1:3] == ["-m", "unittest"]:
+        return True
+    return tuple(tokens[2:]) in READ_ONLY_WORKFLOW_ARGUMENTS.get(tokens[1], ())
+
+
+def _git_tokens(command: str, project_dir: str) -> list:
+    """Return one literal Git command without a foreign repository prefix."""
+    if len(command) > bash_parser.MAX_COMMAND_CHARACTERS or "\n" in command or "\r" in command:
+        return []
+    tokens, complete = bash_parser._tokenize_line(command)
+    if not complete:
+        return []
+    tokens = _recovery_tokens(tokens, project_dir)
+    return tokens if tokens[:1] == ["git"] else []
+
+
+def _topic_branch_creation(command: str, project_dir: str) -> bool:
+    """Return whether a command creates one compliant feature branch."""
+    tokens = _git_tokens(command, project_dir)
+    return (len(tokens) == 4 and tokens[1:3] in (["switch", "-c"], ["checkout", "-b"])
+            and not check_branch(tokens[3], strict=True))
+
+
+def _existing_branch_switch(command: str, project_dir: str) -> bool:
+    """Return whether a command switches to one existing local branch."""
+    tokens = _git_tokens(command, project_dir)
+    return (len(tokens) == 3 and tokens[1] == "switch"
+            and _local_branch_exists(project_dir, tokens[2]))
+
+
+def _read_only_shell(payload: dict, project_dir: str, client: str, branch_name: str,
+                     tool_name: str, tool_input: dict) -> int:
+    """Allow inspection, route branch creation and workflows, and deny writes."""
+    command = _command_text(tool_name, tool_input)
+    if _valid_bootstrap(command, project_dir) or _existing_branch_switch(command, project_dir):
+        return 0
+    if _topic_branch_creation(command, project_dir):
+        return _request_authorization(
+            client, payload,
+            f"Create a feature branch from {_branch_label(branch_name)} before writing")
+    if _read_only_workflow(command, project_dir):
+        return _request_authorization(client, payload, "Repository workflow requires execution consent")
+    reason = read_only_command_reason(command, project_dir, tool_name)
+    if reason:
+        return _deny(client, f"{reason}. {_read_only_reason(branch_name)}")
+    return 0
+
+
+def _handle_read_only_branch(payload: dict, project_dir: str, client: str,
+                             branch_name: str) -> int:
+    """Permit inspection and planning on the primary branch or a detached HEAD."""
+    tool_name, tool_input = _tool_call(payload, client)
+    if not isinstance(tool_name, str):
+        return _deny(client, "Tool name is missing or malformed")
+    if tool_name in QUESTION_TOOLS | READ_ONLY_TOOLS | PLANNING_TOOLS:
+        return 0
+    if not isinstance(tool_input, dict):
+        return _deny(client, f"Tool input is malformed. {_read_only_reason(branch_name)}")
+    if tool_name in PLAN_WRITE_TOOLS and _plan_write_allowed(tool_input, project_dir, client):
+        return 0
+    if tool_name in SHELL_TOOLS:
+        return _read_only_shell(payload, project_dir, client, branch_name, tool_name, tool_input)
+    return _deny(client, f"{core.sanitize(tool_name)} blocked. {_read_only_reason(branch_name)}")
+
+
+def _handle_master_branch(payload: dict, project_dir: str, client: str) -> int:
+    """Relay the conversion requirement and offer only a switch to main."""
+    tool_name, tool_input = _tool_call(payload, client)
+    if not isinstance(tool_name, str):
+        return _deny(client, "Tool name is missing or malformed")
+    if tool_name in QUESTION_TOOLS:
+        return 0
+    if tool_name in SHELL_TOOLS and isinstance(tool_input, dict):
+        tokens = _git_tokens(_command_text(tool_name, tool_input), project_dir)
+        if tokens == ["git", "switch", "main"] and _local_branch_exists(project_dir, "main"):
+            return _request_authorization(client, payload, MASTER_BRANCH_MESSAGE)
+    return _deny(client, MASTER_BRANCH_MESSAGE)
+
+
+def _handle_failed_preflight(payload: dict, project_dir: str, client: str,
+                             branch_violation: str, branch_name: str) -> int:
+    """Route a failed preflight to read-only, master, or strict recovery handling."""
+    try:
+        state = branch_state(branch_name, project_dir)
+    except PrimaryBranchError as error:
+        return _deny(client, _primary_branch_failure(error))
+    if state == "read-only":
+        return _handle_read_only_branch(payload, project_dir, client, branch_name)
+    if state == "master":
+        return _handle_master_branch(payload, project_dir, client)
+    return _handle_invalid_branch(payload, project_dir, client, branch_violation, branch_name)
+
+
+def _lifecycle_message(branch_name: str, project_dir: str) -> tuple:
+    """Return the lifecycle state and message for a failed preflight."""
+    try:
+        state = branch_state(branch_name, project_dir)
+    except PrimaryBranchError as error:
+        return "failed", _primary_branch_failure(error)
+    if state == "read-only":
+        return state, (f"{_branch_label(branch_name)} is read-only; create a feature "
+                       "branch before writing.")
+    if state == "master":
+        return state, MASTER_BRANCH_MESSAGE
+    return state, ""
+
+
 def _handle_invalid_branch(
     payload: dict,
     project_dir: str,
@@ -855,7 +1287,7 @@ def _handle_pre_tool_use(payload: dict, project_dir: str, client: str) -> int:
     """Apply universal preflight and effective Git write validation."""
     branch_name, branch_violation = read_branch_preflight(project_dir)
     if branch_violation:
-        return _handle_invalid_branch(
+        return _handle_failed_preflight(
             payload,
             project_dir,
             client,
@@ -889,10 +1321,17 @@ def handle_stop_event(payload: dict, project_dir: str) -> int:
     branch_name, branch_violation = read_branch_preflight(project_dir)
     if not branch_violation:
         return 0
-    stop_reason = recovery_authorization_reason(branch_name)
+    state, message = _lifecycle_message(branch_name, project_dir)
+    if state == "read-only":
+        return 0
+    if message:
+        reason = message
+    else:
+        reason = (f"{recovery_authorization_reason(branch_name)} "
+                  f"{core.sanitize(branch_violation)}")
     output = {
         "decision": "block",
-        "reason": f"{stop_reason} {core.sanitize(branch_violation)}",
+        "reason": reason,
     }
     print(json.dumps(output))
     return 0
@@ -900,10 +1339,13 @@ def handle_stop_event(payload: dict, project_dir: str) -> int:
 
 def handle_context_event(project_dir: str, event_name: str) -> int:
     """Inject mandatory recovery context for a lifecycle event."""
-    _branch_name, branch_violation = read_branch_preflight(project_dir)
+    branch_name, branch_violation = read_branch_preflight(project_dir)
     if not branch_violation:
         return 0
-    warning = build_warning(branch_violation)
+    state, message = _lifecycle_message(branch_name, project_dir)
+    if state == "read-only":
+        return 0
+    warning = message or build_warning(branch_violation)
     output = {
         "hookSpecificOutput": {
             "hookEventName": event_name,

@@ -396,13 +396,14 @@ This command emits bounded structured output. This command may run before
 ordinary repository actions. Hook-based clients inspect bounded `.git/HEAD`
 metadata before every observable tool.
 
-Detached or invalid branches block every ordinary repository action. Only the
-exact compliant recovery command remains available for authorization. Read-only
+Invalid branches block every ordinary repository action. Only the exact
+compliant recovery command remains available for authorization. Read-only
 inspection does not bypass branch correction.
 
-On a primary branch named `main` or `master`, create and switch to a feature
-branch. On a detached HEAD, create and switch to a feature branch. Never work
-directly on a primary branch or detached HEAD.
+The primary branch `main`, or the name in `hooks/primary-branch.txt`, and a
+detached HEAD permit read-only inspection and planning. Create and switch to a
+feature branch before any write. `master` is not allowed. Tell the active human
+to convert the repository to `main`. Never perform the conversion.
 
 Use the format `<type>/<short-kebab-description>`. The description must state
 the work performed in the branch. Select it from the task context.
