@@ -798,6 +798,18 @@ def _infrastructure_manifest_text(path: str) -> str:
         return ""
 
 
+def strip_windows_drive(normalized: str) -> str:
+    """Return a normalized path without a leading `/<letter>:` segment.
+
+    On Windows, os.path.abspath roots "/proc/1/environ" on the current
+    drive, so POSIX-only checks such as /proc must ignore that segment.
+    """
+    has_drive = (len(normalized) > 3 and normalized[0] == "/"
+                 and normalized[1].isalpha() and normalized[2] == ":"
+                 and normalized[3] == "/")
+    return normalized[3:] if has_drive else normalized
+
+
 def is_protected_infrastructure_path(path: str, cwd: str = "", content: str = "") -> bool:
     """Return whether a path reaches protected infrastructure configuration."""
     candidate = path.strip().strip('"').strip("'")
@@ -810,7 +822,7 @@ def is_protected_infrastructure_path(path: str, cwd: str = "", content: str = ""
     basename = normalized.rsplit("/", 1)[-1]
     if any(marker in padded for marker in INFRASTRUCTURE_PATH_MARKERS):
         return True
-    if (normalized.startswith(PROCESS_FILESYSTEM_ROOT)
+    if (strip_windows_drive(normalized).startswith(PROCESS_FILESYSTEM_ROOT)
             and basename == PROCESS_ENVIRONMENT_NAME):
         return True
     if any(marker in padded for marker in KUBERNETES_DIRECTORY_MARKERS):

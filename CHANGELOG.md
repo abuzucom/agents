@@ -36,7 +36,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `.github/copilot-instructions.md` to consent. Share one policy path list
   between the shell gates and the consent hook.
 - Deny only `/proc/<entry>/environ` instead of every `environ` directory.
-  Deny Windows GitHub CLI storage under `GitHub CLI`.
+  Ignore a Windows drive prefix in that check. Deny Windows GitHub CLI
+  storage under `GitHub CLI`.
 - Run each trusted GitHub CLI call inside a private temporary directory.
   Shared `gh-cli-cache` ownership no longer blocks other accounts or
   sandboxes. Name the unwritable path when temporary storage fails.
