@@ -76,11 +76,11 @@ Antigravity recovery accepts `view_file`, `list_dir`, `find_by_name`, and
 configured launcher. `scripts/check_hook_coverage.py` requires test reachability.
 
 `gate-integrity.yml` uses read-only `pull_request` execution and checks out the
-exact base and head revisions. The bootstrap path uses the exact head checker
-until the base revision contains the checker. Later runs use the base checker.
+exact base and head revisions. Pull-request code never runs. Without a base
+checker, the job requires the label.
 It runs base-branch `scripts/check_gate_pr_integrity.py` against the pull-request
-diff. Protected gate changes require the exact `gate-change-approved` label.
-The checker cannot identify who applied the label.
+diff. Protected gate changes require the `gate-change-approved` label from a
+person after the latest push. Case variants of protected paths also count.
 Configure GitHub branch protection to require this job. Repository files cannot
 enforce the branch rule.
 
