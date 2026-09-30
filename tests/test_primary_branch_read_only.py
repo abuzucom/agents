@@ -1,4 +1,8 @@
-"""The primary branch and a detached HEAD permit read-only inspection and planning."""
+"""The primary branch and a detached HEAD permit read-only inspection and planning.
+
+Each class stays small because the hook coverage runner gives every test class
+one shard with a fixed time limit, and every case launches the hook.
+"""
 import json
 import unittest
 
@@ -39,11 +43,30 @@ ALLOWED_TOOLS = ("Read", "Grep", "Glob", "AskUserQuestion", "ExitPlanMode", "Ent
 DENIED_TOOLS = ("WebFetch", "NotebookEdit", "mcp__github__create_pull_request", "Agent")
 
 
-class ReadOnlyBranchTest(unittest.TestCase):
-    """Check allowed, consent-routed, and denied operations in each read-only state."""
+class ReadOnlyCase(unittest.TestCase):
+    """Share fixture creation and per-state assertions across the shard classes."""
 
     def fixture(self, branch: str) -> BranchFixture:
         return BranchFixture(self, branch)
+
+    def assert_shell_allowed(self, branch: str) -> None:
+        fixture = self.fixture(branch)
+        for command in ALLOWED_BASH:
+            with self.subTest(branch=branch, command=command):
+                result = fixture.shell(command)
+                self.assertEqual(decision(result), "allow", result.stderr)
+
+    def assert_writes_denied(self, branch: str) -> None:
+        fixture = self.fixture(branch)
+        for command in DENIED_BASH:
+            with self.subTest(branch=branch, command=command):
+                result = fixture.shell(command)
+                self.assertEqual(decision(result), "deny", result.stdout)
+                self.assertIn("permits read-only inspection", result.stderr)
+
+
+class ReadOnlyToolTest(ReadOnlyCase):
+    """Read and planning tools pass. Other tools and malformed calls fail."""
 
     def test_read_and_planning_tools_are_allowed(self):
         for branch in READ_ONLY_STATES:
@@ -71,13 +94,23 @@ class ReadOnlyBranchTest(unittest.TestCase):
                                              "tool_name": "Bash", "tool_input": "git status"})
         self.assertEqual(decision(missing_input), "deny")
 
+
+class ReadOnlyShellMainTest(ReadOnlyCase):
+    """Inspection commands pass on main."""
+
     def test_read_only_shell_commands_are_allowed(self):
-        for branch in READ_ONLY_STATES:
-            fixture = self.fixture(branch)
-            for command in ALLOWED_BASH:
-                with self.subTest(branch=branch, command=command):
-                    result = fixture.shell(command)
-                    self.assertEqual(decision(result), "allow", result.stderr)
+        self.assert_shell_allowed("main")
+
+
+class ReadOnlyShellDetachedTest(ReadOnlyCase):
+    """Inspection commands pass on a detached HEAD."""
+
+    def test_read_only_shell_commands_are_allowed(self):
+        self.assert_shell_allowed(DETACHED_HEAD)
+
+
+class ReadOnlyConsentTest(ReadOnlyCase):
+    """Workflows and branch creation ask. Existing branch switches pass."""
 
     def test_workflows_and_branch_creation_request_consent(self):
         for branch in READ_ONLY_STATES:
@@ -92,14 +125,35 @@ class ReadOnlyBranchTest(unittest.TestCase):
         result = fixture.run("Bash", {"command": "git switch -c feat/new-work"}, mode="dontAsk")
         self.assertEqual(decision(result), "deny")
 
+    def test_existing_branch_switch_is_allowed(self):
+        fixture = self.fixture("main")
+        fixture.add_local_branch("feat/existing")
+        self.assertEqual(decision(fixture.shell("git switch feat/existing")), "allow")
+        packed = fixture.admin / "packed-refs"
+        packed.write_text("# pack-refs with: peeled\n" + "0" * 40
+                          + " refs/heads/fix/packed\n", encoding="utf-8")
+        self.assertEqual(decision(fixture.shell("git switch fix/packed")), "allow")
+        for command in ("git switch feat/missing", "git switch ../outside", "git switch -"):
+            with self.subTest(command=command):
+                self.assertEqual(decision(fixture.shell(command)), "deny")
+
+
+class ReadOnlyDenyMainTest(ReadOnlyCase):
+    """Write commands fail on main."""
+
     def test_write_operations_are_denied(self):
-        for branch in READ_ONLY_STATES:
-            fixture = self.fixture(branch)
-            for command in DENIED_BASH:
-                with self.subTest(branch=branch, command=command):
-                    result = fixture.shell(command)
-                    self.assertEqual(decision(result), "deny", result.stdout)
-                    self.assertIn("permits read-only inspection", result.stderr)
+        self.assert_writes_denied("main")
+
+
+class ReadOnlyDenyDetachedTest(ReadOnlyCase):
+    """Write commands fail on a detached HEAD."""
+
+    def test_write_operations_are_denied(self):
+        self.assert_writes_denied(DETACHED_HEAD)
+
+
+class ReadOnlyRepositoryWriteTest(ReadOnlyCase):
+    """File tools cannot write inside the repository or its metadata."""
 
     def test_repository_file_writes_are_denied(self):
         for branch in READ_ONLY_STATES:
@@ -115,17 +169,9 @@ class ReadOnlyBranchTest(unittest.TestCase):
                 with self.subTest(branch=branch, tool=tool, tool_input=tool_input):
                     self.assertEqual(decision(fixture.run(tool, tool_input)), "deny")
 
-    def test_existing_branch_switch_is_allowed(self):
-        fixture = self.fixture("main")
-        fixture.add_local_branch("feat/existing")
-        self.assertEqual(decision(fixture.shell("git switch feat/existing")), "allow")
-        packed = fixture.admin / "packed-refs"
-        packed.write_text("# pack-refs with: peeled\n" + "0" * 40
-                          + " refs/heads/fix/packed\n", encoding="utf-8")
-        self.assertEqual(decision(fixture.shell("git switch fix/packed")), "allow")
-        for command in ("git switch feat/missing", "git switch ../outside", "git switch -"):
-            with self.subTest(command=command):
-                self.assertEqual(decision(fixture.shell(command)), "deny")
+
+class ReadOnlyPowerShellTest(ReadOnlyCase):
+    """PowerShell inspection forms pass and write forms fail."""
 
     def test_powershell_forms(self):
         fixture = self.fixture("main")
@@ -140,6 +186,10 @@ class ReadOnlyBranchTest(unittest.TestCase):
             with self.subTest(command=command):
                 self.assertEqual(decision(fixture.shell(command, tool_name="PowerShell")), "deny")
 
+
+class ReadOnlyCmdTest(ReadOnlyCase):
+    """CMD inspection forms pass and write forms fail."""
+
     def test_cmd_forms(self):
         fixture = self.fixture("main")
         for tool in ("CMD", "Cmd", "CommandPrompt"):
@@ -152,6 +202,10 @@ class ReadOnlyBranchTest(unittest.TestCase):
                             "del README.md", "type %USERPROFILE%\\x", "cat README.md"):
                 with self.subTest(tool=tool, command=command):
                     self.assertEqual(decision(fixture.shell(command, tool_name=tool)), "deny")
+
+
+class ReadOnlyClientTest(ReadOnlyCase):
+    """Other clients, active rebases, and lifecycle events."""
 
     def test_gemini_and_antigravity_read_tools(self):
         fixture = self.fixture("main")
