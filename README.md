@@ -585,10 +585,16 @@ launching Git. Session startup injects recovery guidance on strict failure.
 Wildcard pre-tool registration blocks every observable ordinary tool until
 strict preflight passes. The agent selects a compliant replacement from task
 intent. The exact recovery command receives a native authorization prompt.
-Invalid named branches use `git branch -m`. Primary branches and detached HEAD
-use `git switch -c`. The hook denies creation and publication of a `claude/`
-target from a conforming branch. `Stop` and `SubagentStop` block completion while
-strict preflight fails. An active stop-hook retry permits bounded termination.
+Invalid named branches use `git branch -m`. The primary branch `main`, or the
+name in `hooks/primary-branch.txt`, and a detached HEAD permit read-only
+inspection and planning. Read tools, plan and task tools, and an inspection
+shell allowlist stay available there. Plan writes reach only per-client roots
+outside the repository. Branch creation through `git switch -c` and read-only
+workflows receive a consent prompt. Other writes receive a denial. `master`
+receives a denial that tells the active human to convert the repository to
+`main`. The hook denies creation and publication of a `claude/` target from a
+conforming branch. `Stop` and `SubagentStop` block completion while an invalid
+branch or `master` remains. An active stop-hook retry permits bounded termination.
 The retry does not clear any repository tool. Local preflight ignores
 `GITHUB_HEAD_REF`. The gate selects checker code from the installed policy root.
 Git directory overrides use bounded upward discovery to locate repository metadata.

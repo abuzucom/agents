@@ -9,6 +9,27 @@ The house style bans that hyphen. `scripts/check_ascii.py` enforces the ban on
 this file.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.9.0] (2026-09-30)
+
+### Changed
+- Treat the primary branch `main` and a detached HEAD as read-only states in
+  `hooks/enforce_branch_name.py`. Read tools, plan and task tools, inspection
+  shell commands, and per-client plan writes outside the repository stay
+  available. Branch creation and read-only workflows receive a consent
+  prompt. Other writes receive a denial.
+- Add the protected `hooks/primary-branch.txt` override for one repository
+  primary branch name. An unusable override denies every tool.
+- Deny every ordinary tool on `master` with a conversion message for the
+  active human. Offer only `git switch main` when a local `main` exists.
+- Show a one-line read-only note at session start on the primary branch or
+  a detached HEAD. `Stop` and `UserPromptSubmit` no longer block there.
+- Update `AGENTS.md`, `docs/agent-policy/adoption.md`, and
+  `docs/agent-policy/enforcement.md` to match. Remove two duplicated
+  paragraphs from `docs/agent-policy/adoption.md`.
+- Cover branch gate edge paths in `tests/test_branch_gate_edge_paths.py`.
+  Remove two stale `enforce_branch_name.py` entries from
+  `hook-coverage-baseline.json`.
+
 ## [2.8.4] (2026-09-30)
 
 ### Removed
