@@ -102,6 +102,18 @@ def is_short_group(token: str) -> bool:
     return token.startswith("-") and not token.startswith("--") and len(token) > 1
 
 
+def long_option_matches(token: str, option: str) -> bool:
+    """Return True if `token` names `option` or a prefix git or getopt accepts.
+
+    git parse-options and GNU getopt_long accept any unique prefix of a long
+    option, so `--forc` is `--force`. An ambiguous prefix makes the tool
+    exit with an error, so reading it as the gated option only over-asks.
+    """
+    name = token.split("=", 1)[0]
+    return (name.startswith("--") and len(name) > len("--")
+            and option.startswith(name))
+
+
 def _is_drive_root(token: str) -> bool:
     """Return True for the root of any drive or share.
 
@@ -178,13 +190,13 @@ def git_subcommand(args: list) -> tuple:
 
 def _push_flag_reason(token: str, name: str) -> str:
     """Return why a git push flag needs consent, or an empty string."""
-    if name.startswith("--force"):
+    if name.startswith("--force") or long_option_matches(name, "--force-with-lease"):
         return "git push with a --force variant: a lease is not consent to rewrite pushed history"
-    if name == "--mirror":
+    if long_option_matches(name, "--mirror"):
         return "git push --mirror: this overwrites and deletes published refs"
-    if name == "--delete" or (is_short_group(token) and "d" in token):
+    if long_option_matches(name, "--delete") or (is_short_group(token) and "d" in token):
         return "git push --delete: this removes a published ref"
-    if name == "--prune":
+    if long_option_matches(name, "--prune"):
         return "git push --prune: this deletes every remote ref with no local counterpart"
     return ""
 
@@ -214,7 +226,7 @@ def push_verdict(args: list) -> tuple:
     ask = ""
     for token in args:
         name = token.split("=", 1)[0]
-        if name == "--force" or (is_short_group(token) and "f" in token):
+        if long_option_matches(name, "--force") or (is_short_group(token) and "f" in token):
             # Asked rather than refused, at the user's direction. A refusal
             # offers no way to consent, and the pushed-history rule is about
             # consent rather than impossibility.
@@ -275,11 +287,12 @@ def _git_branch_verdict(rest: list) -> tuple:
     """Return (decision, reason) for a git branch argument list."""
     # Case carries the meaning here: -d refuses an unmerged branch, -D
     # discards it. Lowercasing first would gate the safe one.
-    lowered = [token.lower() for token in rest]
-    forced = (("--delete" in lowered and "--force" in lowered)
-              or any(token.startswith("-") and not token.startswith("--")
-                     and "D" in token for token in rest))
-    if forced:
+    short_flags = "".join(token[1:] for token in rest if is_short_group(token))
+    deletes = "d" in short_flags or any(
+        long_option_matches(token, "--delete") for token in rest)
+    forces = "f" in short_flags or any(
+        long_option_matches(token, "--force") for token in rest)
+    if "D" in short_flags or (deletes and forces):
         return "ask", ("git branch -D discards a branch whose commits "
                        "may not be merged anywhere else")
     return "", ""
@@ -287,21 +300,21 @@ def _git_branch_verdict(rest: list) -> tuple:
 
 def _git_clean_verdict(rest: list) -> tuple:
     """Return (decision, reason) for a git clean argument list."""
-    lowered = [token.lower() for token in rest]
-    if any(flag in lowered for flag in ("-n", "--dry-run")):
+    short_flags = "".join(token[1:] for token in rest if is_short_group(token))
+    if "n" in short_flags or any(
+            long_option_matches(token, "--dry-run") for token in rest):
         return "", ""
-    if any(flag.startswith("-") and ("d" in flag or "x" in flag)
-           for flag in lowered):
-        return "ask", ("git clean removing untracked files, over a set "
-                       "decided at run time")
-    return "", ""
+    return "ask", ("git clean removing untracked files, over a set "
+                   "decided at run time")
 
 
 def _git_flag_verdict(subcommand: str, rest: list) -> tuple:
     """Return (decision, reason) for the subcommands one flag decides."""
-    if subcommand == "reset" and "--hard" in rest:
+    if subcommand == "reset" and any(
+            long_option_matches(token, "--hard") for token in rest):
         return "deny", "git reset --hard"
-    if subcommand == "commit" and "--amend" in rest:
+    if subcommand == "commit" and any(
+            long_option_matches(token, "--amend") for token in rest):
         return "ask", "git commit --amend: this rewrites a commit"
     if subcommand in HISTORY_SUBCOMMANDS:
         return "ask", HISTORY_SUBCOMMANDS[subcommand]
@@ -496,7 +509,7 @@ def posix_delete_verdict(args: list) -> tuple:
         if parsing and token == "--":
             parsing = False
         elif parsing and token.startswith("--"):
-            recursive = recursive or token == "--recursive"
+            recursive = recursive or long_option_matches(token, "--recursive")
         elif parsing and is_short_group(token):
             recursive = recursive or "r" in token or "R" in token
         else:
@@ -589,7 +602,13 @@ INFRASTRUCTURE_PATH_MARKERS = (
     "/.kube/", "/.lftp/", "/.pulumi/", "/.ssh/", "/.terraform/",
     "/.terraform.d/",
     "/etc/ssh/",
+    # Process environments and developer credential stores hold the same
+    # tokens an agent must never read into its context.
+    "/.config/gh/", "/github cli/",
+    "/.git-credentials/", "/.docker/config.json/",
 )
+PROCESS_FILESYSTEM_ROOT = "/proc/"
+PROCESS_ENVIRONMENT_NAME = "environ"
 KUBERNETES_DIRECTORY_MARKERS = ("/charts/", "/helm/", "/k8s/", "/kubernetes/")
 KUBERNETES_FILENAMES = frozenset({
     "chart.yaml", "chart.yml", "helmfile.yaml", "helmfile.yml",
@@ -779,6 +798,18 @@ def _infrastructure_manifest_text(path: str) -> str:
         return ""
 
 
+def strip_windows_drive(normalized: str) -> str:
+    """Return a normalized path without a leading `/<letter>:` segment.
+
+    On Windows, os.path.abspath roots "/proc/1/environ" on the current
+    drive, so POSIX-only checks such as /proc must ignore that segment.
+    """
+    has_drive = (len(normalized) > 3 and normalized[0] == "/"
+                 and normalized[1].isalpha() and normalized[2] == ":"
+                 and normalized[3] == "/")
+    return normalized[3:] if has_drive else normalized
+
+
 def is_protected_infrastructure_path(path: str, cwd: str = "", content: str = "") -> bool:
     """Return whether a path reaches protected infrastructure configuration."""
     candidate = path.strip().strip('"').strip("'")
@@ -790,6 +821,9 @@ def is_protected_infrastructure_path(path: str, cwd: str = "", content: str = ""
     padded = normalized + ("/" if not normalized.endswith("/") else "")
     basename = normalized.rsplit("/", 1)[-1]
     if any(marker in padded for marker in INFRASTRUCTURE_PATH_MARKERS):
+        return True
+    if (strip_windows_drive(normalized).startswith(PROCESS_FILESYSTEM_ROOT)
+            and basename == PROCESS_ENVIRONMENT_NAME):
         return True
     if any(marker in padded for marker in KUBERNETES_DIRECTORY_MARKERS):
         return True
@@ -1333,9 +1367,22 @@ POWERSHELL_WRITE_PARAMETERS = {
     "clear-content": PATH_PARAMETERS, "export-clixml": CONTENT_PARAMETERS,
     "export-csv": CONTENT_PARAMETERS, "rename-item": RENAME_PARAMETERS,
 }
-PROTECTED_PATH_PARTS = frozenset(
-    {"hooks", ".claude", "scripts", ".agents", ".codex", ".gemini"}
-)
+PROTECTED_PATH_PARTS = frozenset({
+    "hooks", ".claude", "scripts", ".agents", ".codex", ".gemini", ".git",
+})
+# The canonical policy, its synced copies, and supporting policy documents
+# load as agent instructions.
+POLICY_FILES = frozenset({
+    "agents.md", "claude.md", "gemini.md", "conventions.md", ".cursorrules",
+    ".clinerules", ".windsurfrules", ".copilot-instructions",
+    ".github/copilot-instructions.md",
+})
+POLICY_PREFIXES = ("docs/agent-policy/",)
+
+
+def is_policy_relative(relative: str) -> bool:
+    """Return True if a lowercased root-relative path names agent policy text."""
+    return relative in POLICY_FILES or relative.startswith(POLICY_PREFIXES)
 
 
 def strip_windows_decorations(name: str) -> str:
@@ -1447,8 +1494,9 @@ def _protected_path(path: str, cwd: str) -> bool:
         return False
     if relative == os.pardir or relative.startswith(os.pardir + os.sep):
         return False
-    head = relative.replace("\\", "/").split("/", 1)[0].lower()
-    return head in PROTECTED_PATH_PARTS
+    normalized = relative.replace("\\", "/").lower()
+    head = normalized.split("/", 1)[0]
+    return head in PROTECTED_PATH_PARTS or is_policy_relative(normalized)
 
 
 def protected_write_verdict(program: str, args: list,
@@ -1456,8 +1504,8 @@ def protected_write_verdict(program: str, args: list,
     """Gate known shell writes to repository-controlled hook files."""
     for target in _known_write_targets(program, args, redirects):
         if _protected_path(target, cwd):
-            return "ask", ("a known shell write to hooks/, .claude/, or scripts/. "
-                           "These prompts are best-effort workflow checks")
+            return "ask", ("a known shell write to gate files, .git/, or agent "
+                           "policy. These prompts are best-effort workflow checks")
     return "", ""
 
 
@@ -2765,6 +2813,29 @@ def process_verdict(program: str, args: list) -> tuple:
                    "that loses is the user's call")
 
 
+GIT_CONFIG_VALUE_OPTIONS = frozenset({
+    "-f", "--file", "--blob", "--type", "--default", "--comment", "--value",
+})
+GIT_CONFIG_WRITE_SUBCOMMANDS = frozenset({"set"})
+
+
+def _git_config_positionals(args: list) -> list:
+    """Return git config operands after option values and the set subcommand."""
+    positionals = []
+    index = 0
+    while index < len(args):
+        token = args[index]
+        if token in GIT_CONFIG_VALUE_OPTIONS:
+            index += 2
+            continue
+        if not token.startswith("-"):
+            positionals.append(token)
+        index += 1
+    if positionals and positionals[0] in GIT_CONFIG_WRITE_SUBCOMMANDS:
+        return positionals[1:]
+    return positionals
+
+
 def alias_verdict(program: str, args: list) -> tuple:
     """Return (decision, reason) for defining a command alias.
 
@@ -2779,7 +2850,7 @@ def alias_verdict(program: str, args: list) -> tuple:
         return "deny", (f"{name} defining a command alias, which makes a name "
                         "run something the name does not say")
     if name == "git" and args and args[0] == "config":
-        settings = [token for token in args[1:] if not token.startswith("-")]
+        settings = _git_config_positionals(args[1:])
         if settings and settings[0].lower().startswith("alias.") and len(settings) > 1:
             return "deny", ("git config defining an alias, which makes a "
                             "subcommand run something it does not name")
@@ -2852,7 +2923,8 @@ def filesystem_repair_verdict(program: str, args: list) -> tuple:
 FORGE_PROGRAMS = frozenset({"gh", "glab", "hub", "tea"})
 FORGE_DELETE_NOUNS = frozenset({"repo", "repository", "release", "project",
                                  "org", "organization", "gist", "secret",
-                                 "environment", "cache", "run", "variable"})
+                                 "environment", "cache", "run", "variable",
+                                 "issue", "label"})
 GH_GLOBAL_VALUE_OPTIONS = frozenset({"-R", "--repo", "--hostname"})
 GH_SUBCOMMAND_VALUE_OPTIONS = frozenset({
     "-a", "-b", "-B", "-F", "-H", "-l", "-m", "-p", "-r", "-t", "-T",
@@ -3003,6 +3075,9 @@ def _github_api_verdict(args: list) -> tuple:
 
 def _github_auth_verdict(args: list) -> tuple:
     """Protect GitHub credentials and broad authorization scopes."""
+    if any(token in ("-t", "--show-token") or token.startswith("--show-token=")
+           for token in args):
+        return "deny", "gh auth prints the account token into agent context"
     scopes = _option_value(args, frozenset({"--scopes", "-s"}))
     scope_set = {scope.strip().lower() for scope in scopes.split(",") if scope}
     if scope_set & GH_BROAD_AUTH_SCOPES:
@@ -3149,6 +3224,8 @@ def github_cli_verdict(args: list, *, repo_owner: str = "") -> tuple:
         if visibility == "public" or is_ambiguous(visibility):
             return "deny", "public repository visibility can expose private content"
         return "ask", "repository edits change hosted settings"
+    if noun == "gist" and action in ("create", "edit"):
+        return "ask", "a gist uploads local content to GitHub"
     return _external_target_verdict(args, command, noun, action, repo_owner)
 
 

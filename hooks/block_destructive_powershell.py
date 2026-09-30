@@ -243,7 +243,7 @@ def _named_program_verdict(program: str, args: list, depth: int) -> tuple:
         return _interpreter_verdict(program, args, depth)
     if program in core.DELETE_PROGRAMS:
         return core.any_delete_verdict(program, args)
-    if program == "git":
+    if core.normalize_windows_command_name(program) == "git":
         return core.git_verdict(args, _CWD[0])
     return None
 
