@@ -27,6 +27,7 @@ PROTECTED_FILES = frozenset({
     "scripts/banned_models.txt",
     "scripts/check_banned_agents.py",
     "scripts/check_branch_name.py",
+    "scripts/check_commit_attribution.py",
     "scripts/check_compliance_tree.py",
     "scripts/check_gate_adoption.py",
     "scripts/check_gate_pr_integrity.py",

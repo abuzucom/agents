@@ -44,6 +44,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Reject an `Assisted-by` trailer that names no versioned model, such as
   bare `Claude`. Reject a name-only agent co-author label without an
   `Assisted-by` trailer. Commits with no agent label still pass.
+- Require `gate-change-approved` for changes to
+  `scripts/check_commit_attribution.py`.
 - Scope the checkout temp root in `tests/test_trusted_gh.py` to that
   module. Later test modules in the same process keep the system temp root.
 
