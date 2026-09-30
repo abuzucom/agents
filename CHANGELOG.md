@@ -26,6 +26,9 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Update `AGENTS.md`, `docs/agent-policy/adoption.md`, and
   `docs/agent-policy/enforcement.md` to match. Remove two duplicated
   paragraphs from `docs/agent-policy/adoption.md`.
+- Cover branch gate edge paths in `tests/test_branch_gate_edge_paths.py`.
+  Remove two stale `enforce_branch_name.py` entries from
+  `hook-coverage-baseline.json`.
 
 ## [2.8.4] (2026-09-30)
 
