@@ -9,6 +9,14 @@ The house style bans that hyphen. `scripts/check_ascii.py` enforces the ban on
 this file.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.8.4] (2026-09-30)
+
+### Removed
+- Remove the Dependabot changelog companion workflow,
+  `scripts/create_dependabot_changelog_pr.py`, and its test. The job failed
+  on every run. The trusted wrapper account check reads `/user`, and the
+  workflow `GITHUB_TOKEN` cannot read that endpoint.
+
 ## [2.8.3] (2026-09-30)
 
 ### Fixed
