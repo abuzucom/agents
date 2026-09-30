@@ -255,6 +255,9 @@ Never proceed past Git's automatic-identity warning. Do not infer identity
 from environment, hostname, task text, or repository history. Use the trusted
 recovery procedure in `docs/agent-policy/adoption.md`.
 
+Derive identity from an authenticated account source. Never ask the active
+human to supply it.
+
 An authenticated `gh` does not establish a Git identity. GitHub CLI and Git
 use separate configuration.
 
@@ -327,6 +330,9 @@ other hosted state changes to active-human consent.
 A failed wrapper operation permits one semantically equivalent Git fallback
 after active-human confirmation. Use the documented fallback marker. See
 `docs/agent-policy/github.md` for implementation detail.
+
+Only an authentication failure category supports a sign-in request. See
+`docs/agent-policy/github.md`.
 
 The Claude shell gates enforce direct routing and mutation decisions. Other
 client hook APIs lack equivalent shell coverage. The instruction remains

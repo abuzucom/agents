@@ -9,6 +9,21 @@ The house style bans that hyphen. `scripts/check_ascii.py` enforces the ban on
 this file.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.8.3] (2026-09-30)
+
+### Fixed
+- Direct agents to derive Git identity from an authenticated account source
+  and request approval. Never ask the active human to supply identity values.
+  Update `hooks/enforce_git_identity.py` and `scripts/check_git_identity.py`
+  wording to match.
+- Add a diagnosis order for failed trusted wrapper calls to
+  `docs/agent-policy/github.md` and Rule 16. Only an authentication result
+  supports a sign-in request.
+
+### Changed
+- Remove supporting-document sentences that repeat `AGENTS.md` Rule 15 and
+  Rule 17 to keep the assembled policy under the sync size limit.
+
 ## [2.8.2] (2026-09-30)
 
 ### Fixed
