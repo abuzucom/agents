@@ -9,6 +9,21 @@ The house style bans that hyphen. `scripts/check_ascii.py` enforces the ban on
 this file.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.9.1] (2026-09-30)
+
+### Fixed
+- Bind the `gate-change-approved` label to the current pull-request head.
+  `scripts/check_gate_pr_integrity.py` accepts an optional
+  `--timeline-json` flag. With it, the label counts only when a person
+  applied it after the latest push, force push, and label removal.
+  `gate-integrity.yml` reads that timeline through the pinned
+  `actions/github-script` action.
+- Match protected paths without regard to case. Protect `Makefile`,
+  `.pre-commit-config.yaml`, `scripts/run_tests.py`, and `CODEOWNERS`
+  files.
+- Stop running the pull-request checker when the base branch lacks one.
+  The first gate adoption now requires the approval label.
+
 ## [2.9.0] (2026-09-30)
 
 ### Changed
