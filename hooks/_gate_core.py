@@ -2939,6 +2939,14 @@ GH_BROAD_AUTH_SCOPES = frozenset({"admin:org", "admin:public_key",
                                   "project", "repo", "user", "workflow",
                                   "write:discussion", "write:org",
                                   "write:packages"})
+# Labels record human decisions such as gate-change-approved (Rule 23), so
+# no gh subcommand that writes them runs for an agent.
+GH_LABEL_WRITE_COMMANDS = frozenset({
+    ("pr", "create"), ("pr", "edit"), ("issue", "create"), ("issue", "edit"),
+})
+GH_LABEL_OPTIONS = ("--label", "--add-label", "--remove-label")
+GH_LABEL_SHORT_OPTION = "-l"
+GH_API_METHOD_OPTIONS = frozenset({"--method", "-X", "-x"})
 GH_FALLBACK_CONFIG = "agents.githubfallback=confirmed"
 GH_COMMAND_DENYLIST = Path(__file__).with_name("github-command-denylist.txt")
 
@@ -3057,16 +3065,35 @@ def _option_value(args: list, names: frozenset) -> str:
     return ""
 
 
+def _option_values(args: list, names: frozenset) -> list:
+    """Return every value of a command option in separate or joined form."""
+    values = []
+    for index, token in enumerate(args):
+        for name in names:
+            is_short = len(name) == 2 and name.startswith("-") and not name.startswith("--")
+            target = token if is_short else token.lower()
+            option_name = name if is_short else name.lower()
+            if target == option_name:
+                values.append(args[index + 1] if index + 1 < len(args) else "")
+            elif target.startswith(option_name + "="):
+                values.append(token[len(option_name) + 1:])
+            elif is_short and target.startswith(option_name) and len(token) > 2:
+                values.append(token[2:])
+    return values
+
+
 def _github_api_verdict(args: list) -> tuple:
     """Deny state-changing REST and GraphQL API requests."""
     lowered = [token.lower() for token in args]
-    method = _option_value(args, frozenset({"--method", "-X", "-x"})).upper()
-    if method and method != "GET":
+    # gh keeps the last method option, so every value must be GET.
+    methods = [value.upper() for value in _option_values(args, GH_API_METHOD_OPTIONS)]
+    if any(method != "GET" for method in methods):
         return "deny", "gh api can mutate hosted GitHub resources"
     if any(token in {"-f", "-F", "--field", "--raw-field", "--input"}
            or token.startswith(("-f=", "-F=", "--field=", "--raw-field=",
                                 "--input=")) for token in args):
-        if method != "GET":
+        # Fields without an explicit GET turn the request into a POST.
+        if not methods:
             return "deny", "gh api fields default to a state-changing request"
     if "graphql" in lowered and any("mutation" in token for token in lowered):
         return "deny", "GraphQL mutations can change hosted GitHub resources"
@@ -3192,16 +3219,29 @@ def _external_target_verdict(args: list, command: list, noun: str,
             if owner:
                 break
             index += 1
+    if not repo_owner:
+        # An unreadable origin cannot clear any target, implicit ones
+        # included, so the gate asks rather than waving the command through.
+        target = sanitize(owner) if owner else "an implicit repository"
+        return "ask", (f"{sanitize(noun)} {sanitize(action)} targets "
+                       f"{target}, and this repository names no "
+                       "origin owner to compare")
     if not owner or owner.lower() == repo_owner.lower():
         return "", ""
-    if not repo_owner:
-        # An unreadable origin cannot clear the target, so the gate asks
-        # rather than waving an outward-facing command through.
-        return "ask", (f"{sanitize(noun)} {sanitize(action)} targets "
-                       f"{sanitize(owner)}, and this repository names no "
-                       "origin owner to compare")
     return "ask", (f"{sanitize(noun)} {sanitize(action)} targets "
                    f"{sanitize(owner)}, an owner outside this repository")
+
+
+def _has_label_option(command: list) -> bool:
+    """Return whether gh arguments carry a label option in any form."""
+    for token in command:
+        lowered = token.lower()
+        if lowered in GH_LABEL_OPTIONS or lowered.startswith(
+                tuple(option + "=" for option in GH_LABEL_OPTIONS)):
+            return True
+        if token.startswith(GH_LABEL_SHORT_OPTION):
+            return True
+    return False
 
 
 def github_cli_verdict(args: list, *, repo_owner: str = "") -> tuple:
@@ -3215,6 +3255,8 @@ def github_cli_verdict(args: list, *, repo_owner: str = "") -> tuple:
     words = _github_command_path(command)
     noun = words[0] if words else ""
     action = words[1] if len(words) > 1 else ""
+    if (noun, action) in GH_LABEL_WRITE_COMMANDS and _has_label_option(command):
+        return "deny", "agents never add, remove, or change labels (Rule 23)"
     if noun == "api":
         return _github_api_verdict(command[1:])
     if noun == "auth":
@@ -3234,13 +3276,17 @@ def trusted_gh_arguments(program: str, args: list, cwd: str) -> list:
     name = normalize_windows_command_name(program)
     if name not in {"py", "python", "python3"}:
         return []
-    script_index = 1 if args and args[0].startswith("-") else 0
+    # Any run of interpreter flags may precede the script. Recognizing more
+    # wrapper forms only adds verdicts, so skipping every option is safe.
+    script_index = 0
+    while script_index < len(args) and args[script_index].startswith("-"):
+        script_index += 1
     if len(args) <= script_index + 1 or args[script_index + 1] != "run":
         return []
     script = args[script_index]
     candidate = script if os.path.isabs(script) else os.path.join(cwd, script)
-    expected = os.path.join(cwd, "scripts", "trusted_gh.py")
-    if os.path.normcase(os.path.abspath(candidate)) != os.path.normcase(expected):
+    parts = os.path.abspath(candidate).replace("\\", "/").split("/")
+    if [part.casefold() for part in parts[-2:]] != ["scripts", "trusted_gh.py"]:
         return []
     return args[script_index + 2:]
 
@@ -3292,7 +3338,7 @@ def _is_github_target(tokens: list) -> bool:
         if _is_github_hostname(_token_hostname(token)):
             return True
     text = " ".join(tokens).casefold()
-    return "refs/pull/" in text or "pull/" in text
+    return "pull/" in text
 
 
 def _github_git_substitute(args: list) -> bool:
