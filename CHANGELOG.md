@@ -27,6 +27,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Document the remaining label surfaces and the wrapper's handling of ask
   verdicts in `docs/agent-policy/github.md`.
 - Remove a redundant pull-ref test in `hooks/_gate_core.py`.
+- Cover every `_option_value` form in `tests/test_gh_option_value_forms.py`.
+  Remove two stale `_gate_core.py` entries from `hook-coverage-baseline.json`.
 
 Logic finding 4 stays open. A malformed hook payload still passes as a
 session start.
