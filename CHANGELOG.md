@@ -9,6 +9,22 @@ The house style bans that hyphen. `scripts/check_ascii.py` enforces the ban on
 this file.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.9.3] (2026-10-01)
+
+### Fixed
+- Accept only a GitHub URL or a remote name as the `trusted_git.py fetch`
+  remote. Other URLs, local paths, and `ext::` forms fail.
+- Build the Git child environment in `scripts/trusted_git.py` from an
+  allowlist. `GIT_SSH_COMMAND`, `GIT_ASKPASS`, `LD_PRELOAD`, and other
+  execution hooks no longer reach Git.
+- Reject a workspace path that traverses a symlink. The checked path and the
+  used path now match.
+- Run the policy-root identity checker from `hooks/enforce_git_identity.py`.
+  A project copy still opts the repository into the policy.
+- Forward the inspected command's Git location and identity settings through
+  a filtered `run_git` context. The identity checker on the trusted path saw
+  neither an inline `-c user.email` nor `--git-dir` before this change.
+
 ## [2.9.2] (2026-10-01)
 
 ### Fixed

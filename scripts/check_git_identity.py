@@ -84,6 +84,12 @@ COMMITTER_EMAIL_SOURCES = (
 
 HISTORY_CANDIDATE_LIMIT = 5
 HISTORY_COMMIT_LIMIT = 50
+GIT_CONTEXT_VARIABLES = frozenset((
+    "GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR",
+    "GIT_CONFIG_GLOBAL", "GIT_CONFIG_SYSTEM", "GIT_CONFIG_NOSYSTEM",
+    "GIT_CONFIG_COUNT",
+))
+GIT_CONTEXT_PREFIXES = ("GIT_CONFIG_KEY_", "GIT_CONFIG_VALUE_")
 
 FIX_MESSAGE = (
     "fix: derive or list identity candidates, then request explicit confirmation:\n"
@@ -164,8 +170,13 @@ def _standalone_safe_path(repository: Path) -> str:
     return os.pathsep.join(safe_entries)
 
 
-def _standalone_run_git(repo, arguments: list[str], *, check=False, runner=None):
-    """Run trusted Git for a standalone copy of this checker."""
+def _standalone_run_git(repo, arguments: list[str], *, check=False, runner=None,
+                        git_context=None):
+    """Run trusted Git for a standalone copy of this checker.
+
+    The full environment already reaches the child, so `git_context` adds
+    nothing here.
+    """
     repository = Path(repo).resolve()
     executable = Path(_standalone_resolve_git(repository))
     environment = dict(os.environ)
@@ -221,9 +232,24 @@ if resolve_git is None:
     run_git = _standalone_run_git
 
 
+def _git_context() -> dict:
+    """Return the Git location and config variables of the inspected command.
+
+    The identity hook passes the context of the command it inspects through
+    these variables. Trusted Git drops them unless they arrive as context.
+    """
+    return {name: value for name, value in os.environ.items()
+            if name in GIT_CONTEXT_VARIABLES or name.startswith(GIT_CONTEXT_PREFIXES)}
+
+
+def _git(repo, arguments: list[str], **options):
+    """Run Git with the inspected command's context."""
+    return run_git(repo, arguments, git_context=_git_context(), **options)
+
+
 def _config(key: str, repo=None) -> str:
     """Return a git config value, or an empty string when it is unset."""
-    result = run_git(
+    result = _git(
         repo or os.getcwd(),
         ["config", "--get", key],
         runner=subprocess.run,
@@ -245,7 +271,7 @@ def _first_explicit(sources: tuple, repo=None) -> str:
 def worktree_identity(repo=None) -> dict:
     """Return the identity the next commit would use, and what git would guess."""
     repository = repo or os.getcwd()
-    result = run_git(repository, ["version"], runner=subprocess.run)
+    result = _git(repository, ["version"], runner=subprocess.run)
     if result.returncode != 0:
         raise subprocess.CalledProcessError(result.returncode, "git version")
     author_name = _first_explicit(AUTHOR_NAME_SOURCES, repository)
@@ -266,7 +292,7 @@ def worktree_identity(repo=None) -> dict:
 def log_identities(revisions: list, repo=None) -> list:
     """Return one identity record per commit reachable by `revisions`."""
     repository = repo or os.getcwd()
-    result = run_git(
+    result = _git(
         repository,
         ["log", "--no-ext-diff", "--format=%H%x00%ae%x00%ce", *revisions],
         check=True,
@@ -295,7 +321,7 @@ def log_identities(revisions: list, repo=None) -> list:
 def unpushed_identities(repo=None) -> list:
     """Return identity records for commits on HEAD absent from every remote."""
     repository = repo or os.getcwd()
-    result = run_git(repository, ["remote"], runner=subprocess.run)
+    result = _git(repository, ["remote"], runner=subprocess.run)
     if result.returncode != 0:
         raise subprocess.CalledProcessError(result.returncode, "git remote")
     if not result.stdout.strip():
@@ -343,7 +369,7 @@ def strict_identity_violations(identities: list, repo=None) -> list[str]:
 def history_identity_candidates(repo=None) -> list:
     """Return bounded noreply identity candidates from local commit metadata."""
     repository = repo or os.getcwd()
-    result = run_git(
+    result = _git(
         repository,
         ["log", "--no-ext-diff", f"-n{HISTORY_COMMIT_LIMIT}",
          "--format=%an%x00%ae%x00%cn%x00%ce", "--all", "--"],
