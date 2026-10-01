@@ -9,6 +9,30 @@ The house style bans that hyphen. `scripts/check_ascii.py` enforces the ban on
 this file.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.9.2] (2026-10-01)
+
+### Fixed
+- Deny `--label`, `-l`, `--add-label`, and `--remove-label` on `gh pr` and
+  `gh issue` create and edit (Rule 23).
+- Deny `gh api` when any `-X` or `--method` value is not `GET`. gh keeps the
+  last value. A leading `-X GET` no longer hides a mutation.
+- Ask before an outward-facing gh command with an implicit target when the
+  origin owner is unreadable.
+- Recognize the trusted wrapper after any run of interpreter flags and from
+  any working directory.
+- Replace the identity block text that asked for name and email values.
+- Classify `HTTP 403 Resource not accessible by integration` as an
+  installation token. `scripts/trusted_gh.py` skips the account check for
+  that category only on GitHub Actions.
+- Document the remaining label surfaces and the wrapper's handling of ask
+  verdicts in `docs/agent-policy/github.md`.
+- Remove a redundant pull-ref test in `hooks/_gate_core.py`.
+- Cover every `_option_value` form in `tests/test_gh_option_value_forms.py`.
+  Remove two stale `_gate_core.py` entries from `hook-coverage-baseline.json`.
+
+Logic finding 4 stays open. A malformed hook payload still passes as a
+session start.
+
 ## [2.9.1] (2026-09-30)
 
 ### Fixed

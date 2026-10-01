@@ -189,8 +189,10 @@ def _blocks_invocation(project_dir: str, invocation: dict) -> bool:
             f"blocked by hooks/enforce_git_identity.py: {label} with an unset or "
             f"disallowed git identity.\n"
             f"{violation}\n"
-            f"Ask the user which name and email to commit under, then set them "
-            f"with git config as a separate tool call. Do not invent an identity.",
+            f"Derive the name and email from an authenticated account source and "
+            f"confirm them with the active human. Never ask the active human to "
+            f"supply the values. Set them with git config as a separate tool call. "
+            f"Do not invent an identity.",
             file=sys.stderr,
         )
         return True

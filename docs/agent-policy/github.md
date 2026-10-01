@@ -90,5 +90,9 @@ Rule 23 covers these surfaces:
 - GitHub MCP tools that carry a `labels` field
 - REST and GraphQL label writes
 
-The GitHub gate denies `gh api` state-changing requests. No gate denies the
-other surfaces. The rule binds every client without that coverage.
+The GitHub gate denies the `gh` label options, `gh label`, and `gh api`
+state-changing requests. No gate denies MCP label fields. The rule binds every
+client without that coverage.
+
+The wrapper refuses deny verdicts. It runs ask verdicts without confirming
+consent. Clients without shell hooks receive no consent prompt.

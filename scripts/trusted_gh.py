@@ -30,6 +30,8 @@ GH_TIMEOUT_SECONDS = 5
 # GitHub CLI exits with 4 when a command requires authentication.
 GH_AUTH_REQUIRED_EXIT = 4
 AUTHENTICATION_FAILURE = re.compile(r"HTTP 401\b")
+INSTALLATION_TOKEN_FAILURE = "Resource not accessible by integration"
+INSTALLATION_TOKEN_STATUS = "HTTP 403"
 NETWORK_FAILURE = re.compile(
     r"proxyconnect|connection refused|dial tcp|no such host|i/o timeout"
     r"|TLS handshake",
@@ -326,6 +328,8 @@ class GitHubAccessError(OSError):
                           "an active human must sign in",
         "network": "GitHub CLI could not reach GitHub; this is not an "
                    "authentication result",
+        "installation_token": "GitHub CLI holds an app installation token, which "
+                              "cannot read /user; run this under a user account",
         "unclassified": "GitHub CLI account check failed with exit {returncode}; "
                         "this does not prove missing authentication",
     }
@@ -340,6 +344,8 @@ def classify_gh_failure(returncode: int, stderr: str) -> str:
     """Return the failure category for a nonzero GitHub CLI result."""
     if returncode == GH_AUTH_REQUIRED_EXIT or AUTHENTICATION_FAILURE.search(stderr):
         return "authentication"
+    if INSTALLATION_TOKEN_STATUS in stderr and INSTALLATION_TOKEN_FAILURE in stderr:
+        return "installation_token"
     if NETWORK_FAILURE.search(stderr):
         return "network"
     return "unclassified"
@@ -435,6 +441,20 @@ def authenticated_account(repo_root) -> dict:
     return parse_account(result.stdout)
 
 
+def verify_account(repo_root) -> None:
+    """Verify the authenticated account, allowing only a CI installation token.
+
+    A GitHub Actions `GITHUB_TOKEN` is an app installation token and cannot
+    read /user. Only that failure, only on an Actions runner, skips the check.
+    """
+    try:
+        authenticated_account(repo_root)
+    except GitHubAccessError as error:
+        if error.category == "installation_token" and os.environ.get("GITHUB_ACTIONS") == "true":
+            return
+        raise
+
+
 def _run_requested_command(repo_root, arguments: list[str]) -> int:
     """Run one authenticated GitHub CLI command with bounded output."""
     if not arguments:
@@ -465,7 +485,7 @@ def _run_requested_command(repo_root, arguments: list[str]) -> int:
         if decision == "deny":
             print("error: GitHub command denied by policy; review the command", file=sys.stderr)
             return 2
-        authenticated_account(repo_root)
+        verify_account(repo_root)
         result = run_gh(repo_root, effective_arguments)
     except subprocess.TimeoutExpired:
         print("error: GitHub CLI timed out; verify connectivity and retry", file=sys.stderr)
