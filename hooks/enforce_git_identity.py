@@ -64,8 +64,15 @@ def _read_payload() -> dict:
 
 
 def run_checker(project_dir: str, extra_args: list, invocation: dict = None):
-    """Run scripts/check_git_identity.py, or return None when the repo has no copy."""
-    checker = core.resolved_under(project_dir, CHECKER_PATH)
+    """Run the trusted identity checker, or return None when the repo has no copy.
+
+    A project copy opts the repository into the identity policy. The payload
+    can name any directory, so the hook executes the policy-root copy only.
+    """
+    project_copy = core.resolved_under(project_dir, CHECKER_PATH)
+    if project_copy is None or not os.path.isfile(project_copy):
+        return None
+    checker = core.resolved_under(core.policy_root(), CHECKER_PATH)
     if checker is None or not os.path.isfile(checker):
         return None
     cwd = invocation["cwd"] if invocation else project_dir
