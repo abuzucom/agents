@@ -503,9 +503,10 @@ editing. Preserve conditions, exceptions, scope, precedence, failure behavior,
 recovery actions, and legal notices. Update linked files, hooks, tests, CI,
 copies, and documentation together.
 
-**Version every change.** Advance the SemVer version in `CHANGELOG.md` in the
-same change as every code, policy, documentation, hook, test, CI, or
-configuration change. Do not use `[Unreleased]` in adopting repositories.
+**Version every change.** Advance the SemVer version in `CHANGELOG.md` with
+every change. Keep one entry per UTC date. Same-day changes merge into that
+entry under the new version. Dates never decrease.
+Do not use `[Unreleased]` in adopting repositories.
 Use the highest required patch, minor, or major level for mixed changes. Get
 active-human approval before a major bump. Preserve existing entries when
 converting an `[Unreleased]` section to a versioned release.
@@ -517,7 +518,7 @@ inspecting changed handoff content. See `docs/agent-policy/adoption.md` for
 handoff handling.
 
 **Documentation and versioning.** Update README for substantial changes.
-Update CHANGELOG for every change. Follow SemVer (X.Y.Z):
+Follow SemVer (X.Y.Z):
 - Use non-negative integers without leading zeros.
 - Treat 0.y.z as unstable initial development.
 - Define public API stability at 1.0.0.

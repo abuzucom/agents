@@ -8,15 +8,30 @@ The format uses `## [1.2.3] (2026-01-01)` instead of a spaced hyphen.
 The house style bans that hyphen. `scripts/check_ascii.py` enforces the ban on
 this file.
 All dates are UTC.
+Each date has one entry. Every change still advances the version. A same-day
+change renames that day's heading to the new version and merges its items
+into the entry. Dates never decrease. Ask the active human when a date is in
+doubt.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.9.4] (2026-10-02)
+## [2.10.0] (2026-10-02)
+
+### Added
+- Fail `scripts/check_changelog.py` when two release headings share a date
+  or a date goes back in time down the file. Report invalid calendar dates.
+- Fail the staged check when the top release date is not today's UTC date.
+- Fail the range check when the head date precedes the base date or follows
+  today's UTC date.
+- Cover the date rules, DST transitions, and process timezones in
+  `tests/test_check_changelog_daily_entries.py`.
 
 ### Changed
 - State that all changelog dates are UTC.
 - Redate 31 entries to the UTC date of the commit that added each entry to
   `main`.
 - Merge entries that share a date under the newest version.
+- Require one changelog entry per UTC date in `AGENTS.md`. Same-day changes
+  merge under the new version. Remove a duplicate changelog sentence.
 
 ### Fixed
 - Accept only a GitHub URL or a remote name as the `trusted_git.py fetch`
@@ -42,6 +57,9 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Uppercase allowlisted variable names on Windows.
 - Cover the missing policy-root checker branch of
   `hooks/enforce_git_identity.py`.
+- Return a finding instead of raising `TypeError` when a staged changelog
+  has no versioned heading and HEAD has one.
+- Include the cause and a recovery step in changelog inspection errors.
 
 ## [2.9.2] (2026-10-01)
 
