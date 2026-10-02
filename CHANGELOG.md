@@ -24,6 +24,17 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Forward the inspected command's Git location and identity settings through
   a filtered `run_git` context. The identity checker on the trusted path saw
   neither an inline `-c user.email` nor `--git-dir` before this change.
+- Build the standalone identity checker's Git environment from the same
+  allowlist. Adopters copy `scripts/check_git_identity.py` without
+  `scripts/trusted_git.py`. The standalone checker passed every variable to
+  Git.
+- Forward identity settings from `GIT_CONFIG_PARAMETERS` to the identity
+  checker. A pre-commit hook under `git -c user.email=... commit` now checks
+  the inline value. Other `-c` settings stay out of the checker's Git calls.
+  A malformed value fails the check.
+- Uppercase allowlisted variable names on Windows.
+- Cover the missing policy-root checker branch of
+  `hooks/enforce_git_identity.py`.
 
 ## [2.9.2] (2026-10-01)
 

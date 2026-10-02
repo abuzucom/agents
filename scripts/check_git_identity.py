@@ -87,9 +87,32 @@ HISTORY_COMMIT_LIMIT = 50
 GIT_CONTEXT_VARIABLES = frozenset((
     "GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR",
     "GIT_CONFIG_GLOBAL", "GIT_CONFIG_SYSTEM", "GIT_CONFIG_NOSYSTEM",
-    "GIT_CONFIG_COUNT",
 ))
-GIT_CONTEXT_PREFIXES = ("GIT_CONFIG_KEY_", "GIT_CONFIG_VALUE_")
+# Only identity settings travel as context. A forwarded core.fsmonitor or
+# core.sshCommand would make Git run another program.
+# trusted_git.GIT_CONTEXT_IDENTITY_KEYS holds the same set.
+GIT_IDENTITY_CONFIG_KEYS = frozenset((
+    "user.name", "user.email", "user.useconfigonly",
+    "author.name", "author.email", "committer.name", "committer.email",
+))
+# A standalone copy cannot import trusted_git. Keep this set equal to
+# trusted_git.CHILD_ENVIRONMENT.
+STANDALONE_CHILD_ENVIRONMENT = frozenset((
+    "HOME", "USERPROFILE", "HOMEDRIVE", "HOMEPATH",
+    "APPDATA", "LOCALAPPDATA", "PROGRAMDATA", "SYSTEMROOT", "WINDIR",
+    "COMSPEC", "PATHEXT",
+    "TEMP", "TMP", "TMPDIR", "LANG", "LC_ALL", "LC_CTYPE", "TZ",
+    "XDG_CONFIG_HOME",
+    "SSL_CERT_FILE", "SSL_CERT_DIR", "GIT_SSL_CAINFO",
+    "SSH_AUTH_SOCK",
+    "HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "NO_PROXY",
+    "http_proxy", "https_proxy", "all_proxy", "no_proxy",
+))
+CONFIG_PARAMETERS_ERROR = (
+    "GIT_CONFIG_PARAMETERS is malformed. Rerun the command without -c identity overrides."
+)
+CONFIG_COUNT_ERROR = "GIT_CONFIG_COUNT names a missing or invalid config pair"
+BARE_CONFIG_VALUE = "true"
 
 FIX_MESSAGE = (
     "fix: derive or list identity candidates, then request explicit confirmation:\n"
@@ -170,16 +193,28 @@ def _standalone_safe_path(repository: Path) -> str:
     return os.pathsep.join(safe_entries)
 
 
+def _standalone_child_environment() -> dict:
+    """Return the allowlisted subset of this process environment."""
+    if os.name == "nt":
+        # Windows names are case-insensitive. Uppercase keys keep one entry per name.
+        allowed = {name.upper() for name in STANDALONE_CHILD_ENVIRONMENT}
+        return {name.upper(): value for name, value in os.environ.items()
+                if name.upper() in allowed}
+    return {name: value for name, value in os.environ.items()
+            if name in STANDALONE_CHILD_ENVIRONMENT}
+
+
 def _standalone_run_git(repo, arguments: list[str], *, check=False, runner=None,
                         git_context=None):
     """Run trusted Git for a standalone copy of this checker.
 
-    The full environment already reaches the child, so `git_context` adds
-    nothing here.
+    The child receives allowlisted variables plus the location and identity
+    values of `git_context`.
     """
     repository = Path(repo).resolve()
     executable = Path(_standalone_resolve_git(repository))
-    environment = dict(os.environ)
+    environment = _standalone_child_environment()
+    environment.update(_git_context(git_context or {}))
     environment.update({"GIT_PAGER": "", "PAGER": "", "GIT_TERMINAL_PROMPT": "0"})
     environment.update(
         {
@@ -191,7 +226,6 @@ def _standalone_run_git(repo, arguments: list[str], *, check=False, runner=None,
             "PATH": _standalone_safe_path(repository),
         }
     )
-    environment.pop("GIT_EXTERNAL_DIFF", None)
     if os.name == "nt":
         environment["NoDefaultCurrentDirectoryInExePath"] = "1"
     command = [
@@ -232,14 +266,101 @@ if resolve_git is None:
     run_git = _standalone_run_git
 
 
-def _git_context() -> dict:
-    """Return the Git location and config variables of the inspected command.
+def _read_quoted(text: str, index: int) -> tuple:
+    """Read one shell-quoted word at `index`. Return it and the next index.
 
-    The identity hook passes the context of the command it inspects through
-    these variables. Trusted Git drops them unless they arrive as context.
+    Git quotes each word in single quotes and writes `'` and `!` as `'\\''`
+    and `'\\!'`.
     """
-    return {name: value for name, value in os.environ.items()
-            if name in GIT_CONTEXT_VARIABLES or name.startswith(GIT_CONTEXT_PREFIXES)}
+    if not text.startswith("'", index):
+        raise ValueError(CONFIG_PARAMETERS_ERROR)
+    parts = []
+    index += 1
+    while True:
+        end = text.find("'", index)
+        if end < 0:
+            raise ValueError(CONFIG_PARAMETERS_ERROR)
+        parts.append(text[index:end])
+        index = end + 1
+        if not (text.startswith(("\\'", "\\!"), index) and text.startswith("'", index + 2)):
+            return "".join(parts), index
+        parts.append(text[index + 1])
+        index += 3
+
+
+def _parse_config_parameters(text: str) -> list:
+    """Return the key and value pairs of a GIT_CONFIG_PARAMETERS value.
+
+    Git writes `-c` settings as `'key'='value'` or as `'key=value'`. A bare
+    `'key'` sets a boolean. A malformed value raises ValueError.
+    """
+    pairs = []
+    index = 0
+    while index < len(text):
+        if text[index].isspace():
+            index += 1
+            continue
+        key, index = _read_quoted(text, index)
+        if text.startswith("=", index):
+            value, index = _read_quoted(text, index + 1)
+        elif "=" in key:
+            key, value = key.split("=", 1)
+        else:
+            value = BARE_CONFIG_VALUE
+        if index < len(text) and not text[index].isspace():
+            raise ValueError(CONFIG_PARAMETERS_ERROR)
+        pairs.append((key, value))
+    return pairs
+
+
+def _count_pairs(source) -> list:
+    """Return the GIT_CONFIG_KEY_n and GIT_CONFIG_VALUE_n pairs of `source`."""
+    raw_count = source.get("GIT_CONFIG_COUNT")
+    if raw_count is None:
+        return []
+    try:
+        count = int(raw_count)
+    except ValueError:
+        raise ValueError(CONFIG_COUNT_ERROR) from None
+    if count < 0:
+        raise ValueError(CONFIG_COUNT_ERROR)
+    pairs = []
+    for index in range(count):
+        key = source.get(f"GIT_CONFIG_KEY_{index}")
+        value = source.get(f"GIT_CONFIG_VALUE_{index}")
+        if key is None or value is None:
+            raise ValueError(CONFIG_COUNT_ERROR)
+        pairs.append((key, value))
+    return pairs
+
+
+def _git_context(source=None) -> dict:
+    """Return the Git location and identity settings of the inspected command.
+
+    The identity hook passes the inspected command's context through these
+    variables. Git passes `-c` settings to its hooks in
+    GIT_CONFIG_PARAMETERS. Trusted Git drops both unless they arrive as
+    context. Identity settings are renumbered as GIT_CONFIG_COUNT pairs.
+    Parameters follow count pairs because Git applies them last. Only the
+    last value of each key is kept.
+    """
+    source = os.environ if source is None else source
+    context = {name: value for name, value in source.items()
+               if name in GIT_CONTEXT_VARIABLES}
+    pairs = _count_pairs(source)
+    pairs.extend(_parse_config_parameters(source.get("GIT_CONFIG_PARAMETERS", "")))
+    latest = {}
+    for key, value in pairs:
+        folded = key.casefold()
+        if folded in GIT_IDENTITY_CONFIG_KEYS:
+            latest.pop(folded, None)
+            latest[folded] = (key, value)
+    if latest:
+        context["GIT_CONFIG_COUNT"] = str(len(latest))
+    for index, (key, value) in enumerate(latest.values()):
+        context[f"GIT_CONFIG_KEY_{index}"] = key
+        context[f"GIT_CONFIG_VALUE_{index}"] = value
+    return context
 
 
 def _git(repo, arguments: list[str], **options):
