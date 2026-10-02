@@ -14,7 +14,7 @@ into the entry. Dates never decrease. Ask the active human when a date is in
 doubt.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.10.0] (2026-10-02)
+## [2.10.1] (2026-10-02)
 
 ### Added
 - Fail `scripts/check_changelog.py` when two release headings share a date
@@ -60,6 +60,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Return a finding instead of raising `TypeError` when a staged changelog
   has no versioned heading and HEAD has one.
 - Include the cause and a recovery step in changelog inspection errors.
+- Report a missing staged `CHANGELOG.md` entry instead of a Git inspection
+  error.
 
 ## [2.9.2] (2026-10-01)
 

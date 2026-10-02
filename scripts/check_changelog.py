@@ -219,7 +219,8 @@ def _read_staged(repository: Path) -> tuple[list[str], str, str]:
         repository, ["diff", "--cached", "--name-only", "--diff-filter=ACMRT"],
         check=True,
     ).stdout.splitlines()
-    if not staged_paths:
+    # Git cannot show an unstaged index entry; _staged_findings reports it.
+    if "CHANGELOG.md" not in staged_paths:
         return staged_paths, "", ""
     staged_changelog_text = run_git(repository, ["show", ":CHANGELOG.md"], check=True).stdout
     head_result = run_git(repository, ["show", "HEAD:CHANGELOG.md"], check=False)

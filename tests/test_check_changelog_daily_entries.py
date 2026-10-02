@@ -1,6 +1,8 @@
 """Test one changelog entry per UTC day, independent of timezone and DST."""
 import ast
+import contextlib
 import importlib.util
+import io
 import os
 import subprocess
 import sys
@@ -225,6 +227,19 @@ class StagedDateTest(unittest.TestCase):
             _init_repository(repository)
             _stage_changelog(repository, "# Changelog\n")
             self.assertEqual(checker.check_staged(repository, today=date(2026, 1, 1)), 1)
+
+    def test_unstaged_changelog_reports_missing_entry(self):
+        with tempfile.TemporaryDirectory() as directory:
+            repository = Path(directory)
+            _init_repository(repository)
+            (repository / "README.md").write_text("# Project\n", encoding="utf-8", newline="\n")
+            _run_git(repository, "add", "README.md")
+            captured_errors = io.StringIO()
+            with contextlib.redirect_stderr(captured_errors):
+                exit_code = checker.check_staged(repository, today=date(2026, 1, 1))
+            self.assertEqual(exit_code, 1)
+            self.assertIn("staged changes require a versioned CHANGELOG.md entry",
+                          captured_errors.getvalue())
 
 
 class UtcDateConversionTest(unittest.TestCase):
