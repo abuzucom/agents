@@ -169,8 +169,10 @@ def _workspace_root(start: Path) -> Path | None:
 def _child_environment(source) -> dict:
     """Return the allowlisted subset of an environment for a Git child."""
     if os.name == "nt":
+        # Windows names are case-insensitive. Uppercase keys keep one entry per name.
         allowed = {name.upper() for name in CHILD_ENVIRONMENT}
-        return {name: value for name, value in source.items() if name.upper() in allowed}
+        return {name.upper(): value for name, value in source.items()
+                if name.upper() in allowed}
     return {name: value for name, value in source.items() if name in CHILD_ENVIRONMENT}
 
 
