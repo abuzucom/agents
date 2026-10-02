@@ -283,8 +283,9 @@ An unlicensed target remains unlicensed unless that approval changes its status.
      `scripts/check_branch_name.py`, `scripts/read_git_state.py`, and
      `scripts/trusted_git.py`. Register the checker at `pre-push` with
      `stages: [pre-push]`. For Claude Code, copy
-     `hooks/enforce_branch_name.py`, `hooks/_gate_core.py`,
-     `hooks/_bash_parser.py`, and `hooks/claude-code-settings.example.json`.
+     `hooks/enforce_branch_name.py`, `hooks/_command_execution_gate.py`,
+     `hooks/_gate_core.py`, `hooks/_bash_parser.py`, and
+     `hooks/claude-code-settings.example.json`.
       Merge the hook's `SessionStart`, `UserPromptSubmit`, wildcard
       `PreToolUse`, `Stop`, and `SubagentStop` entries into
       `.claude/settings.json`. The default checker preserves primary and
@@ -607,7 +608,13 @@ output stops at 256 KiB. Configuration reads have a five-second timeout. Alias
 expansion stops after ten steps. The subprocess receives a constrained environment.
 Tracing and stream redirection remain disabled during inspection. Explicit
 environment overrides also disable configuration-based Trace2 destinations.
-Unknown aliases and opaque shell execution receive denials. General interpreter
+Unknown aliases and opaque shell execution receive denials.
+
+`hooks/_command_execution_gate.py` owns the program allowlist, wrapper and
+expansion checks, and workflow consent. The branch hook loads it for every
+shell command. Its denials and consent prompts name
+`hooks/_command_execution_gate.py` instead of the branch hook. A denial that
+names this file concerns the command, not the branch name. General interpreter
 commands and unlisted script invocations receive no exception.
 Fixed repository test, state, synchronization, and trusted GitHub commands request
 native consent. Listed Makefile targets and literal `rg` searches also request consent.

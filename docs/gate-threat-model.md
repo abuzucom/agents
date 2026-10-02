@@ -93,8 +93,10 @@ include the following actions:
   destinations from Git configuration.
   The inspection never executes an alias. Reads stop at 256 KiB or five seconds.
   Alias expansion stops after ten steps. Unknown and shell aliases deny.
-- The branch gate denies opaque interpreters, unlisted scripts, and unresolved
-  branch arguments. Commands require an explicit inspectable program name.
+- The command execution gate in `hooks/_command_execution_gate.py` denies
+  opaque interpreters and unlisted scripts. The branch gate loads it for every
+  shell command. The branch gate denies unresolved branch arguments. Commands
+  require an explicit inspectable program name.
   Incomplete parsing receives a syntax denial. Only recovered Git commands
   create ambiguous Git-write contexts. Parsing stops at 65,536 characters.
   Bounded repository workflows request native consent. The route rejects

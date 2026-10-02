@@ -172,7 +172,8 @@ it. Work remains stopped until consent is provided affirmatively.
 The protected inventory covers:
 
 - Hook implementations:
-  `hooks/_bash_parser.py`, `hooks/_cmd_parser.py`, `hooks/_gate_core.py`,
+  `hooks/_bash_parser.py`, `hooks/_cmd_parser.py`,
+  `hooks/_command_execution_gate.py`, `hooks/_gate_core.py`,
   `hooks/_platform_policy.py`, `hooks/block_destructive_bash.py`,
   `hooks/block_destructive_cmd.py`, `hooks/block_destructive_powershell.py`,
   `hooks/block_infrastructure_access.py`, `hooks/enforce_branch_name.py`,

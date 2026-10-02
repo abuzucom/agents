@@ -19,9 +19,10 @@ try:
     import _gate_core as core
     import _bash_parser as bash_parser
     import _cmd_parser as cmd_parser
+    import _command_execution_gate as command_gate
 except ImportError as error:  # pragma: no cover (exercised by the adoption test)
-    print(f"shared hook parser or core import failed ({error}). Restore both files.",
-          file=sys.stderr)
+    print(f"shared hook parser, core, or command gate import failed ({error}). "
+          "Restore the missing file.", file=sys.stderr)
     sys.exit(2)
 
 CHECKER_PATH = os.path.join("scripts", "check_branch_name.py")
@@ -52,24 +53,12 @@ BRANCH_MUTATION_SUBCOMMANDS = frozenset({
     "update-ref",
     "worktree",
 })
-INSPECTABLE_PROGRAMS = frozenset({
-    "echo", "printf", "pwd", "cat", "head", "tail", "wc", "ls", "dir",
-    "get-content", "get-childitem", "get-location", "write-output",
-    "touch", "tee", "cp", "mv", "set-content", "add-content", "out-file",
-    "copy-item", "move-item", "copy", "move", "type", "true", "false",
-})
-WORKFLOW_SCRIPT_ARGUMENTS = {
-    "scripts/run_tests.py": ((),),
-    "scripts/read_git_state.py": tuple((mode,) for mode in ("branch", "status", "remote", "revision", "all")),
-    "scripts/sync.py": ((), ("--check",), ("--check-shared",), ("--write-shared",), ("--print-adoptable",)),
-    "scripts/check_action_pins.py": ((),),
-    "scripts/check_gate_adoption.py": ((),),
-}
-SEARCH_FLAGS = frozenset({
-    "-n", "--line-number", "-l", "--files-with-matches", "-i", "--ignore-case",
-    "-F", "--fixed-strings", "--files", "--hidden", "-g", "--glob", "-e", "--regexp", "--",
-})
-MAX_WORKFLOW_ARGUMENTS = 64
+# The command execution gate owns the program allowlist and workflow lists.
+# These names stay importable from this module for existing callers.
+INSPECTABLE_PROGRAMS = command_gate.INSPECTABLE_PROGRAMS
+WORKFLOW_SCRIPT_ARGUMENTS = command_gate.WORKFLOW_SCRIPT_ARGUMENTS
+SEARCH_FLAGS = command_gate.SEARCH_FLAGS
+MAX_WORKFLOW_ARGUMENTS = command_gate.MAX_WORKFLOW_ARGUMENTS
 # The primary branch and a detached HEAD permit inspection and planning only.
 DEFAULT_PRIMARY_BRANCH = "main"
 PRIMARY_BRANCH_FILE = "hooks/primary-branch.txt"
@@ -111,13 +100,7 @@ GIT_FETCH_OPTIONS = frozenset({"--prune", "-p", "--tags", "-t", "--quiet", "-q",
 # These options write a file or start a program from an inspection command.
 GIT_UNSAFE_READ_OPTIONS = ("--output", "--open-files-in-pager", "-O", "--ext-diff", "--exec",
                            "--upload-pack")
-READ_ONLY_WORKFLOW_ARGUMENTS = {
-    "scripts/run_tests.py": ((),),
-    "scripts/read_git_state.py": WORKFLOW_SCRIPT_ARGUMENTS["scripts/read_git_state.py"],
-    "scripts/sync.py": (("--check",), ("--check-shared",), ("--print-adoptable",)),
-    "scripts/check_action_pins.py": ((),),
-    "scripts/check_gate_adoption.py": ((),),
-}
+READ_ONLY_WORKFLOW_ARGUMENTS = command_gate.READ_ONLY_WORKFLOW_ARGUMENTS
 WINDOWS_RESERVED_NAMES = frozenset(
     {"CON", "PRN", "AUX", "NUL", "CONIN$", "CONOUT$"}
     | {f"COM{number}" for number in range(1, 10)}
@@ -595,57 +578,59 @@ def _git_context_reason(context: dict, project_dir: str) -> str:
     return ""
 
 
-def _segment_execution_reason(segment: list, project_dir: str, roots: tuple = ()) -> str:
-    """Reject opaque execution without attributing an unsupported Git target."""
-    executable, assignments, complete = bash_parser.strip_prefixes(segment)
-    if not complete:
-        return "Command wrapper could not be inspected"
+def _segment_violation(segment: list, project_dir: str, roots: tuple) -> tuple:
+    """Return (gate, reason) for the first violation in one command segment."""
+    reason = command_gate.segment_program_reason(segment)
+    if reason:
+        return command_gate.GATE, reason
+    executable, assignments, _complete = bash_parser.strip_prefixes(segment)
     if not executable:
-        return ""
+        return GATE, ""
     program = core.normalize_windows_command_name(executable[0])
-    if executable[0].casefold() not in (program, program + ".exe"):
-        return "A script or executable path cannot claim an inspectable program name"
-    # Prefix options can change cwd or remove inherited configuration.
-    prefix_count = len(segment) - len(executable)
-    if any(token in bash_parser.WRAPPERS and token not in ("env", "command", "exec")
-           for token in segment[:prefix_count]):
-        return "Command wrapper has opaque input or execution context"
-    if any(token.startswith("-") for token in segment[:prefix_count]):
-        return "Command wrapper changes unresolved execution settings"
-    if program != "git" and program not in INSPECTABLE_PROGRAMS:
-        return "Opaque command execution requires an inspectable operation"
     if _segment_names_prohibited_metadata(segment, project_dir, roots):
-        return "Git metadata write targets a prohibited claude/ branch"
+        return GATE, "Git metadata write targets a prohibited claude/ branch"
     targets = _metadata_write_targets(
         program, executable[1:], bash_parser.redirect_targets(segment))
     if any(_metadata_path(target, project_dir, roots)
            or _metadata_copy_ancestor(program, target, project_dir, roots) for target in targets):
-        return "Git metadata write has unresolved reference content"
+        return GATE, "Git metadata write has unresolved reference content"
     if program == "git":
         context = core.git_branch_context(executable[1:], project_dir, assignments)
-        return _git_context_reason(context, project_dir)
-    if any(core.is_ambiguous(token) for token in executable):
-        return "Command arguments contain unresolved expansion"
-    return ""
+        return GATE, _git_context_reason(context, project_dir)
+    return command_gate.GATE, command_gate.arguments_reason(executable)
 
 
-def command_execution_reason(command: str, project_dir: str, tool_name: str) -> str:
-    """Parse once and return the first established execution violation."""
+def _segment_execution_reason(segment: list, project_dir: str, roots: tuple = ()) -> str:
+    """Reject opaque execution without attributing an unsupported Git target."""
+    return _segment_violation(segment, project_dir, roots)[1]
+
+
+def command_execution_violation(command: str, project_dir: str, tool_name: str) -> tuple:
+    """Parse once and return (gate, reason) for the first execution violation.
+
+    The gate is this hook for branch and Git metadata findings, and the
+    command execution gate for program, wrapper, and expansion findings.
+    """
     segments, complete = _parsed_command_segments(command, tool_name)
     if not complete:
-        return "Command syntax is incomplete or exceeds the inspection limit"
+        return command_gate.GATE, "Command syntax is incomplete or exceeds the inspection limit"
     if bash_parser.has_quoted_redirects(command):
-        return "Quoted shell operators require additional inspection"
+        return command_gate.GATE, "Quoted shell operators require additional inspection"
     roots = _metadata_roots(project_dir)
     if tool_name == "PowerShell":
         reason = _powershell_metadata_reason(command, project_dir, roots)
         if reason:
-            return reason
+            return GATE, reason
     for segment in segments:
-        reason = _segment_execution_reason(segment, project_dir, roots)
+        gate, reason = _segment_violation(segment, project_dir, roots)
         if reason:
-            return reason
-    return ""
+            return gate, reason
+    return GATE, ""
+
+
+def command_execution_reason(command: str, project_dir: str, tool_name: str) -> str:
+    """Parse once and return the first established execution violation."""
+    return command_execution_violation(command, project_dir, tool_name)[1]
 
 
 def _powershell_array_arguments(tokens: list) -> list:
@@ -780,40 +765,9 @@ def _valid_bootstrap(command: str, project_dir: str) -> bool:
     )
 
 
-def _python_workflow(tokens: list, project_dir: str) -> bool:
-    """Recognize bounded repository scripts and unittest module invocations."""
-    if tokens[1:3] == ["-m", "unittest"]:
-        modules = [token for token in tokens[3:] if token not in ("-v", "-q")]
-        return bool(modules) and all(
-            token.startswith("tests.") and all(part.isidentifier() for part in token.split("."))
-            for token in modules)
-    path = core.resolved_under(project_dir, tokens[1])
-    if path is None or not os.path.isfile(path):
-        return False
-    if tokens[1] == "scripts/trusted_gh.py" and tokens[2:3] == ["run"]:
-        decision, _reason = core.forge_verdict("gh", tokens[3:], project_dir)
-        return bool(tokens[3:]) and decision != "deny"
-    return tuple(tokens[2:]) in WORKFLOW_SCRIPT_ARGUMENTS.get(tokens[1], ())
-
-
-def _workflow_needs_consent(command: str, project_dir: str) -> bool:
-    """Limit workflow consent to one literal invocation without wrappers or redirection."""
-    if "\n" in command or "\r" in command or len(command) > bash_parser.MAX_COMMAND_CHARACTERS:
-        return False
-    tokens, complete = bash_parser._tokenize_line(command)
-    if not complete or not 1 < len(tokens) <= MAX_WORKFLOW_ARGUMENTS:
-        return False
-    if any(core.is_ambiguous(token) or token in (";", "&", "&&", "|", "||", "(", ")")
-           or any(character in token for character in "<>%!^\0") for token in tokens):
-        return False
-    if tokens[0] in ("python", "python3", "python.exe", "python3.exe"):
-        return _python_workflow(tokens, project_dir)
-    if tokens[0] == "make":
-        return (tokens[1] in ("lint", "test", "check", "sync", "identity")
-                and tokens[2:] in ([], ["PYTHON=python"], ["PYTHON=python3"]))
-    if tokens[0] == "rg":
-        return all(not token.startswith("-") or token in SEARCH_FLAGS for token in tokens[1:])
-    return False
+# The command execution gate owns workflow recognition.
+_python_workflow = command_gate._python_workflow
+_workflow_needs_consent = command_gate.workflow_needs_consent
 
 
 def recovery_authorization_reason(branch_name: str, rebase_active: bool = False) -> str:
@@ -836,9 +790,9 @@ def recovery_authorization_reason(branch_name: str, rebase_active: bool = False)
     )
 
 
-def _deny(client: str, reason: str) -> int:
-    """Emit one native client denial."""
-    message = f"blocked by hooks/enforce_branch_name.py: {reason}"
+def _deny(client: str, reason: str, gate: str = GATE) -> int:
+    """Emit one native client denial that names the deciding gate file."""
+    message = f"blocked by hooks/{gate}: {reason}"
     if client in ("gemini", "antigravity"):
         print(json.dumps({"decision": "deny", "reason": message}))
         return 0
@@ -857,14 +811,15 @@ def request_recovery_authorization(
     return _request_authorization(client, payload, authorization_reason)
 
 
-def _request_authorization(client: str, payload: dict, authorization_reason: str) -> int:
+def _request_authorization(client: str, payload: dict, authorization_reason: str,
+                           gate: str = GATE) -> int:
     """Use native consent where supported and preserve unattended denial."""
     if client == "claude":
-        return core.decide(GATE, payload, "ask", authorization_reason)
+        return core.decide(gate, payload, "ask", authorization_reason)
     if client in ("gemini", "antigravity"):
         print(json.dumps({"decision": "ask", "reason": authorization_reason}))
         return 0
-    return _deny(client, authorization_reason)
+    return _deny(client, authorization_reason, gate)
 
 
 class PrimaryBranchError(ValueError):
@@ -1122,14 +1077,7 @@ def read_only_command_reason(command: str, project_dir: str, tool_name: str) -> 
     return ""
 
 
-def _read_only_workflow(command: str, project_dir: str) -> bool:
-    """Return whether a consent-routed workflow only inspects the repository."""
-    if not _workflow_needs_consent(command, project_dir):
-        return False
-    tokens, _complete = bash_parser._tokenize_line(command)
-    if tokens[0] == "rg" or tokens[1:3] == ["-m", "unittest"]:
-        return True
-    return tuple(tokens[2:]) in READ_ONLY_WORKFLOW_ARGUMENTS.get(tokens[1], ())
+_read_only_workflow = command_gate.read_only_workflow
 
 
 def _git_tokens(command: str, project_dir: str) -> list:
@@ -1167,8 +1115,9 @@ def _read_only_shell(payload: dict, project_dir: str, client: str, branch_name: 
         return _request_authorization(
             client, payload,
             f"Create a feature branch from {_branch_label(branch_name)} before writing")
-    if _read_only_workflow(command, project_dir):
-        return _request_authorization(client, payload, "Repository workflow requires execution consent")
+    if command_gate.read_only_workflow(command, project_dir):
+        return _request_authorization(client, payload, "Repository workflow requires execution consent",
+                                      command_gate.GATE)
     reason = read_only_command_reason(command, project_dir, tool_name)
     if reason:
         return _deny(client, f"{reason}. {_read_only_reason(branch_name)}")
@@ -1306,11 +1255,12 @@ def _handle_pre_tool_use(payload: dict, project_dir: str, client: str) -> int:
     command_text = _command_text(tool_name, tool_input)
     if _valid_bootstrap(command_text, project_dir):
         return 0
-    if _workflow_needs_consent(command_text, project_dir):
-        return _request_authorization(client, payload, "Repository workflow requires execution consent")
-    reason = command_execution_reason(command_text, project_dir, tool_name)
+    if command_gate.workflow_needs_consent(command_text, project_dir):
+        return _request_authorization(client, payload, "Repository workflow requires execution consent",
+                                      command_gate.GATE)
+    gate, reason = command_execution_violation(command_text, project_dir, tool_name)
     if reason:
-        return _deny(client, reason)
+        return _deny(client, reason, gate)
     return 0
 
 

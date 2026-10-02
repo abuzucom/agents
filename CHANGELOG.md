@@ -9,6 +9,22 @@ The house style bans that hyphen. `scripts/check_ascii.py` enforces the ban on
 this file.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.10.0] (2026-10-02)
+
+### Changed
+- Move the program allowlist, wrapper and expansion checks, and workflow
+  consent from `hooks/enforce_branch_name.py` into
+  `hooks/_command_execution_gate.py`. The branch hook loads the new module for
+  every shell command. Denials and consent prompts from those checks now name
+  `hooks/_command_execution_gate.py`. Branch and Git metadata denials still
+  name `hooks/enforce_branch_name.py`. Decisions are otherwise unchanged.
+- Keep the moved names importable from `hooks/enforce_branch_name.py`.
+- Require `hooks/_command_execution_gate.py` in
+  `scripts/check_gate_adoption.py`, the protected hook inventory, and the
+  branch adoption file list. Record the new checker digest in
+  `shared-files.json`.
+- Cover the gate attribution in `tests/test_command_execution_gate.py`.
+
 ## [2.9.2] (2026-10-01)
 
 ### Fixed

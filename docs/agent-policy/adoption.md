@@ -125,8 +125,8 @@ Code-quality examples:
 
 Branch adoption copies `scripts/check_branch_name.py`,
 `scripts/read_git_state.py`, `scripts/trusted_git.py`,
-`hooks/enforce_branch_name.py`, `hooks/_gate_core.py`, and
-`hooks/_bash_parser.py`. Register pre-push and every observable supported
+`hooks/enforce_branch_name.py`, `hooks/_command_execution_gate.py`,
+`hooks/_gate_core.py`, and `hooks/_bash_parser.py`. Register pre-push and every observable supported
 client event. Claude also registers `SessionStart`, `UserPromptSubmit`, `Stop`,
 and `SubagentStop`. Run `tests/test_enforce_branch_name.py` in CI and
 pre-commit. Agent hooks use `--strict-agent-preflight`.
