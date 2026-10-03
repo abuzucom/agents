@@ -247,11 +247,10 @@ def _repository_program_path(program: str, project_dir: str) -> str:
     norm_location = os.path.normcase(location)
     for base in {os.path.abspath(project_dir), os.path.realpath(project_dir)}:
         norm_base = os.path.normcase(base)
-        try:
-            if os.path.commonpath([norm_location, norm_base]) == norm_base:
-                return core.sanitize(os.path.relpath(location, base))
-        except (ValueError, OSError):
-            continue
+        # commonpath raises ValueError across Windows drives; a drive mismatch is never containment.
+        if (os.path.splitdrive(norm_location)[0] == os.path.splitdrive(norm_base)[0]
+                and os.path.commonpath([norm_location, norm_base]) == norm_base):
+            return core.sanitize(os.path.relpath(location, base))
     return ""
 
 

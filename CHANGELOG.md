@@ -14,7 +14,7 @@ into the entry. Dates never decrease. Ask the active human when a date is in
 doubt.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.12.1] (2026-10-03)
+## [2.12.2] (2026-10-03)
 
 ### Security
 - Read branch-hook metadata in `_read_regular` with `O_NOFOLLOW` and
@@ -36,6 +36,10 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Use the ASCII escape sequence `\u202e` for the Right-to-Left Override in
   `tests/test_npm_workflow_gate.py` to prevent encoding errors on non-UTF-8
   consoles.
+- Compare Windows drives before `os.path.commonpath` in
+  `_repository_program_path` instead of catching its `ValueError`. Every
+  statement now runs on every platform. This clears the `check-sync`
+  coverage failure.
 
 ### Added
 - Route `npm ci`, `npm test`, `npm test -- <file>...`, and `npm run lint`,
