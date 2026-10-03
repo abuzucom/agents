@@ -14,6 +14,12 @@ into the entry. Dates never decrease. Ask the active human when a date is in
 doubt.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.10.2] (2026-10-03)
+
+### Added
+- Record `abuzucom/xdj-rx3-emu` as an adopter in `adopters/xdj-rx3-emu.md`,
+  at template commit `fd9da22`.
+
 ## [2.10.1] (2026-10-02)
 
 ### Added
