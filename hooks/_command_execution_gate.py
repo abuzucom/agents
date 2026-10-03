@@ -178,7 +178,7 @@ def _manifest_depth_error(text: str) -> str:
                     "Fix the JSON syntax, then retry.")
         if token[0] == '"':
             continue
-        depth += 1 if token in "[{" else -1
+        depth = max(0, depth + (1 if token in "[{" else -1))
         if depth > MAX_PACKAGE_MANIFEST_DEPTH:
             return (f"{NPM_MANIFEST} nests deeper than {MAX_PACKAGE_MANIFEST_DEPTH} levels. "
                     "Flatten the manifest, then retry.")

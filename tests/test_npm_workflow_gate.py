@@ -37,6 +37,21 @@ def _write_fake_npm(directory: Path) -> None:
         launcher.chmod(launcher.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
 
 
+def _can_symlink() -> bool:
+    """Return whether the current platform and user can create symlinks."""
+    try:
+        with tempfile.TemporaryDirectory() as temporary:
+            target = Path(temporary) / "target"
+            target.write_text("x", encoding="utf-8")
+            (Path(temporary) / "link").symlink_to(target)
+            return True
+    except OSError:
+        return False
+
+
+CAN_SYMLINK = _can_symlink()
+
+
 class NpmFixture(unittest.TestCase):
     """Build one temporary repository with an npm launcher outside it."""
 
@@ -110,9 +125,10 @@ class NpmShapeTest(NpmFixture):
         (self.root / "package-lock.json").mkdir()
         self.assert_deny("npm ci", "package-lock.json")
         (self.root / "package-lock.json").rmdir()
-        target = self.write_file("elsewhere.json", "{}")
-        (self.root / "package-lock.json").symlink_to(target)
-        self.assert_deny("npm ci", "package-lock.json")
+        if CAN_SYMLINK:
+            target = self.write_file("elsewhere.json", "{}")
+            (self.root / "package-lock.json").symlink_to(target)
+            self.assert_deny("npm ci", "package-lock.json")
 
     def test_defined_scripts_route_to_consent(self) -> None:
         self.write_manifest(DEFAULT_SCRIPTS)
@@ -202,6 +218,7 @@ class NpmManifestTest(NpmFixture):
         if decision == "deny":
             self.assertIn("ValueError", reason)
 
+    @unittest.skipUnless(CAN_SYMLINK, "Symlinks require elevated privileges on Windows")
     def test_symlinked_manifest_denies(self) -> None:
         target = self.write_file("real.json", json.dumps({"scripts": {"test": "x"}}))
         (self.root / "package.json").symlink_to(target)
@@ -250,6 +267,7 @@ class NpmTestFileTest(NpmFixture):
                 decision, reason = self.decide(f"npm test -- {name}")
                 self.assertNotEqual(decision, "ask", reason)
 
+    @unittest.skipUnless(CAN_SYMLINK, "Symlinks require elevated privileges on Windows")
     def test_symlinks_deny(self) -> None:
         (self.root / "tests" / "link.ts").symlink_to(self.root / "tests" / "a.test.ts")
         self.assert_deny("npm test -- tests/link.ts", "symlink")
@@ -303,8 +321,9 @@ class NpmPromptIntegrityTest(NpmFixture):
         npmrc.mkdir()
         self.assert_deny("npm test", ".npmrc")
         npmrc.rmdir()
-        npmrc.symlink_to(self.base / "absent")
-        self.assert_deny("npm test", ".npmrc")
+        if CAN_SYMLINK:
+            npmrc.symlink_to(self.base / "absent")
+            self.assert_deny("npm test", ".npmrc")
 
     def test_npm_lookup_must_resolve_outside_the_repository(self) -> None:
         self.write_manifest(DEFAULT_SCRIPTS)

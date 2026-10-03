@@ -22,6 +22,14 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   content that grows past the limit after the check.
 - Name the repository path in the consent prompt when `PATH` resolves
   `python`, `make`, or `rg` inside the repository.
+- Clamp the manifest depth counter at zero in
+  `hooks/_command_execution_gate.py` to prevent negative values on malformed
+  inputs.
+
+### Fixed
+- Probe symlink capabilities in `tests/test_gate_hardening.py` and
+  `tests/test_npm_workflow_gate.py` so test fixtures skip cleanly on
+  platforms without elevated symlink privileges.
 
 ### Added
 - Route `npm ci`, `npm test`, `npm test -- <file>...`, and `npm run lint`,
