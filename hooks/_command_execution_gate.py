@@ -238,18 +238,36 @@ def _script_display_error(name: str, body: str) -> str:
     return ""
 
 
-def _npm_lookup_error(project_dir: str) -> str:
-    """Deny an npm executable that PATH resolves to inside the repository."""
-    found = shutil.which("npm")
+def _repository_program_path(program: str, project_dir: str) -> str:
+    """Return the repository-relative path PATH resolves a program to, or ""."""
+    found = shutil.which(program)
     if found is None:
-        return "npm is not on PATH. Install Node.js and npm, then retry."
+        return ""
     location = os.path.abspath(found)
     for base in {os.path.abspath(project_dir), os.path.realpath(project_dir)}:
         if location == base or location.startswith(base + os.sep):
-            relative = core.sanitize(os.path.relpath(location, base))
-            return (f"PATH resolves npm to `{relative}` inside the repository. "
-                    "Remove that directory from PATH, then retry.")
+            return core.sanitize(os.path.relpath(location, base))
     return ""
+
+
+def _npm_lookup_error(project_dir: str) -> str:
+    """Deny an npm executable that PATH resolves to inside the repository."""
+    if shutil.which("npm") is None:
+        return "npm is not on PATH. Install Node.js and npm, then retry."
+    relative = _repository_program_path("npm", project_dir)
+    if relative:
+        return (f"PATH resolves npm to `{relative}` inside the repository. "
+                "Remove that directory from PATH, then retry.")
+    return ""
+
+
+def _workflow_consent_text(program: str, project_dir: str) -> str:
+    """Name a repository-resolved program, which repository writers control."""
+    relative = _repository_program_path(program, project_dir)
+    if not relative:
+        return WORKFLOW_CONSENT
+    return (f"{WORKFLOW_CONSENT}. PATH resolves {core.sanitize(program)} to `{relative}` inside "
+            "the repository (untrusted repository code).")
 
 
 def _test_path_components(argument: str) -> tuple:
@@ -380,7 +398,9 @@ def workflow_decision(command: str, project_dir: str) -> tuple:
         matched = all(not token.startswith("-") or token in SEARCH_FLAGS for token in tokens[1:])
     else:
         matched = False
-    return ("ask", WORKFLOW_CONSENT) if matched else ("", "")
+    if not matched:
+        return "", ""
+    return "ask", _workflow_consent_text(tokens[0], project_dir)
 
 
 def workflow_needs_consent(command: str, project_dir: str) -> bool:

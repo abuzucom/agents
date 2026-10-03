@@ -117,8 +117,10 @@ class NpmShapeTest(NpmFixture):
     def test_defined_scripts_route_to_consent(self) -> None:
         self.write_manifest(DEFAULT_SCRIPTS)
         self.write_file("tests/a.test.ts")
+        self.write_file("tests/b.test.ts")
         for command in ("npm test", "npm test -- tests/a.test.ts", "npm test -- ./tests/a.test.ts",
                         "npm test -- tests/a.test.ts tests/a.test.ts",
+                        "npm test -- tests/a.test.ts tests/b.test.ts",
                         "npm run lint", "npm run typecheck", "npm run build"):
             with self.subTest(command=command):
                 self.assert_ask(command)
@@ -204,6 +206,18 @@ class NpmManifestTest(NpmFixture):
         target = self.write_file("real.json", json.dumps({"scripts": {"test": "x"}}))
         (self.root / "package.json").symlink_to(target)
         self.assert_deny("npm test", "not a regular file")
+
+    def test_manifest_swapped_after_lstat_denies(self) -> None:
+        self.write_manifest(DEFAULT_SCRIPTS)
+        other = self.write_file("other.json", "{}")
+        other_details = os.stat(other)
+        with patch.object(self.gate.os, "fstat", return_value=other_details):
+            self.assert_deny("npm test", "changed while the gate read it", "Retry")
+
+    def test_manifest_open_failure_names_its_cause(self) -> None:
+        self.write_manifest(DEFAULT_SCRIPTS)
+        with patch.object(self.gate.os, "open", side_effect=PermissionError(13, "Permission denied")):
+            self.assert_deny("npm test", "PermissionError", "Permission denied", "retry")
 
     @unittest.skipUnless(hasattr(os, "mkfifo"), "FIFOs need POSIX")
     def test_fifo_manifest_denies_without_hanging(self) -> None:

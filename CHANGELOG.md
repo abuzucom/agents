@@ -14,7 +14,14 @@ into the entry. Dates never decrease. Ask the active human when a date is in
 doubt.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.12.0] (2026-10-03)
+## [2.12.1] (2026-10-03)
+
+### Security
+- Read branch-hook metadata in `_read_regular` with `O_NOFOLLOW` and
+  `O_NONBLOCK`, compare the opened file with the checked file, and reject
+  content that grows past the limit after the check.
+- Name the repository path in the consent prompt when `PATH` resolves
+  `python`, `make`, or `rg` inside the repository.
 
 ### Added
 - Route `npm ci`, `npm test`, `npm test -- <file>...`, and `npm run lint`,
