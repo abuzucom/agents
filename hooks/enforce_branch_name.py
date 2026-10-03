@@ -1255,9 +1255,11 @@ def _handle_pre_tool_use(payload: dict, project_dir: str, client: str) -> int:
     command_text = _command_text(tool_name, tool_input)
     if _valid_bootstrap(command_text, project_dir):
         return 0
-    if command_gate.workflow_needs_consent(command_text, project_dir):
-        return _request_authorization(client, payload, "Repository workflow requires execution consent",
-                                      command_gate.GATE)
+    decision, reason = command_gate.workflow_decision(command_text, project_dir)
+    if decision == "ask":
+        return _request_authorization(client, payload, reason, command_gate.GATE)
+    if decision == "deny":
+        return _deny(client, reason, command_gate.GATE)
     gate, reason = command_execution_violation(command_text, project_dir, tool_name)
     if reason:
         return _deny(client, reason, gate)
