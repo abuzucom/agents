@@ -99,7 +99,10 @@ include the following actions:
   require an explicit inspectable program name.
   Incomplete parsing receives a syntax denial. Only recovered Git commands
   create ambiguous Git-write contexts. Parsing stops at 65,536 characters.
-  Bounded repository workflows request native consent. The route rejects
+  Bounded repository workflows request native consent. Fixed npm workflows
+  qualify only when a regular `package.json` of at most 1 MiB defines the
+  script. Test file arguments must resolve to files inside the repository.
+  The route rejects
   wrappers, chained commands, redirection, and shell expansion. Unsupported
   consent responses and unattended Claude sessions remain closed.
 - Metadata checks classify the write destination separately from reference

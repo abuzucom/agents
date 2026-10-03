@@ -4,7 +4,9 @@ The branch hook imports this module for every shell command it inspects.
 Denials and consent prompts from this module name this file, so a blocked
 program points at the command allowlist rather than at branch naming.
 """
+import json
 import os
+import stat
 
 # The importing hook puts hooks/ on sys.path and fails closed when these are absent.
 import _gate_core as core
@@ -43,6 +45,14 @@ SHELL_OPERATORS = (";", "&", "&&", "|", "||", "(", ")")
 WORKFLOW_FORBIDDEN_CHARACTERS = "<>%!^\0"
 # Prefix wrappers that only adjust the environment or skip shell lookup.
 TRANSPARENT_WRAPPERS = ("env", "command", "exec")
+NPM_PROGRAM = "npm"
+NPM_MANIFEST = "package.json"
+NPM_LOCKFILES = ("package-lock.json", "npm-shrinkwrap.json")
+NPM_TEST_SCRIPT = "test"
+# `npm run` accepts only these names. Other scripts stay opaque.
+NPM_RUN_SCRIPTS = frozenset({"lint", "typecheck", "build"})
+NPM_ARGUMENT_SEPARATOR = "--"
+MAX_PACKAGE_MANIFEST_BYTES = 1024 * 1024
 
 
 def segment_program_reason(segment: list) -> str:
@@ -90,6 +100,70 @@ def _python_workflow(tokens: list, project_dir: str) -> bool:
     return tuple(tokens[2:]) in WORKFLOW_SCRIPT_ARGUMENTS.get(tokens[1], ())
 
 
+def _regular_project_file(project_dir: str, relative: str) -> str:
+    """Return the path of a regular, non-symlink file directly under the project, or ""."""
+    path = os.path.join(os.path.realpath(project_dir), relative)
+    try:
+        details = os.lstat(path)
+    except OSError:
+        return ""
+    return path if stat.S_ISREG(details.st_mode) else ""
+
+
+def _package_scripts(project_dir: str):
+    """Return the scripts object from a bounded package.json, or None when unusable.
+
+    A manifest without a `scripts` key yields an empty dict, so `npm ci` still
+    qualifies. A missing, oversized, symlinked, or malformed manifest yields None.
+    """
+    path = _regular_project_file(project_dir, NPM_MANIFEST)
+    if not path or os.path.getsize(path) > MAX_PACKAGE_MANIFEST_BYTES:
+        return None
+    try:
+        with open(path, encoding="utf-8") as manifest_file:
+            manifest = json.loads(manifest_file.read(MAX_PACKAGE_MANIFEST_BYTES + 1))
+    except (OSError, UnicodeDecodeError, ValueError):
+        return None
+    if not isinstance(manifest, dict):
+        return None
+    scripts = manifest.get("scripts", {})
+    return scripts if isinstance(scripts, dict) else None
+
+
+def _defines_script(scripts: dict, name: str) -> bool:
+    """Return whether package.json defines one script as a command string."""
+    return isinstance(scripts.get(name), str)
+
+
+def _test_paths_exist(arguments: list, project_dir: str) -> bool:
+    """Accept no arguments, or `--` followed by existing files inside the project."""
+    if not arguments:
+        return True
+    if arguments[0] != NPM_ARGUMENT_SEPARATOR or len(arguments) < 2:
+        return False
+    for argument in arguments[1:]:
+        if argument.startswith("-"):
+            return False
+        path = core.resolved_under(project_dir, argument)
+        if path is None or not os.path.isfile(path):
+            return False
+    return True
+
+
+def _npm_workflow(tokens: list, project_dir: str) -> bool:
+    """Recognize the fixed npm workflows a repository declares in package.json."""
+    scripts = _package_scripts(project_dir)
+    if scripts is None:
+        return False
+    if tokens[1:] == ["ci"]:
+        return any(_regular_project_file(project_dir, name) for name in NPM_LOCKFILES)
+    if tokens[1] == NPM_TEST_SCRIPT:
+        return _defines_script(scripts, NPM_TEST_SCRIPT) and _test_paths_exist(tokens[2:], project_dir)
+    if len(tokens) == 3 and tokens[1] == "run" and tokens[2] in NPM_RUN_SCRIPTS:
+        return _defines_script(scripts, tokens[2])
+    return False
+
+
 def _literal_tokens(command: str) -> list:
     """Return the tokens of one literal invocation without wrappers or redirection."""
     if "\n" in command or "\r" in command or len(command) > bash_parser.MAX_COMMAND_CHARACTERS:
@@ -115,6 +189,8 @@ def workflow_needs_consent(command: str, project_dir: str) -> bool:
         return tokens[1] in MAKE_TARGETS and tokens[2:] in MAKE_ARGUMENTS
     if tokens[0] == "rg":
         return all(not token.startswith("-") or token in SEARCH_FLAGS for token in tokens[1:])
+    if tokens[0] == NPM_PROGRAM:
+        return _npm_workflow(tokens, project_dir)
     return False
 
 
@@ -123,6 +199,9 @@ def read_only_workflow(command: str, project_dir: str) -> bool:
     if not workflow_needs_consent(command, project_dir):
         return False
     tokens, _complete = bash_parser._tokenize_line(command)
+    # npm ci, test, and build write node_modules, caches, and outputs.
+    if tokens[0] == NPM_PROGRAM:
+        return False
     if tokens[0] == "rg" or tokens[1:3] == ["-m", "unittest"]:
         return True
     return tuple(tokens[2:]) in READ_ONLY_WORKFLOW_ARGUMENTS.get(tokens[1], ())

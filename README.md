@@ -619,6 +619,12 @@ names this file concerns the command, not the branch name. General interpreter
 commands and unlisted script invocations receive no exception.
 Fixed repository test, state, synchronization, and trusted GitHub commands request
 native consent. Listed Makefile targets and literal `rg` searches also request consent.
+A repository with a regular `package.json` also receives consent prompts for
+`npm ci`, `npm test`, `npm test -- <file>...`, and `npm run lint`, `typecheck`,
+or `build`. Each script must exist in `package.json`. `npm ci` also needs a
+lockfile. Test file arguments must name existing files inside the repository.
+`npx`, `npm install`, and other scripts stay denied. The primary branch and a
+detached HEAD deny every npm workflow.
 Workflow requests reject wrappers, chains, redirection, and shell expansion.
 Unattended Claude sessions and clients without an implemented consent response deny.
 Other shell commands must use the explicit inspectable-program allowlist.

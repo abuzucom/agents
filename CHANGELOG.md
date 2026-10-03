@@ -14,11 +14,20 @@ into the entry. Dates never decrease. Ask the active human when a date is in
 doubt.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.11.0] (2026-10-03)
+## [2.12.0] (2026-10-03)
 
 ### Added
 - Record `abuzucom/xdj-rx3-emu` as an adopter in `adopters/xdj-rx3-emu.md`,
   at template commit `fd9da22`.
+- Request consent for `npm ci`, `npm test`, `npm test -- <file>...`, and
+  `npm run lint`, `typecheck`, or `build` in
+  `hooks/_command_execution_gate.py`. Each workflow needs a regular
+  `package.json` of at most 1 MiB that defines the script. `npm ci` needs
+  `package-lock.json` or `npm-shrinkwrap.json`. Test file arguments must
+  resolve to existing files inside the repository. `npx`, `npm install`, and
+  other scripts stay denied. The primary branch and a detached HEAD deny
+  every npm workflow.
+- Cover the npm workflow rules in `tests/test_npm_workflow_consent.py`.
 
 ### Changed
 - Move the program allowlist, wrapper and expansion checks, and workflow
