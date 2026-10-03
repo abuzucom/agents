@@ -29,6 +29,21 @@ def _write_programs(directory: Path, names=PROGRAM_NAMES) -> None:
             launcher.chmod(launcher.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
 
 
+def _can_symlink() -> bool:
+    """Return whether the current platform and user can create symlinks."""
+    try:
+        with tempfile.TemporaryDirectory() as temporary:
+            target = Path(temporary) / "target"
+            target.write_text("x", encoding="utf-8")
+            (Path(temporary) / "link").symlink_to(target)
+            return True
+    except OSError:
+        return False
+
+
+CAN_SYMLINK = _can_symlink()
+
+
 class TemporaryTree(unittest.TestCase):
     """Create one resolved temporary directory per test."""
 
@@ -55,6 +70,7 @@ class ReadRegularTest(TemporaryTree):
         path = self.write("HEAD", "ref: refs/heads/fix/example\n")
         self.assertEqual(self.hook._read_regular(str(path), READ_LIMIT), "ref: refs/heads/fix/example\n")
 
+    @unittest.skipUnless(CAN_SYMLINK, "Symlinks require elevated privileges on Windows")
     def test_symlink_leaf_raises(self) -> None:
         target = self.write("target", "x")
         link = self.base / "link"
