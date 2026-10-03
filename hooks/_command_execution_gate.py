@@ -244,9 +244,14 @@ def _repository_program_path(program: str, project_dir: str) -> str:
     if found is None:
         return ""
     location = os.path.abspath(found)
+    norm_location = os.path.normcase(location)
     for base in {os.path.abspath(project_dir), os.path.realpath(project_dir)}:
-        if location == base or location.startswith(base + os.sep):
-            return core.sanitize(os.path.relpath(location, base))
+        norm_base = os.path.normcase(base)
+        try:
+            if os.path.commonpath([norm_location, norm_base]) == norm_base:
+                return core.sanitize(os.path.relpath(location, base))
+        except (ValueError, OSError):
+            continue
     return ""
 
 

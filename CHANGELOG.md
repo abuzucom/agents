@@ -25,11 +25,17 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Clamp the manifest depth counter at zero in
   `hooks/_command_execution_gate.py` to prevent negative values on malformed
   inputs.
+- Normalize path casing with `os.path.normcase` and check containment with
+  `os.path.commonpath` in `_repository_program_path` to prevent case-sensitive
+  lookup bypasses on Windows and macOS.
 
 ### Fixed
 - Probe symlink capabilities in `tests/test_gate_hardening.py` and
   `tests/test_npm_workflow_gate.py` so test fixtures skip cleanly on
   platforms without elevated symlink privileges.
+- Use the ASCII escape sequence `\u202e` for the Right-to-Left Override in
+  `tests/test_npm_workflow_gate.py` to prevent encoding errors on non-UTF-8
+  consoles.
 
 ### Added
 - Route `npm ci`, `npm test`, `npm test -- <file>...`, and `npm run lint`,

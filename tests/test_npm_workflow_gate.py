@@ -297,7 +297,7 @@ class NpmPromptIntegrityTest(NpmFixture):
         self.assertIn('prepare="husky"', reason)
 
     def test_undisplayable_executed_scripts_deny(self) -> None:
-        cases = ({"test": "x" * (DISPLAY_LIMIT + 1)}, {"test": "vitest", "posttest": "a‮b"},
+        cases = ({"test": "x" * (DISPLAY_LIMIT + 1)}, {"test": "vitest", "posttest": "a\u202eb"},
                  {"test": "vitest\trun"}, {"test": "vitest", "pretest": "y" * (DISPLAY_LIMIT + 1)})
         for scripts in cases:
             with self.subTest(scripts=sorted(scripts)):
