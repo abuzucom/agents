@@ -14,9 +14,19 @@ into the entry. Dates never decrease. Ask the active human when a date is in
 doubt.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.11.0] (2026-10-03)
+## [2.12.0] (2026-10-03)
 
 ### Added
+- Route `npm ci`, `npm test`, `npm test -- <file>...`, and `npm run lint`,
+  `typecheck`, or `build` to native consent in
+  `hooks/_command_execution_gate.py` when `package.json` defines the script
+  or a lockfile exists. The prompt shows every root script npm runs. Unsafe
+  manifests, a project `.npmrc`, an in-repository `npm`, and unsafe test
+  file arguments deny with the cause and a recovery step. Adopters such as
+  `abuzucom/1a2n-web-visualizer` previously received an opaque-program
+  denial for every npm command.
+- Add `workflow_decision` to `hooks/_command_execution_gate.py`.
+  `workflow_needs_consent` and `read_only_workflow` keep the same contracts.
 - Record `abuzucom/xdj-rx3-emu` as an adopter in `adopters/xdj-rx3-emu.md`,
   at template commit `fd9da22`.
 
