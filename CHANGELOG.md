@@ -14,11 +14,33 @@ into the entry. Dates never decrease. Ask the active human when a date is in
 doubt.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.10.2] (2026-10-03)
+## [2.11.0] (2026-10-03)
 
 ### Added
 - Record `abuzucom/xdj-rx3-emu` as an adopter in `adopters/xdj-rx3-emu.md`,
   at template commit `fd9da22`.
+
+### Changed
+- Move the program allowlist, wrapper and expansion checks, and workflow
+  consent from `hooks/enforce_branch_name.py` into
+  `hooks/_command_execution_gate.py`. The branch hook loads the new module for
+  every shell command. Denials and consent prompts from those checks now name
+  `hooks/_command_execution_gate.py`. Branch and Git metadata denials still
+  name `hooks/enforce_branch_name.py`. Decisions are otherwise unchanged.
+- Keep the moved names importable from `hooks/enforce_branch_name.py`.
+- Require `hooks/_command_execution_gate.py` in
+  `scripts/check_gate_adoption.py`, the protected hook inventory, and the
+  branch adoption file list. Record the new checker digest in
+  `shared-files.json`.
+- Cover the gate attribution in `tests/test_command_execution_gate.py`.
+- Remove two sentences from `docs/agent-policy/adoption.md` that repeat a
+  rule stated in the same file or in `AGENTS.md`. The assembled policy stays
+  under the 64 KiB synchronization limit.
+
+### Fixed
+- List `hooks/enforce_gate_adoption.py` in the protected hook inventory.
+- Name the real client hook configuration files `.codex/hooks.json` and
+  `.gemini/settings.json` in the protected hook inventory.
 
 ## [2.10.1] (2026-10-02)
 

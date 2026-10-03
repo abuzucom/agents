@@ -827,18 +827,16 @@ PYTHON=python`, `python scripts/sync.py --check`, and `python scripts/sync.py`.
 Obtain consent before tests, scripts, or Makefile targets.
 
 Retry variations include changed flags, working directories, and argument
-order. Stop after the second failure. Analyze the error and change strategy.
+order.
 
 Code-quality examples:
 
 - Name a tax constant `TAX_RATE`, not `X1` or `CONST_1`.
-- Do not leave stubbed bodies, bare `pass`, `...`, or unexplained
-  `NotImplementedError`.
 
 Branch adoption copies `scripts/check_branch_name.py`,
 `scripts/read_git_state.py`, `scripts/trusted_git.py`,
-`hooks/enforce_branch_name.py`, `hooks/_gate_core.py`, and
-`hooks/_bash_parser.py`. Register pre-push and every observable supported
+`hooks/enforce_branch_name.py`, `hooks/_command_execution_gate.py`,
+`hooks/_gate_core.py`, and `hooks/_bash_parser.py`. Register pre-push and every observable supported
 client event. Claude also registers `SessionStart`, `UserPromptSubmit`, `Stop`,
 and `SubagentStop`. Run `tests/test_enforce_branch_name.py` in CI and
 pre-commit. Agent hooks use `--strict-agent-preflight`.
@@ -1114,16 +1112,18 @@ it. Work remains stopped until consent is provided affirmatively.
 The protected inventory covers:
 
 - Hook implementations:
-  `hooks/_bash_parser.py`, `hooks/_cmd_parser.py`, `hooks/_gate_core.py`,
+  `hooks/_bash_parser.py`, `hooks/_cmd_parser.py`,
+  `hooks/_command_execution_gate.py`, `hooks/_gate_core.py`,
   `hooks/_platform_policy.py`, `hooks/block_destructive_bash.py`,
   `hooks/block_destructive_cmd.py`, `hooks/block_destructive_powershell.py`,
   `hooks/block_infrastructure_access.py`, `hooks/enforce_branch_name.py`,
-  `hooks/enforce_git_identity.py`, `hooks/reinject_agents_policy.py`,
-  `hooks/require_consent.py`, `hooks/github-command-denylist.txt`,
-  `hooks/primary-branch.txt`, and `hooks/claude-code-settings.example.json`.
+  `hooks/enforce_gate_adoption.py`, `hooks/enforce_git_identity.py`,
+  `hooks/reinject_agents_policy.py`, `hooks/require_consent.py`,
+  `hooks/github-command-denylist.txt`, `hooks/primary-branch.txt`, and
+  `hooks/claude-code-settings.example.json`.
 - Hook configurations:
-  `.claude/settings.json`, `.agents/`, `.codex/hooks/`, `.gemini/settings/`, and
-  `.git/hooks/`.
+  `.claude/settings.json`, `.agents/`, `.codex/hooks.json`,
+  `.gemini/settings.json`, and `.git/hooks/`.
 - Denylist configuration:
   `scripts/banned_models.txt`.
 

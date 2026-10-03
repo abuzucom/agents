@@ -28,6 +28,7 @@ from pathlib import Path
 SHARED_MANIFEST = "shared-files.json"
 TRANSACTION_HOOK = "enforce_gate_adoption.py"
 CLIENT_HOOKS = (
+    "hooks/_command_execution_gate.py",
     "hooks/block_infrastructure_access.py",
     "hooks/enforce_branch_name.py",
     "hooks/enforce_git_identity.py",
