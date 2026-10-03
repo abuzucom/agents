@@ -130,8 +130,17 @@ def _read_regular(path: str, limit: int) -> str:
     details = os.lstat(path)
     if not stat.S_ISREG(details.st_mode) or details.st_size > limit:
         raise OSError("repository metadata is not a bounded regular file")
-    with open(path, encoding="utf-8") as handle:
-        return handle.read(limit + 1)
+    # O_NOFOLLOW refuses a symlink swapped in after lstat; O_NONBLOCK keeps a FIFO from hanging.
+    flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0)
+    with os.fdopen(os.open(path, flags), encoding="utf-8") as handle:
+        opened = os.fstat(handle.fileno())
+        if (not stat.S_ISREG(opened.st_mode)
+                or (opened.st_dev, opened.st_ino) != (details.st_dev, details.st_ino)):
+            raise OSError("repository metadata changed while the hook read it")
+        content = handle.read(limit + 1)
+    if len(content) > limit:
+        raise OSError("repository metadata is not a bounded regular file")
+    return content
 
 
 def _git_directory(project_dir: str) -> str:
