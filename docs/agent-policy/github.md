@@ -23,7 +23,8 @@ diffs remain available through the wrapper. GitHub clone and fetch use the
 fixed commands `python scripts/trusted_git.py clone <github-url> <directory>`
 and `python scripts/trusted_git.py fetch <repository> [refspec...]`. The
 transport CLI rejects arbitrary Git options, shell expansion, and paths outside
-the current workspace.
+the current workspace. A fetch remote must be a GitHub URL or a remote name.
+Git receives only an allowlisted environment.
 
 PR creation, issue creation, comments, reviews, reactions, forks,
 stars, watches, releases, and hosted state changes require active-human

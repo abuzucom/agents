@@ -503,9 +503,10 @@ editing. Preserve conditions, exceptions, scope, precedence, failure behavior,
 recovery actions, and legal notices. Update linked files, hooks, tests, CI,
 copies, and documentation together.
 
-**Version every change.** Advance the SemVer version in `CHANGELOG.md` in the
-same change as every code, policy, documentation, hook, test, CI, or
-configuration change. Do not use `[Unreleased]` in adopting repositories.
+**Version every change.** Advance the SemVer version in `CHANGELOG.md` with
+every change. Keep one entry per UTC date. Same-day changes merge into that
+entry under the new version. Dates never decrease.
+Do not use `[Unreleased]` in adopting repositories.
 Use the highest required patch, minor, or major level for mixed changes. Get
 active-human approval before a major bump. Preserve existing entries when
 converting an `[Unreleased]` section to a versioned release.
@@ -517,7 +518,7 @@ inspecting changed handoff content. See `docs/agent-policy/adoption.md` for
 handoff handling.
 
 **Documentation and versioning.** Update README for substantial changes.
-Update CHANGELOG for every change. Follow SemVer (X.Y.Z):
+Follow SemVer (X.Y.Z):
 - Use non-negative integers without leading zeros.
 - Treat 0.y.z as unstable initial development.
 - Define public API stability at 1.0.0.
@@ -826,13 +827,11 @@ PYTHON=python`, `python scripts/sync.py --check`, and `python scripts/sync.py`.
 Obtain consent before tests, scripts, or Makefile targets.
 
 Retry variations include changed flags, working directories, and argument
-order. Stop after the second failure. Analyze the error and change strategy.
+order.
 
 Code-quality examples:
 
 - Name a tax constant `TAX_RATE`, not `X1` or `CONST_1`.
-- Do not leave stubbed bodies, bare `pass`, `...`, or unexplained
-  `NotImplementedError`.
 
 Branch adoption copies `scripts/check_branch_name.py`,
 `scripts/read_git_state.py`, `scripts/trusted_git.py`,
@@ -1118,12 +1117,13 @@ The protected inventory covers:
   `hooks/_platform_policy.py`, `hooks/block_destructive_bash.py`,
   `hooks/block_destructive_cmd.py`, `hooks/block_destructive_powershell.py`,
   `hooks/block_infrastructure_access.py`, `hooks/enforce_branch_name.py`,
-  `hooks/enforce_git_identity.py`, `hooks/reinject_agents_policy.py`,
-  `hooks/require_consent.py`, `hooks/github-command-denylist.txt`,
-  `hooks/primary-branch.txt`, and `hooks/claude-code-settings.example.json`.
+  `hooks/enforce_gate_adoption.py`, `hooks/enforce_git_identity.py`,
+  `hooks/reinject_agents_policy.py`, `hooks/require_consent.py`,
+  `hooks/github-command-denylist.txt`, `hooks/primary-branch.txt`, and
+  `hooks/claude-code-settings.example.json`.
 - Hook configurations:
-  `.claude/settings.json`, `.agents/`, `.codex/hooks/`, `.gemini/settings/`, and
-  `.git/hooks/`.
+  `.claude/settings.json`, `.agents/`, `.codex/hooks.json`,
+  `.gemini/settings.json`, and `.git/hooks/`.
 - Denylist configuration:
   `scripts/banned_models.txt`.
 
@@ -1209,7 +1209,8 @@ diffs remain available through the wrapper. GitHub clone and fetch use the
 fixed commands `python scripts/trusted_git.py clone <github-url> <directory>`
 and `python scripts/trusted_git.py fetch <repository> [refspec...]`. The
 transport CLI rejects arbitrary Git options, shell expansion, and paths outside
-the current workspace.
+the current workspace. A fetch remote must be a GitHub URL or a remote name.
+Git receives only an allowlisted environment.
 
 PR creation, issue creation, comments, reviews, reactions, forks,
 stars, watches, releases, and hosted state changes require active-human

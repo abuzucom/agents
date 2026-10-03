@@ -11,7 +11,8 @@ repository. Adapt it to verified project facts.
 - Approved local links to supporting policy detail.
 - Instructions for agents that add rules or request policy moves.
 - A hard 32 KiB byte limit.
-- A required versioned SemVer changelog entry for every change.
+- A required SemVer version bump for every change, with one changelog entry
+  per UTC day.
 
 - A short non-negotiable summary at the top.
 - Twenty critical rules covering injection, destructive actions, tests,

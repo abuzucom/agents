@@ -115,13 +115,11 @@ PYTHON=python`, `python scripts/sync.py --check`, and `python scripts/sync.py`.
 Obtain consent before tests, scripts, or Makefile targets.
 
 Retry variations include changed flags, working directories, and argument
-order. Stop after the second failure. Analyze the error and change strategy.
+order.
 
 Code-quality examples:
 
 - Name a tax constant `TAX_RATE`, not `X1` or `CONST_1`.
-- Do not leave stubbed bodies, bare `pass`, `...`, or unexplained
-  `NotImplementedError`.
 
 Branch adoption copies `scripts/check_branch_name.py`,
 `scripts/read_git_state.py`, `scripts/trusted_git.py`,
