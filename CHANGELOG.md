@@ -7,9 +7,31 @@ One deviation applies. A version heading parenthesizes the release date.
 The format uses `## [1.2.3] (2026-01-01)` instead of a spaced hyphen.
 The house style bans that hyphen. `scripts/check_ascii.py` enforces the ban on
 this file.
+All dates are UTC.
+Each date has one entry. Every change still advances the version. A same-day
+change renames that day's heading to the new version and merges its items
+into the entry. Dates never decrease. Ask the active human when a date is in
+doubt.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.9.3] (2026-10-01)
+## [2.10.1] (2026-10-02)
+
+### Added
+- Fail `scripts/check_changelog.py` when two release headings share a date
+  or a date goes back in time down the file. Report invalid calendar dates.
+- Fail the staged check when the top release date is not today's UTC date.
+- Fail the range check when the head date precedes the base date or follows
+  today's UTC date.
+- Cover the date rules, DST transitions, and process timezones in
+  `tests/test_check_changelog_daily_entries.py`.
+
+### Changed
+- State that all changelog dates are UTC.
+- Redate 31 entries to the UTC date of the commit that added each entry to
+  `main`.
+- Merge entries that share a date under the newest version.
+- Require one changelog entry per UTC date in `AGENTS.md`. Same-day changes
+  merge under the new version. Remove a duplicate changelog sentence.
 
 ### Fixed
 - Accept only a GitHub URL or a remote name as the `trusted_git.py fetch`
@@ -35,6 +57,11 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Uppercase allowlisted variable names on Windows.
 - Cover the missing policy-root checker branch of
   `hooks/enforce_git_identity.py`.
+- Return a finding instead of raising `TypeError` when a staged changelog
+  has no versioned heading and HEAD has one.
+- Include the cause and a recovery step in changelog inspection errors.
+- Report a missing staged `CHANGELOG.md` entry instead of a Git inspection
+  error.
 
 ## [2.9.2] (2026-10-01)
 
@@ -62,21 +89,6 @@ session start.
 
 ## [2.9.1] (2026-09-30)
 
-### Fixed
-- Bind the `gate-change-approved` label to the current pull-request head.
-  `scripts/check_gate_pr_integrity.py` accepts an optional
-  `--timeline-json` flag. With it, the label counts only when a person
-  applied it after the latest push, force push, and label removal.
-  `gate-integrity.yml` reads that timeline through the pinned
-  `actions/github-script` action.
-- Match protected paths without regard to case. Protect `Makefile`,
-  `.pre-commit-config.yaml`, `scripts/run_tests.py`, and `CODEOWNERS`
-  files.
-- Stop running the pull-request checker when the base branch lacks one.
-  The first gate adoption now requires the approval label.
-
-## [2.9.0] (2026-09-30)
-
 ### Changed
 - Treat the primary branch `main` and a detached HEAD as read-only states in
   `hooks/enforce_branch_name.py`. Read tools, plan and task tools, inspection
@@ -95,8 +107,8 @@ session start.
 - Cover branch gate edge paths in `tests/test_branch_gate_edge_paths.py`.
   Remove two stale `enforce_branch_name.py` entries from
   `hook-coverage-baseline.json`.
-
-## [2.8.4] (2026-09-30)
+- Remove supporting-document sentences that repeat `AGENTS.md` Rule 15 and
+  Rule 17 to keep the assembled policy under the sync size limit.
 
 ### Removed
 - Remove the Dependabot changelog companion workflow,
@@ -104,9 +116,18 @@ session start.
   on every run. The trusted wrapper account check reads `/user`, and the
   workflow `GITHUB_TOKEN` cannot read that endpoint.
 
-## [2.8.3] (2026-09-30)
-
 ### Fixed
+- Bind the `gate-change-approved` label to the current pull-request head.
+  `scripts/check_gate_pr_integrity.py` accepts an optional
+  `--timeline-json` flag. With it, the label counts only when a person
+  applied it after the latest push, force push, and label removal.
+  `gate-integrity.yml` reads that timeline through the pinned
+  `actions/github-script` action.
+- Match protected paths without regard to case. Protect `Makefile`,
+  `.pre-commit-config.yaml`, `scripts/run_tests.py`, and `CODEOWNERS`
+  files.
+- Stop running the pull-request checker when the base branch lacks one.
+  The first gate adoption now requires the approval label.
 - Direct agents to derive Git identity from an authenticated account source
   and request approval. Never ask the active human to supply identity values.
   Update `hooks/enforce_git_identity.py` and `scripts/check_git_identity.py`
@@ -114,20 +135,8 @@ session start.
 - Add a diagnosis order for failed trusted wrapper calls to
   `docs/agent-policy/github.md` and Rule 16. Only an authentication result
   supports a sign-in request.
-
-### Changed
-- Remove supporting-document sentences that repeat `AGENTS.md` Rule 15 and
-  Rule 17 to keep the assembled policy under the sync size limit.
-
-## [2.8.2] (2026-09-30)
-
-### Fixed
 - Require `gate-change-approved` for changes to
   `scripts/check_git_identity.py` and `scripts/check_agent_prose_gate.py`.
-
-## [2.8.1] (2026-09-29)
-
-### Fixed
 - Classify commands inside `<( )` and `>( )` process substitution.
 - Route shell writes to `.git/` and agent policy copies to consent.
 - Classify a wrapper with no program as the wrapper itself. A bare `env`
@@ -185,8 +194,8 @@ session start.
   `docs/agent-policy/security.md` without changing requirements.
 - Rewrite ten passive-voice, pronoun, and comma-clause lines in `AGENTS.md`,
   `README.md`, and `SECURITY.md.example` without changing requirements.
-
-## [2.7.2] (2026-09-29)
+- Record the `abuzucom/1a2n-web-visualizer` re-adoption at template commit
+  `848d069` and its documented template drift.
 
 ### Fixed
 - End a pipeline at `&&`, `||`, `;`, and `&` in the Bash pipe check, and at
@@ -201,12 +210,6 @@ session start.
   `block_destructive_powershell.py`, and `enforce_branch_name.py` through
   `core.run_fail_closed`.
 
-## [2.7.1] (2026-09-28)
-
-### Changed
-- Record the `abuzucom/1a2n-web-visualizer` re-adoption at template commit
-  `848d069` and its documented template drift.
-
 ## [2.7.0] (2026-09-28)
 
 ### Added
@@ -215,6 +218,13 @@ session start.
   `code-coverage-agent[bot]` (account ID `295130552`).
 - `scripts/check_branch_name.py` applies the registry in pull request CI when
   the event file proves the bot identity.
+
+### Fixed
+- Classify GitHub CLI account-check failures as authentication, network, or
+  unclassified. Network and unclassified failures no longer report a missing
+  account.
+- Clear the managed Codex `127.0.0.1:9` proxy placeholder in
+  `scripts/trusted_git.py` as well as `scripts/trusted_gh.py`.
 
 ### Security
 - Bind third-party bot exemptions to the numeric account ID and head ref in
@@ -227,73 +237,23 @@ session start.
 - Add the registry to `PROTECTED_FILES`. Registry edits require the
   `gate-change-approved` label.
 
-## [2.6.3] (2026-09-28)
-
-### Fixed
-- Classify GitHub CLI account-check failures as authentication, network, or
-  unclassified. Network and unclassified failures no longer report a missing
-  account.
-- Clear the managed Codex `127.0.0.1:9` proxy placeholder in
-  `scripts/trusted_git.py` as well as `scripts/trusted_gh.py`.
-
 ## [2.6.2] (2026-09-21)
 
 ### Added
 - Record the `abuzucom/viim` adoption and its documented template drift.
-
-## [2.6.1] (2026-09-21)
-
-### Changed
-- Clarify supporting policy wording and reduce assembled policy size by 250
-  bytes without changing policy requirements.
-
-## [2.6.0] (2026-09-21)
-
-### Added
 - Separate adopter and source-repository orientation from `AGENTS.md`.
 - Include adopter orientation in synchronized and adoptable policy copies.
 - Preserve source-only orientation in local policy copies and reinjection.
-
-## [2.5.2] (2026-09-21)
-
-### Changed
-- Clarify draft pull request, adoption, wording, and code-quality guidance in
-  the canonical policy.
-- Synchronize generated policy copies and update adoption documentation.
-
-## [2.5.1] (2026-09-21)
-
-### Fixed
-- Fix `scripts/check_changelog.py` range mode so a repository's first
-  `CHANGELOG.md` no longer fails unconditionally. `find_range_violations`
-  required a versioned release in the base revision even when the base has
-  no `CHANGELOG.md` yet, or only carries an unversioned boilerplate stub
-  (such as a default "Keep a Changelog" template with just an
-  `## [Unreleased]` heading). The base revision now only needs a version to
-  enforce the version-advance requirement. The head revision still requires
-  its own versioned release, unchanged.
-
-## [2.5.0] (2026-09-20)
-
-### Added
 - Add `scripts/check_agent_prose_gate.py`, a blocking gate that fails on
   the same American-spelling, English-only, and prose-policy findings the
   advisory checks already run, but only for commits and pull requests that
   disclose agent authorship through the Rule 14 `Assisted-by`/
   `Co-authored-by` trailer. Human-authored work stays exactly as advisory
   as before. The four existing warning-only checks stay unchanged.
-
-## [2.4.0] (2026-09-20)
-
-### Added
 - Wire the `abuzucom/foucault` pull request security review at commit
   `62851df1ef177593adbb9e06b223f5a6dce66fc0` (release 3.3.10), with the
   `ci/` provider adapters, `scripts/check_pr_review_response.py`, and a
   caller workflow gating on the model verdict.
-
-## [2.3.0] (2026-09-20)
-
-### Added
 - Require atomic gate adoption with manifest, launch, allowed-operation, recovery,
   and independent-integrity verification before client-hook activation.
 - Preserve the verified gate set after a failed transaction. Prohibit permitted
@@ -304,7 +264,22 @@ session start.
 - Add staged complete-set recovery for incomplete cross-client activation.
 - Add trusted-base CI label enforcement for protected gate changes.
 
+### Changed
+- Clarify supporting policy wording and reduce assembled policy size by 250
+  bytes without changing policy requirements.
+- Clarify draft pull request, adoption, wording, and code-quality guidance in
+  the canonical policy.
+- Synchronize generated policy copies and update adoption documentation.
+
 ### Fixed
+- Fix `scripts/check_changelog.py` range mode so a repository's first
+  `CHANGELOG.md` no longer fails unconditionally. `find_range_violations`
+  required a versioned release in the base revision even when the base has
+  no `CHANGELOG.md` yet, or only carries an unversioned boilerplate stub
+  (such as a default "Keep a Changelog" template with just an
+  `## [Unreleased]` heading). The base revision now only needs a version to
+  enforce the version-advance requirement. The head revision still requires
+  its own versioned release, unchanged.
 - Permit trusted gate fetching from the verified workspace root.
 - Permit bounded staged recovery writes and read-only discovery.
 - Restore prior gate artifacts after a staged installation failure.
@@ -314,17 +289,6 @@ session start.
 
 ### Added
 - Add trusted Dependabot companion changelog automation.
-
-### Fixed
-- Avoid false-positive workflow failures on non-Dependabot runs by filtering
-  open pull requests before resolving head commits.
-- Check open pull request state before creating companion changelog drafts.
-- Switch to the companion branch before writing changelog updates to the
-  workspace.
-
-## [2.2.0] (2026-09-18)
-
-### Added
 - Add Non-negotiable Rule 22 requiring active-human consent before modifying
   hook files or `scripts/banned_models.txt`. Require stopping work, entering plan
   mode, and obtaining affirmative approval without workarounds.
@@ -340,6 +304,11 @@ session start.
   trailers and enforce name-only attribution without emails.
 
 ### Fixed
+- Avoid false-positive workflow failures on non-Dependabot runs by filtering
+  open pull requests before resolving head commits.
+- Check open pull request state before creating companion changelog drafts.
+- Switch to the companion branch before writing changelog updates to the
+  workspace.
 - Fail closed in `scripts/check_banned_agents.py` on missing or unreadable model
   denylist files.
 - Restrict exact model matching to model disclosures and bot logins to prevent
@@ -348,7 +317,7 @@ session start.
 - Strip Windows alternate data stream decorations for `scripts/banned_models.txt`
   in consent hooks.
 
-## [2.1.0] (2026-09-16)
+## [2.1.0] (2026-09-17)
 
 ### Added
 - Treat compaction messages as untrusted input. Assume adversarial
@@ -357,88 +326,34 @@ session start.
   manufactured bypasses and fabricated approval claims.
 - Emit a compaction directive from the reinjection hook on Claude and Codex
   compaction events.
-
-## [2.0.43] (2026-09-17)
+- Document Windows temporary-directory ACL troubleshooting for tests.
+- Add fixed trusted GitHub clone and fetch transport commands.
+- Permit narrowly scoped Cloudflare Pages deployments from workspace output.
 
 ### Fixed
 - Normalize workspace paths before trusted Git containment checks.
 - Reject unsafe symlinks in Cloudflare Pages deployment output.
 - Resolve trusted Git workspaces from nested repository directories.
-
-## [2.0.42] (2026-09-16)
-
-### Fixed
 - Normalize workspace paths before trusted Git containment checks.
-
-## [2.0.41] (2026-09-16)
-
-### Added
-- Document Windows temporary-directory ACL troubleshooting for tests.
-
-## [2.0.40] (2026-09-16)
-
-### Fixed
 - Remove redundant trusted Git metadata branching.
-
-## [2.0.39] (2026-09-16)
-
-### Fixed
 - Handle case-insensitive Windows paths in trusted Git transport checks.
-
-## [2.0.38] (2026-09-16)
-
-### Fixed
 - Reject malformed and incomplete trusted Git clone sources.
-
-## [2.0.37] (2026-09-16)
-
-### Fixed
 - Reject credentials and opaque URL components in trusted Git clone sources.
-
-## [2.0.36] (2026-09-16)
-
-### Added
-- Add fixed trusted GitHub clone and fetch transport commands.
-
-## [2.0.35] (2026-09-16)
-
-### Fixed
 - Exercise the public GitHub CLI denylist classifier in option tests.
-
-## [2.0.34] (2026-09-16)
-
-### Fixed
 - Centralize Wrangler Pages decisions in CWD-aware shell gates.
-
-## [2.0.33] (2026-09-16)
-
-### Fixed
 - Resolve Cloudflare Pages deployment paths from the hook payload CWD.
-
-## [2.0.32] (2026-09-16)
-
-### Fixed
 - Reject unsafe Cloudflare Pages deployment paths and credential contents.
 
-## [2.0.31] (2026-09-16)
+## [2.0.30] (2026-09-16)
 
 ### Added
-- Permit narrowly scoped Cloudflare Pages deployments from workspace output.
-
-## [2.0.30] (2026-09-16)
+- Document the Python UTF-8 diagnostic workaround for Windows log failures.
 
 ### Changed
 - Set UTF-8 encoding and LF line endings as the default code style.
 
 ### Fixed
 - Decode script subprocess output with explicit UTF-8 replacement handling.
-
-### Added
-- Document the Python UTF-8 diagnostic workaround for Windows log failures.
-
-## [2.0.29] (2026-09-15)
-
-### Fixed
 - Enforce LF line endings for policy files before byte-limit checks.
 
 ## [2.0.28] (2026-09-15)
@@ -452,98 +367,50 @@ session start.
   pushes, and draft pull request creation.
 - Document injection-safe argument handling and rejection of opaque expansion.
 - Document explicit repository targets for trusted GitHub commands.
-
-## [2.0.27] (2026-09-14)
-
-### Fixed
 - Prevent untrusted command options from entering wrapper error output.
-
-## [2.0.26] (2026-09-14)
-
-### Fixed
 - Prevent CodeQL-tainted exception data from reaching wrapper output.
-
-## [2.0.25] (2026-09-14)
-
-### Fixed
 - Harden GitHub CLI option parsing and repository context injection.
 - Compare pull request changes from the merge base.
-
-## [2.0.24] (2026-09-14)
-
-### Fixed
 - Prevent trusted GitHub CLI error output from exposing exception text.
-
-## [2.0.23] (2026-09-14)
-
-### Fixed
 - Handle global GitHub CLI options before repository commands.
 - Preserve explicit pull request head options.
 - Bound worktree metadata and accept valid SSH remotes on all platforms.
-
-## [2.0.22] (2026-09-14)
-
-### Fixed
 - Require accurate reporting of runtime elevation approval state.
-
-## [2.0.21] (2026-09-14)
-
-### Fixed
 - Resolve GitHub repository context from Windows worktrees.
 - Pass validated repository context to repository-bound GitHub CLI commands.
 - Require behavioral tests for executable pull request changes.
 
 ## [2.0.20] (2026-09-14)
 
-### Fixed
-- Consume GitHub CLI `-h` and `-u` option values before denylist matching.
-- Cover short authentication option forms through fresh hook processes.
-
-## [2.0.19] (2026-09-14)
-
-### Fixed
-- Consume interleaved GitHub CLI option values before path matching.
-- Cover option terminators and attached option values.
-
-## [2.0.18] (2026-09-14)
-
-### Fixed
-- Parse interleaved GitHub CLI option values before denylist matching.
-- Align Rules 16 and 17 with unconditional GitHub CLI denials.
-
-## [2.0.17] (2026-09-14)
-
-### Fixed
-- Remove stale hook-coverage allowances after routing cleanup.
-
-## [2.0.16] (2026-09-14)
-
-### Fixed
-- Remove duplicate denylist paths from legacy GitHub safety branches.
-- Deny merges and archives through the shared GitHub classifier.
-- Exercise GitHub routing branches through fresh hook processes.
-
-## [2.0.15] (2026-09-14)
-
-### Fixed
-- Cover GitHub routing through fresh hook entrypoints.
-- Test unavailable and malformed GitHub CLI denylist data.
-
-## [2.0.14] (2026-09-14)
-
-### Fixed
-- Deny the documented `gh agent-task` aliases.
-- Deny documented aliases for other banned GitHub CLI families.
-
-## [2.0.13] (2026-09-14)
-
 ### Added
 - Add a configurable GitHub CLI command denylist.
 - Deny the requested GitHub CLI command families and paths.
-
-## [2.0.12] (2026-09-14)
+- Require trusted GitHub CLI routing for hosted resource operations.
+- Handle the managed Codex loopback proxy placeholder without changing valid
+  proxy settings.
+- Deny agent changes to Git Credential Manager and GitHub authentication state.
+- Deny browser-based GitHub token recovery by agents.
+- Add schema-safe Antigravity `PreToolUse` output.
+- Add CI and pre-commit coverage for trusted GitHub CLI routing.
+- Add linked policy loading and a 32 KiB canonical policy limit.
+- Require a versioned SemVer entry for every repository change.
+- Add test-first changelog enforcement through hooks and CI.
 
 ### Fixed
+- Consume GitHub CLI `-h` and `-u` option values before denylist matching.
+- Cover short authentication option forms through fresh hook processes.
+- Consume interleaved GitHub CLI option values before path matching.
+- Cover option terminators and attached option values.
+- Parse interleaved GitHub CLI option values before denylist matching.
+- Align Rules 16 and 17 with unconditional GitHub CLI denials.
+- Remove stale hook-coverage allowances after routing cleanup.
+- Remove duplicate denylist paths from legacy GitHub safety branches.
+- Deny merges and archives through the shared GitHub classifier.
+- Exercise GitHub routing branches through fresh hook processes.
+- Cover GitHub routing through fresh hook entrypoints.
+- Test unavailable and malformed GitHub CLI denylist data.
+- Deny the documented `gh agent-task` aliases.
+- Deny documented aliases for other banned GitHub CLI families.
 - Avoid duplicate violations and correct changelog version typing.
 - Remove the stale hook-coverage record for `load_policy`.
 - Trace oversized supporting-file rejection through a hook subprocess.
@@ -556,32 +423,10 @@ session start.
 - Fail closed when linked policy files are missing or unsafe.
 - Handle changelog revision inspection errors without crashing.
 - Assemble generated policy copies from canonical content first.
-
-## [2.0.2] (2026-09-13)
-
-### Fixed
 - Reject incomplete linked-policy bundles during loading and synchronization.
 - Enforce SemVer advancement across pull request revisions in CI.
-
-## [2.0.1] (2026-09-13)
-
-### Fixed
 - Treat the managed `cat` pager placeholder as safe during Git reads.
 - Cover linked-policy loading and fail-closed supporting-file validation.
-
-## [2.0.0] (2026-09-13)
-
-### Added
-- Require trusted GitHub CLI routing for hosted resource operations.
-- Handle the managed Codex loopback proxy placeholder without changing valid
-  proxy settings.
-- Deny agent changes to Git Credential Manager and GitHub authentication state.
-- Deny browser-based GitHub token recovery by agents.
-- Add schema-safe Antigravity `PreToolUse` output.
-- Add CI and pre-commit coverage for trusted GitHub CLI routing.
-- Add linked policy loading and a 32 KiB canonical policy limit.
-- Require a versioned SemVer entry for every repository change.
-- Add test-first changelog enforcement through hooks and CI.
 
 ## [1.14.0] (2026-09-13)
 
@@ -909,7 +754,7 @@ session start.
 - Preserved Ubuntu 24.04 compatibility by probing Git 2.45's `--no-lazy-fetch`
   before use. Checks disable replacement objects on all supported Git versions.
 
-## [1.13.0] (2026-08-25)
+## [1.13.0] (2026-08-28)
 
 ### Added
 - Expanded destructive-command policy across Bash, PowerShell, nested shells,
@@ -1047,44 +892,24 @@ session start.
   and rule or template proposals.
 - Documented adoption. Extended spelling, language, hedging, and ASCII checks
   to all three files.
-
-## [1.9.0] (2026-08-15)
-
-### Added
 - Added an opt-in policy that routes reports through GitHub private
   vulnerability reporting. Added adoption guidance.
 - Extended spelling, language, hedging, and ASCII checks to the security policy.
-
-## [1.8.0] (2026-08-15)
-
-### Added
 - Added an opt-in handoff template pairing status claims with verification
   commands. Added adoption guidance.
 - Extended spelling, language, hedging, dash, and ASCII checks to the handoff
   template.
-
-## [1.7.3] (2026-08-15)
-
-### Added
 - Added advisory AgentLint `0xmariowu/AgentLint@v1.1.13` with `fail-below: '0'`.
   No valid score could trigger the score-threshold failure. Action failures
   could still fail the step.
 - Added `pull-requests: write`. Pinned `actions/github-script@v9.0.0` for score
   and report comments.
 - Documented AgentLint separately from portable repository checkers.
-
-## [1.7.2] (2026-08-15)
-
-### Added
 - Added prose rules against hedging, self-justification, self-narration, task
   references, and unsupported claims.
 - Extended comment guidance to prohibit historical implementation narration.
 - Added a portable warning-only hedging checker to existing CI. Documentation
   records the heuristic contract.
-
-## [1.7.1] (2026-08-15)
-
-### Added
 - Explicitly banned `claude/` branches. Dependabot receives exemptions from
   formats outside Dependabot configuration.
 - Added an opt-in reusable compliance workflow. Consumers must pin the workflow
@@ -1107,53 +932,35 @@ session start.
 - Added a consolidated README checker reference.
 - Added an opt-in Bash hook that denied root or home recursive deletion,
   force-push, and `git reset --hard`.
-
-### Changed
-- Consolidated duplicate README checker descriptions into the reference table.
-
-## [1.6.0] (2026-08-08)
-
-### Added
 - Added branch-name validation for `<type>/<kebab-description>`. Primary
   branches and detached HEAD receive exemptions.
 - Added commit-message shape, length, punctuation, and GitHub squash suffix
   validation.
 - Added both checks to pull request CI and branch validation to pre-push. Added
   rule references.
-
-## [1.5.0] (2026-08-08)
-
-### Added
 - Added checkers for persisted checkout credentials, weak hashes, root
   containers, secrets, and environment files.
 - Added the Rule 12 exception form
   `# runtime-root: this container <reason> (Rule 12 exception).`.
 - Added all four checkers to CI and pre-commit. Added rule references and
   adopter guidance.
-
-## [1.4.0] (2026-08-08)
-
-### Added
 - Added Rule 13. The rule prohibits enforcement claims without real checks.
   The rule requires a proposed check with each mechanically enforceable rule.
 - Added pull request CI that compares commit authors, committers, co-author
   trailers, and pull request authors against the banned-agent denylist.
 - Allowed adopters to prune inapplicable rules and associated checks with
   active-human approval.
-
-### Changed
-- Documented that banned-agent checks cannot detect an agent using only a human
-  identity with no trailer.
-
-## [1.3.0] (2026-08-08)
-
-### Added
 - Added American English and English-only rules for code, comments, commit
   messages, and documentation, including projects targeting other languages.
 - Added portable warning-only spelling and English heuristics plus a portable
   blocking dash and ASCII checker.
 - Added the warning-only checks to local lint and CI, with adopter guidance and
   each checker's exit-code contract.
+
+### Changed
+- Consolidated duplicate README checker descriptions into the reference table.
+- Documented that banned-agent checks cannot detect an agent using only a human
+  identity with no trailer.
 
 ## [1.2.0] (2026-07-19)
 
