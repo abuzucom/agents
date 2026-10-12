@@ -184,6 +184,12 @@ class AllowlistTest(unittest.TestCase):
         self.assertNotIn(name, str(raised.exception))
         self.assertIn("line 1", str(raised.exception))
 
+    def test_runtime_home_leaf_entry_is_rejected(self):
+        leaf = generated_name()
+        identity = checker.Identity(homes=("/home/" + leaf,))
+        with self.assertRaises(checker.AllowlistError):
+            scanner("a.ts\t" + leaf + "\n", identity)
+
     def test_runtime_identity_entry_is_rejected(self):
         name = generated_name()
         identity = checker.Identity(names=(name,))
