@@ -337,11 +337,14 @@ def build_scanner(allowlist_text: str, identity: Identity) -> Scanner:
     """Validate the allowlist, bucket the identity, and compile patterns."""
     pairs = parse_allowlist(allowlist_text)
     full, short, homes, skipped = _bucket_identity(identity)
+    # A home leaf can differ from the account name, so it counts as a
+    # runtime identity value too.
+    protected = set(full) | short | {home.rsplit("/", 1)[-1] for home in homes}
     for _path, name, number in pairs:
-        if name in full or name in short:
+        if name in protected:
             raise AllowlistError(
-                f"{ALLOWLIST_NAME} line {number} names this computer's account "
-                "or host. Recovery: replace the committed name with a "
+                f"{ALLOWLIST_NAME} line {number} names this computer's account, "
+                "home, or host. Recovery: replace the committed name with a "
                 "placeholder instead of allowlisting it.")
     home_pattern = None
     if homes:
