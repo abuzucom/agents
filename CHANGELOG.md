@@ -22,8 +22,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   name, home directory, and computer name (Rule 8).
 - Add `.local-path-allowlist` for human-approved `<file><TAB><name>` pairs.
 - Scan blobs, paths, branch names, commit ranges, and pull request text in
-  the trusted compliance run. Add advisory pull request steps, pre-commit,
-  commit-msg, and pre-push hooks, and a three-OS test job.
+  the trusted compliance run. Add pre-commit, commit-msg, and pre-push
+  hooks.
 
 ### Required adoption order
 - Adopt the checker and the approved allowlist in one transaction and one
