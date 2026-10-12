@@ -407,8 +407,9 @@ The blocking verdict comes from the trusted `immutable-conflict-check.yml`
 run. That run loads the checker and allowlist from the base revision through
 `scripts/check_compliance_tree.py`. It scans every tracked blob and path, the
 branch name, the commits in the range, and the pull request title and body.
-The `agents-compliance.yml` step is advisory because a pull request can edit
-it. A human admin must mark the trusted job required in branch protection.
+The `tests`, `tests-windows`, and `tests-macos` jobs in `sync-check.yml` run
+the checker tests on three operating systems. A human admin must mark the
+trusted job required in branch protection.
 
 Pre-commit `SKIP`, `git commit --no-verify`, and a changed `core.hooksPath`
 bypass the local hooks. Commits through the GitHub API or a web editor skip
