@@ -41,8 +41,6 @@ unclassified failure, report proxy variable names and retry the wrapper once
 before the Git fallback. Never claim a need for outside intervention while a
 bounded retry remains.
 
-`AGENTS.md` controls when linked documents conflict with it.
-
 ## Git fallback
 After a failed wrapper operation, one semantically equivalent Git fallback may
 run after active-human confirmation. Mark it with

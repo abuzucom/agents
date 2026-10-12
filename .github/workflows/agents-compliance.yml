@@ -30,6 +30,32 @@ jobs:
           --head "$PR_HEAD_SHA"
       - name: Check pull request prose (warning only)
         run: python scripts/check_pull_request_message.py
+      - name: Check local identifiers (advisory; the trusted scan blocks)
+        env:
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          python -I scripts/check_local_paths.py \
+            --base "$PR_BASE_SHA" \
+            --head "$PR_HEAD_SHA"
+          python -I scripts/check_local_paths.py --event
+
+  local-path-tests:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.x'
+      - name: Test the local identifier checker on this OS
+        run: python -m unittest tests.test_check_local_paths -v
 
   pr-checks:
     if: github.event_name == 'pull_request' && github.event.pull_request.draft == false

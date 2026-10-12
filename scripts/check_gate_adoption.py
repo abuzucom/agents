@@ -45,6 +45,7 @@ REQUIRED_CHECKERS = (
     "scripts/check_git_identity.py",
     "scripts/check_gate_pr_integrity.py",
     "scripts/check_hook_launchers.py",
+    "scripts/check_local_paths.py",
     "scripts/check_persist_credentials.py",
     "scripts/check_secrets_heuristic.py",
     "scripts/check_weak_hashing.py",
@@ -52,7 +53,9 @@ REQUIRED_CHECKERS = (
     "scripts/trusted_gh.py",
     "scripts/trusted_git.py",
 )
-REQUIRED_POLICY = ("AGENTS.md", SHARED_MANIFEST)
+# The local-path checker and its approved allowlist form one gate (Rule 18).
+# Requiring both makes either one alone an incomplete adoption.
+REQUIRED_POLICY = ("AGENTS.md", SHARED_MANIFEST, ".local-path-allowlist")
 CONFIG_PATHS = (
     ".claude/settings.json",
     "hooks/claude-code-settings.example.json",

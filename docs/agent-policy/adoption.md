@@ -23,6 +23,24 @@ Run:
 Copy the complete gate set. Include hooks, registrations, shared modules,
 tests, cited checkers, synchronization metadata, and policy copies.
 
+## Adopt the local-path gate whole
+`scripts/check_local_paths.py`, its test, the human-approved
+`.local-path-allowlist`, and their hook and CI registrations form one gate.
+Adopt them in one transaction and one pull request. A checker without its
+allowlist is partial adoption under Rule 18.
+
+Never land the allowlist after the checker. The trusted CI scan reads both
+from the base branch. A checker merged first fails every later pull request.
+
+An empty allowlist records a disclosure with no approved entries. A missing
+allowlist means incomplete adoption. `check_gate_adoption.py` and
+`complete_gate_adoption.py` enforce the pair.
+
+### Local-path disclosure
+Run `--report` locally. Show every finding to the active human. Get a separate
+decision on each proposed `<file><TAB><name>` entry. Never allowlist a runtime
+identity match. Keep findings out of committed text and CI logs.
+
 ## Atomic multi-client adoption
 Adopt gates as one transaction across every adopted client. Activate complete
 coverage for all clients or change nothing. Do not install one client's hooks
@@ -109,11 +127,6 @@ documented branch and commit-message exemption through trusted metadata.
 Copy `scripts/trusted_bot_identities.py` with it. That registry lists every
 branch-exempt bot. A third-party bot also needs its account ID in the event.
 
-Source commands include `python -m pip install --requirement
-requirements-checkers.txt`, `python scripts/run_tests.py`, `make lint
-PYTHON=python`, `python scripts/sync.py --check`, and `python scripts/sync.py`.
-Obtain consent before tests, scripts, or Makefile targets.
-
 Retry variations include changed flags, working directories, and argument
 order.
 
@@ -131,8 +144,6 @@ pre-commit. Agent hooks use `--strict-agent-preflight`.
 
 Preserve license-required attribution and source metadata. Do not require
 uncontrolled mirrors to report usage or divergence to this repository.
-
-`AGENTS.md` controls when linked documents conflict with it.
 
 ## Source repository orientation
 This detail applies only to `abuzucom/agents`. Adoption omits it.
@@ -162,12 +173,6 @@ Existing tests, hooks, and client settings require act-specific consent.
 Preserve checker flags, hook payloads, reusable workflows, and copied policy
 files.
 
-Dependabot receives a branch-name and commit-message exemption because it does
-not support those format settings. CI identifies it through trusted pull
-request author metadata. A branch prefix cannot claim the exemption.
-`code-coverage-agent[bot]` receives only the branch-name exemption. A commit
-under a bot noreply identity fails unless that bot opened the pull request.
-
 Never rewrite pushed history on a shared branch. Never force-push, rebase,
 amend, or reset published commits without explicit human consent. Add new
 commits instead. `--force-with-lease` receives no exception. The lease in
@@ -176,6 +181,9 @@ but does not remove the consent requirement. Branch age does not create an
 exception.
 
 ## Branch recovery
+Rebase metadata takes precedence over detached-HEAD recovery. Permit only the
+approved rebase recovery commands. Block ordinary tools until strict preflight
+passes. Block `claude/` targets, aliases, and metadata writes.
 Detect rebase metadata before detached-HEAD recovery. Permit only `git rebase
 --abort`, `git rebase --continue`, or `git rebase --skip`. Rerun strict
 preflight after recovery. For an invalid branch, use the exact approved
