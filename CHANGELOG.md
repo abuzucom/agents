@@ -14,6 +14,35 @@ into the entry. Dates never decrease. Ask the active human when a date is in
 doubt.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.13.0] (2026-10-12)
+
+### Added
+- Add `scripts/check_local_paths.py`. It blocks committed user-profile paths
+  with non-placeholder names and, on a developer machine, the local account
+  name, home directory, and computer name (Rule 8).
+- Add `.local-path-allowlist` for human-approved `<file><TAB><name>` pairs.
+- Scan blobs, paths, branch names, commit ranges, and pull request text in
+  the trusted compliance run. Add advisory pull request steps, pre-commit,
+  commit-msg, and pre-push hooks, and a three-OS test job.
+
+### Required adoption order
+- Adopt the checker and the approved allowlist in one transaction and one
+  pull request. A checker without its allowlist is partial adoption under
+  Rule 18. Run the local-path disclosure procedure in
+  `docs/agent-policy/adoption.md` first.
+
+### Changed
+- Move the rebase recovery paragraph from `AGENTS.md` to
+  `docs/agent-policy/adoption.md` and the CRLF checker sentence to
+  `docs/agent-policy/enforcement.md`. Requirements stay unchanged.
+- Remove supporting-document sentences that repeat `AGENTS.md`, and state
+  linked-document precedence once in `AGENTS.md`. Move source-repository
+  Dependabot and Windows test notes to `README.md`. Tighten two `AGENTS.md`
+  sentences. Requirements stay unchanged.
+- Require the checker and allowlist in `check_gate_adoption.py`. Protect both
+  in `check_gate_pr_integrity.py`. List both as shared files. Refuse
+  unresolved findings in `complete_gate_adoption.py`.
+
 ## [2.12.2] (2026-10-03)
 
 ### Security

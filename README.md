@@ -89,6 +89,14 @@ target. Direct commands are `python scripts/sync.py`,
 `python scripts/run_tests.py`. Run one module with
 `python -m unittest tests.<module> -v`.
 
+Use the normal user temporary directory for Windows tests. Do not redirect
+`TEMP` or `TMP` into the repository or a worktree. `WinError 5` while a fixture
+creates or removes a temporary tree indicates an ACL problem in the temporary
+directory. Run the focused test once in an elevated PowerShell session to
+confirm the diagnosis. Repair or remove inaccessible stale fixture directories
+only with active-human authorization. Do not weaken, skip, or edit tests. Do
+not make elevation a routine CI requirement.
+
 `scripts/run_tests.py` verifies test IDs before running four concurrent class
 shards. Each class has a 300-second timeout. Persistent workers have a
 30-second deadline. Failures retain a nonzero exit. `unittest` defines
@@ -376,6 +384,59 @@ An unlicensed target remains unlicensed unless that approval changes its status.
     client trust and remain writable inside the repository. Antigravity resolves
     command paths from `.agents/`. Keep the `../hooks/` path prefix.
 
+## Local-Path Gate
+
+`scripts/check_local_paths.py` backs the Rule 8 ban on real local
+identifiers. Two checks share one pass per line:
+
+- Check 2 flags user-profile paths whose user segment is not a placeholder or
+  an approved `.local-path-allowlist` pair. It runs everywhere, including CI.
+- Check 1 flags the local account name, home directory, and computer name. It
+  reads OS APIs at run time and runs only on a developer machine.
+
+Detected forms, after normalization: `<drive>:\Users\<name>`,
+`<drive>:\Documents and Settings\<name>`, `/Users/<name>`, `/home/<name>`,
+`/var/home/<name>`, WSL `/mnt/<drive>/Users/<name>`, and the same forms inside
+`file:` URIs and long-path prefixes. Normalization decodes JSON and C escapes,
+percent encoding, and HTML entities once. It applies NFKC, removes NUL and
+format characters, and casefolds. Built-in placeholders include `u`, `user`,
+`username`, `me`, `you`, `someone`, `dev`, `runner`, `example`, `name`,
+`test`, and templating forms such as `<name>`, `$USER`, and `%USERNAME%`.
+
+The blocking verdict comes from the trusted `immutable-conflict-check.yml`
+run. That run loads the checker and allowlist from the base revision through
+`scripts/check_compliance_tree.py`. It scans every tracked blob and path, the
+branch name, the commits in the range, and the pull request title and body.
+The `agents-compliance.yml` step is advisory because a pull request can edit
+it. A human admin must mark the trusted job required in branch protection.
+
+Pre-commit `SKIP`, `git commit --no-verify`, and a changed `core.hooksPath`
+bypass the local hooks. Commits through the GitHub API or a web editor skip
+the local hooks too. The trusted CI scan covers those paths. A fresh clone runs no local
+hook until `pre-commit install --hook-type pre-commit --hook-type commit-msg
+--hook-type pre-push` runs. `scripts/check_gate_pr_integrity.py` protects the
+checker, its test, and `.local-path-allowlist`.
+
+Stated limits: CI cannot know a real name outside a profile path. Hostname
+patterns, network shares, volume labels, private addresses, and name-free
+distinctive folder layouts are out of scope.
+
+The `--report` output repeats this disclosure procedure:
+
+1. Run `python -I scripts/check_local_paths.py --report` over every tracked
+   file. The report mode refuses to run in CI and lists every finding.
+2. Disclose every finding to the active human. Omit no finding.
+3. Propose one `<repo-relative file><TAB><name>` line per finding. For a name
+   that may be real, also propose a placeholder replacement. Obtain a separate
+   decision for each finding.
+4. Never propose an allowlist entry for a runtime identity match.
+5. Write only the approved lines.
+6. Adopt nothing while any finding remains unresolved.
+7. Keep findings, names, and decisions out of commit messages, pull request
+   text, the changelog, handoff files, and CI logs.
+
+No repository check can verify that a human reviewed each finding.
+
 ## Checker Reference
 
 Exit 0 warning-only checkers report findings without failing a command. Exit 1
@@ -398,6 +459,7 @@ blocking checkers fail after a violation or an incomplete required check.
 | `check_persist_credentials.py` | Rule 11 workflow checkout configuration | 1, blocking |
 | `check_pull_request_message.py` | Pull request title format plus title and body prose from `GITHUB_EVENT_PATH` | 0 for findings, 1 for infrastructure errors |
 | `check_secrets_heuristic.py` | Rule 8 likely-secret heuristic | 1, blocking |
+| `check_local_paths.py` | Rule 8 real local identifiers; adopt with the approved `.local-path-allowlist` as one gate | 1, blocking; `--report` exits 0 and refuses CI |
 | `check_us_spelling.py` | American spelling heuristic | 0, warning only |
 | `check_weak_hashing.py` | Rule 7 MD5 and SHA-1 use | 1, blocking |
 
@@ -643,7 +705,10 @@ name.
 The portable checker keeps primary and detached operational exemptions by
 default. `--strict-agent-preflight` removes those exemptions for agent hooks.
 Dependabot keeps its branch-shape exception through trusted pull request author
-metadata. A branch name cannot claim the automation exception.
+metadata. A branch name cannot claim the automation exception. Dependabot
+also receives a commit-message exemption because it does not support those
+format settings. `code-coverage-agent[bot]` receives only the branch-name
+exemption.
 `scripts/trusted_bot_identities.py` lists every exempt bot and its branch
 prefix. A third-party bot also needs its numeric account ID in the pull request
 event. A commit that carries a bot noreply identity fails unless that bot

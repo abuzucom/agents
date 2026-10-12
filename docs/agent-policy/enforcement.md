@@ -110,15 +110,10 @@ Run:
 The checks cover only observed files, commands, clients, and event surfaces.
 External controls must enforce controls beyond repository coverage.
 
-## Windows test environment
-Use the normal user temporary directory for Windows tests. Do not redirect
-`TEMP` or `TMP` into the repository or a worktree. `WinError 5` while a fixture
-creates or removes a temporary tree indicates an ACL problem in the temporary
-directory. Run the focused test once in an elevated PowerShell session to
-confirm the diagnosis. Repair or remove inaccessible stale fixture directories
-only with active-human authorization. Do not weaken, skip, or edit tests. Do
-not make elevation a routine CI requirement.
+Policy files must use LF line endings in the working tree. The policy-size
+checker validates the checked-out bytes and rejects CRLF line endings.
 
+## Windows test environment
 Hooks must not label execution as elevated without a client runtime approval
 result. Missing or contradictory approval metadata fails closed. Repository
 hooks cannot inspect client prose when the client API hides it. An external
@@ -129,9 +124,6 @@ registration, shared module, test, checker, manifest, policy file, and
 synchronized copy. A designed-denial defect report includes the exact input,
 contradictory policy text, and a reproduction. Report a blocked file, command,
 and message. A blocking gate does not authorize another act.
-
-Use a CI job, pre-commit hook, or script for mechanically checkable rules.
-State the limitation for rules that require human semantic review.
 
 The destructive gate set includes the Bash, PowerShell, CMD, shared parser,
 platform policy, shared gate, and parity-test files. Register Bash, PowerShell,
@@ -186,8 +178,6 @@ The protected inventory covers:
   `.gemini/settings.json`, and `.git/hooks/`.
 - Denylist configuration:
   `scripts/banned_models.txt`.
-
-`AGENTS.md` controls when linked documents conflict with it.
 
 Claude Code's consent hook reads paths. New test files do not prompt. Existing
 test edits prompt. A final `ExistingTest = None` assignment can disable a

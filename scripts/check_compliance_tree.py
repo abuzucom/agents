@@ -67,6 +67,7 @@ CHECKER_NAMES = (
     "check_commit_message",
     "check_git_identity",
     "check_branch_name",
+    "check_local_paths",
 )
 BOT_REGISTRY_NAME = "trusted_bot_identities"
 
@@ -635,8 +636,27 @@ def _scan_conflicts(
         return list(immutable_scan(str(repo), object_id))
 
 
+def _local_path_scanner(checkers: dict[str, ModuleType]) -> object:
+    """Build one local-path scanner from the trusted base allowlist.
+
+    The allowlist beside this trusted checker belongs to the base revision,
+    so a pull request cannot approve its own entries (H2). No runtime
+    identity is read in CI.
+    """
+    local_paths = checkers["check_local_paths"]
+    trusted_root = Path(__file__).resolve().parent.parent
+    return local_paths.build_scanner(
+        local_paths.load_allowlist(trusted_root), local_paths.Identity())
+
+
+def _local_path_violations(findings: list) -> list[str]:
+    """Render local-path findings without revealing matched names."""
+    return [finding.message(reveal=False) for finding in findings]
+
+
 def _scan_tree(
     repo: Path, object_id: str, checkers: dict[str, ModuleType],
+    local_scanner: object | None = None,
 ) -> list[str]:
     """Scan all supported blobs and conflict markers in one exact object."""
     executable, safe_path = _resolve_git(repo)
@@ -663,8 +683,12 @@ def _scan_tree(
         if total_bytes > MAX_TOTAL_BLOB_BYTES:
             raise RuntimeError(
                 f"tree content exceeds limit ({MAX_TOTAL_BLOB_BYTES} bytes)")
-        violations.extend(
-            _scan_blob(path, _decode_blob(content), mode, checkers))
+        text = _decode_blob(content)
+        violations.extend(_scan_blob(path, text, mode, checkers))
+        if local_scanner is not None:
+            violations.extend(_local_path_violations(
+                local_scanner.scan_text(text, path)
+                + local_scanner.scan_path(path)))
         if len(violations) >= MAX_VIOLATIONS:
             violations = violations[:MAX_VIOLATIONS]
             violations.append(
@@ -678,6 +702,7 @@ def _scan_tree(
 
 def _scan_metadata(
     values: dict[str, str], repo: Path, checkers: dict[str, ModuleType],
+    local_scanner: object | None = None,
 ) -> list[str]:
     """Run trusted commit and branch checks for workflow metadata."""
     author = values.get("--pr-author", "")
@@ -688,12 +713,32 @@ def _scan_metadata(
         values.get("--branch", ""), author, bots, events, checkers))
     if values.get("--base", ""):
         violations.extend(_scan_commit_range(values, repo, checkers, bots, events))
+    if local_scanner is not None:
+        violations.extend(_local_path_metadata(values, repo, checkers, local_scanner))
     if events.error is not None:
         violations.append(
             f"pull request event unreadable ({_sanitize(events.error)}); bot "
             "exemptions denied. Re-run the workflow; if it persists, report "
             "the runner event file.")
     return violations
+
+
+def _local_path_metadata(
+    values: dict[str, str], repo: Path, checkers: dict[str, ModuleType],
+    local_scanner: object,
+) -> list[str]:
+    """Scan the branch, range messages and patches, and PR text (H7)."""
+    local_paths = checkers["check_local_paths"]
+    findings = local_scanner.scan_path(values.get("--branch", ""))
+    if values.get("--base", ""):
+        base = _validate_object_id(values["--base"])
+        log = local_paths._git_log(
+            repo, ["--end-of-options", f"{base}..{values['--tree']}"])
+        findings += local_paths.scan_log(local_scanner, log)
+    event_path = os.environ.get("GITHUB_EVENT_PATH", "")
+    if event_path:
+        findings += local_paths.scan_event(local_scanner, event_path)
+    return _local_path_violations(findings)
 
 
 def _branch_violations(
@@ -826,8 +871,9 @@ def main() -> int:
         object_id = _validate_object_id(values["--tree"])
         values["--tree"] = object_id
         checkers = _load_checkers()
-        violations = _scan_tree(repo, object_id, checkers)
-        violations.extend(_scan_metadata(values, repo, checkers))
+        local_scanner = _local_path_scanner(checkers)
+        violations = _scan_tree(repo, object_id, checkers, local_scanner)
+        violations.extend(_scan_metadata(values, repo, checkers, local_scanner))
         return _report(violations)
     except (Exception, KeyboardInterrupt) as error:
         print(f"error: {_sanitize(error)}", file=sys.stderr)

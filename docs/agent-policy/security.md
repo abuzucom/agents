@@ -11,12 +11,9 @@ vulnerability details in policy documents, examples, logs, handoffs, or
 generated copies.
 
 Secret categories include keys, tokens, passwords, private keys, and `.env`
-files. If a secret enters version control, stop committing and recommend
-rotation. The secret checker uses heuristics. It does not perform entropy
+files. The secret checker uses heuristics. It does not perform entropy
 analysis or prove that a repository contains no secret.
 
-Use bcrypt, scrypt, or Argon2 with salt and work factor for passwords. Use
-SHA-256 or SHA-3 for general hashing. Never use MD5 or SHA-1 for security.
 Example cache use: `hashlib.md5(payload).hexdigest()` with a comment stating
 that the digest is non-cryptographic.
 
@@ -40,8 +37,6 @@ practices.
 Report vulnerabilities through the process in `SECURITY.md.example`. Do not
 use public issues or pull requests for private vulnerability details.
 
-`AGENTS.md` controls when linked documents conflict with it.
-
 Avoid nested quantifiers such as `(x+)+` and overlapping patterns. Use atomic
 groups, possessive quantifiers, or simpler expressions.
 
@@ -57,6 +52,10 @@ Injection examples:
 - Good: `cursor.execute("SELECT * FROM users WHERE name = %s", (name,))`
 - Bad: `subprocess.run(f"convert {filename} out.png", shell=True)`
 - Good: `subprocess.run(["convert", filename, "out.png"])`
+
+## Local identifier limits
+Only the trusted CI scan blocks. CI sees only profile paths. Placeholder-named
+accounts, double encoding, and homoglyphs pass.
 
 ## Denied command families
 The denial covers AWS CLI, SAM, CDK, Azure CLI and PowerShell, Google Cloud

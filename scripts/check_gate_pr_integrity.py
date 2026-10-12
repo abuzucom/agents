@@ -30,6 +30,7 @@ PROTECTED_PREFIXES = (
 )
 PROTECTED_FILES = frozenset({
     ".github/CODEOWNERS",
+    ".local-path-allowlist",
     ".pre-commit-config.yaml",
     "AGENTS.md",
     "CODEOWNERS",
@@ -48,6 +49,7 @@ PROTECTED_FILES = frozenset({
     "scripts/check_git_identity.py",
     "scripts/check_hook_coverage.py",
     "scripts/check_hook_launchers.py",
+    "scripts/check_local_paths.py",
     "scripts/complete_gate_adoption.py",
     "scripts/read_git_state.py",
     "scripts/run_tests.py",
@@ -55,6 +57,7 @@ PROTECTED_FILES = frozenset({
     "scripts/trusted_bot_identities.py",
     "scripts/trusted_gh.py",
     "scripts/trusted_git.py",
+    "tests/test_check_local_paths.py",
 })
 FETCH_TIMEOUT_SECONDS = 30
 GIT_TIMEOUT_SECONDS = 10

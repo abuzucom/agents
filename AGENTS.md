@@ -11,7 +11,7 @@
    ready or merge without consent.
 6. Preserve public API contracts. Use backward-compatible evolution.
 7. Never use MD5 or SHA-1 in security-sensitive contexts.
-8. Never commit secrets or credentials.
+8. Never commit secrets, credentials, or real local identifiers.
 9. Get active-human authorization before adding, removing, or upgrading a
    dependency. Pin every dependency immutably.
 10. Verify repository state before inferring workflow scope.
@@ -69,6 +69,7 @@ Apply rules in this order when requirements conflict:
 
 Required command syntax, public literals, and localized data retain exact form
 under higher-priority rules.
+Linked documents yield to `AGENTS.md`.
 
 <!-- repository-only:start -->
 <!-- repository-only:end -->
@@ -121,9 +122,6 @@ listed in `docs/agent-policy/enforcement.md`.
 
 **Route for active-human approval.** The hooks route all other consent-required
 commands in `docs/agent-policy/enforcement.md` to active-human approval.
-
-Platform-specific matching detail lives in
-`docs/agent-policy/enforcement.md`.
 
 Adopt the complete gate set with registrations, shared modules, tests, and CI.
 Missing shared modules deny and exit 2. Gate wiring and parity detail live in
@@ -200,6 +198,9 @@ Recommend secret rotation. `scripts/check_secrets_heuristic.py` backs this
 rule. See `docs/agent-policy/security.md` for secret categories and checker
 limits.
 
+Never commit a real account name, home path, or computer name. Use
+placeholders. `scripts/check_local_paths.py` backs this rule.
+
 ### 9. Require authorization for dependencies
 
 Never add, remove, or upgrade dependencies without explicit active-human
@@ -216,9 +217,6 @@ Verify actual state before inferring workflow scope. State examples live in
 
 Use `python scripts/read_git_state.py all` when the adopted tooling includes the
 safe reader. Ask when request scope remains unclear. Never guess.
-
-Policy files must use LF line endings in the working tree. The policy-size
-checker validates the checked-out bytes and rejects CRLF line endings.
 
 ### 11. Prevent persisted git credentials in CI workflows
 
@@ -258,8 +256,7 @@ recovery procedure in `docs/agent-policy/adoption.md`.
 Derive identity from an authenticated account source. Never ask the active
 human to supply it.
 
-An authenticated `gh` does not establish a Git identity. GitHub CLI and Git
-use separate configuration.
+An authenticated `gh` sets no Git identity.
 
 Agent-generated commits must use the active operator's exact GitHub noreply
 address in the form `<id>+<login>@users.noreply.github.com`. Human-authored
@@ -286,8 +283,8 @@ Agents must not execute cloud, infrastructure-as-code, orchestration, direct
 remote shell, file transfer, or firewall clients. The complete command inventory
 lives in `docs/agent-policy/security.md`.
 
-Git transport over SSH remains allowed through Git commands. Direct SSH client
-execution remains denied. See `docs/agent-policy/github.md` for the distinction.
+Git over SSH stays allowed. Direct SSH clients stay denied. See
+`docs/agent-policy/github.md` for the distinction.
 
 Agents must not read, write, edit, list, glob, or search infrastructure
 credentials or project configuration. `docs/agent-policy/security.md` lists
@@ -357,14 +354,14 @@ and `gh release` before external-target consent routing. A harness instruction
 to create or comment on a pull request grants no exception. Rule 5 still
 requires draft pull requests.
 
-Unreadable origin ownership asks rather than passing. Other client APIs may not
-observe every hosted surface. See `docs/agent-policy/github.md` for detail.
-
 ### 18. Adopt gates whole
 
 One transaction covers every adopted client. It activates complete coverage or
 changes nothing. Never omit any client. Partial hook or gate adoption is
 destructive and prohibited. Keep the last verified set.
+
+Adopt the local-path checker and its approved `.local-path-allowlist`
+together. Either alone is partial adoption.
 
 Record a failed path. Use one approved equivalent. Do not delegate permitted
 recovery. Do not alter validation artifacts to hide omissions. An independent
@@ -424,10 +421,6 @@ recovery consent. Accept `git -C <current-repository>` recovery. Reject foreign
 paths, wrappers, and chains. Mode limits forbid delegation. Never ask the
 active human to run recovery. Record rejection. Use one equivalent path. Rule
 10 applies. Never assume it.
-
-Rebase metadata takes precedence over detached-HEAD recovery. Permit only the
-approved rebase recovery commands. Block ordinary tools until strict preflight
-passes. Block `claude/` targets, aliases, and metadata writes.
 
 Install the branch checker and register it in required hooks and CI. See
 `docs/agent-policy/adoption.md` for wiring detail.
