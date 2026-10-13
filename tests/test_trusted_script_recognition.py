@@ -36,6 +36,7 @@ UNMATCHED_COMMANDS = (
     "python scripts/trusted_gh.py run repo delete OWNER/REPO",
     "python3.x scripts/trusted_gh.py run pr list",
     "python ../scripts/trusted_gh.py run pr list",
+    "python -I -u",
 )
 READ_ONLY_COMMANDS = (
     "python ./scripts/read_git_state.py branch",
