@@ -14,6 +14,20 @@ into the entry. Dates never decrease. Ask the active human when a date is in
 doubt.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.13.1] (2026-10-13)
+
+### Fixed
+- Route `python scripts/trusted_git.py clone` and `fetch` to execution
+  consent in `hooks/_command_execution_gate.py`. The gate denied every
+  trusted Git call as opaque while it allowed native `git fetch`.
+- Recognize the same trusted script through `./scripts/` paths, the
+  value-free interpreter options `-B`, `-E`, `-I`, `-P`, `-s`, `-S`, and
+  `-u`, `python3.N`, and the Windows `py` launcher. The gate compared the
+  exact text `scripts/trusted_gh.py` and denied these spellings as opaque.
+- Report a missing Git executable or safe execution directory in
+  `scripts/trusted_git.py` as an error message with exit code 1 instead of
+  a traceback.
+
 ## [2.13.0] (2026-10-12)
 
 ### Added

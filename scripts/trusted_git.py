@@ -53,6 +53,8 @@ GIT_CONTEXT_IDENTITY_KEYS = frozenset((
     "author.name", "author.email", "committer.name", "committer.email",
 ))
 MAX_GIT_CONTEXT_PAIRS = 64
+USAGE_FAILURE = 2
+RUNNER_FAILURE = 1
 REMOTE_NAME_CHARACTERS = frozenset(
     "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._-")
 
@@ -342,15 +344,21 @@ def main(argv: list[str] | None = None) -> int:
     workspace = _workspace_root(Path.cwd())
     if workspace is None:
         print("trusted Git must run inside a repository", file=sys.stderr)
-        return 2
+        return USAGE_FAILURE
     command = _transport_arguments(workspace, arguments)
     if command is None:
         print("usage: trusted_git.py clone <github-url> <new-directory>",
               file=sys.stderr)
         print("       trusted_git.py fetch <repository-directory> [refspec... ]",
               file=sys.stderr)
-        return 2
-    result = run_git(workspace, command)
+        return USAGE_FAILURE
+    try:
+        result = run_git(workspace, command)
+    except OSError as error:
+        # resolve_git and _safe_directory raise these with a fixed message.
+        print(f"error: {error}. Install Git outside the repository and retry.",
+              file=sys.stderr)
+        return RUNNER_FAILURE
     if result.stdout:
         print(result.stdout, end="")
     if result.stderr:
