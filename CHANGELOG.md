@@ -14,7 +14,7 @@ into the entry. Dates never decrease. Ask the active human when a date is in
 doubt.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.13.1] (2026-10-13)
+## [2.13.2] (2026-10-13)
 
 ### Fixed
 - Stop `scripts/read_git_state.py status` from running repository-configured
@@ -27,6 +27,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `GIT_CONFIG_KEY_n` after any forwarded identity pairs.
 - Report a Git timeout in `scripts/read_git_state.py` as the bounded state
   read error instead of a traceback.
+- State in `docs/agent-policy/enforcement.md` that no CI job or repository
+  hook runs `scripts/check_agent_prose_gate.py`.
 
 ## [2.13.0] (2026-10-12)
 
