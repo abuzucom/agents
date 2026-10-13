@@ -208,9 +208,20 @@ def _context_environment(context: dict) -> dict:
     return environment
 
 
+def _append_config_overrides(environment: dict, overrides) -> None:
+    """Append fixed config pairs after any forwarded GIT_CONFIG_* pairs."""
+    # GIT_CONFIG_KEY_n carries a key verbatim. `-c key=value` splits at the
+    # first "=", so it cannot express a subsection that contains one.
+    start = int(environment.get("GIT_CONFIG_COUNT", "0"))
+    for offset, (key, value) in enumerate(overrides):
+        environment[f"GIT_CONFIG_KEY_{start + offset}"] = key
+        environment[f"GIT_CONFIG_VALUE_{start + offset}"] = value
+    environment["GIT_CONFIG_COUNT"] = str(start + len(overrides))
+
+
 def run_git(
     repo_root, arguments: list[str], *, input_text=None, check=False,
-    runner=None, timeout=None, git_context=None,
+    runner=None, timeout=None, git_context=None, config_overrides=(),
 ):
     """Run trusted Git against `repo_root` from an external directory."""
     repository = Path(repo_root).resolve()
@@ -218,6 +229,8 @@ def run_git(
     environment = _child_environment(os.environ)
     if git_context:
         environment.update(_context_environment(git_context))
+    if config_overrides:
+        _append_config_overrides(environment, tuple(config_overrides))
     environment["GIT_PAGER"] = ""
     environment["PAGER"] = ""
     environment["GIT_ATTR_NOSYSTEM"] = "1"

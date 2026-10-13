@@ -14,6 +14,20 @@ into the entry. Dates never decrease. Ask the active human when a date is in
 doubt.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.13.1] (2026-10-13)
+
+### Fixed
+- Stop `scripts/read_git_state.py status` from running repository-configured
+  filter drivers. Git status re-hashes a dirty tracked file through the
+  clean or process command that `.gitattributes` or `.git/info/attributes`
+  maps to it. The status query now clears `clean` and `process` and sets
+  `required=false` for every configured driver (#82).
+- Add the keyword-only `config_overrides` parameter to
+  `scripts/trusted_git.py` `run_git`. It passes fixed config pairs through
+  `GIT_CONFIG_KEY_n` after any forwarded identity pairs.
+- Report a Git timeout in `scripts/read_git_state.py` as the bounded state
+  read error instead of a traceback.
+
 ## [2.13.0] (2026-10-12)
 
 ### Added
