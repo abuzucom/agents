@@ -2,6 +2,7 @@
 """The command gate routes every spelling of the trusted scripts to consent."""
 import io
 import sys
+import tempfile
 import unittest
 from contextlib import redirect_stderr
 from pathlib import Path
@@ -27,6 +28,7 @@ CONSENT_COMMANDS = (
     "py scripts/trusted_gh.py run pr list",
     "python ./scripts/read_git_state.py branch",
     "python3 -I ./scripts/trusted_git.py fetch .",
+    "python scripts/../scripts/trusted_git.py fetch .",
 )
 UNMATCHED_COMMANDS = (
     "python scripts/trusted_git.py push origin main",
@@ -67,6 +69,53 @@ class TrustedScriptRecognitionTest(unittest.TestCase):
     def test_trusted_git_fetch_is_not_read_only(self) -> None:
         self.assertFalse(GATE.read_only_workflow(
             "python scripts/trusted_git.py fetch . origin", PROJECT_DIR))
+
+
+def _can_symlink() -> bool:
+    """Return whether the current platform and user can create symlinks."""
+    try:
+        with tempfile.TemporaryDirectory() as temporary:
+            target = Path(temporary) / "target"
+            target.write_text("x", encoding="utf-8")
+            (Path(temporary) / "link").symlink_to(target)
+    except (OSError, NotImplementedError):
+        return False
+    return True
+
+
+CAN_SYMLINK = _can_symlink()
+
+
+class TrustedScriptSymlinkTest(unittest.TestCase):
+    """A trusted script name that resolves outside the project never matches."""
+
+    @unittest.skipUnless(CAN_SYMLINK, "Symlinks require elevated privileges on Windows")
+    def test_symlink_to_outside_script_stays_unmatched(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve()
+            project = root / "project"
+            (project / "scripts").mkdir(parents=True)
+            outside = root / "outside.py"
+            outside.write_text("", encoding="utf-8")
+            (project / "scripts" / "trusted_git.py").symlink_to(outside)
+            for command in ("python scripts/trusted_git.py fetch .",
+                            "python scripts/trusted_gh.py run pr list"):
+                with self.subTest(command=command):
+                    decision, _reason = GATE.workflow_decision(command, str(project))
+                    self.assertEqual(decision, "")
+
+    @unittest.skipUnless(CAN_SYMLINK, "Symlinks require elevated privileges on Windows")
+    def test_symlinked_project_root_still_matches(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve()
+            project = root / "project"
+            (project / "scripts").mkdir(parents=True)
+            (project / "scripts" / "trusted_git.py").write_text("", encoding="utf-8")
+            linked = root / "linked"
+            linked.symlink_to(project, target_is_directory=True)
+            decision, _reason = GATE.workflow_decision(
+                "python scripts/trusted_git.py fetch .", str(linked))
+            self.assertEqual(decision, "ask")
 
 
 class TrustedGitMainErrorTest(unittest.TestCase):
