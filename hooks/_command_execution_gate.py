@@ -42,7 +42,15 @@ SEARCH_FLAGS = frozenset({
 MAX_WORKFLOW_ARGUMENTS = 64
 MAKE_TARGETS = ("lint", "test", "check", "sync", "identity")
 MAKE_ARGUMENTS = ([], ["PYTHON=python"], ["PYTHON=python3"])
-PYTHON_PROGRAMS = ("python", "python3", "python.exe", "python3.exe")
+PYTHON_PROGRAMS = ("python", "python3", "python.exe", "python3.exe", "py", "py.exe")
+VERSIONED_PYTHON_PATTERN = re.compile(r"python3\.[0-9]{1,2}(?:\.exe)?")
+# Interpreter options that take no value. A value-taking option such as -c,
+# -m, -W, or -X changes which token names the script, so none of those pass.
+VALUELESS_INTERPRETER_OPTIONS = frozenset({"-B", "-E", "-I", "-P", "-s", "-S", "-u"})
+TRUSTED_GH_SCRIPT = "scripts/trusted_gh.py"
+TRUSTED_GIT_SCRIPT = "scripts/trusted_git.py"
+# trusted_git.py validates the full argument shape itself and exits 2 otherwise.
+TRUSTED_GIT_MINIMUM_ARGUMENTS = {"clone": 3, "fetch": 2}
 SHELL_OPERATORS = (";", "&", "&&", "|", "||", "(", ")")
 WORKFLOW_FORBIDDEN_CHARACTERS = "<>%!^\0"
 # Prefix wrappers that only adjust the environment or skip shell lookup.
@@ -98,6 +106,31 @@ def arguments_reason(executable: list) -> str:
     return ""
 
 
+def _python_program(name: str) -> bool:
+    """Return whether a program name selects a Python interpreter."""
+    return name in PYTHON_PROGRAMS or bool(VERSIONED_PYTHON_PATTERN.fullmatch(name))
+
+
+def _python_script_call(tokens: list, project_dir: str) -> tuple:
+    """Return (repository-relative script, arguments), or ("", ()) for no script."""
+    index = 1
+    while index < len(tokens) and tokens[index] in VALUELESS_INTERPRETER_OPTIONS:
+        index += 1
+    if index >= len(tokens):
+        return "", ()
+    path = core.resolved_under(project_dir, tokens[index])
+    if path is None or not os.path.isfile(path):
+        return "", ()
+    relative = os.path.relpath(path, os.path.realpath(project_dir)).replace(os.sep, "/")
+    return relative, tuple(tokens[index + 1:])
+
+
+def _trusted_git_workflow(arguments: tuple) -> bool:
+    """Recognize the fixed trusted Git clone and fetch operations."""
+    minimum = TRUSTED_GIT_MINIMUM_ARGUMENTS.get(arguments[0] if arguments else "")
+    return minimum is not None and len(arguments) >= minimum
+
+
 def _python_workflow(tokens: list, project_dir: str) -> bool:
     """Recognize bounded repository scripts and unittest module invocations."""
     if tokens[1:3] == ["-m", "unittest"]:
@@ -105,13 +138,13 @@ def _python_workflow(tokens: list, project_dir: str) -> bool:
         return bool(modules) and all(
             token.startswith("tests.") and all(part.isidentifier() for part in token.split("."))
             for token in modules)
-    path = core.resolved_under(project_dir, tokens[1])
-    if path is None or not os.path.isfile(path):
-        return False
-    if tokens[1] == "scripts/trusted_gh.py" and tokens[2:3] == ["run"]:
-        decision, _reason = core.forge_verdict("gh", tokens[3:], project_dir)
-        return bool(tokens[3:]) and decision != "deny"
-    return tuple(tokens[2:]) in WORKFLOW_SCRIPT_ARGUMENTS.get(tokens[1], ())
+    script, arguments = _python_script_call(tokens, project_dir)
+    if script == TRUSTED_GH_SCRIPT and arguments[:1] == ("run",):
+        decision, _reason = core.forge_verdict("gh", list(arguments[1:]), project_dir)
+        return len(arguments) > 1 and decision != "deny"
+    if script == TRUSTED_GIT_SCRIPT:
+        return _trusted_git_workflow(arguments)
+    return arguments in WORKFLOW_SCRIPT_ARGUMENTS.get(script, ())
 
 
 def _literal_tokens(command: str) -> list:
@@ -394,7 +427,7 @@ def workflow_decision(command: str, project_dir: str) -> tuple:
         return "", ""
     if tokens[0] == "npm":
         return _npm_decision(tokens, project_dir)
-    if tokens[0] in PYTHON_PROGRAMS:
+    if _python_program(tokens[0]):
         matched = _python_workflow(tokens, project_dir)
     elif tokens[0] == "make":
         matched = tokens[1] in MAKE_TARGETS and tokens[2:] in MAKE_ARGUMENTS
@@ -419,7 +452,10 @@ def read_only_workflow(command: str, project_dir: str) -> bool:
         return False
     if not workflow_needs_consent(command, project_dir):
         return False
-    tokens, _complete = bash_parser._tokenize_line(command)
+    tokens = _literal_tokens(command)
     if tokens[0] == "rg" or tokens[1:3] == ["-m", "unittest"]:
         return True
-    return tuple(tokens[2:]) in READ_ONLY_WORKFLOW_ARGUMENTS.get(tokens[1], ())
+    if not _python_program(tokens[0]):
+        return False
+    script, arguments = _python_script_call(tokens, project_dir)
+    return arguments in READ_ONLY_WORKFLOW_ARGUMENTS.get(script, ())
