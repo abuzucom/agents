@@ -14,6 +14,14 @@ into the entry. Dates never decrease. Ask the active human when a date is in
 doubt.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.13.3] (2026-10-14)
+
+### Security
+- Restrict `scripts/trusted_git.py` `run_git` `config_overrides` to
+  `filter.<driver>.clean`, `smudge`, `process`, and `required` keys. The
+  runner rejects other sections, NUL or line-break characters, more than
+  192 pairs, and a malformed existing `GIT_CONFIG_COUNT` before Git runs.
+
 ## [2.13.2] (2026-10-13)
 
 ### Fixed
