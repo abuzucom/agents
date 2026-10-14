@@ -146,7 +146,8 @@ trailer (`check_commit_attribution.py::has_agent_label`) or a matching
 pull request description line. Undisclosed agent authorship stays
 invisible to this signal, the same documented gap
 `check_banned_agents.py` already states. Never remove or edit that
-trailer to evade this gate. Fix the flagged prose instead.
+trailer to evade this gate. Fix the flagged prose instead. No CI job or
+repository hook runs this gate. Run it locally or from an external harness.
 
 ## Protected files and hook inventory
 Modifying hook files or `scripts/banned_models.txt` can never be inferred,

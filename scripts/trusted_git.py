@@ -55,6 +55,13 @@ GIT_CONTEXT_IDENTITY_KEYS = frozenset((
 MAX_GIT_CONTEXT_PAIRS = 64
 USAGE_FAILURE = 2
 RUNNER_FAILURE = 1
+# run_git config overrides may only neutralize filter drivers. A wider key
+# such as core.pager or credential.helper would let a caller run a program.
+CONFIG_OVERRIDE_SECTION = "filter"
+CONFIG_OVERRIDE_VARIABLES = frozenset(("clean", "smudge", "process", "required"))
+CONFIG_OVERRIDE_FORBIDDEN = frozenset(("\0", "\n", "\r"))
+# Three pairs for each of read_git_state.MAX_FILTER_DRIVERS (64) drivers.
+MAX_CONFIG_OVERRIDES = 192
 REMOTE_NAME_CHARACTERS = frozenset(
     "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._-")
 
@@ -210,9 +217,59 @@ def _context_environment(context: dict) -> dict:
     return environment
 
 
+def _has_forbidden_character(text: str) -> bool:
+    """Return whether text holds a character Git config cannot carry."""
+    return any(character in text for character in CONFIG_OVERRIDE_FORBIDDEN)
+
+
+def _validate_config_override(key, value) -> None:
+    """Reject an override outside filter.<driver>.<variable>."""
+    if not isinstance(key, str) or not isinstance(value, str):
+        raise ValueError("config override key and value must be strings")
+    if _has_forbidden_character(key) or _has_forbidden_character(value):
+        raise ValueError("config override holds a NUL or line break")
+    section, _, remainder = key.partition(".")
+    driver, _, variable = remainder.rpartition(".")
+    if (section != CONFIG_OVERRIDE_SECTION or not driver
+            or variable not in CONFIG_OVERRIDE_VARIABLES):
+        raise ValueError("config override must be filter.<driver>.<variable>")
+
+
+def _existing_config_count(environment: dict) -> int:
+    """Return GIT_CONFIG_COUNT after checking that every slot exists."""
+    text = environment.get("GIT_CONFIG_COUNT", "0")
+    if not text.isdigit():
+        raise ValueError("GIT_CONFIG_COUNT must be a non-negative integer")
+    count = int(text)
+    # _context_environment writes at most MAX_GIT_CONTEXT_PAIRS slots. A
+    # larger count is foreign and would make the slot scan unbounded.
+    if count > MAX_GIT_CONTEXT_PAIRS:
+        raise ValueError("GIT_CONFIG_COUNT exceeds the forwarded pair limit")
+    for index in range(count):
+        if (f"GIT_CONFIG_KEY_{index}" not in environment
+                or f"GIT_CONFIG_VALUE_{index}" not in environment):
+            raise ValueError("GIT_CONFIG_COUNT names a missing config slot")
+    return count
+
+
+def _append_config_overrides(environment: dict, overrides) -> None:
+    """Append fixed config pairs after any forwarded GIT_CONFIG_* pairs."""
+    # GIT_CONFIG_KEY_n carries a key verbatim. `-c key=value` splits at the
+    # first "=", so it cannot express a subsection that contains one.
+    if len(overrides) > MAX_CONFIG_OVERRIDES:
+        raise ValueError("too many config overrides")
+    for key, value in overrides:
+        _validate_config_override(key, value)
+    start = _existing_config_count(environment)
+    for offset, (key, value) in enumerate(overrides):
+        environment[f"GIT_CONFIG_KEY_{start + offset}"] = key
+        environment[f"GIT_CONFIG_VALUE_{start + offset}"] = value
+    environment["GIT_CONFIG_COUNT"] = str(start + len(overrides))
+
+
 def run_git(
     repo_root, arguments: list[str], *, input_text=None, check=False,
-    runner=None, timeout=None, git_context=None,
+    runner=None, timeout=None, git_context=None, config_overrides=(),
 ):
     """Run trusted Git against `repo_root` from an external directory."""
     repository = Path(repo_root).resolve()
@@ -220,6 +277,8 @@ def run_git(
     environment = _child_environment(os.environ)
     if git_context:
         environment.update(_context_environment(git_context))
+    if config_overrides:
+        _append_config_overrides(environment, tuple(config_overrides))
     environment["GIT_PAGER"] = ""
     environment["PAGER"] = ""
     environment["GIT_ATTR_NOSYSTEM"] = "1"
