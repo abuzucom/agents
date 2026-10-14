@@ -183,7 +183,11 @@ def _filter_driver_overrides(repository: Path) -> tuple:
 
 def _read_status(repository: Path) -> dict:
     """Read dirty state without returning changed paths."""
-    arguments = ["status", "--porcelain=v2", "--branch"]
+    # A submodule's dirty check runs a child status that reads the
+    # submodule's own filter config. "dirty" keeps commit changes visible
+    # without starting that child.
+    arguments = ["status", "--porcelain=v2", "--branch",
+                 "--ignore-submodules=dirty"]
     result = _run(repository, arguments, _filter_driver_overrides(repository))
     if result.returncode != SUCCESS:
         raise ValueError("Git could not read repository status")

@@ -21,6 +21,11 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `filter.<driver>.clean`, `smudge`, `process`, and `required` keys. The
   runner rejects other sections, NUL or line-break characters, more than
   192 pairs, and a malformed existing `GIT_CONFIG_COUNT` before Git runs.
+  An existing count above 64 also fails before the slot scan.
+- Stop `scripts/read_git_state.py status` from running filter drivers that
+  a submodule configures. The status query passes
+  `--ignore-submodules=dirty`. Submodule commit changes stay visible.
+  Uncommitted changes inside a submodule no longer count as dirty state.
 
 ## [2.13.2] (2026-10-13)
 

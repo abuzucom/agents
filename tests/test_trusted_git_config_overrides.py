@@ -111,6 +111,18 @@ class ConfigCountValidationTest(unittest.TestCase):
     def test_rejects_count_with_missing_slot(self):
         self._assert_count_rejected("1")
 
+    def test_rejects_count_above_context_limit(self):
+        count = trusted_git.MAX_GIT_CONTEXT_PAIRS + 1
+        environment = {"GIT_CONFIG_COUNT": str(count)}
+        for index in range(count):
+            environment[f"GIT_CONFIG_KEY_{index}"] = "user.name"
+            environment[f"GIT_CONFIG_VALUE_{index}"] = "Fixture"
+        expected = dict(environment)
+        with self.assertRaises(ValueError):
+            trusted_git._append_config_overrides(
+                environment, (("filter.probe.clean", ""),))
+        self.assertEqual(environment, expected)
+
 
 if __name__ == "__main__":
     unittest.main()

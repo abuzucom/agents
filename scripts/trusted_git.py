@@ -239,6 +239,10 @@ def _existing_config_count(environment: dict) -> int:
     if not text.isdigit():
         raise ValueError("GIT_CONFIG_COUNT must be a non-negative integer")
     count = int(text)
+    # _context_environment writes at most MAX_GIT_CONTEXT_PAIRS slots. A
+    # larger count is foreign and would make the slot scan unbounded.
+    if count > MAX_GIT_CONTEXT_PAIRS:
+        raise ValueError("GIT_CONFIG_COUNT exceeds the forwarded pair limit")
     for index in range(count):
         if (f"GIT_CONFIG_KEY_{index}" not in environment
                 or f"GIT_CONFIG_VALUE_{index}" not in environment):
