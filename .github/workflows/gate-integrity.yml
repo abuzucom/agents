@@ -14,6 +14,7 @@ permissions:
 jobs:
   protected-gate-changes:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
@@ -33,8 +34,7 @@ jobs:
         uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
         with:
           python-version: '3.x'
-      # The approval binds to the head only through GitHub-recorded times:
-      # label events, force pushes, and check-suite creation for the head SHA.
+      # The approval binds to the head through recorded pushes and check times.
       - name: Read approval timeline
         uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
         with:
@@ -74,9 +74,36 @@ jobs:
                 per_page: 100,
               },
             );
+            let headPushEvents = [];
+            const headRepository = pullRequest?.head?.repo;
+            if (headRepository?.owner?.login && headRepository?.name && pullRequest?.head?.ref) {
+              try {
+                const activities = await github.paginate(
+                  github.request,
+                  "GET /repos/{owner}/{repo}/activity",
+                  {
+                    owner: headRepository.owner.login,
+                    repo: headRepository.name,
+                    ref: `refs/heads/${pullRequest.head.ref}`,
+                    activity_type: "push",
+                    per_page: 100,
+                  },
+                );
+                headPushEvents = activities
+                  .filter((activity) => activity.activity_type === "push")
+                  .map((activity) => ({
+                    timestamp: activity.timestamp,
+                    after: activity.after,
+                  }));
+              } catch (error) {
+                core.warning(`Could not read head repository pushes: ${error.message}`);
+              }
+            }
             const document = {
               events,
               head_suite_times: suites.map((suite) => suite.created_at),
+              head_sha: headSha,
+              head_push_events: headPushEvents,
             };
             fs.writeFileSync(
               path.join(process.env.RUNNER_TEMP, "gate-timeline.json"),

@@ -17,6 +17,8 @@ PUSHED = "2026-09-30T10:00:00Z"
 BEFORE_PUSH = "2026-09-30T09:00:00Z"
 AFTER_PUSH = "2026-09-30T11:00:00Z"
 LATER = "2026-09-30T12:00:00Z"
+HEAD_SHA = "a" * 40
+OTHER_SHA = "b" * 40
 
 
 def labeled(created_at: str, actor_type: str = "User", label: str = LABEL) -> dict:
@@ -24,9 +26,13 @@ def labeled(created_at: str, actor_type: str = "User", label: str = LABEL) -> di
     return {"event": "labeled", "created_at": created_at, "label": label, "actor_type": actor_type}
 
 
-def timeline(events: list, suite_times: tuple = (PUSHED,)) -> dict:
+def timeline(events: list, suite_times: tuple = (PUSHED,), pushes=None) -> dict:
     """Return one reduced approval timeline."""
-    return {"events": events, "head_suite_times": list(suite_times)}
+    if pushes is None:
+        pushes = [{"timestamp": PUSHED, "after": HEAD_SHA}]
+    return {"events": events, "head_suite_times": list(suite_times),
+            "head_sha": HEAD_SHA,
+            "head_push_events": pushes}
 
 
 class ApprovalTimelineTest(unittest.TestCase):
@@ -64,6 +70,33 @@ class ApprovalTimelineTest(unittest.TestCase):
     def test_missing_suite_times_fail_closed(self) -> None:
         self.assertFalse(integrity.approval_is_current(timeline([labeled(AFTER_PUSH)], ())))
 
+    def test_push_after_label_makes_approval_stale(self) -> None:
+        document = timeline(
+            [labeled("2026-09-30T11:00:00Z")],
+            ("2026-09-30T10:00:00Z",),
+            [{"timestamp": "2026-09-30T12:00:00Z", "after": HEAD_SHA}],
+        )
+        self.assertFalse(integrity.approval_is_current(document, HEAD_SHA))
+
+    def test_label_after_push_is_current_for_head_sha(self) -> None:
+        document = timeline(
+            [labeled("2026-09-30T11:00:00Z")],
+            ("2026-09-30T09:00:00Z",),
+            [{"timestamp": "2026-09-30T10:00:00Z", "after": HEAD_SHA}],
+        )
+        self.assertTrue(integrity.approval_is_current(document, HEAD_SHA))
+
+    def test_missing_head_push_fails_closed(self) -> None:
+        document = timeline([labeled(AFTER_PUSH)], pushes=[])
+        self.assertFalse(integrity.approval_is_current(document, HEAD_SHA))
+
+    def test_push_for_another_sha_fails_closed(self) -> None:
+        document = timeline(
+            [labeled(AFTER_PUSH)],
+            pushes=[{"timestamp": PUSHED, "after": OTHER_SHA}],
+        )
+        self.assertFalse(integrity.approval_is_current(document, HEAD_SHA))
+
 
 class TimelineParsingTest(unittest.TestCase):
     """Malformed, oversized, or incomplete timeline data fails closed."""
@@ -84,6 +117,7 @@ class TimelineParsingTest(unittest.TestCase):
                 "not json",
                 "[]",
                 json.dumps({"events": []}),
+                json.dumps({"events": [], "head_suite_times": []}),
                 json.dumps({"events": {}, "head_suite_times": []}),
                 json.dumps(timeline([{"event": "labeled"}])),
                 json.dumps(timeline([labeled("yesterday")])),
@@ -92,6 +126,15 @@ class TimelineParsingTest(unittest.TestCase):
             with self.subTest(content=content):
                 with self.assertRaises(ValueError):
                     integrity.load_timeline(self.write(content))
+
+    def test_malformed_push_entries_are_rejected(self) -> None:
+        for pushes in ([None], [{"timestamp": PUSHED}],
+                       [{"timestamp": "yesterday", "after": HEAD_SHA}],
+                       [{"timestamp": PUSHED, "after": "A" * 40}]):
+            with self.subTest(pushes=pushes):
+                with self.assertRaises(ValueError):
+                    integrity.load_timeline(
+                        self.write(json.dumps(timeline([], pushes=pushes))))
 
     def test_oversized_file_is_rejected(self) -> None:
         path = self.write(" " * (integrity.MAX_TIMELINE_BYTES + 1))
@@ -111,6 +154,9 @@ class TimelineCliTest(unittest.TestCase):
                 ])
 
     def timeline_file(self, document: dict) -> str:
+        document["head_sha"] = "b" * 40
+        for event in document["head_push_events"]:
+            event["after"] = document["head_sha"]
         directory = tempfile.TemporaryDirectory()
         self.addCleanup(directory.cleanup)
         path = Path(directory.name) / "timeline.json"
@@ -146,10 +192,14 @@ class ProtectedPathCoverageTest(unittest.TestCase):
                 self.assertTrue(integrity.requires_approval([path]))
 
     def test_build_and_ownership_files_require_approval(self) -> None:
-        for path in ("Makefile", ".pre-commit-config.yaml", "scripts/run_tests.py", "CODEOWNERS",
+        for path in ("Makefile", ".pre-commit-config.yaml", "scripts/run_tests.py",
+                     "CODEOWNERS",
                      ".github/CODEOWNERS", "docs/CODEOWNERS"):
             with self.subTest(path=path):
                 self.assertTrue(integrity.requires_approval([path]))
+
+    def test_hook_coverage_baseline_requires_approval(self) -> None:
+        self.assertTrue(integrity.requires_approval(["hook-coverage-baseline.json"]))
 
     def test_unrelated_paths_stay_unprotected(self) -> None:
         for path in ("README.md", "docs/gate-threat-model.md", "tests/test_x.py"):
@@ -170,6 +220,12 @@ class WorkflowWiringTest(unittest.TestCase):
         self.assertIn("actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b", self.text)
         self.assertIn("listEventsForTimeline", self.text)
         self.assertIn("listSuitesForRef", self.text)
+        self.assertIn("/repos/{owner}/{repo}/activity", self.text)
+        self.assertIn("head_push_events", self.text)
+        self.assertIn("pullRequest?.head?.repo", self.text)
+        self.assertIn("activity_type", self.text)
+        self.assertIn('"push"', self.text)
+        self.assertIn("timeout-minutes: 10", self.text)
         self.assertIn("--timeline-json", self.text)
 
     def test_permissions_stay_read_only(self) -> None:

@@ -49,6 +49,7 @@ PROTECTED_FILES = frozenset({
     "scripts/check_git_identity.py",
     "scripts/check_hook_coverage.py",
     "scripts/check_hook_launchers.py",
+    "hook-coverage-baseline.json",
     "scripts/check_local_paths.py",
     "scripts/complete_gate_adoption.py",
     "scripts/read_git_state.py",
@@ -109,27 +110,44 @@ def load_timeline(path: Path) -> dict:
         raise ValueError("timeline data must be a JSON object")
     events = document.get("events")
     suite_times = document.get("head_suite_times")
-    if not isinstance(events, list) or not isinstance(suite_times, list):
-        raise ValueError("timeline data lacks events or head suite times")
+    push_events = document.get("head_push_events")
+    if (not isinstance(events, list) or not isinstance(suite_times, list)
+            or not isinstance(push_events, list)):
+        raise ValueError("timeline data lacks required event lists")
     for event in events:
         _validate_event(event)
     for value in suite_times:
         _timestamp(value)
+    for event in push_events:
+        if not isinstance(event, dict):
+            raise ValueError("head push event must be an object")
+        _timestamp(event.get("timestamp"))
+        after = event.get("after")
+        if not isinstance(after, str) or not SHA_PATTERN.fullmatch(after):
+            raise ValueError("head push event has an invalid after SHA")
     return document
 
 
-def approval_is_current(document: dict) -> bool:
+def approval_is_current(document: dict, head_sha: str | None = None) -> bool:
     """Return whether a person applied the label after the head last changed.
 
-    The earliest check suite for the head SHA stands in for its push time,
-    because the timeline omits ordinary pushes and commit dates are
-    author-controlled.
+    Repository activity records ordinary pushes to the pull-request branch.
+    Check-suite and force-push times remain independent barriers.
     """
+    if head_sha is None:
+        head_sha = document.get("head_sha")
+    if not isinstance(head_sha, str) or not SHA_PATTERN.fullmatch(head_sha):
+        return False
     suite_times = [_timestamp(value) for value in document["head_suite_times"]]
     if not suite_times:
         return False
+    matching_pushes = [
+        _timestamp(event["timestamp"])
+        for event in document["head_push_events"] if event["after"] == head_sha]
+    if not matching_pushes:
+        return False
     events = document["events"]
-    barriers = [min(suite_times)] + [
+    barriers = [min(suite_times), max(matching_pushes)] + [
         _timestamp(event["created_at"]) for event in events
         if event["event"] == "head_ref_force_pushed"]
     approvals = [
@@ -146,13 +164,14 @@ def approval_is_current(document: dict) -> bool:
     return not removed and approved_at > max(barriers)
 
 
-def _approval_failure(paths: list[str], labels: list[str], timeline) -> str:
+def _approval_failure(paths: list[str], labels: list[str], timeline,
+                      head_sha: str | None = None) -> str:
     """Return why protected changes lack current approval, or an empty string."""
     if not requires_approval(paths):
         return ""
     if not has_approval_label(labels):
         return f"protected gate changes require the {APPROVAL_LABEL} label"
-    if timeline is not None and not approval_is_current(timeline):
+    if timeline is not None and not approval_is_current(timeline, head_sha):
         return STALE_APPROVAL_MESSAGE
     return ""
 
@@ -250,7 +269,7 @@ def main(argv: list[str]) -> int:
     except (OSError, RuntimeError, ValueError, subprocess.TimeoutExpired) as error:
         print(f"gate integrity check failed: {error}", file=sys.stderr)
         return 1
-    failure = _approval_failure(paths, labels, timeline)
+    failure = _approval_failure(paths, labels, timeline, head)
     if failure:
         print(failure, file=sys.stderr)
         return 1

@@ -14,9 +14,12 @@ into the entry. Dates never decrease. Ask the active human when a date is in
 doubt.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.13.4] (2026-10-14)
+## [2.13.5] (2026-10-14)
 
 ### Security
+- Bind `gate-change-approved` to the latest recorded push of the pull-request
+  head SHA. Require readable push activity and protect the hook coverage
+  baseline from unapproved edits.
 - Restrict `scripts/trusted_git.py` `run_git` `config_overrides` to
   `filter.<driver>.clean`, `smudge`, `process`, and `required` keys. The
   runner rejects other sections, NUL or line-break characters, more than
