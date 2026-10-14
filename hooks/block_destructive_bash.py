@@ -180,6 +180,19 @@ def _eval_verdict(args: list, depth: int) -> tuple:
     return _nested_command_verdict(" ".join(args), depth, "eval")
 
 
+def _xargs_verdict(original: list, executable: list) -> tuple:
+    """Return the xargs verdict for a segment whose prefix runs xargs.
+
+    The parser strips xargs as a wrapper, so `xargs rm` reaches the delete
+    check as a bare `rm` with no operands. The operands arrive on standard
+    input at run time, which only the xargs view of the segment shows.
+    """
+    prefix = original[:len(original) - len(executable)]
+    if not any(os.path.basename(token).lower() == "xargs" for token in prefix):
+        return "", ""
+    return core.mass_operation_verdict("xargs", executable)
+
+
 def _segment_verdict(tokens: list, depth: int) -> tuple:
     """Return (decision, reason) for one command segment.
 
@@ -188,10 +201,12 @@ def _segment_verdict(tokens: list, depth: int) -> tuple:
     """
     privileged = core.privilege_verdict(tokens)
     redirects = _redirect_targets(tokens)
+    original = tokens
     tokens, environment, complete = bash_parser.strip_prefixes(tokens)
     if not complete:
         return "ask", "env -S command text could not be inspected"
     privileged = core.strongest(privileged, core.privilege_verdict(tokens))
+    privileged = core.strongest(privileged, _xargs_verdict(original, tokens))
     return core.strongest(
         privileged, _program_verdict(tokens, redirects, environment, depth))
 

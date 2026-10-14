@@ -2334,9 +2334,9 @@ DEVICE_WRITERS = frozenset({"mkfs", "diskpart", "format", "cipher", "fdisk",
                             "parted", "sgdisk", "wipefs", "blkdiscard",
                             "shred", "sdelete", "wipe", "dd", "hdparm",
                             "badblocks", "nvme"})
-# Programs with no purpose but to partition, format, or wipe. Unlike dd or
-# shred, no invocation of these operates on a single ordinary file, so an
-# unparseable one has no benign reading to fall back on.
+# Programs denied on any invocation. Most exist only to partition, format,
+# or wipe. dd and hdparm can also run on ordinary files, but their device
+# forms are too easy to miss, so every dd or hdparm call denies too.
 ALWAYS_DESTRUCTIVE = frozenset({"diskpart", "fdisk", "sgdisk", "parted",
                                 "wipefs", "blkdiscard", "mkfs", "format",
                                 "cipher", "dd", "hdparm"})
@@ -2369,10 +2369,14 @@ UNBOUNDED_OPERATIONS = {
     "find": ("-delete", "-exec", "-execdir", "-ok"),
     "git": ("clean",),
     "truncate": ("-s",),
-    "sed": ("-i",),
-    "perl": ("-i",),
     "xargs": ("rm", "shred", "truncate"),
 }
+# Dry-run flags per program. -n means dry run to git clean only: to sed and
+# perl it suppresses printing, and to xargs it limits arguments per call.
+DRY_RUN_FLAGS = {"git": ("-n", "--dry-run")}
+# Short options whose value follows in the same token. In -ei or -Mi the
+# trailing i is part of that value, not the in-place flag.
+IN_PLACE_VALUE_OPTIONS = {"sed": "efl", "perl": "eEMmIxdDCF"}
 GLOB_CHARACTERS = "*?["
 
 
@@ -2435,6 +2439,38 @@ def _is_shallow_glob(token: str) -> bool:
     return is_root_target(parent) or is_root_target(parent + "/")
 
 
+def _in_place_edit(name: str, token: str) -> bool:
+    """Return True if `token` turns on sed or perl in-place editing.
+
+    The flag can be bundled (-ni, -pi), carry a suffix (-i.bak), or be
+    spelled long (--in-place, --in-place=.bak).
+    """
+    if name == "sed" and long_option_matches(token, "--in-place"):
+        return True
+    if not is_short_group(token):
+        return False
+    for character in token[1:]:
+        if character == "i":
+            return True
+        if character in IN_PLACE_VALUE_OPTIONS[name]:
+            return False
+    return False
+
+
+def _names_unbounded_operation(name: str, args: list) -> bool:
+    """Return True if `args` carry the operation that makes `name` unbounded."""
+    if name in IN_PLACE_VALUE_OPTIONS:
+        return any(_in_place_edit(name, token) for token in args)
+    markers = UNBOUNDED_OPERATIONS.get(name)
+    if not markers:
+        return False
+    lowered = [token.lower() for token in args]
+    dry_run_flags = DRY_RUN_FLAGS.get(name, ())
+    if any(flag in lowered for flag in dry_run_flags + ("--no-act",)):
+        return False
+    return any(marker in lowered for marker in markers)
+
+
 def mass_operation_verdict(program: str, args: list) -> tuple:
     """Return (decision, reason) for a command with an unbounded target set.
 
@@ -2448,13 +2484,7 @@ def mass_operation_verdict(program: str, args: list) -> tuple:
             return "deny", ("an operation over every entry of a root or "
                             "system directory")
     name = os.path.basename(program).lower()
-    markers = UNBOUNDED_OPERATIONS.get(name)
-    if not markers:
-        return "", ""
-    lowered = [token.lower() for token in args]
-    if any(flag in lowered for flag in ("-n", "--dry-run", "--no-act")):
-        return "", ""
-    if not any(marker in lowered for marker in markers):
+    if not _names_unbounded_operation(name, args):
         return "", ""
     if any(any(character in token for character in GLOB_CHARACTERS)
            for token in args) or name in ("find", "git", "xargs"):
@@ -2484,8 +2514,11 @@ def logging_verdict(program: str, args: list) -> tuple:
     markers = LOGGING_DISABLERS.get(name)
     if not markers:
         return "", ""
+    # Option markers such as auditctl -D are case-sensitive: -d removes one
+    # rule, -D removes them all. Word markers match in any case.
     lowered = " ".join(args).lower()
-    if not any(marker in lowered for marker in markers):
+    if not any(marker in args if marker.startswith("-") else marker in lowered
+               for marker in markers):
         return "", ""
     if name in ("vim-cmd", "esxcli"):
         return "deny", f"{name} destroying a virtual disk or registration"
@@ -2892,7 +2925,21 @@ def mode_change_verdict(program: str, args: list) -> tuple:
             return "deny", (f"recursive {name} across a root or system "
                             "directory, which breaks every program that "
                             "depends on those permissions")
-    return "", ""
+    operands = [token for token in args if not token.startswith("-")]
+    return volume_verdict(_recursive_mode_change(name, args), operands)
+
+
+# Windows mode programs spell recursion as a slash switch.
+RECURSIVE_MODE_SWITCHES = {"icacls": "/t", "takeown": "/r"}
+
+
+def _recursive_mode_change(name: str, args: list) -> bool:
+    """Return True if a mode change recurses into directories."""
+    if name in RECURSIVE_MODE_SWITCHES:
+        switch = RECURSIVE_MODE_SWITCHES[name]
+        return any(token.casefold() == switch for token in args)
+    return any(long_option_matches(token, "--recursive")
+               or (is_short_group(token) and "R" in token) for token in args)
 
 
 def schedule_verdict(program: str, args: list) -> tuple:

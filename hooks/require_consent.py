@@ -76,6 +76,8 @@ GATED_TOOLS = frozenset({"Edit", "Write", "MultiEdit", "NotebookEdit"})
 PATH_KEYS = ("file_path", "notebook_path")
 PROTECTED_PARTS = ("hooks", ".claude", ".git", ".agents", ".codex", ".gemini")
 POLICY_REASON = "rewrites agent policy text that later sessions load as instructions"
+OUTSIDE_ROOT_REASON = ("creates a file outside the project root, which the "
+                       "gate cannot vouch for")
 SKIP_WALK_DIRS = frozenset({".git", "node_modules", ".venv", "__pycache__"})
 MAX_INODE_WALK = 20000
 
@@ -243,6 +245,11 @@ def escape_reason(raw: str, target: str, project_dir: str) -> str:
     """Return why an out-of-tree path cannot be cleared, or an empty string."""
     if not escapes_root(target, project_dir):
         return ""
+    # A missing target reaches no test inode, but the inode check cannot
+    # tell that apart from an incomplete scan. Name what is known instead.
+    if not os.path.lexists(target) and not (is_test_path(raw)
+                                            or is_test_path(target)):
+        return OUTSIDE_ROOT_REASON
     if is_redirected(raw, project_dir, target):
         return ("follows a link to a test file outside the project root, "
                 "which the gate cannot vouch for")
@@ -278,6 +285,12 @@ def build_reason(target: str, reason: str) -> str:
             f"{core.sanitize(os.path.basename(target))}: this edit {reason}. "
             "AGENTS.md requires active-human approval for every policy change. "
             "Approving a plan is not authorization for this edit; consent is per act."
+        )
+    if reason == OUTSIDE_ROOT_REASON:
+        return (
+            f"{core.sanitize(os.path.basename(target))}: this edit {reason}. "
+            "Approving a plan is not authorization for this edit; consent is per act. "
+            "Allow it only if this write belongs to the requested work."
         )
     if "Rule 22" in reason or "decides whether these gates run" in reason:
         return (

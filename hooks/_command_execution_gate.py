@@ -140,8 +140,10 @@ def _python_workflow(tokens: list, project_dir: str) -> bool:
             for token in modules)
     script, arguments = _python_script_call(tokens, project_dir)
     if script == TRUSTED_GH_SCRIPT and arguments[:1] == ("run",):
+        if len(arguments) <= 1:
+            return False
         decision, _reason = core.forge_verdict("gh", list(arguments[1:]), project_dir)
-        return len(arguments) > 1 and decision != "deny"
+        return decision != "deny"
     if script == TRUSTED_GIT_SCRIPT:
         return _trusted_git_workflow(arguments)
     return arguments in WORKFLOW_SCRIPT_ARGUMENTS.get(script, ())

@@ -272,8 +272,8 @@ reason.
 - `_is_system_root`, `_mentions_device`,
   `device_write_verdict`, `forge_verdict`,
   `logging_verdict`, `mass_operation_verdict`, `posix_delete_verdict`,
-  `remote_execution_verdict`, `schedule_verdict`, `unparseable_verdict`, and
-  `volume_verdict` retain platform, device, mount, and uncommon-program arms.
+  `remote_execution_verdict`, `schedule_verdict`, and `unparseable_verdict`
+  retain platform, device, mount, and uncommon-program arms.
   Corpus rows exercise representative outcomes. The corpus avoids building
   real devices or mounts.
 - `_protected_path` uses an explicit `ntpath` cross-drive case. Linux and
