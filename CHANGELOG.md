@@ -14,7 +14,7 @@ into the entry. Dates never decrease. Ask the active human when a date is in
 doubt.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.13.5] (2026-10-14)
+## [2.13.6] (2026-10-14)
 
 ### Security
 - Ask on `auditctl -D` in `hooks/_gate_core.py`. The marker compared an
@@ -63,6 +63,14 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Report a missing Git executable or safe execution directory in
   `scripts/trusted_git.py` as an error message with exit code 1 instead of
   a traceback.
+- Remove hook statements that an earlier check always pre-empts. The
+  removed checks covered a repeated ambiguous-target test, a `-R` test
+  after an earlier branch consumed `-R`, an `@` test after `rpartition`
+  stripped `@`, a `-C` member compared against lowercased text, a staging
+  equality implied by the prefix test, a repeated line-ending
+  normalization, a `Rule 22` reason test that no reason text matches, two
+  unused aliases, and the CMD storage branch behind
+  `PROHIBITED_COMMANDS`.
 
 ## [2.13.2] (2026-10-13)
 

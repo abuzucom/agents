@@ -1152,8 +1152,6 @@ def _powershell_path_policy(name: str, args: list, redirects: list) -> tuple:
             return "deny", "a file operation reaches a remote UNC path"
         if is_protected_windows_path(normalized):
             return "deny", "a file operation reaches a protected system path"
-    if any(is_ambiguous(value) for value in targets):
-        return "ask", "a file path contains an expansion the gate cannot resolve"
     broad_values = list(targets)
     if name in {"copy-item", "move-item", "rename-item"}:
         broad_values.extend(token for token in args if not token.startswith("-"))
@@ -3085,7 +3083,7 @@ def _github_command_args(args: list) -> list:
                for option in GH_GLOBAL_VALUE_OPTIONS):
             index += 1
             continue
-        if lowered.startswith("-r") and token != "-R":
+        if lowered.startswith("-r"):
             index += 1
             continue
         if not token.startswith("-"):
@@ -3189,7 +3187,7 @@ def _repository_target_owner(token: str) -> str:
     # Splitting dropped empty segments, so the owner is never empty here.
     # A separator left inside it means the token was never owner/name.
     owner = segments[0]
-    if any(character in owner for character in "@:\\"):
+    if any(character in owner for character in ":\\"):
         return ""
     return owner
 
@@ -3344,7 +3342,7 @@ def _git_subcommand(args: list) -> tuple:
     while index < len(args):
         token = args[index]
         lowered = token.lower()
-        if lowered in {"-c", "-C", "--git-dir", "--work-tree"}:
+        if lowered in {"-c", "--git-dir", "--work-tree"}:
             index += 2
             continue
         if lowered.startswith(("-c", "--git-dir=", "--work-tree=")):
