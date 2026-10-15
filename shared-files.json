@@ -10,7 +10,7 @@
     "hooks/block_destructive_powershell.py": "7c9f51bb88c9f206804a8fbf3bb88f0e507391f34fa4acaa5535a0ebd03d406d",
     "hooks/enforce_gate_adoption.py": "e169ab6d7153c990f7e80a07893beb6b1effd3d03d1fcb8352a88d04b6fa154b",
     "hooks/github-command-denylist.txt": "0b043edb1beaa5c37d38137e5b958fad35b5fbdad045063ed30fa8c19ee13a13",
-    "hooks/reinject_agents_policy.py": "a3c290d1a9f037b23495819cb26acbcfe3aeb689a286e92b7bed5686702721d6",
+    "hooks/reinject_agents_policy.py": "ff694eddfab42ad065dd2fe8f7daf2872fbc4e751aa654ed720f40aff9e17572",
     "hooks/require_consent.py": "c947b2e853feb96ba6f9658b3bf57e752940c3c232ad3ff785c63d578410cf9b",
     "scripts/check_gate_adoption.py": "5db608f96f4e40431a80b9b4a7804812fcc4b54764e9fe429bab2acd61463de9",
     "scripts/check_gate_pr_integrity.py": "933223b68d09b62ef67a624f08e7bb89f14ab86f3f91fc19763e5fc23af91cc8",

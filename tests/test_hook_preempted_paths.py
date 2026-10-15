@@ -94,5 +94,59 @@ class GateFileConsentReasonTest(unittest.TestCase):
         self.assertIn("Rule 22", output["permissionDecisionReason"])
 
 
+class PowerShellAmbiguousPathTest(unittest.TestCase):
+    """A write target that hides its value behind an expansion asks."""
+
+    def test_expansion_in_write_target_asks(self) -> None:
+        sys.path.insert(0, str(HOOKS))
+        import _gate_core
+        for name, args in (("set-content", ["-Path", "$target", "-Value", "x"]),
+                           ("out-file", ["-FilePath", "$env:TEMP/x"])):
+            with self.subTest(name=name):
+                self.assertEqual(
+                    _gate_core._powershell_path_policy(name, args, []),
+                    ("ask", "a file path contains an expansion the gate cannot resolve"))
+
+
+class ClaudeCopyLineEndingTest(unittest.TestCase):
+    """The Claude copy check compares both sides after full CRLF folding."""
+
+    def test_copy_matching_twice_folded_policy_is_accepted(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / ".git").mkdir()
+            # One CRLF pass turns CR CR LF into CR LF, so a second pass on
+            # the policy side still changes the text.
+            agents = b"policy\r\r\nbody\n"
+            (root / "AGENTS.md").write_bytes(agents)
+            supporting_names = (
+                "docs/agent-policy/adoption.md", "docs/agent-policy/enforcement.md",
+                "docs/agent-policy/clients.md", "docs/agent-policy/github.md",
+                "docs/agent-policy/security.md", "docs/project-orientation.md")
+            for relative_name in supporting_names:
+                path = root / relative_name
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(b"detail\n")
+            assembled = agents + b"detail\n" * len(supporting_names)
+            folded = assembled.decode("ascii").replace("\r\n", "\n")
+            (root / "CLAUDE.md").write_bytes(
+                folded.replace("\r\n", "\n").encode("ascii"))
+            # The hook accepts only the root it is installed in.
+            installed_hook = root / "hooks" / "reinject_agents_policy.py"
+            installed_hook.parent.mkdir()
+            installed_hook.write_bytes(
+                (HOOKS / "reinject_agents_policy.py").read_bytes())
+            payload = {"hook_event_name": "SessionStart", "source": "startup",
+                       "cwd": str(root)}
+            environment = dict(os.environ, CLAUDE_PROJECT_DIR=str(root))
+            result = subprocess.run(
+                [sys.executable, str(installed_hook), "--client", "claude"],
+                input=json.dumps(payload), env=environment, capture_output=True,
+                text=True, timeout=HOOK_TIMEOUT_SECONDS, check=False,
+            )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertNotIn("not synchronized", result.stderr)
+
+
 if __name__ == "__main__":
     unittest.main()

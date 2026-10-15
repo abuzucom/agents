@@ -249,7 +249,7 @@ def run_hook(args: argparse.Namespace, payload: dict) -> int:
     policy, digest = load_policy(root)
     if args.client == "claude":
         claude_copy = (root / "CLAUDE.md").read_text(encoding="utf-8")
-        if claude_copy.replace("\r\n", "\n") != policy:
+        if claude_copy.replace("\r\n", "\n") != policy.replace("\r\n", "\n"):
             raise ValueError("CLAUDE.md is not synchronized with AGENTS.md")
         return emit_claude(payload, policy, digest, args.chunk_index)
     if args.client == "codex":
