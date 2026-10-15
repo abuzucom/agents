@@ -71,6 +71,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   normalization, a `Rule 22` reason test that no reason text matches, two
   unused aliases, and the CMD storage branch behind
   `PROHIBITED_COMMANDS`.
+- Pin the outcomes the earlier checks deliver in
+  `tests/test_hook_preempted_paths.py`.
 
 ## [2.13.2] (2026-10-13)
 
