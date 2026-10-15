@@ -40,6 +40,12 @@
             "type": "command",
             "command": "python $GEMINI_PROJECT_DIR/hooks/enforce_branch_name.py --client gemini",
             "timeout": 30000
+          },
+          {
+            "name": "enforce-compaction-disclosure",
+            "type": "command",
+            "command": "python $GEMINI_PROJECT_DIR/hooks/enforce_compaction_disclosure.py --client gemini",
+            "timeout": 30000
           }
         ]
       }

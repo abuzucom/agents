@@ -9,6 +9,13 @@ The house style bans that hyphen. `scripts/check_ascii.py` enforces the ban on
 this file.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.6.3] (2026-10-15)
+
+### Added
+- Add universal multi-client compaction containment gate via `hooks/enforce_compaction_disclosure.py`.
+- Add context compaction deception and evidence-laundering analyzer via `scripts/check_compaction_deception.py`.
+- Enforce direct fenced code block chat disclosure and invalidation of covert instructions in `AGENTS.md`.
+
 ## [2.6.2] (2026-09-21)
 
 ### Added

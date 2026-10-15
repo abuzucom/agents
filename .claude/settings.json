@@ -37,6 +37,16 @@
               "${CLAUDE_PROJECT_DIR}/hooks/require_consent.py"
             ],
             "timeout": 30
+          },
+          {
+            "type": "command",
+            "command": "python",
+            "args": [
+              "${CLAUDE_PROJECT_DIR}/hooks/enforce_compaction_disclosure.py",
+              "--client",
+              "claude"
+            ],
+            "timeout": 30
           }
         ]
       }
@@ -65,6 +75,16 @@
             "command": "python",
             "args": [
               "${CLAUDE_PROJECT_DIR}/hooks/enforce_branch_name.py",
+              "--client",
+              "claude"
+            ],
+            "timeout": 30
+          },
+          {
+            "type": "command",
+            "command": "python",
+            "args": [
+              "${CLAUDE_PROJECT_DIR}/hooks/enforce_compaction_disclosure.py",
               "--client",
               "claude"
             ],
@@ -164,6 +184,16 @@
             "command": "python",
             "args": [
               "${CLAUDE_PROJECT_DIR}/hooks/enforce_branch_name.py",
+              "--client",
+              "claude"
+            ],
+            "timeout": 30
+          },
+          {
+            "type": "command",
+            "command": "python",
+            "args": [
+              "${CLAUDE_PROJECT_DIR}/hooks/enforce_compaction_disclosure.py",
               "--client",
               "claude"
             ],

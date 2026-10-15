@@ -822,6 +822,7 @@ class SettingsWiringTest(unittest.TestCase):
         "block_destructive_powershell.py": {"PowerShell"},
         "enforce_gate_adoption.py": {"*"},
         "enforce_branch_name.py": {"*"},
+        "enforce_compaction_disclosure.py": {"*"},
         "enforce_git_identity.py": {"Bash"},
         "require_consent.py": {"Edit|Write|MultiEdit|NotebookEdit"},
     }

@@ -168,6 +168,16 @@
               "claude"
             ],
             "timeout": 30
+          },
+          {
+            "type": "command",
+            "command": "python",
+            "args": [
+              "${CLAUDE_PROJECT_DIR}/hooks/enforce_compaction_disclosure.py",
+              "--client",
+              "claude"
+            ],
+            "timeout": 30
           }
         ]
       },
