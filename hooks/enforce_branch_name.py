@@ -776,7 +776,6 @@ def _valid_bootstrap(command: str, project_dir: str) -> bool:
 
 # The command execution gate owns workflow recognition.
 _python_workflow = command_gate._python_workflow
-_workflow_needs_consent = command_gate.workflow_needs_consent
 
 
 def recovery_authorization_reason(branch_name: str, rebase_active: bool = False) -> str:
@@ -1084,9 +1083,6 @@ def read_only_command_reason(command: str, project_dir: str, tool_name: str) -> 
         if reason:
             return reason
     return ""
-
-
-_read_only_workflow = command_gate.read_only_workflow
 
 
 def _git_tokens(command: str, project_dir: str) -> list:

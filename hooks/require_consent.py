@@ -292,7 +292,7 @@ def build_reason(target: str, reason: str) -> str:
             "Approving a plan is not authorization for this edit; consent is per act. "
             "Allow it only if this write belongs to the requested work."
         )
-    if "Rule 22" in reason or "decides whether these gates run" in reason:
+    if "decides whether these gates run" in reason:
         return (
             f"{core.sanitize(os.path.basename(target))}: this edit {reason}. "
             "AGENTS.md Non-negotiable Rule 22 says stop work, enter plan mode, and "
