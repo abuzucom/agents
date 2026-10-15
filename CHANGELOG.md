@@ -14,9 +14,22 @@ into the entry. Dates never decrease. Ask the active human when a date is in
 doubt.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.13.4] (2026-10-14)
+## [2.13.5] (2026-10-14)
 
 ### Security
+- Ask on `auditctl -D` in `hooks/_gate_core.py`. The marker compared an
+  uppercase option against lowercased text and never matched.
+- Ask on sed and perl in-place edits over a glob in every spelling:
+  `-ni`, `-i.bak`, `--in-place`, `-Ei`, and `perl -pi`. The gate matched
+  only a bare `-i` token. It also read `-n` as a dry run for sed and perl.
+  Only `git clean` now treats `-n` as a dry run.
+- Ask on `xargs rm`, `xargs shred`, and `xargs truncate` in the Bash gate.
+  The parser strips xargs as a wrapper. The xargs check never ran.
+- Ask on a recursive `chmod`, `chown`, `chgrp`, `icacls /T`, or
+  `takeown /R` under a mount point or shared temp directory.
+  `volume_verdict` had no caller.
+- Deny `git switch` to an existing `claude/` branch on the primary branch
+  or a detached HEAD in `hooks/enforce_branch_name.py`.
 - Restrict `scripts/trusted_git.py` `run_git` `config_overrides` to
   `filter.<driver>.clean`, `smudge`, `process`, and `required` keys. The
   runner rejects other sections, NUL or line-break characters, more than
@@ -28,6 +41,18 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   Uncommitted changes inside a submodule no longer count as dirty state.
 
 ### Fixed
+- Name only `git rebase --abort`, `--continue`, and `--skip` in the Stop,
+  SessionStart, and UserPromptSubmit messages during a rebase. The
+  messages named branch recovery commands that the tool gate refuses then.
+- Give a new non-test file outside the project root an accurate prompt
+  reason in `hooks/require_consent.py`. The prompt still asks. It no
+  longer claims the file is a test.
+- Check the `trusted_gh.py run` argument count before the forge verdict
+  in `hooks/_command_execution_gate.py`.
+- Correct the `ALWAYS_DESTRUCTIVE` comment. `dd` and `hdparm` stay denied
+  on every invocation.
+- Record the changed hook digests in `shared-files.json` and tighten
+  `hook-coverage-baseline.json` to the statements the suite now reaches.
 - Route `python scripts/trusted_git.py clone` and `fetch` to execution
   consent in `hooks/_command_execution_gate.py`. The gate denied every
   trusted Git call as opaque while it allowed native `git fetch`.

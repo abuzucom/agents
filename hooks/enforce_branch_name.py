@@ -1111,6 +1111,7 @@ def _existing_branch_switch(command: str, project_dir: str) -> bool:
     """Return whether a command switches to one existing local branch."""
     tokens = _git_tokens(command, project_dir)
     return (len(tokens) == 3 and tokens[1] == "switch"
+            and not is_prohibited_agent_branch(tokens[2])
             and _local_branch_exists(project_dir, tokens[2]))
 
 
@@ -1189,6 +1190,15 @@ def _lifecycle_message(branch_name: str, project_dir: str) -> tuple:
                        "branch before writing.")
     if state == "master":
         return state, MASTER_BRANCH_MESSAGE
+    # The tool gate allows only rebase commands during a rebase, so the
+    # lifecycle message must not name branch recovery then. An unreadable
+    # gitdir keeps the branch lookup failure message, which names the cause.
+    try:
+        rebase_active = rebase_is_active(project_dir)
+    except OSError:
+        return state, ""
+    if rebase_active:
+        return state, recovery_authorization_reason(branch_name, rebase_active=True)
     return state, ""
 
 
