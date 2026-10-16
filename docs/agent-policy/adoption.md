@@ -70,13 +70,6 @@ Supporting files must remain regular files within the repository. Keep them
 ASCII and below the policy size limit. Synchronization rejects missing,
 oversized, non-ASCII, or escaping supporting files.
 
-The source repository uses `scripts/sync.py` for copies and shared-file
-digests. `scripts/check_*.py` supplies portable checks. `hooks/` supplies
-client enforcement. `tests/` covers checks, hooks, distribution, and wiring.
-Client settings live under `.agents/`, `.claude/`, `.codex/`, and `.gemini/`.
-Preserve checker flags, hook payloads, reusable workflows, and copied policy
-files.
-
 ## Scope decisions
 Report bugs and alternatives outside the request. Do not act on them.
 Keep helper functions and imports required by the request in scope.
@@ -111,19 +104,8 @@ Install `scripts/check_branch_name.py`. Register it in pre-push and supported
 client hooks. Run its tests in CI and pre-commit. Dependabot receives its
 documented branch and commit-message exemption through trusted metadata.
 
-Source commands include `python -m pip install --requirement
-requirements-checkers.txt`, `python scripts/run_tests.py`, `make lint
-PYTHON=python`, `python scripts/sync.py --check`, and `python scripts/sync.py`.
-Obtain consent before tests, scripts, or Makefile targets.
-
 Retry variations include changed flags, working directories, and argument
 order. Stop after the second failure. Analyze the error and change strategy.
-
-Code-quality examples:
-
-- Name a tax constant `TAX_RATE`, not `X1` or `CONST_1`.
-- Do not leave stubbed bodies, bare `pass`, `...`, or unexplained
-  `NotImplementedError`.
 
 Branch adoption copies `scripts/check_branch_name.py`,
 `scripts/read_git_state.py`, `scripts/trusted_git.py`,

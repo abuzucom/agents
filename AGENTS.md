@@ -376,6 +376,10 @@ Blocking gates permit fixed checks, reads, and `.gate-staging/` writes only.
 Report failure. See
 `docs/agent-policy/enforcement.md` for the control procedure.
 
+**Pre-merge gate verification.** Run `scripts/check_merge_safety.py` and tests
+before any git merge. Validate gate adoption, clean tree, test status, and
+anti-delegation. Never delegate recovery to humans.
+
 ## Branch naming conventions
 
 Run strict branch preflight before every repository action. Repository actions
@@ -459,6 +463,11 @@ Behavioral tests must exercise the real code path. Never mock the unit under
 test. Never assert only on trivial values or mock interactions. Rule 3 requires
 act-specific consent before editing an existing test. A task finishes only
 after all applicable tests pass.
+
+**Pre-merge gating.** Run `tests/test_check_merge_safety.py` and
+`scripts/check_merge_safety.py <target>`. Precondition checks must happen
+before merging. Check that no rebase or merge is in progress. Check that
+worktree is clean and gate adoption complete. Fail closed on any violation.
 
 **Lint clean.** Run the project lint command if the repository defines such a
 command. Fix every error.

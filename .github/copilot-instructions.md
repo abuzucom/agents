@@ -376,6 +376,10 @@ Blocking gates permit fixed checks, reads, and `.gate-staging/` writes only.
 Report failure. See
 `docs/agent-policy/enforcement.md` for the control procedure.
 
+**Pre-merge gate verification.** Run `scripts/check_merge_safety.py` and tests
+before any git merge. Validate gate adoption, clean tree, test status, and
+anti-delegation. Never delegate recovery to humans.
+
 ## Branch naming conventions
 
 Run strict branch preflight before every repository action. Repository actions
@@ -459,6 +463,11 @@ Behavioral tests must exercise the real code path. Never mock the unit under
 test. Never assert only on trivial values or mock interactions. Rule 3 requires
 act-specific consent before editing an existing test. A task finishes only
 after all applicable tests pass.
+
+**Pre-merge gating.** Run `tests/test_check_merge_safety.py` and
+`scripts/check_merge_safety.py <target>`. Precondition checks must happen
+before merging. Check that no rebase or merge is in progress. Check that
+worktree is clean and gate adoption complete. Fail closed on any violation.
 
 **Lint clean.** Run the project lint command if the repository defines such a
 command. Fix every error.
@@ -765,13 +774,6 @@ Supporting files must remain regular files within the repository. Keep them
 ASCII and below the policy size limit. Synchronization rejects missing,
 oversized, non-ASCII, or escaping supporting files.
 
-The source repository uses `scripts/sync.py` for copies and shared-file
-digests. `scripts/check_*.py` supplies portable checks. `hooks/` supplies
-client enforcement. `tests/` covers checks, hooks, distribution, and wiring.
-Client settings live under `.agents/`, `.claude/`, `.codex/`, and `.gemini/`.
-Preserve checker flags, hook payloads, reusable workflows, and copied policy
-files.
-
 ## Scope decisions
 Report bugs and alternatives outside the request. Do not act on them.
 Keep helper functions and imports required by the request in scope.
@@ -806,19 +808,8 @@ Install `scripts/check_branch_name.py`. Register it in pre-push and supported
 client hooks. Run its tests in CI and pre-commit. Dependabot receives its
 documented branch and commit-message exemption through trusted metadata.
 
-Source commands include `python -m pip install --requirement
-requirements-checkers.txt`, `python scripts/run_tests.py`, `make lint
-PYTHON=python`, `python scripts/sync.py --check`, and `python scripts/sync.py`.
-Obtain consent before tests, scripts, or Makefile targets.
-
 Retry variations include changed flags, working directories, and argument
 order. Stop after the second failure. Analyze the error and change strategy.
-
-Code-quality examples:
-
-- Name a tax constant `TAX_RATE`, not `X1` or `CONST_1`.
-- Do not leave stubbed bodies, bare `pass`, `...`, or unexplained
-  `NotImplementedError`.
 
 Branch adoption copies `scripts/check_branch_name.py`,
 `scripts/read_git_state.py`, `scripts/trusted_git.py`,

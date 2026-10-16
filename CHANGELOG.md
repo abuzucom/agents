@@ -9,6 +9,13 @@ The house style bans that hyphen. `scripts/check_ascii.py` enforces the ban on
 this file.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.6.4] (2026-10-15)
+
+### Added
+- Add pre-merge safety gate via `scripts/check_merge_safety.py` and unit tests.
+- Add anti-delegation detector via `scripts/check_anti_delegation.py` and unit tests.
+- Codify mechanical merge gating and anti-delegation constraints in `AGENTS.md`.
+
 ## [2.6.3] (2026-10-15)
 
 ### Added
