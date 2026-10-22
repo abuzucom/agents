@@ -183,8 +183,9 @@ def _blocks_invocation(project_dir: str, invocation: dict) -> bool:
     label = invocation["label"]
     if invocation.get("error"):
         print(
-            f"blocked by hooks/enforce_git_identity.py: {label}: "
-            f"{invocation['error']}.",
+            core.with_denial_response(
+                f"blocked by hooks/enforce_git_identity.py: {label}: "
+                f"{invocation['error']}."),
             file=sys.stderr,
         )
         return True
@@ -193,13 +194,14 @@ def _blocks_invocation(project_dir: str, invocation: dict) -> bool:
         if not violation:
             continue
         print(
-            f"blocked by hooks/enforce_git_identity.py: {label} with an unset or "
-            f"disallowed git identity.\n"
-            f"{violation}\n"
-            f"Derive the name and email from an authenticated account source and "
-            f"confirm them with the active human. Never ask the active human to "
-            f"supply the values. Set them with git config as a separate tool call. "
-            f"Do not invent an identity.",
+            core.with_denial_response(
+                f"blocked by hooks/enforce_git_identity.py: {label} with an unset or "
+                f"disallowed git identity.\n"
+                f"{violation}\n"
+                f"Derive the name and email from an authenticated account source and "
+                f"confirm them with the active human. Never ask the active human to "
+                f"supply the values. Set them with git config as a separate tool call. "
+                f"Do not invent an identity."),
             file=sys.stderr,
         )
         return True
@@ -212,7 +214,8 @@ def _handle_pre_tool_use(payload: dict, project_dir: str) -> int:
         return 0
     tool_input = payload.get("tool_input")
     if not isinstance(tool_input, dict):
-        print("blocked by hooks/enforce_git_identity.py: malformed tool input.",
+        print(core.with_denial_response(
+            "blocked by hooks/enforce_git_identity.py: malformed tool input."),
               file=sys.stderr)
         return 2
     command = tool_input.get("command", "")

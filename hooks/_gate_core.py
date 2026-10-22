@@ -35,6 +35,26 @@ from functools import lru_cache
 from pathlib import Path
 
 INTERACTIVE_MODES = frozenset({"default", "plan", "acceptEdits", "auto"})
+PLAN_MODE = "plan"
+# Every denial ends with one fixed response, so an agent never improvises around a block.
+DENIAL_RESPONSE = ("Report the gate name and reason to the user. Do not retry variants. "
+                   "Do not ask the user to change any gate. Then stop until the next user message.")
+PLAN_MODE_GIT_REASON = ("Plan mode permits Git reads only. Git writes wait until the user "
+                        "approves the plan through ExitPlanMode")
+GIT_READ_SUBCOMMANDS = frozenset({
+    "status", "log", "diff", "show", "rev-parse", "ls-files", "ls-tree", "cat-file",
+    "blame", "grep", "describe", "shortlog",
+})
+GIT_BRANCH_LIST_OPTIONS = frozenset({
+    "--list", "-l", "-a", "--all", "-r", "--remotes", "-v", "-vv", "--verbose",
+    "--show-current", "--no-color",
+})
+GIT_FETCH_OPTIONS = frozenset({"--prune", "-p", "--tags", "-t", "--quiet", "-q", "--dry-run"})
+# These options write a file or start a program from an inspection command.
+GIT_UNSAFE_READ_OPTIONS = ("--output", "--open-files-in-pager", "-O", "--ext-diff", "--exec",
+                           "--upload-pack")
+# Wrappers that run the next word as the program without hiding it.
+TRANSPARENT_PROGRAM_WRAPPERS = frozenset({"env", "command", "exec", "sudo", "doas", "nohup", "time"})
 AMBIGUOUS_MARKERS = ("$", "`")
 FILESYSTEM_ROOTS = frozenset({"//", "/*"})
 # A UNC share root is \\\\server\\share, so at most two components; a drive
@@ -391,9 +411,65 @@ def read_payload(empty_is_session_start: bool = False):
     return parsed if isinstance(parsed, dict) else None
 
 
+def with_denial_response(message: str) -> str:
+    """Append the required stop-and-report response to one denial message."""
+    return f"{message} {DENIAL_RESPONSE}"
+
+
+def git_inspection_reason(arguments: list) -> str:
+    """Accept only inspection subcommands with no file-writing options."""
+    if arguments[:1] == ["--no-pager"]:
+        arguments = arguments[1:]
+    if not arguments:
+        return "git requires an inspection subcommand"
+    subcommand, options = arguments[0], arguments[1:]
+    if any(option.startswith(GIT_UNSAFE_READ_OPTIONS) for option in options):
+        return "git option writes a file or starts a program"
+    if subcommand in GIT_READ_SUBCOMMANDS:
+        return ""
+    if subcommand == "branch" and all(option in GIT_BRANCH_LIST_OPTIONS for option in options):
+        return ""
+    if subcommand == "worktree" and options in (["list"], ["list", "--porcelain"]):
+        return ""
+    if subcommand == "fetch" and all(
+            option in GIT_FETCH_OPTIONS if option.startswith("-")
+            else ":" not in option and not option.startswith("+")
+            for option in options):
+        return ""
+    return f"git {sanitize(subcommand)} is not an inspection operation"
+
+
+def _program_and_arguments(segment: list) -> tuple:
+    """Return (program, arguments) after leading assignments and transparent wrappers."""
+    for index, token in enumerate(segment):
+        if "=" in token and token.split("=", 1)[0].isidentifier():
+            continue
+        name = normalize_windows_command_name(os.path.basename(token))
+        if name in TRANSPARENT_PROGRAM_WRAPPERS or (index and token.startswith("-")):
+            continue
+        return name, segment[index + 1:]
+    return "", []
+
+
+def plan_mode_git_write_reason(payload: dict, segments: list) -> str:
+    """Return why one Git segment writes while the session plans, or ""."""
+    if require_str(payload.get("permission_mode")) != PLAN_MODE:
+        return ""
+    for segment in segments:
+        program, arguments = _program_and_arguments(list(segment))
+        if program != "git":
+            continue
+        reason = git_inspection_reason(arguments)
+        if reason:
+            return f"{reason}. {PLAN_MODE_GIT_REASON}"
+    return ""
+
+
 def emit(gate: str, decision: str, reason: str) -> int:
     """Print the gate's decision and return the exit code it needs."""
     message = f"blocked by hooks/{gate}: {reason}"
+    if decision == "deny":
+        message = with_denial_response(message)
     output = {
         "hookSpecificOutput": {
             "hookEventName": "PreToolUse",

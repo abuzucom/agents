@@ -198,6 +198,11 @@ def main() -> int:
     if command_text is None:
         return core.emit(GATE, "deny", "the CMD command field is not a string")
     _CWD[0] = core.project_dir(payload)
+    parse_result = cmd_parser.parse_cmd_command(command_text)
+    plan_reason = core.plan_mode_git_write_reason(
+        payload, [list(segment) for segment in parse_result.segments])
+    if plan_reason:
+        return core.emit(GATE, "deny", plan_reason)
     decision, decision_reason = classify_cmd_command(command_text)
     if not decision:
         return 0

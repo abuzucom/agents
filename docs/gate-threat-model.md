@@ -306,7 +306,7 @@ reason.
   `command_names_prohibited_metadata`, `handle_context_event`, and `_run`.
   Hook tests cover every lifecycle event and client consent response.
   Tests also cover exact recovery, aliases, metadata, and branch publication.
-- `read_payload`, `resolved_under`, and `sanitize` retain defensive exceptions
+- `read_payload` and `resolved_under` retain defensive exceptions
   and direct-caller bounds. Hook entry points reject those states earlier.
 - `_branch_from_git_directory` retains the post-resolution containment check for a replaced
   or linked `.git/HEAD`. A portable test cannot create that filesystem race.

@@ -88,18 +88,12 @@ POWERSHELL_READ_PROGRAMS = frozenset({
 })
 CMD_READ_PROGRAMS = frozenset({"type", "dir", "echo", "more", "cd"})
 READ_ONLY_FORBIDDEN_CHARACTERS = frozenset("<>`$%!^(){}\0\n\r")
-GIT_READ_SUBCOMMANDS = frozenset({
-    "status", "log", "diff", "show", "rev-parse", "ls-files", "ls-tree", "cat-file",
-    "blame", "grep", "describe", "shortlog",
-})
-GIT_BRANCH_LIST_OPTIONS = frozenset({
-    "--list", "-l", "-a", "--all", "-r", "--remotes", "-v", "-vv", "--verbose",
-    "--show-current", "--no-color",
-})
-GIT_FETCH_OPTIONS = frozenset({"--prune", "-p", "--tags", "-t", "--quiet", "-q", "--dry-run"})
-# These options write a file or start a program from an inspection command.
-GIT_UNSAFE_READ_OPTIONS = ("--output", "--open-files-in-pager", "-O", "--ext-diff", "--exec",
-                           "--upload-pack")
+# The inspection allowlists live in the shared core so plan mode and the read-only
+# primary branch accept the same Git reads.
+GIT_READ_SUBCOMMANDS = core.GIT_READ_SUBCOMMANDS
+GIT_BRANCH_LIST_OPTIONS = core.GIT_BRANCH_LIST_OPTIONS
+GIT_FETCH_OPTIONS = core.GIT_FETCH_OPTIONS
+GIT_UNSAFE_READ_OPTIONS = core.GIT_UNSAFE_READ_OPTIONS
 READ_ONLY_WORKFLOW_ARGUMENTS = command_gate.READ_ONLY_WORKFLOW_ARGUMENTS
 WINDOWS_RESERVED_NAMES = frozenset(
     {"CON", "PRN", "AUX", "NUL", "CONIN$", "CONOUT$"}
@@ -800,7 +794,7 @@ def recovery_authorization_reason(branch_name: str, rebase_active: bool = False)
 
 def _deny(client: str, reason: str, gate: str = GATE) -> int:
     """Emit one native client denial that names the deciding gate file."""
-    message = f"blocked by hooks/{gate}: {reason}"
+    message = core.with_denial_response(f"blocked by hooks/{gate}: {reason}")
     if client in ("gemini", "antigravity"):
         print(json.dumps({"decision": "deny", "reason": message}))
         return 0
@@ -1029,25 +1023,7 @@ def _read_only_programs(tool_name: str) -> frozenset:
 
 def _read_only_git_reason(arguments: list) -> str:
     """Accept only inspection subcommands with no file-writing options."""
-    if arguments[:1] == ["--no-pager"]:
-        arguments = arguments[1:]
-    if not arguments:
-        return "git requires an inspection subcommand"
-    subcommand, options = arguments[0], arguments[1:]
-    if any(option.startswith(GIT_UNSAFE_READ_OPTIONS) for option in options):
-        return "git option writes a file or starts a program"
-    if subcommand in GIT_READ_SUBCOMMANDS:
-        return ""
-    if subcommand == "branch" and all(option in GIT_BRANCH_LIST_OPTIONS for option in options):
-        return ""
-    if subcommand == "worktree" and options in (["list"], ["list", "--porcelain"]):
-        return ""
-    if subcommand == "fetch" and all(
-            option in GIT_FETCH_OPTIONS if option.startswith("-")
-            else ":" not in option and not option.startswith("+")
-            for option in options):
-        return ""
-    return f"git {core.sanitize(subcommand)} is not an inspection operation"
+    return core.git_inspection_reason(arguments)
 
 
 def _read_only_segment_reason(segment: list, tool_name: str, project_dir: str,
@@ -1247,8 +1223,22 @@ def _handle_invalid_branch(
     )
 
 
+def _plan_mode_git_write_reason(payload: dict, client: str) -> str:
+    """Return why a shell call writes with Git while the session plans, or ""."""
+    tool_name, tool_input = _tool_call(payload, client)
+    if not isinstance(tool_name, str) or tool_name not in SHELL_TOOLS:
+        return ""
+    if not isinstance(tool_input, dict):
+        return ""
+    segments, _complete = _parsed_command_segments(_command_text(tool_name, tool_input), tool_name)
+    return core.plan_mode_git_write_reason(payload, segments)
+
+
 def _handle_pre_tool_use(payload: dict, project_dir: str, client: str) -> int:
     """Apply universal preflight and effective Git write validation."""
+    plan_reason = _plan_mode_git_write_reason(payload, client)
+    if plan_reason:
+        return _deny(client, plan_reason)
     branch_name, branch_violation = read_branch_preflight(project_dir)
     if branch_violation:
         return _handle_failed_preflight(

@@ -72,6 +72,8 @@ External repository acts requiring consent include PR and issue
 creation, comments, reviews, reactions, forks, stars, watches, and mentions of
 external accounts.
 
+A fork of an unmaintained upstream is the common external case.
+
 Read-only fetches, clones, checkouts, and diffs need no consent.
 Other outward-facing acts require active-human consent.
 

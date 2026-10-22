@@ -14,6 +14,31 @@ into the entry. Dates never decrease. Ask the active human when a date is in
 doubt.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.14.0] (2026-10-22)
+
+### Added
+- Deny Git writes in plan mode in `hooks/enforce_branch_name.py` and the
+  Bash, PowerShell, and CMD gates. Git reads stay allowed. The denial names
+  `ExitPlanMode`.
+- End every gate denial with one fixed response. The response orders a
+  report of the gate and reason and a stop until the next user message. It
+  forbids retry variants and gate-change requests.
+- Reject generated adjective-surname branch names in
+  `scripts/check_branch_name.py`. The word list lives in
+  `scripts/branch_generated_name_words.txt`. A missing or malformed list
+  fails closed.
+- Add tests for the denial response, plan-mode Git writes, generated branch
+  names, and the incident policy text.
+
+### Changed
+- Move the Git inspection allowlists into `hooks/_gate_core.py`.
+  `hooks/enforce_branch_name.py` keeps the old names as aliases.
+- Drop retry instructions from `hooks/_command_execution_gate.py` denials.
+- Forbid gate-change offers after a denial in `AGENTS.md`. Start a new
+  attempt budget on each active-human instruction. Tighten approved wording
+  to stay within the 32 KiB limit. Move two examples to linked documents.
+- Require `scripts/branch_generated_name_words.txt` in gate adoption.
+
 ## [2.13.7] (2026-10-15)
 
 ### Fixed

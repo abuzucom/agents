@@ -174,10 +174,10 @@ def _regular_file_details(project_dir: str, name: str) -> tuple:
         details = os.lstat(os.path.join(project_dir, name))
     except OSError as error:
         return None, (f"{name} cannot be read ({_os_error_text(error)}). "
-                      f"Add a regular {name} at the repository root, then retry.")
+                      f"Add a regular {name} at the repository root.")
     if not stat.S_ISREG(details.st_mode):
         return None, (f"{name} is not a regular file. Replace the symlink or special file "
-                      "with a regular file, then retry.")
+                      "with a regular file.")
     return details, ""
 
 
@@ -193,13 +193,13 @@ def _read_package_manifest(project_dir: str) -> tuple:
             # A swap between lstat and open could substitute a symlink target or a FIFO.
             if (opened.st_dev, opened.st_ino) != (details.st_dev, details.st_ino):
                 return None, (f"{NPM_MANIFEST} changed while the gate read it. "
-                              "Retry once the file is stable.")
+                              f"Stop writes to {NPM_MANIFEST} before the next request.")
             content = handle.read(MAX_PACKAGE_MANIFEST_BYTES + 1)
     except OSError as error:
         return None, (f"{NPM_MANIFEST} cannot be read ({_os_error_text(error)}). "
-                      f"Add a regular {NPM_MANIFEST} at the repository root, then retry.")
+                      f"Add a regular {NPM_MANIFEST} at the repository root.")
     if len(content) > MAX_PACKAGE_MANIFEST_BYTES:
-        return None, f"{NPM_MANIFEST} exceeds 1 MiB. Reduce the manifest size, then retry."
+        return None, f"{NPM_MANIFEST} exceeds 1 MiB. Reduce the manifest size."
     return content, ""
 
 
@@ -210,13 +210,13 @@ def _manifest_depth_error(text: str) -> str:
         token = match.group()
         if token == '"':
             return (f"{NPM_MANIFEST} is not valid JSON (unterminated string). "
-                    "Fix the JSON syntax, then retry.")
+                    "Fix the JSON syntax.")
         if token[0] == '"':
             continue
         depth = max(0, depth + (1 if token in "[{" else -1))
         if depth > MAX_PACKAGE_MANIFEST_DEPTH:
             return (f"{NPM_MANIFEST} nests deeper than {MAX_PACKAGE_MANIFEST_DEPTH} levels. "
-                    "Flatten the manifest, then retry.")
+                    "Flatten the manifest.")
     return ""
 
 
@@ -226,7 +226,7 @@ def _parse_package_manifest(content: bytes) -> tuple:
         text = content.decode("utf-8")
     except UnicodeDecodeError as error:
         return None, (f"{NPM_MANIFEST} is not valid UTF-8 (byte offset {error.start}). "
-                      "Re-save it as UTF-8, then retry.")
+                      "Re-save it as UTF-8.")
     error_text = _manifest_depth_error(text)
     if error_text:
         return None, error_text
@@ -234,11 +234,11 @@ def _parse_package_manifest(content: bytes) -> tuple:
         return json.loads(text), ""
     except json.JSONDecodeError as error:
         return None, (f"{NPM_MANIFEST} is not valid JSON (lineno {error.lineno}, colno {error.colno}). "
-                      "Fix the JSON syntax, then retry.")
+                      "Fix the JSON syntax.")
     except ValueError as error:
         # Integers past the interpreter's digit limit raise plain ValueError.
         return None, (f"{NPM_MANIFEST} holds a value the gate cannot parse ({type(error).__name__}). "
-                      "Shorten the value, then retry.")
+                      "Shorten the value.")
 
 
 def _package_scripts(project_dir: str) -> tuple:
@@ -250,15 +250,15 @@ def _package_scripts(project_dir: str) -> tuple:
     if error:
         return None, error
     if not isinstance(manifest, dict):
-        return None, f"{NPM_MANIFEST} root is not a JSON object. Make the root an object, then retry."
+        return None, f"{NPM_MANIFEST} root is not a JSON object. Make the root an object."
     scripts = manifest.get("scripts", {})
     if not isinstance(scripts, dict):
         return None, (f"{NPM_MANIFEST} `scripts` is not a JSON object. "
-                      "Make `scripts` an object, then retry.")
+                      "Make `scripts` an object.")
     invalid = next((name for name, body in scripts.items() if not isinstance(body, str)), None)
     if invalid is not None:
         return None, (f"Script `{core.sanitize(invalid)}` in {NPM_MANIFEST} is not a string. "
-                      "Make every script a string, then retry.")
+                      "Make every script a string.")
     return scripts, ""
 
 
@@ -266,10 +266,10 @@ def _script_display_error(name: str, body: str) -> str:
     """Deny a script the consent prompt cannot show in full and in plain text."""
     if len(body) > core.MAX_REASON_VALUE:
         return (f"Script `{name}` exceeds {core.MAX_REASON_VALUE} characters, so the consent prompt "
-                "cannot show it in full. Move the logic into a file the script calls, then retry.")
+                "cannot show it in full. Move the logic into a file the script calls.")
     if not all(" " <= character <= "~" for character in body):
         return (f"Script `{name}` contains characters outside printable ASCII. "
-                "Remove them, then retry.")
+                "Remove them.")
     return ""
 
 
@@ -292,11 +292,11 @@ def _repository_program_path(program: str, project_dir: str) -> str:
 def _npm_lookup_error(project_dir: str) -> str:
     """Deny an npm executable that PATH resolves to inside the repository."""
     if shutil.which("npm") is None:
-        return "npm is not on PATH. Install Node.js and npm, then retry."
+        return "npm is not on PATH. Install Node.js and npm."
     relative = _repository_program_path("npm", project_dir)
     if relative:
         return (f"PATH resolves npm to `{relative}` inside the repository. "
-                "Remove that directory from PATH, then retry.")
+                "Remove that directory from PATH.")
     return ""
 
 
@@ -313,19 +313,19 @@ def _test_path_components(argument: str) -> tuple:
     """Return (components, "") for one inert relative path, or ((), reason)."""
     label = core.sanitize(argument)
     if argument.startswith("-"):
-        return (), f"`{label}`: npm options stay denied. Remove the option, then retry."
+        return (), f"`{label}`: npm options stay denied. Remove the option."
     if not TEST_PATH_PATTERN.fullmatch(argument):
         return (), (f"`{label}` uses characters outside A-Z a-z 0-9 . _ @ + / -. "
-                    "Rename the file or pass another path, then retry.")
+                    "Rename the file or pass another path.")
     parts = tuple(part for part in argument.split("/") if part not in ("", "."))
     if argument.startswith("/") or ".." in parts:
         return (), (f"`{label}` must be a repository-relative path without `..`. "
-                    "Pass a path below the repository root, then retry.")
+                    "Pass a path below the repository root.")
     if not parts:
-        return (), f"`{label}` does not name a test file. Pass a repository-relative file path, then retry."
+        return (), f"`{label}` does not name a test file. Pass a repository-relative file path."
     if len(parts) > MAX_TEST_PATH_COMPONENTS:
         return (), (f"`{label}` has more than {MAX_TEST_PATH_COMPONENTS} path components. "
-                    "Pass a shorter path, then retry.")
+                    "Pass a shorter path.")
     return parts, ""
 
 
@@ -340,11 +340,11 @@ def _test_file_error(base: str, parts: tuple, verified_directories: set) -> str:
         try:
             details = os.lstat(os.path.join(base, *prefix))
         except OSError as error:
-            return f"`{label}` cannot be read ({_os_error_text(error)}). Check the path, then retry."
+            return f"`{label}` cannot be read ({_os_error_text(error)}). Check the path."
         expected_type = stat.S_ISREG if leaf else stat.S_ISDIR
         if not expected_type(details.st_mode):
             return (f"`{label}` passes through a symlink or is not a regular file. "
-                    "Pass the real file path, then retry.")
+                    "Pass the real file path.")
         verified_directories.add(prefix)
     return ""
 
@@ -352,7 +352,7 @@ def _test_file_error(base: str, parts: tuple, verified_directories: set) -> str:
 def _npm_test_files_error(arguments: list, project_dir: str) -> str:
     """Check every test file argument with string rules first, then the filesystem."""
     if not arguments:
-        return "npm test -- needs at least one test file. Name a test file after --, then retry."
+        return "npm test -- needs at least one test file. Name a test file after --."
     checked_paths = []
     for argument in dict.fromkeys(arguments):
         parts, error = _test_path_components(argument)
@@ -386,7 +386,7 @@ def _npm_requirement_error(main: str, scripts: dict, test_files, project_dir: st
         if any(_regular_file_details(project_dir, name)[0] is not None for name in NPM_LOCKFILES):
             return ""
         return ("npm ci requires package-lock.json or npm-shrinkwrap.json as a regular file. "
-                "Commit a lockfile, then retry.")
+                "Commit a lockfile.")
     if main not in scripts:
         return (f"{NPM_MANIFEST} defines no `{main}` script, so the repository does not require "
                 "this workflow. Add the script or skip the command.")
@@ -403,7 +403,7 @@ def _npm_decision(tokens: list, project_dir: str) -> tuple:
     main, lifecycle, test_files = shape
     if os.path.lexists(os.path.join(project_dir, NPM_CONFIG)):
         return "deny", (f"Project {NPM_CONFIG} can change the shell, node options, and registry "
-                        f"npm uses. Remove {NPM_CONFIG}, then retry.")
+                        f"npm uses. Remove {NPM_CONFIG}.")
     error = _npm_lookup_error(project_dir)
     if error:
         return "deny", error

@@ -331,6 +331,10 @@ def _run() -> int:
     command = core.require_str(tool_input.get("command", ""))
     if command is None:
         return emit("deny", "the command field is not a string, so the gate cannot read it")
+    segments, _complete = bash_parser.command_segments(command)
+    plan_reason = core.plan_mode_git_write_reason(payload, segments)
+    if plan_reason:
+        return emit("deny", plan_reason)
     decision, reason = classify(command)
     if not decision:
         return 0
