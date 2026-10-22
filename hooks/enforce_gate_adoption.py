@@ -65,7 +65,7 @@ def _command(tool_input: object) -> str:
 
 def _deny(client: str, reason: str) -> int:
     """Emit the native deny response for one supported client."""
-    message = f"blocked by hooks/{GATE}: {reason}"
+    message = core.with_denial_response(f"blocked by hooks/{GATE}: {reason}")
     if client in ("gemini", "antigravity"):
         print(json.dumps({"decision": "deny", "reason": message}))
         return 0

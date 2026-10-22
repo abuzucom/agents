@@ -134,6 +134,11 @@ Code-quality examples:
 
 - Name a tax constant `TAX_RATE`, not `X1` or `CONST_1`.
 
+Style examples:
+
+- Allowed: `The checker reads the file and reports warnings.`
+- Allowed: `If the path escapes the root, reject the request.`
+
 Branch adoption copies `scripts/check_branch_name.py`,
 `scripts/read_git_state.py`, `scripts/trusted_git.py`,
 `hooks/enforce_branch_name.py`, `hooks/_command_execution_gate.py`,

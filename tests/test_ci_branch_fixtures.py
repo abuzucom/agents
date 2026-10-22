@@ -18,7 +18,7 @@ class CiBranchFixtureTest(unittest.TestCase):
             (root / ".git").mkdir()
             (root / ".git" / "HEAD").write_text("ref: refs/heads/fix/fixture\n", encoding="utf-8")
             (root / "scripts").mkdir()
-            for name in ("check_branch_name.py", "trusted_git.py"):
+            for name in ("check_branch_name.py", "trusted_git.py", "branch_generated_name_words.txt"):
                 (root / "scripts" / name).write_bytes((REPO_ROOT / "scripts" / name).read_bytes())
             cases = (
                 ({"tool_name": [], "tool_input": {}}, 2),

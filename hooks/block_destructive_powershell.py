@@ -294,6 +294,16 @@ def _program_verdict(tokens: list, redirects: list, depth: int) -> tuple:
     return verdict
 
 
+def _statement_segments(command: str) -> list:
+    """Return every parsed statement across the command's lines."""
+    segments = []
+    for line in command.splitlines():
+        tokens = _tokenize(line)
+        if tokens:
+            segments.extend(_segments(tokens))
+    return segments
+
+
 def classify(command, depth: int = 0) -> tuple:
     """Return the strongest (decision, reason) across the command's statements."""
     if not isinstance(command, str):
@@ -333,6 +343,9 @@ def _run() -> int:
     if command is None:
         return core.emit(GATE, "deny", "the command field is not a string, so "
                                        "the gate cannot read it")
+    plan_reason = core.plan_mode_git_write_reason(payload, _statement_segments(command))
+    if plan_reason:
+        return core.emit(GATE, "deny", plan_reason)
     decision, reason = classify(command)
     if not decision:
         return 0

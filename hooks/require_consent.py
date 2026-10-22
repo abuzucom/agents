@@ -311,6 +311,8 @@ def build_reason(target: str, reason: str) -> str:
 def emit(decision: str, reason: str) -> int:
     """Print the hook's decision and return the exit code it needs."""
     message = f"gated by hooks/{GATE}: {reason}"
+    if decision == "deny":
+        message = core.with_denial_response(message)
     print(json.dumps({
         "hookSpecificOutput": {
             "hookEventName": "PreToolUse",

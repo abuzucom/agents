@@ -32,6 +32,12 @@ FOREIGN_TOKENS = frozenset(
 TECHNICAL_SUFFIXES = frozenset(
     ("base64", "es2022", "oauth2", "python310", "sha256")
 )
+GENERATED_NAME_WORDS_PATH = Path(__file__).resolve().with_name(
+    "branch_generated_name_words.txt"
+)
+MAX_GENERATED_NAME_WORDS_BYTES = 64 * 1024
+GENERATED_NAME_KINDS = ("adjective", "surname")
+GENERATED_NAME_WORD = re.compile(r"[a-z]+")
 
 
 def _pattern(prefixes: tuple[str, ...]) -> re.Pattern:
@@ -53,6 +59,42 @@ def _load_banned_tokens() -> frozenset[str]:
     )
 
 
+def _load_generated_name_words():
+    """Return {kind: words} from the bundled list, or None when it is unusable."""
+    path = GENERATED_NAME_WORDS_PATH
+    try:
+        if (path.is_symlink() or not path.is_file()
+                or path.stat().st_size > MAX_GENERATED_NAME_WORDS_BYTES):
+            return None
+        lines = path.read_text(encoding="ascii").splitlines()
+    except (OSError, UnicodeDecodeError):
+        return None
+    entries = [line for line in lines if line and not line.startswith("#")]
+    if not entries or entries != sorted(entries):
+        return None
+    words = {kind: set() for kind in GENERATED_NAME_KINDS}
+    for entry in entries:
+        kind, _separator, word = entry.partition(" ")
+        if kind not in words or not GENERATED_NAME_WORD.fullmatch(word):
+            return None
+        words[kind].add(word)
+    return {kind: frozenset(values) for kind, values in words.items()}
+
+
+def _generated_name_violation(branch: str, tokens: list[str]) -> str:
+    """Return a violation for an adjective-surname pair from a name generator."""
+    words = _load_generated_name_words()
+    if words is None:
+        return (f"generated-name word list {GENERATED_NAME_WORDS_PATH.name} is "
+                "missing or malformed. Restore the file from the policy source")
+    adjectives, surnames = words["adjective"], words["surname"]
+    if any(first in adjectives and second in surnames
+           for first, second in zip(tokens, tokens[1:])):
+        return (f"branch '{branch}' uses a generated adjective-surname name. "
+                "Name the work the branch performs")
+    return ""
+
+
 def _description_violations(branch: str) -> list[str]:
     """Return violations for opaque, vulgar, or clearly foreign tokens."""
     description = branch.split("/", 1)[-1]
@@ -68,6 +110,9 @@ def _description_violations(branch: str) -> list[str]:
             violations.append(
                 f"branch '{branch}' contains a clearly non-English token"
             )
+    generated = _generated_name_violation(branch, tokens)
+    if generated:
+        violations.append(generated)
     final_token = tokens[-1]
     if (final_token.casefold() not in TECHNICAL_SUFFIXES
             and 6 <= len(final_token) <= 12

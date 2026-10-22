@@ -37,6 +37,8 @@ CLIENT_HOOKS = (
 REQUIRED_CHECKERS = (
     "scripts/check_banned_agents.py",
     "scripts/check_branch_name.py",
+    # check_branch_name.py fails closed without its word list.
+    "scripts/branch_generated_name_words.txt",
     "scripts/check_commit_attribution.py",
     "scripts/check_commit_message.py",
     "scripts/complete_gate_adoption.py",

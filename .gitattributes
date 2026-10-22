@@ -12,3 +12,4 @@ CONVENTIONS.md text eol=lf
 .copilot-instructions text eol=lf
 .github/copilot-instructions.md text eol=lf
 docs/agent-policy/*.md text eol=lf
+scripts/branch_generated_name_words.txt text eol=lf

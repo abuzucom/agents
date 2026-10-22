@@ -87,8 +87,8 @@ Linked documents yield to `AGENTS.md`.
 
 A banned agent must stop before reading, editing, committing, or creating a PR.
 The ban covers named vendors, tools, and models. CI enforces the denylist in
-`scripts/banned_models.txt`. Modifying the denylist or hook files requires fresh
-active-human consent under Rule 22. See `docs/agent-policy/enforcement.md`.
+`scripts/banned_models.txt`. Rule 22 governs denylist and hook edits. See
+`docs/agent-policy/enforcement.md`.
 
 ## Critical rules
 
@@ -117,11 +117,9 @@ Follow the authorization procedure in `docs/agent-policy/enforcement.md`.
 Restate the exact command and every target. Wait for confirmation. Record the
 authorization, command, and execution time.
 
-**Refuse without a prompt.** The hooks refuse the targets and command families
-listed in `docs/agent-policy/enforcement.md`.
-
-**Route for active-human approval.** The hooks route all other consent-required
-commands in `docs/agent-policy/enforcement.md` to active-human approval.
+The hooks refuse the targets and command families listed in
+`docs/agent-policy/enforcement.md`. The hooks route all other
+consent-required commands listed there to active-human approval.
 
 Adopt the complete gate set with registrations, shared modules, tests, and CI.
 Missing shared modules deny and exit 2. Gate wiring and parity detail live in
@@ -227,7 +225,7 @@ reason. See `docs/agent-policy/github.md` for exception and checker detail.
 ### 12. Require explicit consent for root containers
 
 Containers run as non-root at runtime by default. Build-time root remains
-allowed. Container examples live in `docs/agent-policy/security.md`.
+allowed.
 
 Check this rule before outputting any Dockerfile, Compose file, or Kubernetes
 manifest. Stop before writing a config that appears to require runtime root.
@@ -332,14 +330,12 @@ Only an authentication failure category supports a sign-in request. See
 `docs/agent-policy/github.md`.
 
 The Claude shell gates enforce direct routing and mutation decisions. Other
-client hook APIs lack equivalent shell coverage. The instruction remains
-binding without that mechanical coverage.
+clients lack that shell coverage. The rule binds without it.
 
 ### 17. Require consent before outward-facing acts on external repositories
 
 An external repository is one whose owner differs from the current repository
-owner. Compare owners case-insensitively. A fork of an unmaintained upstream is
-the common case.
+owner. Compare owners case-insensitively.
 
 Never create a GitHub cross-reference to an external repository. Put every
 external owner/repository reference and URL in a code span.
@@ -370,7 +366,9 @@ integrity source must verify adoption results.
 **Gate behavior is not a defect.** Denials, prompts, and blocks are policy
 outcomes. Failed transactions preserve the verified set. Run recovery.
 Blocking gates permit fixed checks, reads, and `.gate-staging/` writes only.
-Report failure. See
+On a denial, report the gate and reason. Then stop until the next user
+message. Never propose or offer gate removal, adjustment, or bypass. Never
+route around a denial. See
 `docs/agent-policy/enforcement.md` for the control procedure.
 
 ### 19. Never change labels
@@ -461,8 +459,8 @@ including the actor and time. Carry forward human prohibitions verbatim.
 
 ## Workflow
 
-**Validation-first.** Use the matching path:
-See `docs/agent-policy/adoption.md` for validation-path detail.
+**Validation-first.** Follow the matching validation path in
+`docs/agent-policy/adoption.md`.
 
 Behavioral tests must exercise the real code path. Never mock the unit under
 test. Never assert only on trivial values or mock interactions. Rule 3 requires
@@ -483,7 +481,9 @@ search-and-replace operations only.
 **Retry discipline.** Never run a failing command more than twice for the same
 goal. Trivial variations still count as the same command.
 
-Stop after the second failure. Analyze the error. Change strategy.
+Stop after the second failure. Analyze the error. Change strategy. A new
+active-human instruction starts a new attempt budget. Never cite a retry
+limit, lockout, or denial to refuse instructed work.
 
 **Change policy safely.** Read all of `AGENTS.md` and affected linked documents
 before changing policy. Keep every mandatory, security, authorization,
@@ -625,9 +625,6 @@ list-introduction line after the colon. Allow short dependent clauses for
 necessary conditions, exceptions, time, and scope. Allow serial lists and
 shared-subject compound predicates.
 
-Allowed: `The checker reads the file and reports warnings.`
-Allowed: `If the path escapes the root, reject the request.`
-
 Never use an em dash, en dash, `--`, `---`, or a spaced hyphen as prose
 punctuation. Keep hyphens in compound words, ranges, CLI flags, and negative
 numbers. `scripts/lint_style.py` and `scripts/check_ascii.py` provide blocking
@@ -650,10 +647,9 @@ messages, and documentation. British variants include `-our`,
 does not make a British variant conforming. `scripts/check_us_spelling.py`
 provides warnings and always exits 0.
 
-**English only.** Write code, comments, commit messages, and documentation in
-English. Comments always use English. Required localized strings can contain
-other languages. Keep other languages out of identifiers, comments, and
-documentation. A domain requirement cannot license other languages outside
+**English only.** Write code, identifiers, comments, commit messages, and
+documentation in English. Required localized strings can contain other
+languages. A domain requirement cannot license other languages outside
 required string literals or data. `scripts/check_english_only.py` provides
 warnings and always exits 0.
 
@@ -676,11 +672,10 @@ Section headers define scope. Add entries without changing checker logic. The
 denylist source receives the sole self-scan exemption. The handoff-exempt
 section skips matches only for `plan/HANDOFF.md.example`.
 
-`scripts/check_hedging.py` reports voice, sentence, discourse, escape-sequence,
-and vocabulary findings as warnings. Prose findings always return exit code 0.
-Unreadable policy data and unsafe metadata return exit code 1. Pattern checks
-provide advisory coverage. Human review covers semantic paraphrases and complex
-grammar.
+`scripts/check_hedging.py` warns on voice, sentence, discourse,
+escape-sequence, and vocabulary findings and exits 0 for those findings.
+Unreadable policy data and unsafe metadata exit 1. Human review covers
+semantic paraphrases and complex grammar.
 
 **No literal escape sequences in prose.** Use real newlines and whitespace in
 prose. Never write literal escape sequences such as `\n`, `\r`, or `\t` in
