@@ -29,6 +29,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   fails closed.
 - Add tests for the denial response, plan-mode Git writes, generated branch
   names, and the incident policy text.
+- Pin LF line endings for `scripts/branch_generated_name_words.txt` in
+  `.gitattributes`.
 
 ### Changed
 - Move the Git inspection allowlists into `hooks/_gate_core.py`.
