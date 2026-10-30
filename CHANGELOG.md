@@ -14,6 +14,22 @@ into the entry. Dates never decrease. Ask the active human when a date is in
 doubt.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.14.0] (2026-10-30)
+
+### Added
+- Reject generated `<adjective>-<surname>-<suffix>` branch names in
+  `scripts/check_branch_name.py`. The opaque-suffix rule required a digit.
+  `chore/dreamy-goldberg-nwjlsu` passed. Detection covers only the listed
+  words.
+- Cover the rule in `tests/test_check_branch_name_generated.py`.
+
+### Changed
+- Require `check_branch_name.py --strict-agent-preflight` after the branch
+  bootstrap in `AGENTS.md`. The bootstrap reader emits no verdict. A
+  harness-assigned branch receives no exemption.
+- Disclose in `docs/agent-policy/clients.md` that a multi-repository Claude
+  Code cloud session loads no repository hooks.
+
 ## [2.13.7] (2026-10-15)
 
 ### Fixed
