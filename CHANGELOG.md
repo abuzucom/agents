@@ -14,6 +14,18 @@ into the entry. Dates never decrease. Ask the active human when a date is in
 doubt.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.14.1] (2026-11-01)
+
+### Fixed
+- Define the disclosure form in the compaction directive of
+  `hooks/reinject_agents_policy.py`. Agents must reproduce the compaction
+  text verbatim in a fenced block led by `COMPACTION TEXT DISCLOSURE`. The
+  directive states that client interfaces hide the compaction message. A
+  reference to text above, a paraphrase, or a summary is not disclosure.
+  Codex disclosed by reference to a collapsed message.
+- Cover the disclosure form for Claude and Codex in
+  `tests/test_compaction_disclosure_form.py`.
+
 ## [2.14.0] (2026-10-30)
 
 ### Added
