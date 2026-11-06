@@ -442,16 +442,16 @@ def run_gh(repo_root, arguments: list[str], *, runner=None, timeout=None):
         shutil.rmtree(private, ignore_errors=True)
 
 
+def _bounded_path(path: object) -> str:
+    """Return a path as bounded printable ASCII for diagnostics."""
+    return ascii(str(path))[1:-1][:MAX_REPORTED_PATH]
+
+
 def describe_permission_error(error: PermissionError) -> str:
-    """Format a temp-path creation failure into a bounded user message."""
-    raw = getattr(error, "filename", None) or str(error)
-    text = str(raw).strip()
-    if len(text) > MAX_REPORTED_PATH:
-        text = text[:MAX_REPORTED_PATH] + "... [truncated]"
-    return (
-        f"error: trusted GitHub CLI could not create a private temp directory at {text}; "
-        f"inspect directory permissions"
-    )
+    """Return a message naming the unwritable path and the recovery step."""
+    location = _bounded_path(error.filename) if error.filename else "the temp directory"
+    return (f"error: GitHub CLI temporary storage is not writable ({location}); "
+            "set TMPDIR to a writable directory and retry")
 
 
 def parse_account(output: str) -> dict:
