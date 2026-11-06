@@ -165,14 +165,21 @@ def parse_repository_target(url: str) -> str:
         cleaned = cleaned[:-4]
     if cleaned.startswith("git@github.com:"):
         path = cleaned[len("git@github.com:"):]
-    elif cleaned.startswith("ssh://git@github.com/"):
-        path = cleaned[len("ssh://git@github.com/"):]
-    elif cleaned.startswith("https://github.com/"):
-        path = cleaned[len("https://github.com/"):]
-    elif cleaned.startswith("http://github.com/"):
-        path = cleaned[len("http://github.com/"):]
     else:
-        raise ValueError("repository remote is not a GitHub URL")
+        parsed = urllib.parse.urlsplit(cleaned)
+        if parsed.scheme not in ("https", "ssh"):
+            raise ValueError("repository remote is not an allowed GitHub URL scheme")
+        if (parsed.hostname or "").lower() != "github.com":
+            raise ValueError("repository remote is not a GitHub URL")
+        if parsed.username and parsed.scheme == "https":
+            raise ValueError("repository remote URL cannot contain user credentials")
+        if parsed.username not in (None, "", "git") and parsed.scheme == "ssh":
+            raise ValueError("repository remote SSH URL must use git user")
+        if parsed.password is not None:
+            raise ValueError("repository remote URL cannot contain a password")
+        if parsed.port not in (None, 443 if parsed.scheme == "https" else 22):
+            raise ValueError("repository remote uses an invalid port")
+        path = parsed.path.lstrip("/")
     parts = path.strip("/").split("/")
     if len(parts) != 2:
         raise ValueError("repository remote path must be owner/repo")
@@ -186,13 +193,8 @@ def repository_target(repo_root: Path) -> str:
     """Return the GitHub owner/repo for a repository checkout."""
     git_entry = _find_git_entry(repo_root)
     config_path = _git_config_path(git_entry)
-    for remote_name in ("upstream", "origin"):
-        try:
-            url = _remote_url_from_config(config_path, remote_name)
-            return parse_repository_target(url)
-        except ValueError:
-            continue
-    raise ValueError("repository has neither an upstream nor origin GitHub remote")
+    url = _remote_url_from_config(config_path, "origin")
+    return parse_repository_target(url)
 
 
 def repository_branch(repo_root: Path) -> str:

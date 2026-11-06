@@ -1072,6 +1072,8 @@ session start.
   Markdown table delimiters, list markers, and multiline code spans.
 - Synced the rule changes into all eight tool-specific copies.
 
+## [1.12.0] (2026-08-20)
+
 ### Added
 - Added Rule 14 requiring identity checks before the first commit. The rule
   requires GitHub noreply addresses. The rule requires consent before rewriting
