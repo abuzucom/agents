@@ -68,9 +68,6 @@ Kubernetes, Helm, Kustomize, OpenShift, Minikube, Kind, SSH clients, PuTTY,
 FTP, TFTP, Telnet, iptables, nftables, UFW, firewalld, and Windows firewall
 commands.
 
-Git transport over SSH remains allowed through Git. Direct SSH clients remain
-denied.
-
 Cloudflare Pages deployment is a limited exception to the cloud-tool denial.
 Permit a local build and `wrangler pages deploy <workspace-path>
 --project-name <name>` with an optional literal `--branch <branch>`. Require
@@ -94,6 +91,3 @@ read it. Set `persist-credentials: false` unless a listed exception applies.
 Use the exact exception comment required by `AGENTS.md`.
 
 Build-time package installation may run as root. Runtime containers must not.
-Prefer ports at or above 1024 behind a proxy. Prefer `COPY --chown` or
-build-time ownership changes. Compose services set `user:`. Kubernetes pods
-set `securityContext.runAsNonRoot: true` and `runAsUser`.

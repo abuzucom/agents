@@ -111,19 +111,14 @@ Install `scripts/check_branch_name.py`. Register it in pre-push and supported
 client hooks. Run its tests in CI and pre-commit. Dependabot receives its
 documented branch and commit-message exemption through trusted metadata.
 
-Source commands include `python -m pip install --requirement
-requirements-checkers.txt`, `python scripts/run_tests.py`, `make lint
-PYTHON=python`, `python scripts/sync.py --check`, and `python scripts/sync.py`.
-Obtain consent before tests, scripts, or Makefile targets.
-
 Retry variations include changed flags, working directories, and argument
-order. Stop after the second failure. Analyze the error and change strategy.
+order. Stop after the second unprompted failure. Analyze the error and change
+strategy. An active-human retry instruction resets the retry count and requires
+a fresh attempt.
 
 Code-quality examples:
 
 - Name a tax constant `TAX_RATE`, not `X1` or `CONST_1`.
-- Do not leave stubbed bodies, bare `pass`, `...`, or unexplained
-  `NotImplementedError`.
 
 Branch adoption copies `scripts/check_branch_name.py`,
 `scripts/read_git_state.py`, `scripts/trusted_git.py`,
@@ -150,21 +145,8 @@ Run:
 - `python scripts/sync.py --check`
 - `python scripts/sync.py`
 
-Obtain consent before tests, scripts, or Makefile targets.
-
-Architecture:
-
-- `AGENTS.md` defines canonical policy.
-- `scripts/sync.py` generates synchronized copies and shared-file digests.
-- `scripts/check_*.py` provides portable policy checks.
-- `hooks/` provides client enforcement.
-- `tests/` covers checks, hooks, distribution, and wiring.
-- `.agents/`, `.claude/`, `.codex/`, and `.gemini/` hold client settings.
-
-Edit `AGENTS.md` before running synchronization. Do not edit generated copies.
-Existing tests, hooks, and client settings require act-specific consent.
-Preserve checker flags, hook payloads, reusable workflows, and copied policy
-files.
+Obtain consent before tests, scripts, or Makefile targets. Existing tests,
+hooks, and client settings require act-specific consent.
 
 Dependabot receives a branch-name and commit-message exemption because it does
 not support those format settings. CI identifies it through trusted pull
@@ -176,9 +158,6 @@ commits instead. `--force-with-lease` receives no exception. The lease in
 `--force-with-lease` protects against clobbering another contributor's push
 but does not remove the consent requirement. Branch age does not create an
 exception.
-
-Verify the current branch, remote URLs, and relevant file contents before
-inferring workflow scope. Use the bounded reader for repository state.
 
 ## Branch recovery
 Detect rebase metadata before detached-HEAD recovery. Permit only `git rebase

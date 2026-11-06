@@ -13,17 +13,53 @@ from pathlib import Path
 ACCOUNT_OUTPUT_LIMIT = 256
 COMMAND_OUTPUT_LIMIT = 1024 * 1024
 METADATA_OUTPUT_LIMIT = 65536
+ERROR_SCAN_LIMIT = 4096
+MAX_GIT_DISCOVERY_DEPTH = 100
 GH_TIMEOUT_SECONDS = 5
 PROXY_VARIABLES = ("HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY",
                    "http_proxy", "https_proxy", "all_proxy")
 MANAGED_PROXY_HOST = "127.0.0.1"
+MANAGED_PROXY_HOSTS = frozenset({"127.0.0.1", "localhost", "::1"})
 MANAGED_PROXY_PORT = 9
+CONNECTIVITY_MARKERS = (
+    "error connecting to",
+    "dial tcp",
+    "no such host",
+    "tls handshake timeout",
+    "connection refused",
+    "network is unreachable",
+    "connection reset",
+    "i/o timeout",
+    "proxyconnect tcp",
+    "temporary failure in name resolution",
+    "cannot assign requested address",
+)
+CONNECTIVITY_ERROR_MESSAGE = (
+    "error: GitHub CLI cannot reach GitHub; "
+    "request approved external network access or retry"
+)
+TIMEOUT_ERROR_MESSAGE = (
+    "error: GitHub CLI timed out; "
+    "verify connectivity and request approved external network access or retry"
+)
 LOGIN = re.compile(r"\A[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?\Z")
 TEXT_OPTIONS = frozenset(("--body", "--title"))
 REPOSITORY_COMMANDS = frozenset(("pr", "issue", "run"))
 REPOSITORY_NAME = re.compile(r"\A[A-Za-z0-9](?:[A-Za-z0-9._-]{0,98}[A-Za-z0-9])?\Z")
 BRANCH_NAME = re.compile(r"\A[A-Za-z0-9][A-Za-z0-9._/-]{0,199}\Z")
 GLOBAL_VALUE_OPTIONS = frozenset(("-R", "--repo", "--hostname"))
+
+
+class ConnectivityError(OSError):
+    """Represent a network reachability failure separate from authentication."""
+
+
+def is_connectivity_failure(stderr: str) -> bool:
+    """Return whether bounded GitHub CLI error text reports a network failure."""
+    if not stderr:
+        return False
+    sample = stderr[:ERROR_SCAN_LIMIT].casefold()
+    return any(marker in sample for marker in CONNECTIVITY_MARKERS)
 
 
 def find_literal_escape_sequences(arguments: list[str]) -> list[str]:
@@ -38,7 +74,7 @@ def find_literal_escape_sequences(arguments: list[str]) -> list[str]:
 def _find_git_entry(start: Path) -> Path:
     """Return the nearest .git entry or raise a bounded error."""
     current = start.resolve()
-    for _ in range(100):
+    for _ in range(MAX_GIT_DISCOVERY_DEPTH):
         candidate = current / ".git"
         if candidate.is_dir() or candidate.is_file():
             return candidate
@@ -47,33 +83,6 @@ def _find_git_entry(start: Path) -> Path:
             break
         current = parent
     raise ValueError("repository context is missing; run from a Git checkout")
-
-
-def _git_config_path(git_entry: Path) -> Path:
-    """Return a local Git config path for a directory or worktree pointer."""
-    if git_entry.is_dir():
-        return git_entry / "config"
-    if git_entry.stat().st_size > METADATA_OUTPUT_LIMIT:
-        raise ValueError("repository context Git pointer exceeds the safety limit")
-    content = git_entry.read_text(encoding="utf-8", errors="strict")
-    marker, separator, value = content.strip().partition(":")
-    if marker.strip().lower() != "gitdir" or not separator or not value.strip():
-        raise ValueError("repository context has an invalid Git worktree pointer")
-    git_dir = (git_entry.parent / value.strip()).resolve()
-    if not git_dir.is_dir():
-        raise ValueError("repository context has a missing Git worktree directory")
-    common_file = git_dir / "commondir"
-    if common_file.is_file():
-        if common_file.stat().st_size > METADATA_OUTPUT_LIMIT:
-            raise ValueError("repository context common pointer exceeds the safety limit")
-        common_value = common_file.read_text(encoding="utf-8", errors="strict").strip()
-        if not common_value or "\n" in common_value or "\r" in common_value:
-            raise ValueError("repository context has an invalid common Git directory")
-        common_dir = (git_dir / common_value).resolve()
-        if not common_dir.is_dir():
-            raise ValueError("repository context has a missing common Git directory")
-        return common_dir / "config"
-    return git_dir / "config"
 
 
 def _git_dir(git_entry: Path) -> Path:
@@ -90,6 +99,25 @@ def _git_dir(git_entry: Path) -> Path:
     if not git_dir.is_dir():
         raise ValueError("repository context has a missing Git worktree directory")
     return git_dir
+
+
+def _git_config_path(git_entry: Path) -> Path:
+    """Return a local Git config path for a directory or worktree pointer."""
+    git_dir = _git_dir(git_entry)
+    if git_entry.is_dir():
+        return git_dir / "config"
+    common_file = git_dir / "commondir"
+    if common_file.is_file():
+        if common_file.stat().st_size > METADATA_OUTPUT_LIMIT:
+            raise ValueError("repository context common pointer exceeds the safety limit")
+        common_value = common_file.read_text(encoding="utf-8", errors="strict").strip()
+        if not common_value or "\n" in common_value or "\r" in common_value:
+            raise ValueError("repository context has an invalid common Git directory")
+        common_dir = (git_dir / common_value).resolve()
+        if not common_dir.is_dir():
+            raise ValueError("repository context has a missing common Git directory")
+        return common_dir / "config"
+    return git_dir / "config"
 
 
 def _origin_url(config_path: Path) -> str:
@@ -157,10 +185,12 @@ def repository_branch(start: Path) -> str:
 
 def _has_repository_option(arguments: list[str]) -> bool:
     """Return whether arguments contain a structural repository option."""
-    for index, argument in enumerate(arguments):
-        if argument in ("-R", "--repo") and index + 1 < len(arguments):
+    delimiter = arguments.index("--") if "--" in arguments else len(arguments)
+    option_tokens = arguments[:delimiter]
+    for index, argument in enumerate(option_tokens):
+        if argument in ("-R", "--repo") and index + 1 < len(option_tokens):
             return True
-        if argument.startswith("--repo=") or argument.startswith("-R") and len(argument) > 2:
+        if argument.startswith("--repo=") or (argument.startswith("-R") and len(argument) > 2):
             return True
     return False
 
@@ -193,10 +223,11 @@ def with_repository_context(repository: Path, arguments: list[str]) -> list[str]
         return list(arguments)
     target = repository_target(repository)
     delimiter = arguments.index("--") if "--" in arguments else len(arguments)
-    context = [*arguments[:delimiter], "--repo", target, *arguments[delimiter:]]
-    command = arguments[position:position + 2]
+    option_tokens = arguments[:delimiter]
+    context = [*option_tokens, "--repo", target, *arguments[delimiter:]]
+    command = option_tokens[position:position + 2]
     has_head = any(argument == "--head" or argument.startswith("--head=")
-                   for argument in arguments)
+                   for argument in option_tokens)
     if command == ["pr", "create"] and not has_head:
         context[delimiter:delimiter] = (
             "--head", f"{target.split('/')[0]}:{repository_branch(repository)}"
@@ -210,6 +241,7 @@ def _is_inside(path: Path, directory: Path) -> bool:
         path.relative_to(directory)
         return True
     except ValueError:
+        # Paths on different roots or outside directory are not inside it.
         return False
 
 
@@ -240,6 +272,7 @@ def resolve_gh(repo_root) -> str:
                     continue
                 resolved = candidate.resolve(strict=True)
             except OSError:
+                # Skip inaccessible or broken PATH entries and continue scanning.
                 continue
             if _is_inside(resolved, repository):
                 continue
@@ -255,6 +288,7 @@ def _safe_directory(repository: Path, executable: Path) -> Path:
         try:
             resolved = candidate.resolve(strict=True)
         except OSError:
+            # Skip missing or inaccessible candidate directories.
             continue
         if resolved.is_dir() and not _is_inside(resolved, repository):
             return resolved
@@ -271,6 +305,7 @@ def _safe_search_path(repository: Path) -> str:
         try:
             resolved = directory.resolve(strict=False)
         except OSError:
+            # Drop unresolvable PATH entries rather than aborting sanitization.
             continue
         if not _is_inside(resolved, repository):
             entries.append(str(resolved))
@@ -278,15 +313,20 @@ def _safe_search_path(repository: Path) -> str:
 
 
 def _is_managed_proxy_placeholder(value: str) -> bool:
-    """Return whether a proxy value is the managed Codex placeholder."""
+    """Return whether a proxy value is a loopback discard placeholder."""
     candidate = value.strip()
+    if not candidate:
+        return False
     try:
         parsed = urllib.parse.urlsplit(candidate if "://" in candidate
                                        else "//" + candidate)
         port = parsed.port
+        hostname = parsed.hostname
     except ValueError:
+        # Malformed proxy URLs are not recognized loopback placeholders.
         return False
-    return parsed.hostname == MANAGED_PROXY_HOST and port == MANAGED_PROXY_PORT
+    return bool(hostname and hostname.casefold() in MANAGED_PROXY_HOSTS
+                and port == MANAGED_PROXY_PORT)
 
 
 def _sanitize_proxy_environment(environment: dict) -> None:
@@ -343,8 +383,18 @@ def authenticated_account(repo_root) -> dict:
         timeout=GH_TIMEOUT_SECONDS,
     )
     if result.returncode != 0:
+        if is_connectivity_failure(result.stderr):
+            raise ConnectivityError("GitHub CLI cannot reach GitHub")
         raise OSError("GitHub CLI has no authenticated account")
     return parse_account(result.stdout)
+
+
+def _load_gate_core():
+    """Import and return the shared gate module for GitHub command checks."""
+    hooks_directory = Path(__file__).resolve().parent.parent / "hooks"
+    sys.path.insert(0, str(hooks_directory))
+    import _gate_core as gate_core
+    return gate_core
 
 
 def _run_requested_command(repo_root, arguments: list[str]) -> int:
@@ -352,35 +402,32 @@ def _run_requested_command(repo_root, arguments: list[str]) -> int:
     if not arguments:
         print("error: run requires GitHub CLI arguments", file=sys.stderr)
         return 2
-    escape_options = find_literal_escape_sequences(arguments)
-    if escape_options:
+    if find_literal_escape_sequences(arguments):
         print(
             "error: an argument contains literal escape text; use real newlines "
             "or --body-file",
             file=sys.stderr,
         )
         return 2
-    hooks_directory = Path(__file__).resolve().parent.parent / "hooks"
-    sys.path.insert(0, str(hooks_directory))
     try:
-        import _gate_core as gate_core
-    except ImportError as error:
+        gate_core = _load_gate_core()
+    except ImportError:
         print("error: GitHub safety policy is unavailable; repair adoption", file=sys.stderr)
         return 2
-    decision, reason = gate_core.forge_verdict("gh", arguments)
+    decision, _reason = gate_core.forge_verdict("gh", arguments)
     if decision == "deny":
         print("error: GitHub command denied by policy; review the command", file=sys.stderr)
         return 2
     try:
         effective_arguments = with_repository_context(Path(repo_root), arguments)
-        decision, reason = gate_core.forge_verdict("gh", effective_arguments)
+        decision, _reason = gate_core.forge_verdict("gh", effective_arguments)
         if decision == "deny":
             print("error: GitHub command denied by policy; review the command", file=sys.stderr)
             return 2
         authenticated_account(repo_root)
         result = run_gh(repo_root, effective_arguments)
     except subprocess.TimeoutExpired:
-        print("error: GitHub CLI timed out; verify connectivity and retry", file=sys.stderr)
+        print(TIMEOUT_ERROR_MESSAGE, file=sys.stderr)
         return 1
     except ValueError:
         print("error: GitHub CLI input or repository metadata is invalid; inspect and retry",
@@ -390,12 +437,32 @@ def _run_requested_command(repo_root, arguments: list[str]) -> int:
         print("error: GitHub CLI or repository metadata is unavailable; inspect installation",
               file=sys.stderr)
         return 1
+    except ConnectivityError:
+        print(CONNECTIVITY_ERROR_MESSAGE, file=sys.stderr)
+        return 1
     except OSError:
         print("error: GitHub CLI execution failed; inspect connectivity and repository context",
               file=sys.stderr)
         return 1
-    sys.stdout.write(result.stdout[:COMMAND_OUTPUT_LIMIT])
-    sys.stderr.write(result.stderr[:COMMAND_OUTPUT_LIMIT])
+    if result.returncode != 0 and not result.stdout and is_connectivity_failure(result.stderr):
+        print(CONNECTIVITY_ERROR_MESSAGE, file=sys.stderr)
+        return 1
+    try:
+        sys.stdout.write(result.stdout[:COMMAND_OUTPUT_LIMIT])
+    except UnicodeEncodeError:
+        sys.stdout.buffer.write(
+            result.stdout[:COMMAND_OUTPUT_LIMIT].encode(
+                sys.stdout.encoding or "utf-8", errors="replace"
+            )
+        )
+    try:
+        sys.stderr.write(result.stderr[:COMMAND_OUTPUT_LIMIT])
+    except UnicodeEncodeError:
+        sys.stderr.buffer.write(
+            result.stderr[:COMMAND_OUTPUT_LIMIT].encode(
+                sys.stderr.encoding or "utf-8", errors="replace"
+            )
+        )
     return result.returncode
 
 
@@ -409,13 +476,16 @@ def main() -> int:
     try:
         account = authenticated_account(os.getcwd())
     except subprocess.TimeoutExpired:
-        print("error: GitHub CLI timed out; verify connectivity and retry", file=sys.stderr)
+        print(TIMEOUT_ERROR_MESSAGE, file=sys.stderr)
         return 1
     except ValueError:
         print("error: GitHub account metadata is invalid; inspect authentication", file=sys.stderr)
         return 1
     except FileNotFoundError:
         print("error: GitHub CLI is unavailable; inspect installation", file=sys.stderr)
+        return 1
+    except ConnectivityError:
+        print(CONNECTIVITY_ERROR_MESSAGE, file=sys.stderr)
         return 1
     except OSError:
         print("error: GitHub authentication failed; inspect connectivity and account state",
