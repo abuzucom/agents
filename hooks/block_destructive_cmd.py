@@ -19,7 +19,6 @@ except ImportError as error:  # pragma: no cover
 
 GATE = "block_destructive_cmd.py"
 CMD_TOOL_NAMES = frozenset({"Cmd", "CMD", "CommandPrompt"})
-STORAGE_DESTRUCTION_PROGRAMS = frozenset({"diskpart", "format"})
 SENSITIVE_DISCOVERY_PROGRAMS = frozenset({
     "arp",
     "driverquery",
@@ -98,8 +97,6 @@ def classify_named_program(
     prohibited = core.prohibited_command_verdict(program_name, list(arguments))
     if prohibited[0]:
         return prohibited
-    if program_name in STORAGE_DESTRUCTION_PROGRAMS:
-        return "deny", f"{program_name} partitions or formats storage"
     if program_name in core.DELETE_PROGRAMS:
         return core.any_delete_verdict(program_name, list(arguments))
     if program_name in ("sc", "schtasks"):
