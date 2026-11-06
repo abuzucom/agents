@@ -75,10 +75,6 @@ TEMP_VARIABLES = ("TMPDIR", "TMP", "TEMP")
 MAX_REPORTED_PATH = 200
 
 
-class ConnectivityError(OSError):
-    """Represent a network reachability failure separate from authentication."""
-
-
 def is_connectivity_failure(stderr: str) -> bool:
     """Return whether bounded GitHub CLI error text reports a network failure."""
     if not stderr:
@@ -382,6 +378,14 @@ class GitHubAccessError(OSError):
         super().__init__(self.MESSAGES[category].format(returncode=returncode))
         self.category = category
         self.returncode = returncode
+
+
+class ConnectivityError(GitHubAccessError):
+    """Represent a network reachability failure separate from authentication."""
+
+    def __init__(self, message: str = "", returncode: int = 1):
+        super().__init__("network", returncode)
+        self.detail = message
 
 
 def classify_gh_failure(returncode: int, stderr: str) -> str:
