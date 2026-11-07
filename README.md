@@ -11,7 +11,8 @@ repository. Adapt it to verified project facts.
 - Approved local links to supporting policy detail.
 - Instructions for agents that add rules or request policy moves.
 - A hard 32 KiB byte limit.
-- A required versioned SemVer changelog entry for every change.
+- A required SemVer version bump for every change, with one changelog entry
+  per UTC day.
 
 - A short non-negotiable summary at the top.
 - Twenty critical rules covering injection, destructive actions, tests,
@@ -88,6 +89,14 @@ target. Direct commands are `python scripts/sync.py`,
 `python scripts/run_tests.py`. Run one module with
 `python -m unittest tests.<module> -v`.
 
+Use the normal user temporary directory for Windows tests. Do not redirect
+`TEMP` or `TMP` into the repository or a worktree. `WinError 5` while a fixture
+creates or removes a temporary tree indicates an ACL problem in the temporary
+directory. Run the focused test once in an elevated PowerShell session to
+confirm the diagnosis. Repair or remove inaccessible stale fixture directories
+only with active-human authorization. Do not weaken, skip, or edit tests. Do
+not make elevation a routine CI requirement.
+
 `scripts/run_tests.py` verifies test IDs before running four concurrent class
 shards. Each class has a 300-second timeout. Persistent workers have a
 30-second deadline. Failures retain a nonzero exit. `unittest` defines
@@ -105,16 +114,19 @@ The wrapper resolves `gh` outside the repository and verifies authentication.
 Repository-bound commands receive validated repository context from the local
 checkout or worktree. The wrapper fails closed when context is missing or
 unsafe. The wrapper keeps `gh` execution outside the repository.
-Pull request creation receives validated head context when no head option is
-provided. Windows, macOS, and Linux worktree layouts are supported.
+Pull request creation receives validated head context when the command omits
+a head option. The wrapper supports Windows, macOS, and Linux worktree layouts.
 Shell gates deny direct `gh`, Git, and HTTP substitutes. High-risk hosted
 mutations deny. Confirmable changes ask. Local Git and ordinary fetch, pull,
 and push transport remain available.
 
 Hosted resource edits must use the wrapper. The managed Codex sandbox can set
 `127.0.0.1:9` as a loopback proxy placeholder. Failure at that endpoint does
-not prove GitHub CLI failure. The wrapper clears only that exact placeholder
-and preserves valid proxy settings. Agents cannot modify Git Credential Manager
+not prove GitHub CLI failure. The GitHub CLI and Git wrappers clear only that
+exact placeholder and preserve valid proxy settings. A failed account check
+reports an authentication, network, or unclassified category. A network
+failure lists proxy variable names without values. Only the authentication
+category reports a missing account. Agents cannot modify Git Credential Manager
 or GitHub authentication state. Agents cannot open a browser to refresh a
 GitHub token.
 
@@ -138,7 +150,7 @@ for `PreInvocation`. `PreToolUse` emits `{}`.
 
 Agents must not claim elevated or external execution without a runtime approval
 result. Repository hooks enforce observable command gates. An external harness
-must enforce client output claims when the client API hides them.
+must enforce client output claims when the client API hides those claims.
 
 `.pre-commit-config.yaml` runs each check on owned paths. `sync-check.yml`
 runs tests and authored pull request checks on `pull_request`. The same
@@ -162,10 +174,10 @@ step. The workflow disables pull request comments.
 `security-review-pr.yml` triggers after `Immutable Compliance` completes and
 calls the `abuzucom/foucault` reusable model security review, pinned to one
 commit SHA for both the workflow and its audit revision. The review gates on
-`BLOCK` and `NEEDS-HUMAN` verdicts and skips fork pull requests, which receive
-no provider secret. See `docs/pr-security-review.md` for the pinned revision,
-the required `OLLAMA_API_KEY` repository secret, and why the check fails
-until that secret is added.
+`BLOCK` and `NEEDS-HUMAN` verdicts and skips fork pull requests. Fork pull
+requests receive no provider secret. See `docs/pr-security-review.md` for the
+pinned revision, the required `OLLAMA_API_KEY` repository secret, and why the
+check fails until the repository has that secret.
 
 ### Prose Checks
 
@@ -280,8 +292,9 @@ An unlicensed target remains unlicensed unless that approval changes its status.
      `scripts/check_branch_name.py`, `scripts/read_git_state.py`, and
      `scripts/trusted_git.py`. Register the checker at `pre-push` with
      `stages: [pre-push]`. For Claude Code, copy
-     `hooks/enforce_branch_name.py`, `hooks/_gate_core.py`,
-     `hooks/_bash_parser.py`, and `hooks/claude-code-settings.example.json`.
+     `hooks/enforce_branch_name.py`, `hooks/_command_execution_gate.py`,
+     `hooks/_gate_core.py`, `hooks/_bash_parser.py`, and
+     `hooks/claude-code-settings.example.json`.
       Merge the hook's `SessionStart`, `UserPromptSubmit`, wildcard
       `PreToolUse`, `Stop`, and `SubagentStop` entries into
       `.claude/settings.json`. The default checker preserves primary and
@@ -371,6 +384,60 @@ An unlicensed target remains unlicensed unless that approval changes its status.
     client trust and remain writable inside the repository. Antigravity resolves
     command paths from `.agents/`. Keep the `../hooks/` path prefix.
 
+## Local-Path Gate
+
+`scripts/check_local_paths.py` backs the Rule 8 ban on real local
+identifiers. Two checks share one pass per line:
+
+- Check 2 flags user-profile paths whose user segment is not a placeholder or
+  an approved `.local-path-allowlist` pair. It runs everywhere, including CI.
+- Check 1 flags the local account name, home directory, and computer name. It
+  reads OS APIs at run time and runs only on a developer machine.
+
+Detected forms, after normalization: `<drive>:\Users\<name>`,
+`<drive>:\Documents and Settings\<name>`, `/Users/<name>`, `/home/<name>`,
+`/var/home/<name>`, WSL `/mnt/<drive>/Users/<name>`, and the same forms inside
+`file:` URIs and long-path prefixes. Normalization decodes JSON and C escapes,
+percent encoding, and HTML entities once. It applies NFKC, removes NUL and
+format characters, and casefolds. Built-in placeholders include `u`, `user`,
+`username`, `me`, `you`, `someone`, `dev`, `runner`, `example`, `name`,
+`test`, and templating forms such as `<name>`, `$USER`, and `%USERNAME%`.
+
+The blocking verdict comes from the trusted `immutable-conflict-check.yml`
+run. That run loads the checker and allowlist from the base revision through
+`scripts/check_compliance_tree.py`. It scans every tracked blob and path, the
+branch name, the commits in the range, and the pull request title and body.
+The `tests`, `tests-windows`, and `tests-macos` jobs in `sync-check.yml` run
+the checker tests on three operating systems. A human admin must mark the
+trusted job required in branch protection.
+
+Pre-commit `SKIP`, `git commit --no-verify`, and a changed `core.hooksPath`
+bypass the local hooks. Commits through the GitHub API or a web editor skip
+the local hooks too. The trusted CI scan covers those paths. A fresh clone runs no local
+hook until `pre-commit install --hook-type pre-commit --hook-type commit-msg
+--hook-type pre-push` runs. `scripts/check_gate_pr_integrity.py` protects the
+checker, its test, and `.local-path-allowlist`.
+
+Stated limits: CI cannot know a real name outside a profile path. Hostname
+patterns, network shares, volume labels, private addresses, and name-free
+distinctive folder layouts are out of scope.
+
+The `--report` output repeats this disclosure procedure:
+
+1. Run `python -I scripts/check_local_paths.py --report` over every tracked
+   file. The report mode refuses to run in CI and lists every finding.
+2. Disclose every finding to the active human. Omit no finding.
+3. Propose one `<repo-relative file><TAB><name>` line per finding. For a name
+   that may be real, also propose a placeholder replacement. Obtain a separate
+   decision for each finding.
+4. Never propose an allowlist entry for a runtime identity match.
+5. Write only the approved lines.
+6. Adopt nothing while any finding remains unresolved.
+7. Keep findings, names, and decisions out of commit messages, pull request
+   text, the changelog, handoff files, and CI logs.
+
+No repository check can verify that a human reviewed each finding.
+
 ## Checker Reference
 
 Exit 0 warning-only checkers report findings without failing a command. Exit 1
@@ -393,6 +460,7 @@ blocking checkers fail after a violation or an incomplete required check.
 | `check_persist_credentials.py` | Rule 11 workflow checkout configuration | 1, blocking |
 | `check_pull_request_message.py` | Pull request title format plus title and body prose from `GITHUB_EVENT_PATH` | 0 for findings, 1 for infrastructure errors |
 | `check_secrets_heuristic.py` | Rule 8 likely-secret heuristic | 1, blocking |
+| `check_local_paths.py` | Rule 8 real local identifiers; adopt with the approved `.local-path-allowlist` as one gate | 1, blocking; `--report` exits 0 and refuses CI |
 | `check_us_spelling.py` | American spelling heuristic | 0, warning only |
 | `check_weak_hashing.py` | Rule 7 MD5 and SHA-1 use | 1, blocking |
 
@@ -582,10 +650,16 @@ launching Git. Session startup injects recovery guidance on strict failure.
 Wildcard pre-tool registration blocks every observable ordinary tool until
 strict preflight passes. The agent selects a compliant replacement from task
 intent. The exact recovery command receives a native authorization prompt.
-Invalid named branches use `git branch -m`. Primary branches and detached HEAD
-use `git switch -c`. The hook denies creation and publication of a `claude/`
-target from a conforming branch. `Stop` and `SubagentStop` block completion while
-strict preflight fails. An active stop-hook retry permits bounded termination.
+Invalid named branches use `git branch -m`. The primary branch `main`, or the
+name in `hooks/primary-branch.txt`, and a detached HEAD permit read-only
+inspection and planning. Read tools, plan and task tools, and an inspection
+shell allowlist stay available there. Plan writes reach only per-client roots
+outside the repository. Branch creation through `git switch -c` and read-only
+workflows receive a consent prompt. Other writes receive a denial. `master`
+receives a denial that tells the active human to convert the repository to
+`main`. The hook denies creation and publication of a `claude/` target from a
+conforming branch. `Stop` and `SubagentStop` block completion while an invalid
+branch or `master` remains. An active stop-hook retry permits bounded termination.
 The retry does not clear any repository tool. Local preflight ignores
 `GITHUB_HEAD_REF`. The gate selects checker code from the installed policy root.
 Git directory overrides use bounded upward discovery to locate repository metadata.
@@ -598,7 +672,13 @@ output stops at 256 KiB. Configuration reads have a five-second timeout. Alias
 expansion stops after ten steps. The subprocess receives a constrained environment.
 Tracing and stream redirection remain disabled during inspection. Explicit
 environment overrides also disable configuration-based Trace2 destinations.
-Unknown aliases and opaque shell execution receive denials. General interpreter
+Unknown aliases and opaque shell execution receive denials.
+
+`hooks/_command_execution_gate.py` owns the program allowlist, wrapper and
+expansion checks, and workflow consent. The branch hook loads it for every
+shell command. Its denials and consent prompts name
+`hooks/_command_execution_gate.py` instead of the branch hook. A denial that
+names this file concerns the command, not the branch name. General interpreter
 commands and unlisted script invocations receive no exception.
 Fixed repository test, state, synchronization, and trusted GitHub commands request
 native consent. Listed Makefile targets and literal `rg` searches also request consent.
@@ -626,7 +706,14 @@ name.
 The portable checker keeps primary and detached operational exemptions by
 default. `--strict-agent-preflight` removes those exemptions for agent hooks.
 Dependabot keeps its branch-shape exception through trusted pull request author
-metadata. A branch name cannot claim the automation exception.
+metadata. A branch name cannot claim the automation exception. Dependabot
+also receives a commit-message exemption because it does not support those
+format settings. `code-coverage-agent[bot]` receives only the branch-name
+exemption.
+`scripts/trusted_bot_identities.py` lists every exempt bot and its branch
+prefix. A third-party bot also needs its numeric account ID in the pull request
+event. A commit that carries a bot noreply identity fails unless that bot
+authored the pull request.
 
 ### Identity Gate
 

@@ -14,11 +14,26 @@ from unittest.mock import patch
 REPOSITORY_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPOSITORY_ROOT / "scripts"))
 
-# The managed Windows runner applies unstable inherited ACLs under the system
-# temp directory. Keep test fixtures inside the writable checkout instead.
-tempfile.tempdir = str(REPOSITORY_ROOT)
-
 import trusted_gh
+
+_PRIOR_TEMP_ROOT = None
+
+
+def setUpModule():
+    """Root fixtures in the checkout for this module only.
+
+    The managed Windows runner applies unstable inherited ACLs under the
+    system temp directory. A module-level assignment would also move the
+    temp root of every later module in the same process.
+    """
+    global _PRIOR_TEMP_ROOT
+    _PRIOR_TEMP_ROOT = tempfile.tempdir
+    tempfile.tempdir = str(REPOSITORY_ROOT)
+
+
+def tearDownModule():
+    """Restore the temp root that was active before this module ran."""
+    tempfile.tempdir = _PRIOR_TEMP_ROOT
 
 
 class AccountParsingTest(unittest.TestCase):
