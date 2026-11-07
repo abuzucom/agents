@@ -152,9 +152,10 @@ def _remote_url_from_config(config_path: Path, remote_name: str) -> str:
         if stripped.startswith("["):
             in_target_remote = stripped == target_section
             continue
-        if in_target_remote and stripped.startswith("url ="):
-            _, _, url = stripped.partition("=")
-            return url.strip()
+        if in_target_remote and "=" in stripped:
+            key, _, url = stripped.partition("=")
+            if key.strip().lower() == "url":
+                return url.strip()
     raise ValueError(f"repository config has no {remote_name} remote")
 
 
@@ -230,31 +231,19 @@ def _has_repository_option(arguments: list[str]) -> bool:
     return False
 
 
-def _command_position(arguments: list[str]) -> int:
-    """Return the first GitHub command token after global options."""
-    index = 0
-    while index < len(arguments):
-        argument = arguments[index]
-        if argument == "--":
-            return index + 1
-        if argument in GLOBAL_VALUE_OPTIONS:
-            index += 2
-            continue
-        if argument.startswith("--") and "=" in argument:
-            index += 1
-            continue
-        if argument.startswith("-"):
-            index += 1
-            continue
-        return index
-    return len(arguments)
+def _command_position(arguments: list[str]) -> int | None:
+    """Return the index of the first repository command token, or None."""
+    delimiter = arguments.index("--") if "--" in arguments else len(arguments)
+    for index in range(delimiter):
+        if arguments[index] in REPOSITORY_COMMANDS:
+            return index
+    return None
 
 
 def with_repository_context(repository: Path, arguments: list[str]) -> list[str]:
     """Add validated repository context to a repository-bound command."""
     position = _command_position(arguments)
-    if (position >= len(arguments) or arguments[position] not in REPOSITORY_COMMANDS
-            or _has_repository_option(arguments)):
+    if position is None or _has_repository_option(arguments):
         return list(arguments)
     target = repository_target(repository)
     delimiter = arguments.index("--") if "--" in arguments else len(arguments)
@@ -441,7 +430,19 @@ def run_gh(repo_root, arguments: list[str], *, runner=None, timeout=None):
             timeout=timeout,
         )
     finally:
-        shutil.rmtree(private, ignore_errors=True)
+        _remove_private_directory(private)
+
+
+def _remove_private_directory(path: str) -> None:
+    """Remove one private gh temp directory, warning when removal fails."""
+    try:
+        shutil.rmtree(path)
+    except OSError as error:
+        print(
+            f"warning: could not remove GitHub CLI temp directory "
+            f"{_bounded_path(path)} ({type(error).__name__}); remove it manually",
+            file=sys.stderr,
+        )
 
 
 def _bounded_path(path: object) -> str:
@@ -558,7 +559,7 @@ def _run_requested_command(repo_root, arguments: list[str]) -> int:
         print("error: GitHub CLI execution failed; inspect connectivity and repository context",
               file=sys.stderr)
         return 1
-    if result.returncode != 0 and not result.stdout and is_connectivity_failure(result.stderr):
+    if result.returncode != 0 and is_connectivity_failure(result.stderr):
         print(CONNECTIVITY_ERROR_MESSAGE, file=sys.stderr)
         return 1
     try:
