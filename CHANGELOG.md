@@ -35,6 +35,15 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `127.0.0.1:9` in `scripts/trusted_gh.py`.
 - Honor `--` option delimiters in `scripts/trusted_gh.py` repository context
   injection and bound `.git` discovery depth.
+- Restore Rule 13 instruction-edit enforceability controls and Rule 17 harness
+  pull request exception denial in `AGENTS.md`.
+- Prevent pipe-drain deadlocks on Windows during test shard timeout recovery in
+  `scripts/check_hook_coverage.py`.
+- Resolve worktree `.git` pointer files in `parse_git_config` in
+  `hooks/_gate_core.py`.
+- Include `Path.cwd()` in `scripts/trusted_gh.py` external directory
+  candidates for temporary-root test invocations.
+- Flush test runner diagnostics in `scripts/run_tests.py`.
 
 ## [2.14.1] (2026-11-01)
 

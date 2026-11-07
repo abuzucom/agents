@@ -307,7 +307,7 @@ def resolve_gh(repo_root) -> str:
 
 def _safe_directory(repository: Path, executable: Path) -> Path:
     """Return an existing execution directory outside the repository."""
-    for candidate in (Path(tempfile.gettempdir()), executable.parent):
+    for candidate in (Path(tempfile.gettempdir()), Path.cwd(), executable.parent):
         try:
             resolved = candidate.resolve(strict=True)
         except OSError:

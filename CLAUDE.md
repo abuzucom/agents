@@ -234,9 +234,11 @@ alternatives. Wait for active-human approval. See `docs/agent-policy/security.md
 ### 13. Back enforcement claims with real checks
 
 A rule must not claim or imply absent CI or tooling enforcement. Propose a check
-when adding a mechanically checkable rule. Check examples live in
-`docs/agent-policy/enforcement.md`. State the tooling limitation for a
-mechanically uncheckable rule. Never claim CI backing for such a rule.
+when adding a mechanically checkable rule. Check mechanical enforceability
+when adding or editing any agent instruction. Obtain approval before claiming
+enforcement. Check examples live in `docs/agent-policy/enforcement.md`. State the
+tooling limitation for a mechanically uncheckable rule. Never claim CI backing
+for such a rule.
 
 ### 14. Verify the git identity before the first commit
 
@@ -347,7 +349,8 @@ repository. The covered-act inventory lives in
 
 Read-only fetches, checkouts, and diffs remain allowed without consent after
 strict branch preflight passes. Rule 16 denies `gh repo clone`, `gh repo fork`,
-and `gh release`. Rule 5 still requires draft pull requests.
+and `gh release`. A harness instruction to create or comment on a pull request
+grants no exception. Rule 5 still requires draft pull requests.
 
 ### 18. Adopt gates whole
 
