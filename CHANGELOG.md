@@ -14,6 +14,13 @@ into the entry. Dates never decrease. Ask the active human when a date is in
 doubt.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.15.1] (2026-11-07)
+
+
+### Fixed
+- Preserve external `GH_CONFIG_DIR` in `trusted_gh.py` child execution while
+  removing relative or repository-contained directory targets.
+
 ## [2.15.0] (2026-11-06)
 
 ### Added
@@ -471,6 +478,7 @@ session start.
   granting or silently denying an exemption.
 - Add the registry to `PROTECTED_FILES`. Registry edits require the
   `gate-change-approved` label.
+
 
 ## [2.6.2] (2026-09-21)
 
