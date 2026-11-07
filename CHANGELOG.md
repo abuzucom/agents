@@ -14,6 +14,28 @@ into the entry. Dates never decrease. Ask the active human when a date is in
 doubt.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.15.0] (2026-11-06)
+
+### Added
+- Require agents across Antigravity, Gemini CLI, Claude Code, Codex, and IDE
+  clients to honor active-human manual retry instructions for
+  `scripts/trusted_gh.py`, `scripts/trusted_git.py`, and confirmed Git
+  fallbacks.
+- Require clients to request approved `external-network` execution when default
+  sandbox isolation blocks `scripts/trusted_gh.py`.
+- Add `tests/test_trusted_gh_connectivity.py` covering connectivity
+  classification, loopback discard proxy sanitization, delimiter handling, and
+  assembled policy retry guidance.
+
+### Fixed
+- Distinguish GitHub CLI network reachability failures from authentication
+  failures in `scripts/trusted_gh.py` through `ConnectivityError` and bounded
+  `is_connectivity_failure` checks.
+- Sanitize `localhost:9` and `[::1]:9` loopback discard proxies alongside
+  `127.0.0.1:9` in `scripts/trusted_gh.py`.
+- Honor `--` option delimiters in `scripts/trusted_gh.py` repository context
+  injection and bound `.git` discovery depth.
+
 ## [2.14.1] (2026-11-01)
 
 ### Fixed
