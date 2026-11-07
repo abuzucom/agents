@@ -9,6 +9,12 @@ The house style bans that hyphen. `scripts/check_ascii.py` enforces the ban on
 this file.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.6.3] (2026-11-07)
+
+### Fixed
+- Preserve external `GH_CONFIG_DIR` in `trusted_gh.py` child execution while
+  removing relative or repository-contained directory targets.
+
 ## [2.6.2] (2026-09-21)
 
 ### Added
