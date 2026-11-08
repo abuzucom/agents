@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Run trusted compliance checks against one immutable Git tree."""
 import importlib.util
+import json
 import os
 import re
 import shutil
