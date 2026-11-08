@@ -526,6 +526,20 @@ def verify_account(repo_root) -> None:
         raise
 
 
+def _safe_write(stream, text: str) -> None:
+    """Write text to a stream, replacing unencodable characters if needed."""
+    try:
+        stream.write(text)
+    except UnicodeEncodeError:
+        encoding = getattr(stream, "encoding", None) or "utf-8"
+        buffer = getattr(stream, "buffer", None)
+        if buffer is not None:
+            buffer.write(text.encode(encoding, errors="replace"))
+        else:
+            sanitized = text.encode(encoding, errors="replace").decode(encoding, errors="replace")
+            stream.write(sanitized)
+
+
 def _run_requested_command(repo_root, arguments: list[str]) -> int:
     """Run one authenticated GitHub CLI command with bounded output."""
     if not arguments:
@@ -583,7 +597,7 @@ def _run_requested_command(repo_root, arguments: list[str]) -> int:
         print(CONNECTIVITY_ERROR_MESSAGE, file=sys.stderr)
         return 1
     try:
-        sys.stdout.write(result.stdout[:COMMAND_OUTPUT_LIMIT])
+        _safe_write(sys.stdout, result.stdout[:COMMAND_OUTPUT_LIMIT])
     except UnicodeEncodeError:
         sys.stdout.buffer.write(
             result.stdout[:COMMAND_OUTPUT_LIMIT].encode(
@@ -591,7 +605,7 @@ def _run_requested_command(repo_root, arguments: list[str]) -> int:
             )
         )
     try:
-        sys.stderr.write(result.stderr[:COMMAND_OUTPUT_LIMIT])
+        _safe_write(sys.stderr, result.stderr[:COMMAND_OUTPUT_LIMIT])
     except UnicodeEncodeError:
         sys.stderr.buffer.write(
             result.stderr[:COMMAND_OUTPUT_LIMIT].encode(

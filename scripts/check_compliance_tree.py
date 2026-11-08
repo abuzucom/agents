@@ -723,6 +723,20 @@ def _scan_metadata(
     return violations
 
 
+def _has_pull_request_payload(event_path: str) -> bool:
+    """Return whether the runner event file contains pull request data."""
+    if not event_path:
+        return False
+    try:
+        path = Path(event_path)
+        if not path.is_file() or path.stat().st_size > 1024 * 1024:
+            return False
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        return isinstance(payload, dict) and isinstance(payload.get("pull_request"), dict)
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        return False
+
+
 def _local_path_metadata(
     values: dict[str, str], repo: Path, checkers: dict[str, ModuleType],
     local_scanner: object,
@@ -736,12 +750,11 @@ def _local_path_metadata(
             repo, ["--end-of-options", f"{base}..{values['--tree']}"])
         findings += local_paths.scan_log(local_scanner, log)
     event_path = os.environ.get("GITHUB_EVENT_PATH", "")
-    if event_path:
-        try:
-            findings += local_paths.scan_event(local_scanner, event_path)
-        except ValueError as error:
-            if str(error) != "event payload lacks pull request data":
-                raise
+    if event_path and _has_pull_request_payload(event_path):
+        findings += local_paths.scan_event(local_scanner, event_path)
+
+
+
     return _local_path_violations(findings)
 
 

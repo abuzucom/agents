@@ -14,6 +14,15 @@ into the entry. Dates never decrease. Ask the active human when a date is in
 doubt.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.15.3] (2026-11-08)
+
+### Fixed
+- Validate runner event payloads structurally before scanning in
+  `scripts/check_compliance_tree.py`.
+- Support buffered and unbuffered stream encoding error replacement in
+  `scripts/trusted_gh.py`.
+- Remove temporary directory mutations and unused imports from tests.
+
 ## [2.15.2] (2026-11-07)
 
 ### Added
