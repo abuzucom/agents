@@ -737,7 +737,11 @@ def _local_path_metadata(
         findings += local_paths.scan_log(local_scanner, log)
     event_path = os.environ.get("GITHUB_EVENT_PATH", "")
     if event_path:
-        findings += local_paths.scan_event(local_scanner, event_path)
+        try:
+            findings += local_paths.scan_event(local_scanner, event_path)
+        except ValueError as error:
+            if str(error) != "event payload lacks pull request data":
+                raise
     return _local_path_violations(findings)
 
 

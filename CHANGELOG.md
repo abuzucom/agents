@@ -14,10 +14,18 @@ into the entry. Dates never decrease. Ask the active human when a date is in
 doubt.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.15.1] (2026-11-07)
+## [2.15.2] (2026-11-07)
+
+### Added
+- Add `tests/test_compliance_tree_event_isolation.py` testing runner push-event
+  payload isolation in `check_compliance_tree.py`.
+- Add `tests/test_trusted_gh_encoding.py` testing `trusted_gh.py` stream encoding
+  resilience against unencodable terminal output.
 
 
 ### Fixed
+- Handle non-pull-request event payloads safely in `scripts/check_compliance_tree.py`
+  when runner environment `GITHUB_EVENT_PATH` lacks pull request metadata.
 - Preserve external `GH_CONFIG_DIR` in `trusted_gh.py` child execution while
   removing relative or repository-contained directory targets.
 
