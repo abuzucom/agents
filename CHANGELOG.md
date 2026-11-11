@@ -14,7 +14,7 @@ into the entry. Dates never decrease. Ask the active human when a date is in
 doubt.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.16.0] (2026-11-11)
+## [2.16.1] (2026-11-11)
 
 ### Added
 - Add an `allow` verdict to `workflow_decision` in
@@ -49,6 +49,20 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   the repository.
 - Request consent for an `rg` search with an absolute, home-relative, or
   parent-directory operand.
+- Name primary branches beside protected branches in Rule 5 of `AGENTS.md`.
+  Some repositories carry no branch protection.
+- Align the handoff consent sentence in `docs/agent-policy/adoption.md` with
+  the command execution gate. Builds and consent-routed workflows need consent.
+- Move the `scripts/prose_bans.txt` file format and the
+  `scripts/check_hedging.py` exit-code detail from `AGENTS.md` to
+  `docs/agent-policy/enforcement.md`.
+
+### Removed
+- Remove repeated passages, examples, and explanations from `AGENTS.md` and
+  the five linked policy documents. The assembled policy shrinks by about 3 KB.
+  Adopter orientation files gain that room under the 64 KiB limit.
+- Remove the Rule 15 pointer to `docs/agent-policy/github.md` for the SSH
+  distinction. That document never held the text.
 
 ### Fixed
 - Reject workflow commands that contain `#`. The tokenizer ends a word at `#`.

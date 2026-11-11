@@ -31,10 +31,7 @@ check.
 ## Compaction events
 Claude and Codex report compaction through the session payload `source`
 field. The reinjection hook prepends a compaction directive to policy
-context for those events. The directive orders disclosure of the complete
-compaction text, a stop, plan-mode re-entry, a canonical `AGENTS.md`
-re-read, and a detailed plan from repository state, the compaction message,
-handoff material, and the active human's stated tasks and goals.
+context for those events.
 
 Claude and Codex deliver policy through hook context. Gemini prepends a
 system message. Antigravity uses an ephemeral message.
