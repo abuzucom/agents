@@ -159,7 +159,8 @@ Run:
 - `python scripts/sync.py --check`
 - `python scripts/sync.py`
 
-Obtain consent before tests, scripts, or Makefile targets. Existing tests,
+Obtain consent before each workflow that the command execution gate routes to
+consent. Workflows the gate allows run without consent. Existing tests,
 hooks, and client settings require act-specific consent.
 
 Never rewrite pushed history on a shared branch. Never force-push, rebase,

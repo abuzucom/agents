@@ -14,6 +14,47 @@ into the entry. Dates never decrease. Ask the active human when a date is in
 doubt.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.16.0] (2026-11-11)
+
+### Added
+- Add an `allow` verdict to `workflow_decision` in
+  `hooks/_command_execution_gate.py`. An allowed form runs without a prompt for
+  every client, including Codex and unattended Claude sessions.
+- Add `hooks/workflow-scripts.txt`. The list names each accepted repository
+  script form with an `allow`, `consent-read`, or `consent-write` verdict. It
+  covers the checker invocations in the Makefile, `.pre-commit-config.yaml`,
+  and CI, plus local report and advice flags. A missing or malformed list
+  denies every repository script call.
+- Accept `python -m unittest discover` with optional `-s`, `-t`, `-p`, `-v`,
+  and `-q`. Directories must resolve inside the repository.
+- Accept `ruff check` and `ruff format` with a fixed flag list, including the
+  `python -m ruff` spelling. Checking forms run without a prompt. `ruff format`
+  and `ruff check --fix` request consent.
+- Deny a `ruff` executable that PATH resolves inside the repository. Deny
+  `python -m ruff` when a root `ruff.py` or `ruff/` shadows the module.
+- Accept `&&` chains of up to eight accepted workflow forms. A chain takes the
+  strictest verdict of its parts.
+- List the accepted forms in the denial for Ruff, unittest, and repository
+  script commands.
+- Require `hooks/workflow-scripts.txt` in `scripts/check_gate_adoption.py`.
+- Add `tests/test_workflow_allow_verdict.py` covering module verdicts and the
+  hook outcome for Claude and Codex.
+
+### Changed
+- Run `python -m unittest tests.<module>`, `scripts/read_git_state.py`,
+  `scripts/check_action_pins.py`, `scripts/check_gate_adoption.py`, and
+  repository-bound `rg` searches without a prompt. Each requested consent
+  before.
+- Request consent for an unprompted form when PATH resolves its program inside
+  the repository.
+- Request consent for an `rg` search with an absolute, home-relative, or
+  parent-directory operand.
+
+### Fixed
+- Reject workflow commands that contain `#`. The tokenizer ends a word at `#`.
+  Bash does not. A hidden second command could follow a matched form.
+- Reject workflow tokens made only of operator characters, such as `|&`.
+
 ## [2.15.1] (2026-11-07)
 
 

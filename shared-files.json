@@ -12,7 +12,7 @@
     "hooks/github-command-denylist.txt": "0b043edb1beaa5c37d38137e5b958fad35b5fbdad045063ed30fa8c19ee13a13",
     "hooks/reinject_agents_policy.py": "8a9fcdef5e835e852da73ab39d39a440e186fb6043d76540b8ca53bdf919a1f7",
     "hooks/require_consent.py": "c947b2e853feb96ba6f9658b3bf57e752940c3c232ad3ff785c63d578410cf9b",
-    "scripts/check_gate_adoption.py": "5db608f96f4e40431a80b9b4a7804812fcc4b54764e9fe429bab2acd61463de9",
+    "scripts/check_gate_adoption.py": "e97fdfb2618f0b86eb7b44e164a93a73519bd3bf4500dcb8d76c3f941b4541c5",
     "scripts/check_gate_pr_integrity.py": "933223b68d09b62ef67a624f08e7bb89f14ab86f3f91fc19763e5fc23af91cc8",
     "scripts/check_hook_launchers.py": "e089850f9bab0b5280ccd3e1bd331a0c6d9d1137eb50cee03c1a25aed2cd05d5",
     "scripts/check_local_paths.py": "41ab7127ec3b9520992f260d2fd9e1e2ba4db48daa1a8fd4763443581a424fee",

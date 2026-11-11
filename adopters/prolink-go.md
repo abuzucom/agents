@@ -87,6 +87,13 @@ repository's policy.
   reference form. The checker compares the pull request event owner. It needs
   no adopter-specific configuration. Taking it requires the checker, its test,
   and a workflow step on a pull-request-triggered job.
+- The command execution gate allow verdict from template version 2.16.0.
+  Inspecting checkers, unittest runs, Ruff checking forms, and `&&` chains run
+  without a prompt. Re-adoption takes `hooks/_command_execution_gate.py`,
+  `hooks/enforce_branch_name.py`, `hooks/workflow-scripts.txt`,
+  `scripts/check_gate_adoption.py`, `tests/test_workflow_allow_verdict.py`,
+  the four updated gate tests, and the regenerated `shared-files.json` in one
+  transaction. The script list then needs entries for adopter-only scripts.
 
 ## Note for the template
 
