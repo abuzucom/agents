@@ -16,6 +16,7 @@ PROJECT_DIR = str(REPO_ROOT)
 SCRIPT_LIST_NAME = "workflow-scripts.txt"
 TIMEOUT_SECONDS = 15
 MAX_CHAIN_PARTS = 8
+MAX_SCRIPT_LIST_BYTES = 64 * 1024
 OPAQUE_REASON = "Opaque command execution requires an inspectable operation"
 
 ALLOWED_COMMANDS = (
@@ -278,6 +279,41 @@ class WorkflowScriptListTest(unittest.TestCase):
             decision, reason = gate.workflow_decision("python scripts/check_changelog.py", PROJECT_DIR)
         self.assertEqual(decision, "deny")
         self.assertIn(SCRIPT_LIST_NAME, reason)
+
+    def test_missing_list_leaves_the_literal_tables_empty(self) -> None:
+        gate = _load_gate_module()
+        missing = str(REPO_ROOT / "hooks" / "absent-workflow-scripts.txt")
+        with patch.object(gate, "WORKFLOW_SCRIPT_LIST_PATH", missing):
+            gate._load_workflow_scripts.cache_clear()
+            self.assertEqual(gate._literal_script_arguments(gate.SCRIPT_VERDICTS), {})
+
+    def test_unusable_list_content_names_the_cause(self) -> None:
+        oversized = b"# filler\n" * (MAX_SCRIPT_LIST_BYTES // len(b"# filler\n") + 1)
+        cases = ((oversized, "exceeds 64 KiB"),
+                 (b"allow scripts/caf\xc3\xa9.py\n", "non-ASCII"),
+                 (b"permit scripts/a.py\n", "line 1"))
+        with tempfile.TemporaryDirectory() as temporary:
+            for index, (content, cause) in enumerate(cases):
+                with self.subTest(cause=cause):
+                    path = Path(temporary) / f"list-{index}.txt"
+                    path.write_bytes(content)
+                    gate = _load_gate_module()
+                    with patch.object(gate, "WORKFLOW_SCRIPT_LIST_PATH", str(path)):
+                        gate._load_workflow_scripts.cache_clear()
+                        with self.assertRaises(ValueError) as raised:
+                            gate._load_workflow_scripts()
+                    self.assertIn(cause, str(raised.exception))
+                    self.assertIn(SCRIPT_LIST_NAME, str(raised.exception))
+
+    def test_single_path_placeholder_accepts_one_repository_path(self) -> None:
+        pattern = ("--file", "<path>")
+        self.assertTrue(self.gate._pattern_matches(pattern, ("--file", "docs/guide.md")))
+        self.assertFalse(self.gate._pattern_matches(pattern, ("--file", "/etc/passwd")))
+        self.assertFalse(self.gate._pattern_matches(pattern, ("--file", "docs/guide.md", "extra.md")))
+
+    def test_literal_tokens_reject_chains(self) -> None:
+        self.assertEqual(self.gate._literal_tokens("ruff check src"), ["ruff", "check", "src"])
+        self.assertEqual(self.gate._literal_tokens("ruff check src && ruff check tests"), [])
 
 
 class AcceptedFormHintTest(unittest.TestCase):
