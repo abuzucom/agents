@@ -680,10 +680,31 @@ shell command. Its denials and consent prompts name
 `hooks/_command_execution_gate.py` instead of the branch hook. A denial that
 names this file concerns the command, not the branch name. General interpreter
 commands and unlisted script invocations receive no exception.
-Fixed repository test, state, synchronization, and trusted GitHub commands request
-native consent. Listed Makefile targets and literal `rg` searches also request consent.
-Workflow requests reject wrappers, chains, redirection, and shell expansion.
-Unattended Claude sessions and clients without an implemented consent response deny.
+`hooks/workflow-scripts.txt` lists each accepted repository script form with a
+verdict. An `allow` form runs without a prompt and only inspects the repository.
+A `consent-read` or `consent-write` form requests native consent. A missing or
+malformed list denies every repository script call.
+These forms also run without a prompt:
+
+- `python -m unittest tests.<module>` and `python -m unittest discover` with
+  optional `-s`, `-t`, `-p`, `-v`, and `-q`
+- `ruff check` without `--fix`, `ruff format --check`, and either command with
+  `--diff`, including the `python -m ruff` spelling
+- a literal `rg` search whose operands stay inside the repository
+
+`ruff format` and `ruff check --fix` rewrite files and request consent. Other
+`rg` searches, listed Makefile targets, `scripts/run_tests.py`, synchronization,
+and trusted GitHub commands request consent.
+The gate denies a `ruff` executable that PATH resolves inside the repository.
+The gate denies `python -m ruff` when a root `ruff.py` or `ruff/` shadows the
+module. An `allow` form asks instead when PATH resolves its program inside the
+repository.
+A workflow accepts an `&&` chain of up to eight accepted forms. The chain takes
+the strictest verdict of its parts. Workflow requests reject wrappers, other
+operators, `#`, redirection, and shell expansion.
+A denial for Ruff, unittest, or a repository script lists the accepted forms.
+Unattended Claude sessions and clients without an implemented consent response
+deny every consent form. `allow` forms pass for every client.
 Other shell commands must use the explicit inspectable-program allowlist.
 Script paths cannot claim an allowlisted program name. Push commands require
 an explicit target refspec. Input-driven and privilege-changing wrappers deny.

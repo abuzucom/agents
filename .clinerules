@@ -855,7 +855,8 @@ Run:
 - `python scripts/sync.py --check`
 - `python scripts/sync.py`
 
-Obtain consent before tests, scripts, or Makefile targets. Existing tests,
+Obtain consent before each workflow that the command execution gate routes to
+consent. Workflows the gate allows run without consent. Existing tests,
 hooks, and client settings require act-specific consent.
 
 Never rewrite pushed history on a shared branch. Never force-push, rebase,
@@ -1095,7 +1096,8 @@ The protected inventory covers:
   `hooks/block_infrastructure_access.py`, `hooks/enforce_branch_name.py`,
   `hooks/enforce_gate_adoption.py`, `hooks/enforce_git_identity.py`,
   `hooks/reinject_agents_policy.py`, `hooks/require_consent.py`,
-  `hooks/github-command-denylist.txt`, `hooks/primary-branch.txt`, and
+  `hooks/github-command-denylist.txt`, `hooks/primary-branch.txt`,
+  `hooks/workflow-scripts.txt`, and
   `hooks/claude-code-settings.example.json`.
 - Hook configurations:
   `.claude/settings.json`, `.agents/`, `.codex/hooks.json`,
