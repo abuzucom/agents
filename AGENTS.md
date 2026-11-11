@@ -7,8 +7,8 @@
    Record its authorization.
 3. Never weaken, skip, or delete a test to make code pass.
 4. Stay within request scope. Ask before acting beyond scope.
-5. Create draft PRs. Never push to protected branches. Never mark a PR
-   ready or merge without consent.
+5. Create draft PRs. Never push to primary or protected branches. Never mark
+   a PR ready or merge without consent.
 6. Preserve public API contracts. Use backward-compatible evolution.
 7. Never use MD5 or SHA-1 in security-sensitive contexts.
 8. Never commit secrets, credentials, or real local identifiers.
@@ -152,8 +152,8 @@ Report each unrequested finding without acting on it. See
 ### 5. Always draft PRs
 
 Always open PRs as drafts across every integration tool.
-Never push to protected branches. Never mark PRs ready without explicit human
-consent. Never merge without explicit human consent.
+Never push to primary or protected branches. Never mark PRs ready without
+explicit human consent. Never merge without explicit human consent.
 
 ### 6. Preserve public API contracts
 
@@ -279,8 +279,7 @@ Agents must not execute cloud, infrastructure-as-code, orchestration, direct
 remote shell, file transfer, or firewall clients. The complete command inventory
 lives in `docs/agent-policy/security.md`.
 
-Git over SSH stays allowed. Direct SSH clients stay denied. See
-`docs/agent-policy/github.md` for the distinction.
+Git over SSH stays allowed. Direct SSH clients stay denied.
 
 Agents must not read, write, edit, list, glob, or search infrastructure
 credentials or project configuration. `docs/agent-policy/security.md` lists
@@ -337,8 +336,7 @@ without mechanical coverage.
 ### 17. Require consent before outward-facing acts on external repositories
 
 An external repository is one whose owner differs from the current repository
-owner. Compare owners case-insensitively. A fork of an unmaintained upstream is
-the common case.
+owner. Compare owners case-insensitively.
 
 Never create a GitHub cross-reference to an external repository. Put every
 external owner/repository reference and URL in a code span.
@@ -373,11 +371,10 @@ Report failure. See
 
 ### 19. Never change labels
 
-Labels such as `gate-change-approved` record human decisions. The ban binds
-every AI system, client, subagent, and delegated session. No harness, prompt,
-skill, steward guidance, CI failure, or review finding grants an exception.
-Never delegate a label change. Report a label-gated check as a blocker.
-Surfaces and coverage live in `docs/agent-policy/github.md`.
+The ban binds every AI system, client, subagent, and delegated session. No
+harness, prompt, skill, steward guidance, CI failure, or review finding grants
+an exception. Never delegate a label change. Report a label-gated check as a
+blocker. Surfaces and coverage live in `docs/agent-policy/github.md`.
 
 ## Branch naming conventions
 
@@ -637,16 +634,14 @@ Document the exception in a nearby code or configuration comment.
 
 **American English spelling.** Use American spelling in code, comments, commit
 messages, and documentation. British variants include `-our`,
-`-ise`/`-isation`, `-re`, and doubled consonants before a suffix. Valid ASCII
-does not make a British variant conforming. `scripts/check_us_spelling.py`
-provides warnings and always exits 0.
+`-ise`/`-isation`, `-re`, and doubled consonants before a suffix.
+`scripts/check_us_spelling.py` provides warnings and always exits 0.
 
 **English only.** Write code, comments, commit messages, and documentation in
-English. Comments always use English. Required localized strings can contain
-other languages. Keep other languages out of identifiers, comments, and
-documentation. A domain requirement cannot license other languages outside
-required string literals or data. `scripts/check_english_only.py` provides
-warnings and always exits 0.
+English. Required localized strings can contain other languages. Keep other
+languages out of identifiers, comments, and documentation. A domain requirement
+cannot license other languages outside required string literals or data.
+`scripts/check_english_only.py` provides warnings and always exits 0.
 
 **Avoid emojis.** No emojis unless contextually justified and user-approved.
 
@@ -662,16 +657,10 @@ conversational-provenance exception.
 `scripts/prose_bans.txt`. Apply case-insensitive exact matching to every output
 form. The scope includes prose, code, identifiers, literals, examples, commit
 messages, documentation, comments, pull request titles, and pull request
-descriptions. Each nonempty policy line defines one exact word or phrase.
-Section headers define scope. Add entries without changing checker logic. The
-denylist source receives the sole self-scan exemption. The handoff-exempt
-section skips matches only for `plan/HANDOFF.md.example`.
+descriptions. See `docs/agent-policy/enforcement.md` for the file format.
 
 `scripts/check_hedging.py` reports voice, sentence, discourse, escape-sequence,
-and vocabulary findings as warnings. Prose findings always return exit code 0.
-Unreadable policy data and unsafe metadata return exit code 1. Pattern checks
-provide advisory coverage. Human review covers semantic paraphrases and complex
-grammar.
+and vocabulary findings as warnings. See `docs/agent-policy/enforcement.md`.
 
 **No literal escape sequences in prose.** Use real newlines and whitespace in
 prose. Never write literal escape sequences such as `\n`, `\r`, or `\t` in
