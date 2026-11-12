@@ -33,6 +33,9 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ### Changed
 - Report stale copies and a stale digest index together in
   `python scripts/sync.py --check`.
+- Drop the `_infrastructure_manifest_text` limit from
+  `hook-coverage-baseline.json`. The digest index exceeds the 64 KiB manifest
+  bound. A hook test now reaches the oversize branch.
 - Name every numeric literal that the Euler M11 prescan flags in `hooks/`,
   `scripts/`, and `tests/`. The change covers 96 files and 512 candidates.
   Each literal becomes a named constant, a tuple unpack, or a length of a
