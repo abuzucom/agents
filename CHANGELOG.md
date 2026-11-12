@@ -14,9 +14,20 @@ into the entry. Dates never decrease. Ask the active human when a date is in
 doubt.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.17.0] (2026-11-12)
+## [2.17.1] (2026-11-12)
+
+### Fixed
+- Skip the event payload scan in `scripts/check_compliance_tree.py` when the
+  runner event file holds no pull request data. A push event no longer fails
+  the scan. The check validates the payload structure and bounds its size.
+- Replace unencodable characters in `scripts/trusted_gh.py` output for
+  buffered and unbuffered streams.
 
 ### Added
+- Add `tests/test_compliance_tree_event_isolation.py`. The test covers a push
+  event payload in the scanner environment.
+- Add `tests/test_trusted_gh_encoding.py`. The tests cover output on a stream
+  with a restricted encoding.
 - Add `policy-digests.json`. The index maps each released version to the
   SHA-256 digests of its policy documents and shared gate files. An adoption
   report matches adopter files against it to name the adopted version.

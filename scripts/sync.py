@@ -488,7 +488,7 @@ def write_digest_index(root: Path, versions: dict) -> None:
         "versions": versions,
     }
     (root / DIGEST_INDEX).write_text(
-        json.dumps(body, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        json.dumps(body, indent=MANIFEST_JSON_INDENT, sort_keys=True) + "\n", encoding="utf-8")
 
 
 def build_current_entry(root: Path) -> dict:

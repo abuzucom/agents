@@ -24,6 +24,7 @@ SYNC = REPO_ROOT / "scripts" / "sync.py"
 INDEX_NAME = "policy-digests.json"
 FIRST_VERSION = "1.2.0"
 SECOND_VERSION = "1.3.0"
+SHA256_HEX_LENGTH = 64
 
 
 def run_sync(cwd: Path, *args) -> subprocess.CompletedProcess:
@@ -215,7 +216,7 @@ class BackfillIndexTest(IndexFixture):
             versions[SECOND_VERSION]["shared"], self.first_shared["shared"])
 
     def test_backfill_keeps_an_existing_entry(self):
-        marker = {"policy": {"AGENTS.md": "0" * 64}, "shared": {}}
+        marker = {"policy": {"AGENTS.md": "0" * SHA256_HEX_LENGTH}, "shared": {}}
         (self.root / INDEX_NAME).write_text(
             json.dumps({"versions": {FIRST_VERSION: marker}}),
             encoding="utf-8")

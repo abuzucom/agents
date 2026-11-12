@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Run trusted compliance checks against one immutable Git tree."""
 import importlib.util
+import json
 import os
 import re
 import shutil
@@ -16,6 +17,8 @@ MAX_TREE_ENTRIES = 100_000
 MAX_VIOLATIONS = 1_000
 MAX_TREE_OUTPUT = 64 * 1024 * 1024
 MAX_GIT_DIAGNOSTIC = 64 * 1024
+# A runner event payload stays far below this bound. The cap bounds the read.
+MAX_EVENT_PAYLOAD_BYTES = 1024 * 1024
 MAX_DIAGNOSTIC_LENGTH = 500
 MAX_LATIN1_CODE_POINT = 0xFF
 UTF32_UNIT_BYTES = 4
@@ -735,6 +738,20 @@ def _scan_metadata(
     return violations
 
 
+def _has_pull_request_payload(event_path: str) -> bool:
+    """Return whether the runner event file contains pull request data."""
+    if not event_path:
+        return False
+    try:
+        path = Path(event_path)
+        if not path.is_file() or path.stat().st_size > MAX_EVENT_PAYLOAD_BYTES:
+            return False
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        return isinstance(payload, dict) and isinstance(payload.get("pull_request"), dict)
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        return False
+
+
 def _local_path_metadata(
     values: dict[str, str], repo: Path, checkers: dict[str, ModuleType],
     local_scanner: object,
@@ -748,7 +765,7 @@ def _local_path_metadata(
             repo, ["--end-of-options", f"{base}..{values['--tree']}"])
         findings += local_paths.scan_log(local_scanner, log)
     event_path = os.environ.get("GITHUB_EVENT_PATH", "")
-    if event_path:
+    if event_path and _has_pull_request_payload(event_path):
         findings += local_paths.scan_event(local_scanner, event_path)
     return _local_path_violations(findings)
 
