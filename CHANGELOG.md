@@ -14,7 +14,7 @@ into the entry. Dates never decrease. Ask the active human when a date is in
 doubt.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.17.1] (2026-11-12)
+## [2.18.0] (2026-11-12)
 
 ### Fixed
 - Skip the event payload scan in `scripts/check_compliance_tree.py` when the
@@ -24,6 +24,21 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   buffered and unbuffered streams.
 
 ### Added
+- Add `scripts/report_adoption_status.py`. The script lists an organization's
+  active, unforked repositories through the GitHub REST API. It matches each
+  repository's policy and gate files against `policy-digests.json`. Each row
+  reports the adopted version, its distance from the newest version,
+  synchronized copies, gate file coverage, client registrations, and the
+  reusable compliance workflow reference.
+- Write a dated Markdown and JSON report plus `latest` copies. Report the
+  changes since the previous `latest.json`.
+- Read the report token from `ADOPTION_REPORT_TOKEN`. Warn when the token
+  expires within 30 days. Fail the run on a rejected token or an unreadable
+  repository.
+- Accept the report form in `hooks/workflow-scripts.txt` with a
+  `consent-write` verdict.
+- Add `tests/test_report_adoption_status.py`. The tests serve a synthetic
+  organization from a loopback HTTP server.
 - Add `tests/test_compliance_tree_event_isolation.py`. The test covers a push
   event payload in the scanner environment.
 - Add `tests/test_trusted_gh_encoding.py`. The tests cover output on a stream
