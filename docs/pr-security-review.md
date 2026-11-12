@@ -14,7 +14,7 @@ the configured provider, posts a fenced report, and publishes a
 `security-review` check run.
 
 Both the reusable workflow and `audit_ref` are pinned to foucault commit
-`62851df1ef177593adbb9e06b223f5a6dce66fc0`, release 3.3.10. Keeping one
+`1334e5bf433d43f152762ea47eb89eb22f260e34`, release 3.7.7. Keeping one
 revision for both means the policy and its runner never diverge. Change the
 pin deliberately, and record the change in `CHANGELOG.md`.
 

@@ -8,14 +8,25 @@ import json
 import os
 import re
 import subprocess
+import sys
+import threading
 from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.parse import quote
 from urllib.request import Request, urlopen
 
 MAX_METADATA_BYTES = 1_000_000
+MAX_DIFF_BYTES = 3_000_000
+DEFAULT_DIFF_TIMEOUT_SECONDS = 60
 SHA_PATTERN = re.compile(r"[0-9a-f]{40}")
 REPOSITORY_PATTERN = re.compile(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+")
+# The workflow reads this exit code as "the diff exceeds review capacity"
+# and records a NEEDS-HUMAN verdict instead of failing.
+CAPACITY_EXIT_CODE = 3
+
+
+class DiffTooLargeError(RuntimeError):
+    """Report a pull request diff above the configured byte limit."""
 
 
 def _read_pull_request_from_api() -> dict[str, object]:
@@ -78,6 +89,87 @@ def _digest(text: str) -> str:
     return hashlib.sha256(text.replace("\r\n", "\n").encode()).hexdigest()
 
 
+def _read_bounded_stdout(
+    command: list[str],
+    maximum_bytes: int,
+    timeout: float = DEFAULT_DIFF_TIMEOUT_SECONDS,
+) -> str:
+    """Run one fixed command and reject output above the configured bound."""
+    with subprocess.Popen(
+        command,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+    ) as process:
+        if process.stdout is None:
+            raise RuntimeError("diff output could not be captured")
+        output: list[bytes] = []
+        read_error: list[BaseException] = []
+
+        def reader() -> None:
+            try:
+                output.append(process.stdout.read(maximum_bytes + 1))
+            except BaseException as error:
+                read_error.append(error)
+
+        thread = threading.Thread(target=reader, daemon=True)
+        thread.start()
+        thread.join(timeout=timeout)
+        if thread.is_alive():
+            process.kill()
+            if process.stdout is not None:
+                process.stdout.close()
+            process.wait()
+            thread.join(timeout=1.0)
+            raise RuntimeError(
+                "pull request diff timed out"
+            ) from subprocess.TimeoutExpired(command, timeout)
+        if read_error:
+            process.kill()
+            if process.stdout is not None:
+                process.stdout.close()
+            process.wait()
+            if thread.is_alive():
+                thread.join(timeout=1.0)
+            raise RuntimeError("diff output could not be captured") from read_error[0]
+        raw_output = output[0] if output else b""
+        if len(raw_output) > maximum_bytes:
+            process.kill()
+            if process.stdout is not None:
+                process.stdout.close()
+            process.wait()
+            if thread.is_alive():
+                thread.join(timeout=1.0)
+            raise DiffTooLargeError("pull request diff exceeds the configured limit")
+        try:
+            return_code = process.wait(timeout=timeout)
+        except subprocess.TimeoutExpired as error:
+            process.kill()
+            if process.stdout is not None:
+                process.stdout.close()
+            process.wait()
+            if thread.is_alive():
+                thread.join(timeout=1.0)
+            raise RuntimeError("pull request diff timed out") from error
+    if return_code:
+        raise RuntimeError("pull request diff could not be generated")
+    try:
+        return raw_output.decode("utf-8")
+    except UnicodeError as error:
+        raise RuntimeError("pull request diff is not valid UTF-8") from error
+
+
+def _policy_digest() -> str:
+    """Return the digest of the policy text the adapter sends as the prompt."""
+    path_text = os.environ.get("AUDIT_PROMPT_FILE") or ""
+    if not path_text:
+        raise RuntimeError("AUDIT_PROMPT_FILE is not configured")
+    try:
+        policy = Path(path_text).read_text(encoding="utf-8")
+    except (OSError, UnicodeError) as error:
+        raise RuntimeError("audit policy file is unreadable") from error
+    return _digest(policy)
+
+
 def build_case() -> dict[str, object]:
     """Build one PR envelope from trusted lifecycle data and target evidence."""
     with open(os.environ["EVENT_PATH"], encoding="utf-8") as event_file:
@@ -85,20 +177,27 @@ def build_case() -> dict[str, object]:
     if not isinstance(event, dict):
         raise RuntimeError("event payload is not an object")
     pull_request = _get_pull_request(event)
-    base_sha = os.environ.get("BASE_SHA", "")
-    head_sha = os.environ.get("HEAD_SHA", "")
+    base_sha = os.environ.get("BASE_SHA") or ""
+    head_sha = os.environ.get("HEAD_SHA") or ""
+    if not base_sha and isinstance(pull_request.get("base"), dict):
+        base_sha = str(pull_request["base"].get("sha") or "")
+    if not head_sha and isinstance(pull_request.get("head"), dict):
+        head_sha = str(pull_request["head"].get("sha") or "")
     if not SHA_PATTERN.fullmatch(base_sha) or not SHA_PATTERN.fullmatch(head_sha):
         raise RuntimeError("pull request revisions are invalid")
     title = pull_request.get("title")
     body = pull_request.get("body")
     if not isinstance(title, str) or not isinstance(body, (str, type(None))):
         raise RuntimeError("pull request title or body is invalid")
-    diff = subprocess.run(
-        ["git", "diff", base_sha, head_sha],
-        check=True,
-        capture_output=True,
-        text=True,
-    ).stdout
+    # Three dots diff from the merge base. A two-point diff against a base
+    # that advanced after the branch point also shows those base commits,
+    # reversed, as if the pull request removed them.
+    diff = _read_bounded_stdout(
+        ["git", "diff", "--no-ext-diff", "--no-textconv", f"{base_sha}...{head_sha}"],
+        MAX_DIFF_BYTES,
+        timeout=DEFAULT_DIFF_TIMEOUT_SECONDS,
+    )
+    policy_sha256 = _policy_digest()
     target = "Title: " + title + "\n\n" + (body or "")
     target += "\n\n---\n" + diff
     return {
@@ -109,6 +208,7 @@ def build_case() -> dict[str, object]:
             "text": "",
         },
         "REVIEW_TARGET": {"sha256": _digest(target), "text": target},
+        "policy_sha256": policy_sha256,
     }
 
 
@@ -120,8 +220,11 @@ def main() -> int:
             json.dumps(envelope, ensure_ascii=True, sort_keys=True),
             encoding="utf-8",
         )
+    except DiffTooLargeError as error:
+        print(f"case construction skipped: {error}", file=sys.stderr)
+        return CAPACITY_EXIT_CODE
     except (OSError, RuntimeError, subprocess.SubprocessError, ValueError) as error:
-        print(f"case construction failed: {error}", file=os.sys.stderr)
+        print(f"case construction failed: {error}", file=sys.stderr)
         return 1
     return 0
 

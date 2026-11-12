@@ -14,9 +14,18 @@ into the entry. Dates never decrease. Ask the active human when a date is in
 doubt.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.18.1] (2026-11-12)
+## [2.19.0] (2026-11-12)
 
 ### Fixed
+- Move the `abuzucom/foucault` security review pin from release 3.3.10 at
+  commit `62851df1ef177593adbb9e06b223f5a6dce66fc0` to release 3.7.7 at commit
+  `1334e5bf433d43f152762ea47eb89eb22f260e34`. Release 3.7.7 authenticates the
+  pull request head fetch. A private adopter failed that fetch before.
+  `audit_ref` moves with the pin.
+- Refresh `ci/build_pr_case.py`, `ci/call_model.py`, `ci/model_providers.json`,
+  and `scripts/check_pr_review_response.py` from that foucault commit. The
+  reusable workflow runs the caller's copies. The validator now rejects a
+  report line that opens in the first person.
 - Require `policy-digests.json` in `tests/test_sync_digest_index.py` only
   where `docs/agent-policy/source-orientation.md` exists. An adopter copies
   the test and holds no digest index.
@@ -27,6 +36,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   buffered and unbuffered streams.
 
 ### Added
+- Add `tests/test_review_response_narration.py`. The tests cover the
+  narration rule of the refreshed validator.
 - Add `tests/test_infrastructure_manifest_bound.py`. The tests reach the
   oversize branch of `_infrastructure_manifest_text` with a synthetic file.
   Hook coverage no longer depends on the size of `policy-digests.json`. An

@@ -12,33 +12,71 @@ from typing import Any
 VERDICT_PATTERN = re.compile(
     r"^VERDICT:\s*(APPROVE|BLOCK|NEEDS-HUMAN)(?:\s+-\s+.*)?$"
 )
+VERDICT_PREFIX = "VERDICT:"
 CLASS_PATTERN = re.compile(r"^2\.\d+$")
 VALID_SEVERITIES = {"CRITICAL", "HIGH", "MEDIUM", "LOW"}
 FINDING_KEYS = {"severity", "class", "file", "line", "title"}
 RESPONSE_LIMIT = 1_000_000
-# The program name precedes the response file path.
-EXPECTED_ARGUMENT_COUNT = 2
-USAGE_ERROR_EXIT_CODE = 2
+PROCESS_NARRATION_PATTERNS = (
+    re.compile(
+        r"^\s*(?:(?:[-*+])\s+|\d+[.)]\s+)?(?:i|we)\b",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"^\s*(?:(?:[-*+])\s+|\d+[.)]\s+)?(?:let me\b|let's\b|"
+        r"should i\b|could i\b|would i\b|"
+        r"do i\b|did i\b|am i\b|have i\b|wait(?:,|\s|$)|"
+        r"actually(?:,|\s|$)|on second thought\b|reconsider(?:ing)?\b|"
+        r"need to\b|inspect\b|trace\b|check whether\b|check if\b|"
+        r"now i\b|first i\b|what if\b|maybe (?:i|we)\b|"
+        r"perhaps (?:i|we)\b|should (?:this|that|it|the)\b|"
+        r"could (?:this|that|it)\b|would (?:this|that|it)\b|"
+        r"is this\b|does this\b)",
+        re.IGNORECASE,
+    ),
+)
+PRIOR_FINDING_STATUS_PATTERN = re.compile(
+    r"\b(?:prior|previous|earlier)\b[^\n]{0,120}"
+    r"\b(?:resolved|still open|remains open)\b",
+    re.IGNORECASE,
+)
 
 
 class ResponseError(ValueError):
     """Report a response-contract failure."""
 
 
-def _last_verdict(lines: list[str]) -> tuple[str, str]:
+def _last_verdict(response: str) -> tuple[str, str]:
+    """Return the verdict from the line the workflow gate reads.
+
+    The gate runs `grep -E '^VERDICT:' | tail -1`, so it reads the last
+    newline-delimited line that starts with VERDICT: at column zero.
+    Validating any other line lets a response pass with one verdict while
+    the gate acts on another. Splitting on newline alone matches grep:
+    splitlines() also breaks on carriage returns and form feeds, which grep
+    keeps inside one line.
+    """
+    lines = response.split("\n")
     if not any(line.strip() for line in lines):
         raise ResponseError("response is empty")
     for line in reversed(lines):
-        match = VERDICT_PATTERN.fullmatch(line.strip())
-        if match:
-            return match.group(1), line.strip()
-    raise ResponseError("no valid final VERDICT line")
+        if not line.startswith(VERDICT_PREFIX):
+            continue
+        candidate = line.rstrip()
+        match = VERDICT_PATTERN.fullmatch(candidate)
+        if not match:
+            raise ResponseError("final VERDICT line is malformed")
+        return match.group(1), candidate
+    raise ResponseError("no VERDICT line at column zero")
 
 
 def _parse_json_line(lines: list[str]) -> dict[str, Any]:
-    for line in reversed(lines):
+    json_index = None
+    for index in range(len(lines) - 1, -1, -1):
+        line = lines[index]
         if not line.startswith("VERDICT_JSON:"):
             continue
+        json_index = index
         payload = line[len("VERDICT_JSON:"):].lstrip()
         try:
             result = json.loads(payload)
@@ -46,8 +84,44 @@ def _parse_json_line(lines: list[str]) -> dict[str, Any]:
             raise ResponseError("VERDICT_JSON is not valid JSON") from error
         if not isinstance(result, dict):
             raise ResponseError("VERDICT_JSON is not an object")
-        return result
-    raise ResponseError("no VERDICT_JSON line")
+        break
+    if json_index is None:
+        raise ResponseError("no VERDICT_JSON line")
+    nonempty_indexes = [
+        index for index, line in enumerate(lines) if line.strip()
+    ]
+    if nonempty_indexes[-1] != json_index:
+        raise ResponseError("VERDICT_JSON must be the final report line")
+    verdict_indexes = [
+        index for index, line in enumerate(lines)
+        if line.startswith(VERDICT_PREFIX)
+    ]
+    if not verdict_indexes or json_index != verdict_indexes[-1] + 1:
+        raise ResponseError("VERDICT_JSON must immediately follow the final VERDICT line")
+    return result
+
+
+def process_narration_lines(response: str) -> list[int]:
+    """Return line numbers with clear first-person process narration."""
+    lines = response.split("\n")
+    verdict_indexes = [
+        index for index, line in enumerate(lines)
+        if line.startswith(VERDICT_PREFIX)
+    ]
+    if not verdict_indexes:
+        return []
+    narration_lines = []
+    fenced = False
+    for index, line in enumerate(lines[:verdict_indexes[-1]]):
+        stripped = line.lstrip()
+        if stripped.startswith("```"):
+            fenced = not fenced
+            continue
+        if fenced or stripped.startswith(">"):
+            continue
+        if any(pattern.match(line) for pattern in PROCESS_NARRATION_PATTERNS):
+            narration_lines.append(index + 1)
+    return narration_lines
 
 
 def _validate_finding(finding: Any) -> None:
@@ -75,9 +149,14 @@ def validate_response(response: str) -> tuple[str, dict[str, Any]]:
     """Validate one bounded PR response and return its verdict and JSON."""
     if len(response.encode("utf-8")) > RESPONSE_LIMIT:
         raise ResponseError("response exceeds the configured limit")
-    lines = response.splitlines()
-    verdict, _line = _last_verdict(lines)
-    payload = _parse_json_line(lines)
+    verdict, _line = _last_verdict(response)
+    narration_lines = process_narration_lines(response)
+    if narration_lines:
+        line_numbers = ", ".join(str(number) for number in narration_lines[:5])
+        raise ResponseError(
+            f"process narration appears on report line(s): {line_numbers}"
+        )
+    payload = _parse_json_line(response.split("\n"))
     if set(payload) != {"mode", "verdict", "findings"}:
         raise ResponseError("VERDICT_JSON has an invalid shape")
     if payload["mode"] != "PR" or payload["verdict"] != verdict:
@@ -92,11 +171,13 @@ def validate_response(response: str) -> tuple[str, dict[str, Any]]:
 
 def main() -> int:
     """Validate the response file and print a normalized verdict."""
-    if len(sys.argv) != EXPECTED_ARGUMENT_COUNT:
+    if len(sys.argv) != 2:
         print("usage: check_pr_review_response.py RESPONSE_FILE", file=sys.stderr)
-        return USAGE_ERROR_EXIT_CODE
+        return 2
     try:
-        response = Path(sys.argv[1]).read_text(encoding="utf-8")
+        # read_text() translates a bare carriage return into a newline. The
+        # gate's grep does not, so decode the raw bytes instead.
+        response = Path(sys.argv[1]).read_bytes().decode("utf-8")
         verdict, _payload = validate_response(response)
     except (OSError, UnicodeError, ResponseError) as error:
         print(f"invalid PR review response: {error}", file=sys.stderr)
