@@ -14,9 +14,25 @@ into the entry. Dates never decrease. Ask the active human when a date is in
 doubt.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.16.2] (2026-11-12)
+## [2.17.0] (2026-11-12)
+
+### Added
+- Add `policy-digests.json`. The index maps each released version to the
+  SHA-256 digests of its policy documents and shared gate files. An adoption
+  report matches adopter files against it to name the adopted version.
+- Record the current version in the index on every `python scripts/sync.py`
+  run. `python scripts/sync.py --check` fails on a missing or stale entry.
+  Both steps skip a repository without the index file.
+- Add `python scripts/sync.py --backfill-digests`. The flag adds an entry for
+  every released version in Git history. It reuses the shared digests each
+  revision recorded. Existing entries stay untouched.
+- Accept the `--backfill-digests` form in `hooks/workflow-scripts.txt` with a
+  `consent-write` verdict.
+- Add `tests/test_sync_digest_index.py`.
 
 ### Changed
+- Report stale copies and a stale digest index together in
+  `python scripts/sync.py --check`.
 - Name every numeric literal that the Euler M11 prescan flags in `hooks/`,
   `scripts/`, and `tests/`. The change covers 96 files and 512 candidates.
   Each literal becomes a named constant, a tuple unpack, or a length of a

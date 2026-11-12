@@ -43,6 +43,7 @@ Each checker covers only its inspected files and behavior.
 | `.claudeignore` | Claude Code context exclusions for generated, dependency, and secret-prone paths |
 | `.gitattributes`, `.editorconfig` | Shared text and editor defaults |
 | `scripts/sync.py`, `shared-files.json` | Local copy generation, adoptable output, and drift detection |
+| `policy-digests.json` | Per-version digests of policy documents and shared gate files for adoption reports |
 | `scripts/read_git_state.py`, `scripts/trusted_git.py` | Bounded Git state output and trusted Git execution |
 | `scripts/trusted_gh.py` | Trusted authenticated GitHub CLI execution and account metadata |
 | `scripts/run_tests.py` | Complete class-sharded parallel test execution |
@@ -349,6 +350,11 @@ An unlicensed target remains unlicensed unless that approval changes its status.
      `python scripts/sync.py --write-shared` in each repository and commit the
      refreshed manifest. Adapt `SHARED_FILES` and the manifest under the same
      approval process when an adopter has an approved subset.
+     Leave `policy-digests.json` in this repository. The index records the
+     digests of every released version here. `python scripts/sync.py`
+     records the current version. `python scripts/sync.py --check` verifies
+     it. `python scripts/sync.py --backfill-digests` adds versions from Git
+     history. A repository without the file skips every index step.
 16. Adopt hook coverage with `scripts/check_hook_coverage.py`,
       `tools/hook-trace/sitecustomize.py`, and
       `hook-coverage-baseline.json`. Copy `tests/test_hook_coverage_runner.py`
