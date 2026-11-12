@@ -27,6 +27,7 @@ consent-read scripts/sync.py --check-shared
 consent-read scripts/sync.py --print-adoptable
 consent-write scripts/sync.py
 consent-write scripts/sync.py --write-shared
+consent-write scripts/sync.py --backfill-digests
 
 allow scripts/check_action_pins.py
 allow scripts/check_agent_prose_gate.py --base <revision> --head <revision>
