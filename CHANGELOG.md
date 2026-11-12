@@ -14,6 +14,20 @@ into the entry. Dates never decrease. Ask the active human when a date is in
 doubt.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.16.2] (2026-11-12)
+
+### Changed
+- Name every numeric literal that the Euler M11 prescan flags in `hooks/`,
+  `scripts/`, and `tests/`. The change covers 96 files and 512 candidates.
+  Each literal becomes a named constant, a tuple unpack, or a length of a
+  named prefix. No behavior changes. No test assertion changes its expected
+  value.
+- State the reason for `MAX_CHAIN_PARTS`, `MAX_WORKFLOW_ARGUMENTS`, and
+  `MAX_WORKFLOW_SCRIPT_LIST_BYTES` in `hooks/_command_execution_gate.py`.
+- State the purpose of `EXCLUSIVE_TEST_SHARDS` and of the non-waiting executor
+  shutdown in `scripts/check_hook_coverage.py`.
+- Record new digests in `shared-files.json` for the changed shared files.
+
 ## [2.16.1] (2026-11-11)
 
 ### Added
