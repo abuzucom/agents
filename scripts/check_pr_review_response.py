@@ -16,6 +16,9 @@ CLASS_PATTERN = re.compile(r"^2\.\d+$")
 VALID_SEVERITIES = {"CRITICAL", "HIGH", "MEDIUM", "LOW"}
 FINDING_KEYS = {"severity", "class", "file", "line", "title"}
 RESPONSE_LIMIT = 1_000_000
+# The program name precedes the response file path.
+EXPECTED_ARGUMENT_COUNT = 2
+USAGE_ERROR_EXIT_CODE = 2
 
 
 class ResponseError(ValueError):
@@ -89,9 +92,9 @@ def validate_response(response: str) -> tuple[str, dict[str, Any]]:
 
 def main() -> int:
     """Validate the response file and print a normalized verdict."""
-    if len(sys.argv) != 2:
+    if len(sys.argv) != EXPECTED_ARGUMENT_COUNT:
         print("usage: check_pr_review_response.py RESPONSE_FILE", file=sys.stderr)
-        return 2
+        return USAGE_ERROR_EXIT_CODE
     try:
         response = Path(sys.argv[1]).read_text(encoding="utf-8")
         verdict, _payload = validate_response(response)
