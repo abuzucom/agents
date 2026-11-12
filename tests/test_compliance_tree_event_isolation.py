@@ -8,6 +8,7 @@ import unittest
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
+SHA_HEX_LENGTH = 40
 sys.path.insert(0, str(REPO_ROOT))
 sys.path.insert(0, str(REPO_ROOT / "tests"))
 
@@ -68,7 +69,7 @@ class ComplianceTreeEventIsolationTest(unittest.TestCase):
 
             event_path = repo / "push_event.json"
             event_path.write_text(
-                json.dumps({"ref": "refs/heads/main", "before": "0" * 40}),
+                json.dumps({"ref": "refs/heads/main", "before": "0" * SHA_HEX_LENGTH}),
                 encoding="utf-8",
             )
 

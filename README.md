@@ -43,6 +43,7 @@ Each checker covers only its inspected files and behavior.
 | `.claudeignore` | Claude Code context exclusions for generated, dependency, and secret-prone paths |
 | `.gitattributes`, `.editorconfig` | Shared text and editor defaults |
 | `scripts/sync.py`, `shared-files.json` | Local copy generation, adoptable output, and drift detection |
+| `policy-digests.json` | Per-version digests of policy documents and shared gate files for adoption reports |
 | `scripts/read_git_state.py`, `scripts/trusted_git.py` | Bounded Git state output and trusted Git execution |
 | `scripts/trusted_gh.py` | Trusted authenticated GitHub CLI execution and account metadata |
 | `scripts/run_tests.py` | Complete class-sharded parallel test execution |
@@ -349,6 +350,11 @@ An unlicensed target remains unlicensed unless that approval changes its status.
      `python scripts/sync.py --write-shared` in each repository and commit the
      refreshed manifest. Adapt `SHARED_FILES` and the manifest under the same
      approval process when an adopter has an approved subset.
+     Leave `policy-digests.json` in this repository. The index records the
+     digests of every released version here. `python scripts/sync.py`
+     records the current version. `python scripts/sync.py --check` verifies
+     it. `python scripts/sync.py --backfill-digests` adds versions from Git
+     history. A repository without the file skips every index step.
 16. Adopt hook coverage with `scripts/check_hook_coverage.py`,
       `tools/hook-trace/sitecustomize.py`, and
       `hook-coverage-baseline.json`. Copy `tests/test_hook_coverage_runner.py`
@@ -680,10 +686,31 @@ shell command. Its denials and consent prompts name
 `hooks/_command_execution_gate.py` instead of the branch hook. A denial that
 names this file concerns the command, not the branch name. General interpreter
 commands and unlisted script invocations receive no exception.
-Fixed repository test, state, synchronization, and trusted GitHub commands request
-native consent. Listed Makefile targets and literal `rg` searches also request consent.
-Workflow requests reject wrappers, chains, redirection, and shell expansion.
-Unattended Claude sessions and clients without an implemented consent response deny.
+`hooks/workflow-scripts.txt` lists each accepted repository script form with a
+verdict. An `allow` form runs without a prompt and only inspects the repository.
+A `consent-read` or `consent-write` form requests native consent. A missing or
+malformed list denies every repository script call.
+These forms also run without a prompt:
+
+- `python -m unittest tests.<module>` and `python -m unittest discover` with
+  optional `-s`, `-t`, `-p`, `-v`, and `-q`
+- `ruff check` without `--fix`, `ruff format --check`, and either command with
+  `--diff`, including the `python -m ruff` spelling
+- a literal `rg` search whose operands stay inside the repository
+
+`ruff format` and `ruff check --fix` rewrite files and request consent. Other
+`rg` searches, listed Makefile targets, `scripts/run_tests.py`, synchronization,
+and trusted GitHub commands request consent.
+The gate denies a `ruff` executable that PATH resolves inside the repository.
+The gate denies `python -m ruff` when a root `ruff.py` or `ruff/` shadows the
+module. An `allow` form asks instead when PATH resolves its program inside the
+repository.
+A workflow accepts an `&&` chain of up to eight accepted forms. The chain takes
+the strictest verdict of its parts. Workflow requests reject wrappers, other
+operators, `#`, redirection, and shell expansion.
+A denial for Ruff, unittest, or a repository script lists the accepted forms.
+Unattended Claude sessions and clients without an implemented consent response
+deny every consent form. `allow` forms pass for every client.
 Other shell commands must use the explicit inspectable-program allowlist.
 Script paths cannot claim an allowlisted program name. Push commands require
 an explicit target refspec. Input-driven and privilege-changing wrappers deny.

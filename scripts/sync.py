@@ -15,8 +15,10 @@ belongs in the drift record. Both need somebody to look.
 import hashlib
 import json
 import os
+import re
 import shutil
 import stat
+import subprocess
 import sys
 import tempfile
 from pathlib import Path
@@ -28,6 +30,7 @@ REPOSITORY_ONLY_END = "<!-- repository-only:end -->"
 SOURCE_ONLY_START = "<!-- source-only:start -->"
 SOURCE_ONLY_END = "<!-- source-only:end -->"
 MAX_POLICY_BYTES = 64 * 1024
+MANIFEST_JSON_INDENT = 2
 # Files that must be byte-identical wherever these gates are installed. A
 # decision reached by one gate and not the other is the failure the whole
 # design exists to prevent, so the files carrying decisions are listed here
@@ -84,6 +87,19 @@ ADOPTER_POLICY_FILES = (
 )
 SOURCE_ONLY_POLICY_FILES = ("docs/agent-policy/source-orientation.md",)
 SUPPORTING_POLICY_FILES = ADOPTER_POLICY_FILES
+# The digest index maps each released version to the digests of its policy
+# and shared gate files. Only the source repository holds one. Adopters copy
+# this script without it, so every index step skips when the file is absent.
+DIGEST_INDEX = "policy-digests.json"
+CHANGELOG = "CHANGELOG.md"
+POLICY_DIRECTORY = "docs/agent-policy"
+# Every adopter rewrites the orientation file, so its digest never matches.
+UNINDEXED_POLICY_FILES = frozenset(
+    ("docs/project-orientation.md",) + SOURCE_ONLY_POLICY_FILES)
+VERSION_HEADING = re.compile(r"^## \[(\d+\.\d+\.\d+)\]")
+DIGEST_PATTERN = re.compile(r"^[0-9a-f]{64}$")
+REVISION_PATTERN = re.compile(r"^[0-9a-f]{40}$")
+GIT_TIMEOUT_SECONDS = 60
 
 
 def policy_bytes(root: Path) -> bytes:
@@ -349,7 +365,12 @@ def content_digest(path: Path) -> str:
     shared file as drift. SHA-256 rather than a faster hash because this
     is an integrity comparison, not a cache key (Rule 7).
     """
-    body = path.read_text(encoding="utf-8").replace("\r\n", "\n")
+    return text_digest(path.read_text(encoding="utf-8"))
+
+
+def text_digest(text: str) -> str:
+    """Return the SHA-256 of text with line endings normalized."""
+    body = text.replace("\r\n", "\n")
     return hashlib.sha256(body.encode("utf-8")).hexdigest()
 
 
@@ -426,8 +447,184 @@ def write_shared(root: Path) -> int:
         "shared": recorded,
     }
     (root / SHARED_MANIFEST).write_text(
-        json.dumps(body, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        json.dumps(body, indent=MANIFEST_JSON_INDENT, sort_keys=True) + "\n", encoding="utf-8")
     print(f"recorded {len(recorded)} shared files in {SHARED_MANIFEST}")
+    return 0
+
+
+def read_release_version(changelog_text: str) -> str | None:
+    """Return the newest released version named in changelog text."""
+    for line in changelog_text.splitlines():
+        match = VERSION_HEADING.match(line)
+        if match:
+            return match.group(1)
+    return None
+
+
+def read_digest_index(root: Path) -> dict | None:
+    """Return the version map of the digest index, or None when unusable."""
+    try:
+        body = json.loads((root / DIGEST_INDEX).read_text(encoding="utf-8"))
+    except (OSError, ValueError) as error:
+        print(f"error: {DIGEST_INDEX} cannot be read ({error}). Restore it "
+              "from version control.", file=sys.stderr)
+        return None
+    versions = body.get("versions") if isinstance(body, dict) else None
+    if not isinstance(versions, dict):
+        print(f"error: {DIGEST_INDEX} holds no version map. Restore it from "
+              "version control.", file=sys.stderr)
+        return None
+    return versions
+
+
+def write_digest_index(root: Path, versions: dict) -> None:
+    """Write the version map to the digest index in a stable order."""
+    body = {
+        "note": ("SHA-256 of the policy and shared gate files of every "
+                 "released version. Line endings are normalized before "
+                 "hashing. scripts/sync.py records the current version. "
+                 "scripts/sync.py --backfill-digests adds versions from Git "
+                 "history."),
+        "versions": versions,
+    }
+    (root / DIGEST_INDEX).write_text(
+        json.dumps(body, indent=MANIFEST_JSON_INDENT, sort_keys=True) + "\n", encoding="utf-8")
+
+
+def build_current_entry(root: Path) -> dict:
+    """Return the digest entry describing the working tree."""
+    policy_names = [SOURCE] + [
+        name for name in ADOPTER_POLICY_FILES
+        if name not in UNINDEXED_POLICY_FILES]
+    return {
+        "policy": {name: content_digest(root / name) for name in policy_names},
+        "shared": {name: content_digest(root / name) for name in SHARED_FILES},
+    }
+
+
+def sync_digest_index(root: Path, check_only: bool) -> int:
+    """Record the current version's digests, or with --check verify them."""
+    if not (root / DIGEST_INDEX).is_file():
+        return 0
+    versions = read_digest_index(root)
+    if versions is None:
+        return 1
+    try:
+        changelog_text = (root / CHANGELOG).read_text(encoding="utf-8")
+        entry = build_current_entry(root)
+    except (OSError, UnicodeDecodeError) as error:
+        print(f"error: {DIGEST_INDEX} inputs cannot be read ({error})",
+              file=sys.stderr)
+        return 1
+    version = read_release_version(changelog_text)
+    if version is None:
+        print(f"error: {CHANGELOG} names no released version for "
+              f"{DIGEST_INDEX}. Add a version heading.", file=sys.stderr)
+        return 1
+    if versions.get(version) == entry:
+        print(f"{DIGEST_INDEX} matches version {version}")
+        return 0
+    if check_only:
+        print(f"{DIGEST_INDEX} does not match version {version}",
+              file=sys.stderr)
+        print("run: make sync (or python scripts/sync.py)", file=sys.stderr)
+        return 1
+    versions[version] = entry
+    write_digest_index(root, versions)
+    print(f"recorded version {version} in {DIGEST_INDEX}")
+    return 0
+
+
+def read_git_output(root: Path, *arguments: str) -> str | None:
+    """Return the output of one Git command, or None when it fails."""
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(root), *arguments], capture_output=True,
+            check=False, timeout=GIT_TIMEOUT_SECONDS)
+        if result.returncode != 0:
+            return None
+        return result.stdout.decode("utf-8")
+    except (OSError, subprocess.TimeoutExpired, UnicodeDecodeError):
+        return None
+
+
+def list_revision_policy_files(root: Path, revision: str) -> list:
+    """Return the indexed policy paths that exist at one revision."""
+    listing = read_git_output(
+        root, "ls-tree", "--name-only", revision, f"{POLICY_DIRECTORY}/")
+    names = [SOURCE]
+    for name in (listing or "").splitlines():
+        if name.endswith(".md") and name not in UNINDEXED_POLICY_FILES:
+            names.append(name)
+    return names
+
+
+def read_revision_shared(root: Path, revision: str) -> dict:
+    """Return the shared digests one revision recorded in its manifest."""
+    manifest_text = read_git_output(
+        root, "show", f"{revision}:{SHARED_MANIFEST}")
+    if manifest_text is None:
+        return {}
+    try:
+        recorded = json.loads(manifest_text).get("shared", {})
+    except (AttributeError, ValueError):
+        return {}
+    if not isinstance(recorded, dict):
+        return {}
+    return {name: digest for name, digest in recorded.items()
+            if isinstance(digest, str) and DIGEST_PATTERN.match(digest)}
+
+
+def build_revision_entry(root: Path, revision: str) -> dict:
+    """Return the digest entry describing one committed revision."""
+    policy = {}
+    for name in list_revision_policy_files(root, revision):
+        text = read_git_output(root, "show", f"{revision}:{name}")
+        if text is not None:
+            policy[name] = text_digest(text)
+    return {"policy": policy, "shared": read_revision_shared(root, revision)}
+
+
+def find_version_revisions(root: Path) -> dict | None:
+    """Map each released version to the newest revision that names it."""
+    history = read_git_output(root, "rev-list", "--first-parent", "HEAD")
+    if history is None:
+        return None
+    revisions = {}
+    for revision in history.splitlines():
+        if not REVISION_PATTERN.match(revision):
+            continue
+        changelog_text = read_git_output(
+            root, "show", f"{revision}:{CHANGELOG}")
+        version = read_release_version(changelog_text or "")
+        if version is not None and version not in revisions:
+            revisions[version] = revision
+    return revisions
+
+
+def backfill_digest_index(root: Path) -> int:
+    """Add an index entry for every released version found in Git history.
+
+    Existing entries stay untouched, so a repeated run changes nothing.
+    """
+    if not (root / DIGEST_INDEX).is_file():
+        print(f"error: {DIGEST_INDEX} is missing. Only the source repository "
+              "holds a digest index.", file=sys.stderr)
+        return 1
+    versions = read_digest_index(root)
+    if versions is None:
+        return 1
+    revisions = find_version_revisions(root)
+    if revisions is None:
+        print("error: Git history cannot be read. Run the backfill inside a "
+              "complete clone.", file=sys.stderr)
+        return 1
+    missing = [version for version in revisions if version not in versions]
+    for version in missing:
+        versions[version] = build_revision_entry(root, revisions[version])
+    if missing:
+        write_digest_index(root, versions)
+    print(f"added {len(missing)} versions to {DIGEST_INDEX}")
     return 0
 
 
@@ -440,7 +637,15 @@ def main(argv: list) -> int:
         return check_shared(root)
     if "--write-shared" in argv:
         return write_shared(root)
-    return sync_copies(check_only="--check" in argv)
+    if "--backfill-digests" in argv:
+        return backfill_digest_index(root)
+    check_only = "--check" in argv
+    copy_status = sync_copies(check_only)
+    # A check reports stale copies and a stale index together. A write stops
+    # at a failed copy, so the index never records a half-synchronized tree.
+    if copy_status != 0 and not check_only:
+        return copy_status
+    return max(copy_status, sync_digest_index(root, check_only))
 
 
 if __name__ == "__main__":

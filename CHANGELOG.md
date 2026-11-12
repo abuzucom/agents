@@ -14,27 +14,109 @@ into the entry. Dates never decrease. Ask the active human when a date is in
 doubt.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.15.3] (2026-11-08)
+## [2.17.1] (2026-11-12)
 
 ### Fixed
-- Validate runner event payloads structurally before scanning in
-  `scripts/check_compliance_tree.py`.
-- Support buffered and unbuffered stream encoding error replacement in
-  `scripts/trusted_gh.py`.
-- Remove temporary directory mutations and unused imports from tests.
-
-## [2.15.2] (2026-11-07)
+- Skip the event payload scan in `scripts/check_compliance_tree.py` when the
+  runner event file holds no pull request data. A push event no longer fails
+  the scan. The check validates the payload structure and bounds its size.
+- Replace unencodable characters in `scripts/trusted_gh.py` output for
+  buffered and unbuffered streams.
 
 ### Added
-- Add `tests/test_compliance_tree_event_isolation.py` testing runner push-event
-  payload isolation in `check_compliance_tree.py`.
-- Add `tests/test_trusted_gh_encoding.py` testing `trusted_gh.py` stream encoding
-  resilience against unencodable terminal output.
+- Add `tests/test_compliance_tree_event_isolation.py`. The test covers a push
+  event payload in the scanner environment.
+- Add `tests/test_trusted_gh_encoding.py`. The tests cover output on a stream
+  with a restricted encoding.
+- Add `policy-digests.json`. The index maps each released version to the
+  SHA-256 digests of its policy documents and shared gate files. An adoption
+  report matches adopter files against it to name the adopted version.
+- Record the current version in the index on every `python scripts/sync.py`
+  run. `python scripts/sync.py --check` fails on a missing or stale entry.
+  Both steps skip a repository without the index file.
+- Add `python scripts/sync.py --backfill-digests`. The flag adds an entry for
+  every released version in Git history. It reuses the shared digests each
+  revision recorded. Existing entries stay untouched.
+- Accept the `--backfill-digests` form in `hooks/workflow-scripts.txt` with a
+  `consent-write` verdict.
+- Add `tests/test_sync_digest_index.py`.
+
+### Changed
+- Report stale copies and a stale digest index together in
+  `python scripts/sync.py --check`.
+- Drop the `_infrastructure_manifest_text` limit from
+  `hook-coverage-baseline.json`. The digest index exceeds the 64 KiB manifest
+  bound. A hook test now reaches the oversize branch.
+- Name every numeric literal that the Euler M11 prescan flags in `hooks/`,
+  `scripts/`, and `tests/`. The change covers 96 files and 512 candidates.
+  Each literal becomes a named constant, a tuple unpack, or a length of a
+  named prefix. No behavior changes. No test assertion changes its expected
+  value.
+- State the reason for `MAX_CHAIN_PARTS`, `MAX_WORKFLOW_ARGUMENTS`, and
+  `MAX_WORKFLOW_SCRIPT_LIST_BYTES` in `hooks/_command_execution_gate.py`.
+- State the purpose of `EXCLUSIVE_TEST_SHARDS` and of the non-waiting executor
+  shutdown in `scripts/check_hook_coverage.py`.
+- Record new digests in `shared-files.json` for the changed shared files.
+
+## [2.16.1] (2026-11-11)
+
+### Added
+- Add an `allow` verdict to `workflow_decision` in
+  `hooks/_command_execution_gate.py`. An allowed form runs without a prompt for
+  every client, including Codex and unattended Claude sessions.
+- Add `hooks/workflow-scripts.txt`. The list names each accepted repository
+  script form with an `allow`, `consent-read`, or `consent-write` verdict. It
+  covers the checker invocations in the Makefile, `.pre-commit-config.yaml`,
+  and CI, plus local report and advice flags. A missing or malformed list
+  denies every repository script call.
+- Accept `python -m unittest discover` with optional `-s`, `-t`, `-p`, `-v`,
+  and `-q`. Directories must resolve inside the repository.
+- Accept `ruff check` and `ruff format` with a fixed flag list, including the
+  `python -m ruff` spelling. Checking forms run without a prompt. `ruff format`
+  and `ruff check --fix` request consent.
+- Deny a `ruff` executable that PATH resolves inside the repository. Deny
+  `python -m ruff` when a root `ruff.py` or `ruff/` shadows the module.
+- Accept `&&` chains of up to eight accepted workflow forms. A chain takes the
+  strictest verdict of its parts.
+- List the accepted forms in the denial for Ruff, unittest, and repository
+  script commands.
+- Require `hooks/workflow-scripts.txt` in `scripts/check_gate_adoption.py`.
+- Add `tests/test_workflow_allow_verdict.py` covering module verdicts and the
+  hook outcome for Claude and Codex.
+
+### Changed
+- Run `python -m unittest tests.<module>`, `scripts/read_git_state.py`,
+  `scripts/check_action_pins.py`, `scripts/check_gate_adoption.py`, and
+  repository-bound `rg` searches without a prompt. Each requested consent
+  before.
+- Request consent for an unprompted form when PATH resolves its program inside
+  the repository.
+- Request consent for an `rg` search with an absolute, home-relative, or
+  parent-directory operand.
+- Name primary branches beside protected branches in Rule 5 of `AGENTS.md`.
+  Some repositories carry no branch protection.
+- Align the handoff consent sentence in `docs/agent-policy/adoption.md` with
+  the command execution gate. Builds and consent-routed workflows need consent.
+- Move the `scripts/prose_bans.txt` file format and the
+  `scripts/check_hedging.py` exit-code detail from `AGENTS.md` to
+  `docs/agent-policy/enforcement.md`.
+
+### Removed
+- Remove repeated passages, examples, and explanations from `AGENTS.md` and
+  the five linked policy documents. The assembled policy shrinks by about 3 KB.
+  Adopter orientation files gain that room under the 64 KiB limit.
+- Remove the Rule 15 pointer to `docs/agent-policy/github.md` for the SSH
+  distinction. That document never held the text.
+
+### Fixed
+- Reject workflow commands that contain `#`. The tokenizer ends a word at `#`.
+  Bash does not. A hidden second command could follow a matched form.
+- Reject workflow tokens made only of operator characters, such as `|&`.
+
+## [2.15.1] (2026-11-07)
 
 
 ### Fixed
-- Handle non-pull-request event payloads safely in `scripts/check_compliance_tree.py`
-  when runner environment `GITHUB_EVENT_PATH` lacks pull request metadata.
 - Preserve external `GH_CONFIG_DIR` in `trusted_gh.py` child execution while
   removing relative or repository-contained directory targets.
 
