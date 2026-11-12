@@ -44,6 +44,7 @@ Each checker covers only its inspected files and behavior.
 | `.gitattributes`, `.editorconfig` | Shared text and editor defaults |
 | `scripts/sync.py`, `shared-files.json` | Local copy generation, adoptable output, and drift detection |
 | `policy-digests.json` | Per-version digests of policy documents and shared gate files for adoption reports |
+| `scripts/report_adoption_status.py` | Organization adoption report matched against `policy-digests.json` |
 | `scripts/read_git_state.py`, `scripts/trusted_git.py` | Bounded Git state output and trusted Git execution |
 | `scripts/trusted_gh.py` | Trusted authenticated GitHub CLI execution and account metadata |
 | `scripts/run_tests.py` | Complete class-sharded parallel test execution |
@@ -355,6 +356,13 @@ An unlicensed target remains unlicensed unless that approval changes its status.
      records the current version. `python scripts/sync.py --check` verifies
      it. `python scripts/sync.py --backfill-digests` adds versions from Git
      history. A repository without the file skips every index step.
+     `python scripts/report_adoption_status.py --config <path> --index <path>
+     --output <path>` writes an adoption report for one organization. The
+     config file holds an `organization` name and an `exclude` list. The
+     script reads its token from `ADOPTION_REPORT_TOKEN`. The token needs
+     read access to repository contents and metadata. Run the report from a
+     private repository. A public workflow log exposes private repository
+     names.
 16. Adopt hook coverage with `scripts/check_hook_coverage.py`,
       `tools/hook-trace/sitecustomize.py`, and
       `hook-coverage-baseline.json`. Copy `tests/test_hook_coverage_runner.py`
