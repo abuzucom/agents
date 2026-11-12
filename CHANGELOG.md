@@ -27,6 +27,10 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   buffered and unbuffered streams.
 
 ### Added
+- Add `tests/test_infrastructure_manifest_bound.py`. The tests reach the
+  oversize branch of `_infrastructure_manifest_text` with a synthetic file.
+  Hook coverage no longer depends on the size of `policy-digests.json`. An
+  adopter without the index matches the baseline.
 - Add `scripts/report_adoption_status.py`. The script lists an organization's
   active, unforked repositories through the GitHub REST API. It matches each
   repository's policy and gate files against `policy-digests.json`. Each row
