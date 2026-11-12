@@ -17,6 +17,9 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ## [2.18.0] (2026-11-12)
 
 ### Fixed
+- Require `policy-digests.json` in `tests/test_sync_digest_index.py` only
+  where `docs/agent-policy/source-orientation.md` exists. An adopter copies
+  the test and holds no digest index.
 - Skip the event payload scan in `scripts/check_compliance_tree.py` when the
   runner event file holds no pull request data. A push event no longer fails
   the scan. The check validates the payload structure and bounds its size.

@@ -22,6 +22,9 @@ import sync
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SYNC = REPO_ROOT / "scripts" / "sync.py"
 INDEX_NAME = "policy-digests.json"
+# Only the source repository holds this file. Adopters copy this test and
+# hold no digest index.
+SOURCE_MARKER = REPO_ROOT / "docs" / "agent-policy" / "source-orientation.md"
 FIRST_VERSION = "1.2.0"
 SECOND_VERSION = "1.3.0"
 SHA256_HEX_LENGTH = 64
@@ -244,7 +247,8 @@ class LiveIndexTest(unittest.TestCase):
     """This repository's committed index describes its current release."""
 
     def test_the_committed_index_matches_this_tree(self):
-        self.assertTrue((REPO_ROOT / INDEX_NAME).is_file())
+        if SOURCE_MARKER.is_file():
+            self.assertTrue((REPO_ROOT / INDEX_NAME).is_file())
         result = run_sync(REPO_ROOT, "--check")
         self.assertEqual(result.returncode, 0, result.stderr)
 

@@ -10,6 +10,7 @@ import datetime
 import http.server
 import io
 import json
+import socketserver
 import sys
 import tempfile
 import threading
@@ -28,6 +29,8 @@ OLD_VERSION = "1.0.0"
 NEW_VERSION = "2.0.0"
 REPORT_DATE = datetime.date(2026, 1, 4)
 PINNED_REFERENCE = "a" * 40
+# A short poll keeps server shutdown from dominating each test.
+SERVER_POLL_SECONDS = 0.01
 HTTP_OK = 200
 HTTP_UNAUTHORIZED = 401
 HTTP_NOT_FOUND = 404
@@ -155,15 +158,26 @@ class OrganizationHandler(http.server.BaseHTTPRequestHandler):
                 for name, details in self.server.organization.items()]
 
 
+class LoopbackServer(socketserver.ThreadingTCPServer):
+    """A threaded loopback server without the HTTPServer host name lookup.
+
+    http.server.HTTPServer resolves its own host name on every bind. That
+    lookup takes seconds on some runners and adds nothing on loopback.
+    """
+
+    allow_reuse_address = True
+
+
 class ReportFixture(unittest.TestCase):
     """A loopback GitHub stand-in plus index, config, and output paths."""
 
     def setUp(self):
-        self.server = http.server.ThreadingHTTPServer(
-            ("127.0.0.1", 0), OrganizationHandler)
+        self.server = LoopbackServer(("127.0.0.1", 0), OrganizationHandler)
         self.server.organization = build_organization()
         self.server.token_expiry = FAR_EXPIRY
-        self.thread = threading.Thread(target=self.server.serve_forever)
+        self.thread = threading.Thread(
+            target=self.server.serve_forever,
+            kwargs={"poll_interval": SERVER_POLL_SECONDS})
         self.thread.start()
         self.addCleanup(self.stop_server)
         self.tmp = tempfile.TemporaryDirectory()
