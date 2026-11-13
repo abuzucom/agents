@@ -23,6 +23,11 @@ instruction.
 Client APIs differ. Do not claim coverage that the client cannot observe.
 Repository hooks remain defense in depth only.
 
+The reinjection hook states external hook precedence on every lifecycle
+event. No repository check verifies model compliance.
+Multi-repository cloud sessions load no repository hooks. The rule reaches
+those sessions only through the synchronized policy copies.
+
 A multi-repository Claude Code cloud session starts above the clones. It loads
 no repository hooks. Agents there run the branch checker manually. A setup
 script running `pre-commit install --hook-type pre-push` restores the pre-push
