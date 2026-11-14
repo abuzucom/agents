@@ -102,10 +102,10 @@ jobs:
   review:
     needs: resolve-pr
     if: needs.resolve-pr.result == 'success' && needs.resolve-pr.outputs.same_repository == 'true' && needs.resolve-pr.outputs.already_reviewed != 'true'
-    uses: abuzucom/foucault/.github/workflows/security-review.yml@1334e5bf433d43f152762ea47eb89eb22f260e34
+    uses: abuzucom/foucault/.github/workflows/security-review.yml@11e55cd691e9a2be086a4fb9378f490d4121e11c
     with:
-      # Foucault 3.7.7 policy revision.
-      audit_ref: "1334e5bf433d43f152762ea47eb89eb22f260e34"
+      # Foucault 3.7.13 policy revision.
+      audit_ref: "11e55cd691e9a2be086a4fb9378f490d4121e11c"
       model_call_command: "python3 ci/call_model.py"
       pr_comment: true
       fail_on_block: true
