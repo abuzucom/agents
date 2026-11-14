@@ -2,6 +2,7 @@
 """Provide shared advisory prose-policy analysis."""
 from __future__ import annotations
 
+import os
 import re
 from dataclasses import dataclass
 from pathlib import Path
@@ -164,10 +165,12 @@ def _normalize_path(path: str | Path) -> str:
     """Return a slash-normalized repository-relative path when possible."""
     candidate = Path(path)
     if candidate.is_absolute():
-        try:
-            candidate = candidate.resolve().relative_to(ROOT.resolve())
-        except (OSError, ValueError):
-            pass
+        # realpath never raises in non-strict mode. A path outside the
+        # repository stays absolute and matches no repository-relative entry.
+        resolved = Path(os.path.realpath(candidate))
+        root = Path(os.path.realpath(ROOT))
+        if resolved.is_relative_to(root):
+            candidate = resolved.relative_to(root)
     normalized = str(candidate).replace("\\", "/")
     while normalized.startswith("./"):
         normalized = normalized.removeprefix("./")

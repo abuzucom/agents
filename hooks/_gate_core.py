@@ -1535,6 +1535,9 @@ def protected_write_verdict(program: str, args: list,
 
 MAX_CONFIG_BYTES = 256 * 1024
 MAX_REPO_DISCOVERY_DEPTH = 100
+DOT_GIT_PRESENT = "present"
+DOT_GIT_ABSENT = "absent"
+DOT_GIT_UNREADABLE = "unreadable"
 # Keys whose value names a program git runs during an ordinary read.
 EXEC_CAPABLE_KEYS = frozenset({
     "core.fsmonitor", "core.pager", "core.editor", "core.sshcommand",
@@ -1787,6 +1790,21 @@ def _parent_repository_dir(current: str, device: int) -> tuple:
     return parent, ""
 
 
+def _dot_git_status(dot_git: str) -> str:
+    """Classify one .git entry as present, absent, or unreadable.
+
+    Only a missing entry lets discovery continue upward. Any other stat
+    failure stays distinct so the caller fails closed.
+    """
+    try:
+        os.stat(dot_git)
+    except FileNotFoundError:
+        return DOT_GIT_ABSENT
+    except OSError:
+        return DOT_GIT_UNREADABLE
+    return DOT_GIT_PRESENT
+
+
 def _discover_dot_git(cwd: str) -> tuple:
     """Return the .git entry Git discovers upward, or an inspection error."""
     current = os.path.realpath(cwd or ".")
@@ -1796,13 +1814,10 @@ def _discover_dot_git(cwd: str) -> tuple:
         return None, "the repository search root could not be inspected"
     for _depth in range(MAX_REPO_DISCOVERY_DEPTH):
         dot_git = os.path.join(current, ".git")
-        try:
-            os.stat(dot_git)
-        except FileNotFoundError:
-            pass
-        except OSError:
+        status = _dot_git_status(dot_git)
+        if status == DOT_GIT_UNREADABLE:
             return None, "a parent repository entry could not be inspected"
-        else:
+        if status == DOT_GIT_PRESENT:
             return dot_git, ""
         parent, reason = _parent_repository_dir(current, device)
         if parent is None:

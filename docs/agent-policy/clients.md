@@ -31,7 +31,9 @@ those sessions only through the synchronized policy copies.
 A multi-repository Claude Code cloud session starts above the clones. It loads
 no repository hooks. Agents there run the branch checker manually. A setup
 script running `pre-commit install --hook-type pre-push` restores the pre-push
-check.
+check. Start a cloud session with one repository as the norm. The session then
+opens inside that repository and loads its hooks natively. Use a separate
+session for each repository of cross-repository work.
 
 ## Compaction events
 Claude and Codex report compaction through the session payload `source`

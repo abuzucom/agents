@@ -11,15 +11,21 @@ import urllib.parse
 from pathlib import Path
 
 # The proxy constants stay importable from this module for existing callers.
+# Executable resolution, the repository-containment test, and PATH filtering
+# come from trusted_git so both wrappers apply one set of rules.
 try:
     from scripts.trusted_git import (
         MANAGED_PROXY_HOST, MANAGED_PROXY_PORT, PROXY_VARIABLES,
         is_managed_proxy_placeholder, sanitize_managed_proxy,
+        is_inside_directory as _is_inside, resolve_executable,
+        safe_search_path as _safe_search_path, select_safe_directory,
     )
 except ModuleNotFoundError:
     from trusted_git import (
         MANAGED_PROXY_HOST, MANAGED_PROXY_PORT, PROXY_VARIABLES,
         is_managed_proxy_placeholder, sanitize_managed_proxy,
+        is_inside_directory as _is_inside, resolve_executable,
+        safe_search_path as _safe_search_path, select_safe_directory,
     )
 
 
@@ -266,16 +272,6 @@ def with_repository_context(repository: Path, arguments: list[str]) -> list[str]
     return context
 
 
-def _is_inside(path: Path, directory: Path) -> bool:
-    """Return whether one path resides under a directory."""
-    try:
-        path.relative_to(directory)
-        return True
-    except ValueError:
-        # Paths on different roots or outside directory are not inside it.
-        return False
-
-
 def _candidate_names() -> tuple[str, ...]:
     """Return accepted GitHub CLI executable names."""
     if os.name == "nt":
@@ -286,59 +282,16 @@ def _candidate_names() -> tuple[str, ...]:
 
 def resolve_gh(repo_root) -> str:
     """Return an absolute GitHub CLI executable outside the repository."""
-    repository = Path(repo_root).resolve()
-    names = _candidate_names()
-    for raw_directory in os.environ.get("PATH", "").split(os.pathsep):
-        if not raw_directory:
-            continue
-        directory = Path(raw_directory.strip('"'))
-        if not directory.is_absolute():
-            continue
-        for name in names:
-            candidate = directory / name
-            if _is_inside(Path(os.path.abspath(candidate)), repository):
-                continue
-            try:
-                if candidate.is_symlink() or not candidate.is_file():
-                    continue
-                resolved = candidate.resolve(strict=True)
-            except OSError:
-                continue
-            if _is_inside(resolved, repository):
-                continue
-            if os.name != "nt" and not os.access(resolved, os.X_OK):
-                continue
-            return str(resolved)
-    raise FileNotFoundError("trusted GitHub CLI executable was not found on PATH")
+    return resolve_executable(repo_root, _candidate_names(), "GitHub CLI")
 
 
 def _safe_directory(repository: Path, executable: Path) -> Path:
-    """Return an existing execution directory outside the repository."""
-    for candidate in (Path(tempfile.gettempdir()), Path.cwd(), executable.parent):
-        try:
-            resolved = candidate.resolve(strict=True)
-        except OSError:
-            continue
-        if resolved.is_dir() and not _is_inside(resolved, repository):
-            return resolved
-    raise OSError("no safe external directory is available for GitHub CLI execution")
+    """Return an existing execution directory outside the repository.
 
-
-def _safe_search_path(repository: Path) -> str:
-    """Return PATH without relative or repository-controlled entries."""
-    entries = []
-    for raw_directory in os.environ.get("PATH", "").split(os.pathsep):
-        directory = Path(raw_directory.strip('"')) if raw_directory else Path()
-        if not raw_directory or not directory.is_absolute():
-            continue
-        try:
-            resolved = directory.resolve(strict=False)
-        except OSError:
-            # Drop unresolvable PATH entries rather than aborting sanitization.
-            continue
-        if not _is_inside(resolved, repository):
-            entries.append(str(resolved))
-    return os.pathsep.join(entries)
+    GitHub CLI also accepts the working directory, after the temp directory.
+    """
+    candidates = (Path(tempfile.gettempdir()), Path.cwd(), executable.parent)
+    return select_safe_directory(repository, candidates, "GitHub CLI")
 
 
 def _is_managed_proxy_placeholder(value: str) -> bool:

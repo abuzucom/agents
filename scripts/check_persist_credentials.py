@@ -164,18 +164,18 @@ def find_violations(text: str, path: str) -> list[str]:
     """Return violations without propagating malformed YAML errors."""
     try:
         documents = list(yaml.safe_load_all(text))
-        lines = text.splitlines()
         exception_lines = _exception_comment_lines(text)
-        return [
-            violation
-            for step in _walk_mappings(documents)
-            if (
-                violation := _checkout_violation(
-                    step, lines, exception_lines, path)
-            ) is not None
-        ]
-    except Exception:
+    except yaml.YAMLError:
         return [f"{path}: malformed YAML cannot be checked (Rule 11)"]
+    lines = text.splitlines()
+    return [
+        violation
+        for step in _walk_mappings(documents)
+        if (
+            violation := _checkout_violation(
+                step, lines, exception_lines, path)
+        ) is not None
+    ]
 
 
 def main() -> int:
@@ -187,7 +187,14 @@ def main() -> int:
     violations = []
     for path in paths:
         text = Path(path).read_text(encoding="utf-8")
-        violations.extend(find_violations(text, path))
+        try:
+            violations.extend(find_violations(text, path))
+        except Exception as error:
+            # Top-level boundary: fail closed and name a checker defect as one.
+            print(f"error: {path}: internal checker failure "
+                  f"({type(error).__name__}). Recovery: report the file and "
+                  "command to the repository maintainers.", file=sys.stderr)
+            return 1
     if not violations:
         return 0
     for message in violations:

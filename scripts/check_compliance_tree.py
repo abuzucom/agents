@@ -577,7 +577,7 @@ def _workflow_violations(
     """Check immutable actions and privileged workflow execution policy."""
     try:
         documents = list(persist_checker.yaml.safe_load_all(text))
-    except Exception:
+    except persist_checker.yaml.YAMLError:
         return [f"{path}: malformed workflow YAML cannot be checked"]
     violations = []
     for document in documents:

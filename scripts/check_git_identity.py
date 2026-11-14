@@ -146,22 +146,18 @@ def _standalone_resolve_git(repo) -> str:
             continue
         for name in names:
             candidate = directory / name
-            try:
-                Path(os.path.abspath(candidate)).relative_to(repository)
+            if Path(os.path.abspath(candidate)).is_relative_to(repository):
                 continue
-            except ValueError:
-                pass
             try:
                 if candidate.is_symlink() or not candidate.is_file():
                     continue
                 executable = candidate.resolve(strict=True)
-                executable.relative_to(repository)
-                continue
-            except ValueError:
-                if os.name == "nt" or os.access(executable, os.X_OK):
-                    return str(executable)
             except OSError:
                 continue
+            if executable.is_relative_to(repository):
+                continue
+            if os.name == "nt" or os.access(executable, os.X_OK):
+                return str(executable)
     raise FileNotFoundError("trusted Git executable was not found on PATH")
 
 
@@ -580,6 +576,7 @@ def gh_advisory(email: str, repo=None) -> str:
 def bootstrap_identity_advisory(repo=None) -> str:
     """Return one confirmation-first identity proposal or history fallback."""
     repository = repo or os.getcwd()
+    lookup_failure = ""
     if authenticated_account is not None:
         try:
             account = authenticated_account(repository)
@@ -589,8 +586,14 @@ def bootstrap_identity_advisory(repo=None) -> str:
                 "identity candidate from authenticated gh for explicit confirmation: "
                 f"repository-local name '{candidate[0]}', email '{candidate[1]}'"
             )
-        except (OSError, subprocess.TimeoutExpired, ValueError):
-            pass
+        except (OSError, subprocess.TimeoutExpired, ValueError) as error:
+            # Name only the type: the message can carry account or token text.
+            lookup_failure = f"authenticated lookup failed ({type(error).__name__}); "
+    return lookup_failure + _history_identity_advisory(repository)
+
+
+def _history_identity_advisory(repository) -> str:
+    """Return the untrusted history fallback for the identity advisory."""
     candidates = history_identity_candidates(repository)
     if not candidates:
         return ("identity candidate unavailable; derive name and email from an "
