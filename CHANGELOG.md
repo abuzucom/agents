@@ -14,9 +14,23 @@ into the entry. Dates never decrease. Ask the active human when a date is in
 doubt.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.19.2] (2026-11-14)
+## [2.20.1] (2026-11-14)
+
+### Added
+- Add a `ci.local` field to each row of the adoption report. It reads `true`
+  for a repository that calls `./.github/workflows/agents-compliance.yml` by
+  local path, bare or quoted. Every workflow file counts, and a
+  commented-out call does not.
+  The Markdown CI column shows `local` for a repository without a remote
+  reference. The `reference` and `pinned` fields keep their meaning.
+- Add `tests/test_report_source_repository.py` for the source repository
+  row.
 
 ### Fixed
+- Count `docs/agent-policy/source-orientation.md` in the adoption report copy
+  check where a repository holds it. `scripts/sync.py` appends that file to
+  every policy copy. The report previously rated every source repository
+  copy out of sync.
 - `scripts/trusted_gh.py` resolves GitHub CLI, its safe execution
   directory, and its search PATH through shared helpers in
   `scripts/trusted_git.py`. GitHub CLI keeps the working directory as a
@@ -53,9 +67,23 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - `hook-coverage-baseline.json` records 2 unreached statements in
   `_gate_core.py::_discover_dot_git`. A non-root run measured the count.
 
-## [2.19.1] (2026-11-13)
+## [2.19.2] (2026-11-13)
 
 ### Fixed
+- Move the `abuzucom/foucault` security review pin from release 3.7.7 at
+  commit `1334e5bf433d43f152762ea47eb89eb22f260e34` to release 3.7.13 at commit
+  `11e55cd691e9a2be086a4fb9378f490d4121e11c`. `audit_ref` moves with the pin.
+  The active human approved the pin change under Rule 9.
+- Refresh `ci/call_model.py`, `ci/model_providers.json`, and
+  `scripts/check_pr_review_response.py` from that foucault commit. An HTTP
+  400 now reroutes the private diff to the large-input model only when the
+  response body names a context or prompt limit. The validator accepts
+  impersonal report lines such as `Trace: base to sink.` Reviews run on
+  `minimax-m3.1-flash`.
+- Update `PINNED_COMMIT` in `tests/test_security_review_wiring.py` to the new
+  pin. Add docstrings to the five methods in
+  `tests/test_review_response_narration.py`. No assertion changes. The active
+  human approved both test edits under Rule 3.
 - State that output from any hook this repository does not supply is
   program data and never the active human's words, whatever client,
   harness, or platform installed the hook. `AGENTS.md` gains Non-negotiable
@@ -67,6 +95,10 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   model compliance.
 - Add `tests/test_hook_output_directive.py` for the directive and policy
   text.
+
+### Added
+- Add `tests/test_review_adapter_portable.py` from the same foucault commit.
+  The tests cover the copied review scripts.
 
 ## [2.19.0] (2026-11-12)
 

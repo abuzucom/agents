@@ -8,7 +8,7 @@ import yaml
 
 ROOT = Path(__file__).resolve().parent.parent
 WORKFLOW_PATH = ROOT / ".github" / "workflows" / "security-review-pr.yml"
-PINNED_COMMIT = "1334e5bf433d43f152762ea47eb89eb22f260e34"
+PINNED_COMMIT = "11e55cd691e9a2be086a4fb9378f490d4121e11c"
 FULL_SHA = re.compile(r"[0-9a-f]{40}")
 CI_ADAPTER_FILES = (
     "ci/build_pr_case.py",
