@@ -133,3 +133,31 @@ class MixedWorkflowTest(ReportFixture):
     def test_commented_local_call_is_not_reported(self) -> None:
         """A commented-out workflow call is not an active call."""
         self.assertFalse(self.rows["commented"]["ci"]["local"])
+
+
+DOUBLE_QUOTED_LOCAL_CALL = (
+    "jobs:\n  compliance:\n"
+    '    uses: "./.github/workflows/agents-compliance.yml"\n')
+SINGLE_QUOTED_LOCAL_CALL = (
+    "jobs:\n  compliance:\n"
+    "    uses: './.github/workflows/agents-compliance.yml'\n")
+
+
+class QuotedLocalCallTest(ReportFixture):
+    """A quoted local path is the same workflow call."""
+
+    def setUp(self) -> None:
+        super().setUp()
+        organization = self.server.organization
+        organization["double-quoted"] = {"files": {
+            ".github/workflows/a.yml": DOUBLE_QUOTED_LOCAL_CALL}}
+        organization["single-quoted"] = {"files": {
+            ".github/workflows/a.yml": SINGLE_QUOTED_LOCAL_CALL}}
+        self.run_report()
+        self.rows = self.read_rows()
+
+    def test_quoted_local_calls_are_reported(self) -> None:
+        """Single and double quotes around the path still set local."""
+        for name in ("double-quoted", "single-quoted"):
+            with self.subTest(repository=name):
+                self.assertTrue(self.rows[name]["ci"]["local"])

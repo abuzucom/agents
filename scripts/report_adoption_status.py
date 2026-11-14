@@ -41,10 +41,12 @@ PINNED_REFERENCE_PATTERN = re.compile(r"^[0-9a-f]{40}$")
 REUSABLE_WORKFLOW_PATTERN = re.compile(
     r"abuzucom/agents/\.github/workflows/agents-compliance\.yml@([A-Za-z0-9._/-]+)")
 # The source repository runs its own compliance workflow by local path.
-# The line-start anchor skips commented-out calls.
+# The line-start anchor skips commented-out calls. The backreference accepts
+# a bare path or one wrapped in matching quotes. Line matching without a YAML
+# parser also accepts the same line inside a multi-line run script.
 LOCAL_WORKFLOW_PATTERN = re.compile(
-    r"^[ \t]*(?:-[ \t]*)?uses:[ \t]*\./\.github/workflows/"
-    r"agents-compliance\.yml\b", re.MULTILINE)
+    r"^[ \t]*(?:-[ \t]*)?uses:[ \t]*([\"']?)\./\.github/workflows/"
+    r"agents-compliance\.yml\1[ \t]*(?:#.*)?$", re.MULTILINE)
 WORKFLOW_DIRECTORY = ".github/workflows/"
 WORKFLOW_SUFFIXES = (".yml", ".yaml")
 TRANSACTION_HOOK = "enforce_gate_adoption.py"
