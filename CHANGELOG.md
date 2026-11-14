@@ -14,6 +14,24 @@ into the entry. Dates never decrease. Ask the active human when a date is in
 doubt.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.20.0] (2026-11-14)
+
+### Added
+- Add a `ci.local` field to each row of the adoption report. It reads `true`
+  for a repository that calls `./.github/workflows/agents-compliance.yml` by
+  local path, bare or quoted. Every workflow file counts, and a
+  commented-out call does not.
+  The Markdown CI column shows `local` for a repository without a remote
+  reference. The `reference` and `pinned` fields keep their meaning.
+- Add `tests/test_report_source_repository.py` for the source repository
+  row.
+
+### Fixed
+- Count `docs/agent-policy/source-orientation.md` in the adoption report copy
+  check where a repository holds it. `scripts/sync.py` appends that file to
+  every policy copy. The report previously rated every source repository
+  copy out of sync.
+
 ## [2.19.2] (2026-11-13)
 
 ### Fixed
