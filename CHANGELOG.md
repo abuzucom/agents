@@ -19,8 +19,9 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ### Added
 - Add a `ci.local` field to each row of the adoption report. It reads `true`
   for a repository that calls `./.github/workflows/agents-compliance.yml` by
-  local path. The Markdown CI column shows `local` for that repository. The
-  `reference` and `pinned` fields keep their meaning.
+  local path. Every workflow file counts, and a commented-out call does not.
+  The Markdown CI column shows `local` for a repository without a remote
+  reference. The `reference` and `pinned` fields keep their meaning.
 - Add `tests/test_report_source_repository.py` for the source repository
   row.
 

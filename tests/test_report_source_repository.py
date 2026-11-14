@@ -93,3 +93,43 @@ class SourceRepositoryTest(ReportFixture):
         source_line = next(line for line in markdown.splitlines()
                            if line.startswith(f"| {SOURCE_REPOSITORY} |"))
         self.assertTrue(source_line.rstrip().endswith("| local |"))
+
+
+PINNED_CALL = (
+    "jobs:\n  compliance:\n    uses: abuzucom/agents/.github/workflows/"
+    "agents-compliance.yml@" + "b" * 40 + "\n")
+COMMENTED_LOCAL_CALL = (
+    "jobs:\n  compliance:\n"
+    "    # uses: ./.github/workflows/agents-compliance.yml\n"
+    "    runs-on: ubuntu-latest\n")
+
+
+class MixedWorkflowTest(ReportFixture):
+    """Every workflow file counts toward the local flag."""
+
+    def setUp(self) -> None:
+        super().setUp()
+        organization = self.server.organization
+        organization["remote-first"] = {"files": {
+            ".github/workflows/a.yml": PINNED_CALL,
+            ".github/workflows/z.yml": LOCAL_WORKFLOW_CALL}}
+        organization["local-first"] = {"files": {
+            ".github/workflows/a.yml": LOCAL_WORKFLOW_CALL,
+            ".github/workflows/z.yml": PINNED_CALL}}
+        organization["commented"] = {"files": {
+            ".github/workflows/a.yml": COMMENTED_LOCAL_CALL}}
+        self.run_report()
+        self.rows = self.read_rows()
+
+    def test_local_call_after_a_pinned_call_is_reported(self) -> None:
+        """A later local call still sets local beside the pinned reference."""
+        for name in ("remote-first", "local-first"):
+            with self.subTest(repository=name):
+                wiring = self.rows[name]["ci"]
+                self.assertTrue(wiring["local"])
+                self.assertEqual(wiring["reference"], "b" * 40)
+                self.assertTrue(wiring["pinned"])
+
+    def test_commented_local_call_is_not_reported(self) -> None:
+        """A commented-out workflow call is not an active call."""
+        self.assertFalse(self.rows["commented"]["ci"]["local"])

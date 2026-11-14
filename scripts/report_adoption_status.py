@@ -41,8 +41,10 @@ PINNED_REFERENCE_PATTERN = re.compile(r"^[0-9a-f]{40}$")
 REUSABLE_WORKFLOW_PATTERN = re.compile(
     r"abuzucom/agents/\.github/workflows/agents-compliance\.yml@([A-Za-z0-9._/-]+)")
 # The source repository runs its own compliance workflow by local path.
+# The line-start anchor skips commented-out calls.
 LOCAL_WORKFLOW_PATTERN = re.compile(
-    r"uses:\s*\./\.github/workflows/agents-compliance\.yml\b")
+    r"^[ \t]*(?:-[ \t]*)?uses:[ \t]*\./\.github/workflows/"
+    r"agents-compliance\.yml\b", re.MULTILINE)
 WORKFLOW_DIRECTORY = ".github/workflows/"
 WORKFLOW_SUFFIXES = (".yml", ".yaml")
 TRANSACTION_HOOK = "enforce_gate_adoption.py"
@@ -294,22 +296,21 @@ def describe_gates(files: RepositoryFiles, shared: dict) -> dict:
 def describe_wiring(files: RepositoryFiles) -> dict:
     """Return the reusable compliance workflow reference, when one exists.
 
-    A local call to the compliance workflow sets local and keeps reference
-    and pinned at their no-reference values.
+    local reads true when any workflow calls the compliance workflow by local
+    path. reference and pinned come from the first remote call.
     """
     workflows = sorted(
         path for path in files.paths
         if path.startswith(WORKFLOW_DIRECTORY)
         and path.endswith(WORKFLOW_SUFFIXES))
-    local = False
-    for path in workflows:
-        text = files.read_text(path) or ""
+    texts = [files.read_text(path) or "" for path in workflows]
+    local = any(LOCAL_WORKFLOW_PATTERN.search(text) for text in texts)
+    for text in texts:
         match = REUSABLE_WORKFLOW_PATTERN.search(text)
         if match:
             reference = match.group(1)
             pinned = bool(PINNED_REFERENCE_PATTERN.match(reference))
-            return {"reference": reference, "pinned": pinned, "local": False}
-        local = local or bool(LOCAL_WORKFLOW_PATTERN.search(text))
+            return {"reference": reference, "pinned": pinned, "local": local}
     return {"reference": None, "pinned": False, "local": local}
 
 
