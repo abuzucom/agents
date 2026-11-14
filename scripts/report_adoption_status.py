@@ -40,6 +40,9 @@ VERSION_PATTERN = re.compile(r"^(\d+)\.(\d+)\.(\d+)$")
 PINNED_REFERENCE_PATTERN = re.compile(r"^[0-9a-f]{40}$")
 REUSABLE_WORKFLOW_PATTERN = re.compile(
     r"abuzucom/agents/\.github/workflows/agents-compliance\.yml@([A-Za-z0-9._/-]+)")
+# The source repository runs its own compliance workflow by local path.
+LOCAL_WORKFLOW_PATTERN = re.compile(
+    r"uses:\s*\./\.github/workflows/agents-compliance\.yml\b")
 WORKFLOW_DIRECTORY = ".github/workflows/"
 WORKFLOW_SUFFIXES = (".yml", ".yaml")
 TRANSACTION_HOOK = "enforce_gate_adoption.py"
@@ -256,9 +259,16 @@ def describe_policy(files: RepositoryFiles, versions: dict, ordered: list,
 
 
 def describe_copies(files: RepositoryFiles) -> dict:
-    """Return how many synchronized copies equal the assembled policy."""
+    """Return how many synchronized copies equal the assembled policy.
+
+    The assembly follows sync.policy_bytes. Source-only orientation joins
+    the policy only where the repository holds it.
+    """
     names = (sync.SOURCE,) + tuple(sync.ADOPTER_POLICY_FILES)
     parts = [files.read_text(name) for name in names]
+    source_only = [files.read_text(name)
+                   for name in sync.SOURCE_ONLY_POLICY_FILES]
+    parts += [part for part in source_only if part is not None]
     in_sync = 0
     if all(part is not None for part in parts):
         assembled = sync.text_digest("".join(
@@ -282,18 +292,25 @@ def describe_gates(files: RepositoryFiles, shared: dict) -> dict:
 
 
 def describe_wiring(files: RepositoryFiles) -> dict:
-    """Return the reusable compliance workflow reference, when one exists."""
+    """Return the reusable compliance workflow reference, when one exists.
+
+    A local call to the compliance workflow sets local and keeps reference
+    and pinned at their no-reference values.
+    """
     workflows = sorted(
         path for path in files.paths
         if path.startswith(WORKFLOW_DIRECTORY)
         and path.endswith(WORKFLOW_SUFFIXES))
+    local = False
     for path in workflows:
-        match = REUSABLE_WORKFLOW_PATTERN.search(files.read_text(path) or "")
+        text = files.read_text(path) or ""
+        match = REUSABLE_WORKFLOW_PATTERN.search(text)
         if match:
             reference = match.group(1)
             pinned = bool(PINNED_REFERENCE_PATTERN.match(reference))
-            return {"reference": reference, "pinned": pinned}
-    return {"reference": None, "pinned": False}
+            return {"reference": reference, "pinned": pinned, "local": False}
+        local = local or bool(LOCAL_WORKFLOW_PATTERN.search(text))
+    return {"reference": None, "pinned": False, "local": local}
 
 
 def build_row(reader: GitHubReader, organization: str, item: dict,
@@ -362,7 +379,8 @@ def format_row(row: dict) -> str:
     behind = "" if policy["versions_behind"] is None else policy["versions_behind"]
     clients = ", ".join(
         name for name, active in gates["clients"].items() if active) or "none"
-    reference = row["ci"]["reference"] or "none"
+    reference = row["ci"]["reference"] or (
+        "local" if row["ci"].get("local") else "none")
     if row["ci"]["reference"] and not row["ci"]["pinned"]:
         reference += " (unpinned)"
     cells = [
