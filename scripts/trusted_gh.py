@@ -4,6 +4,7 @@ import json
 import os
 import re
 import shutil
+import stat
 import subprocess
 import sys
 import tempfile
@@ -94,6 +95,12 @@ COMMENT_DRAFT_DIRECTORY = ".comment-drafts"
 COMMENT_BODY_OPTION = "--body-file"
 # GitHub caps a comment body at 65536 characters.
 MAX_COMMENT_BYTES = 65536
+# Draft reads open one descriptor that never follows a link and never blocks
+# on a FIFO, so a path swapped after the check cannot redirect the read.
+DRAFT_NO_FOLLOW = getattr(os, "O_NOFOLLOW", 0)
+DRAFT_READ_FLAGS = (os.O_RDONLY | DRAFT_NO_FOLLOW | getattr(os, "O_NONBLOCK", 0)
+                    | getattr(os, "O_BINARY", 0))
+DRAFT_DIRECTORY_FLAGS = os.O_RDONLY | DRAFT_NO_FOLLOW | getattr(os, "O_DIRECTORY", 0)
 THREAD_NUMBER = re.compile(r"\A[1-9][0-9]{0,9}\Z")
 COMMENTS_ARGUMENT_COUNT = 2
 COMMENT_ARGUMENT_COUNT = 4
@@ -546,19 +553,12 @@ def read_comment_draft(repo_root: Path, raw: str) -> tuple[Path, str]:
     and posts these exact bytes, so a later change to the file cannot alter
     the posted comment.
     """
-    root = _find_git_entry(Path(repo_root)).parent
-    drafts = root / COMMENT_DRAFT_DIRECTORY
-    candidate = Path(raw) if Path(raw).is_absolute() else Path(repo_root) / raw
-    if drafts.is_symlink() or candidate.is_symlink():
-        raise ValueError("comment body file must not be a link")
+    name = _draft_name(raw)
+    drafts = _find_git_entry(Path(repo_root)).parent / COMMENT_DRAFT_DIRECTORY
     try:
-        resolved = candidate.resolve(strict=True)
-        drafts_root = drafts.resolve(strict=True)
-        if not resolved.is_relative_to(drafts_root) or not resolved.is_file():
-            raise ValueError
-        body = resolved.read_bytes()
+        body = _read_draft_bytes(drafts, name)
     except (OSError, ValueError) as error:
-        raise ValueError(f"comment body file must be a readable regular file under "
+        raise ValueError(f"comment body file must be a readable regular file directly in "
                          f"{COMMENT_DRAFT_DIRECTORY}/; write the draft there first") from error
     if not body or len(body) > MAX_COMMENT_BYTES:
         raise ValueError(f"comment body must hold 1 to {MAX_COMMENT_BYTES} bytes")
@@ -567,7 +567,47 @@ def read_comment_draft(repo_root: Path, raw: str) -> tuple[Path, str]:
     text = body.decode("ascii")
     if find_literal_escape_sequences(["--body", text]):
         raise ValueError("comment body contains literal escape text; use real newlines")
-    return resolved, text
+    return drafts / name, text
+
+
+def _draft_name(raw: str) -> str:
+    """Return the single file name of a `.comment-drafts/<name>` argument."""
+    prefix = COMMENT_DRAFT_DIRECTORY + "/"
+    name = raw[len(prefix):] if raw.startswith(prefix) else ""
+    if not name or name in (".", "..") or "/" in name or "\\" in name:
+        raise ValueError(f"comment body file must be {prefix}<name> with no subdirectory")
+    return name
+
+
+def _read_draft_bytes(drafts: Path, name: str) -> bytes:
+    """Read one draft through a descriptor that no later path swap can redirect.
+
+    POSIX opens the drafts directory and then the draft relative to it, both
+    with O_NOFOLLOW. Windows lacks dir_fd and O_NOFOLLOW, so it compares the
+    lstat identity with the opened descriptor instead.
+    """
+    if os.open in os.supports_dir_fd and DRAFT_NO_FOLLOW:
+        directory = os.open(drafts, DRAFT_DIRECTORY_FLAGS)
+        try:
+            descriptor = os.open(name, DRAFT_READ_FLAGS, dir_fd=directory)
+        finally:
+            os.close(directory)
+        return _read_regular_descriptor(descriptor, None)
+    details = os.lstat(drafts / name)
+    if os.path.islink(drafts) or not stat.S_ISREG(details.st_mode):
+        raise ValueError("comment draft is not a regular file in a real directory")
+    return _read_regular_descriptor(os.open(drafts / name, DRAFT_READ_FLAGS), details)
+
+
+def _read_regular_descriptor(descriptor: int, expected) -> bytes:
+    """Return at most one byte past the body cap from a regular-file descriptor."""
+    with os.fdopen(descriptor, "rb") as handle:
+        opened = os.fstat(handle.fileno())
+        if not stat.S_ISREG(opened.st_mode):
+            raise ValueError("comment draft is not a regular file")
+        if expected is not None and (opened.st_dev, opened.st_ino) != (expected.st_dev, expected.st_ino):
+            raise ValueError("comment draft changed while the wrapper opened it")
+        return handle.read(MAX_COMMENT_BYTES + 1)
 
 
 def comment_page(extra: list[str]) -> int:

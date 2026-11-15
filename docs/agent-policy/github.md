@@ -67,10 +67,11 @@ call never buffers a whole thread.
 Both forms target the `origin` repository only. The command gate allows the
 read form on every branch state, a detached HEAD included. The post form asks
 for active-human consent and stays denied on a detached HEAD. The wrapper
-accepts only a regular ASCII draft file below the git-ignored
+accepts only a regular ASCII draft file directly in the git-ignored
 `.comment-drafts/` directory. Real newlines in the draft carry the line
-breaks. The wrapper reads the draft once and sends the validated bytes to `gh`
-on standard input. A later change to the draft cannot alter the posted body.
+breaks. The wrapper opens the draft once through a descriptor that follows no
+link and reads only that descriptor. It sends the validated bytes to `gh` on
+standard input. A later change or link swap cannot alter the posted body.
 
 Comments have no Git equivalent. A failed comment operation has no fallback.
 Report the blocker to the active human and stop.

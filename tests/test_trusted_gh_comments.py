@@ -93,6 +93,68 @@ class CommentBodyTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.resolve(".comment-drafts/link.md")
 
+    def test_nested_draft_is_rejected(self):
+        (self.repository.drafts / "sub").mkdir()
+        (self.repository.drafts / "sub" / "reply.md").write_bytes(b"text\n")
+        with self.assertRaises(ValueError):
+            self.resolve(".comment-drafts/sub/reply.md")
+
+    @unittest.skipIf(os.name == "nt", "Symlink creation needs privileges on Windows")
+    def test_symlinked_drafts_directory_is_rejected(self):
+        outside = self.repository.root / "outside"
+        outside.mkdir()
+        (outside / "reply.md").write_bytes(b"text\n")
+        self.repository.drafts.rmdir()
+        self.repository.drafts.symlink_to(outside, target_is_directory=True)
+        with self.assertRaises(ValueError):
+            self.resolve(".comment-drafts/reply.md")
+
+    @unittest.skipUnless(hasattr(os, "mkfifo"), "FIFOs need POSIX")
+    def test_fifo_draft_is_rejected_without_hanging(self):
+        os.mkfifo(self.repository.drafts / "pipe.md")
+        with self.assertRaises(ValueError):
+            self.resolve(".comment-drafts/pipe.md")
+
+    @unittest.skipIf(os.name == "nt", "Symlink creation needs privileges on Windows")
+    def test_swap_to_link_during_open_cannot_disclose_another_file(self):
+        secret = self.repository.root / "secret.txt"
+        secret.write_bytes(b"SECRET VALUE\n")
+        draft = self.repository.draft("reply.md", b"Approved text.\n")
+        real_open = os.open
+
+        def swap_then_open(path, flags, *args, **kwargs):
+            if str(path).endswith("reply.md") or path == "reply.md":
+                draft.unlink()
+                os.symlink(secret, draft)
+            return real_open(path, flags, *args, **kwargs)
+
+        for supported in (os.supports_dir_fd, set()):
+            with self.subTest(dir_fd_path=bool(supported)):
+                if draft.is_symlink():
+                    draft.unlink()
+                    draft.write_bytes(b"Approved text.\n")
+                with patch.object(trusted_gh.os, "supports_dir_fd", supported), \
+                        patch.object(trusted_gh.os, "open", side_effect=swap_then_open):
+                    with self.assertRaises(ValueError):
+                        trusted_gh.read_comment_draft(self.repository.root, ".comment-drafts/reply.md")
+
+    def test_fallback_rejects_a_file_replaced_after_lstat(self):
+        self.repository.draft("reply.md", b"Approved text.\n")
+        other = self.repository.root / "other.md"
+        other.write_bytes(b"Other text.\n")
+        other_details = os.stat(other)
+        with patch.object(trusted_gh.os, "supports_dir_fd", set()), \
+                patch.object(trusted_gh.os, "fstat", return_value=other_details):
+            with self.assertRaises(ValueError):
+                self.resolve(".comment-drafts/reply.md")
+
+    def test_fallback_reads_a_regular_draft(self):
+        self.repository.draft("reply.md", b"Approved text.\n")
+        with patch.object(trusted_gh.os, "supports_dir_fd", set()):
+            _path, text = trusted_gh.read_comment_draft(
+                self.repository.root, ".comment-drafts/reply.md")
+        self.assertEqual(text, "Approved text.\n")
+
     def test_invalid_bodies_are_rejected(self):
         bodies = {
             "empty.md": b"",
