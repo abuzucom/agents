@@ -554,6 +554,9 @@ def read_comment_draft(repo_root: Path, raw: str) -> tuple[Path, str]:
     the posted comment.
     """
     name = _draft_name(raw)
+    if not _safe_draft_open_supported():
+        raise ValueError("comment posting needs os.open dir_fd and O_NOFOLLOW support, which "
+                         "this platform lacks; post the comment through another approved path")
     drafts = _find_git_entry(Path(repo_root)).parent / COMMENT_DRAFT_DIRECTORY
     try:
         body = _read_draft_bytes(drafts, name)
@@ -579,34 +582,30 @@ def _draft_name(raw: str) -> str:
     return name
 
 
+def _safe_draft_open_supported() -> bool:
+    """Return whether this platform can open a draft relative to a no-follow directory.
+
+    Windows lacks dir_fd and O_NOFOLLOW. A path-based check there cannot stop
+    a junction or link swapped in for the drafts directory, so posting fails
+    closed instead.
+    """
+    return os.open in os.supports_dir_fd and bool(DRAFT_NO_FOLLOW)
+
+
 def _read_draft_bytes(drafts: Path, name: str) -> bytes:
     """Read one draft through a descriptor that no later path swap can redirect.
 
-    POSIX opens the drafts directory and then the draft relative to it, both
-    with O_NOFOLLOW. Windows lacks dir_fd and O_NOFOLLOW, so it compares the
-    lstat identity with the opened descriptor instead.
+    The drafts directory and the draft both open with O_NOFOLLOW, the draft
+    relative to the directory descriptor.
     """
-    if os.open in os.supports_dir_fd and DRAFT_NO_FOLLOW:
-        directory = os.open(drafts, DRAFT_DIRECTORY_FLAGS)
-        try:
-            descriptor = os.open(name, DRAFT_READ_FLAGS, dir_fd=directory)
-        finally:
-            os.close(directory)
-        return _read_regular_descriptor(descriptor, None)
-    details = os.lstat(drafts / name)
-    if os.path.islink(drafts) or not stat.S_ISREG(details.st_mode):
-        raise ValueError("comment draft is not a regular file in a real directory")
-    return _read_regular_descriptor(os.open(drafts / name, DRAFT_READ_FLAGS), details)
-
-
-def _read_regular_descriptor(descriptor: int, expected) -> bytes:
-    """Return at most one byte past the body cap from a regular-file descriptor."""
+    directory = os.open(drafts, DRAFT_DIRECTORY_FLAGS)
+    try:
+        descriptor = os.open(name, DRAFT_READ_FLAGS, dir_fd=directory)
+    finally:
+        os.close(directory)
     with os.fdopen(descriptor, "rb") as handle:
-        opened = os.fstat(handle.fileno())
-        if not stat.S_ISREG(opened.st_mode):
+        if not stat.S_ISREG(os.fstat(handle.fileno()).st_mode):
             raise ValueError("comment draft is not a regular file")
-        if expected is not None and (opened.st_dev, opened.st_ino) != (expected.st_dev, expected.st_ino):
-            raise ValueError("comment draft changed while the wrapper opened it")
         return handle.read(MAX_COMMENT_BYTES + 1)
 
 

@@ -1207,6 +1207,11 @@ breaks. The wrapper opens the draft once through a descriptor that follows no
 link and reads only that descriptor. It sends the validated bytes to `gh` on
 standard input. A later change or link swap cannot alter the posted body.
 
+Posting needs `os.open` support for `dir_fd` and `O_NOFOLLOW`. Windows lacks
+both. The post form exits 2 there and the read form still works. The wrapper
+cannot confirm active-human consent. A direct `comment` call posts without a
+prompt. Only the shell gate asks before a post.
+
 Comments have no Git equivalent. A failed comment operation has no fallback.
 Report the blocker to the active human and stop.
 

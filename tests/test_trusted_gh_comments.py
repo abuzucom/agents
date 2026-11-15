@@ -148,12 +148,11 @@ class CommentBodyTest(unittest.TestCase):
             with self.assertRaises(ValueError):
                 self.resolve(".comment-drafts/reply.md")
 
-    def test_fallback_reads_a_regular_draft(self):
+    def test_fallback_refuses_without_dir_fd(self):
         self.repository.draft("reply.md", b"Approved text.\n")
         with patch.object(trusted_gh.os, "supports_dir_fd", set()):
-            _path, text = trusted_gh.read_comment_draft(
-                self.repository.root, ".comment-drafts/reply.md")
-        self.assertEqual(text, "Approved text.\n")
+            with self.assertRaisesRegex(ValueError, "dir_fd"):
+                trusted_gh.read_comment_draft(self.repository.root, ".comment-drafts/reply.md")
 
     def test_invalid_bodies_are_rejected(self):
         bodies = {
@@ -242,6 +241,21 @@ class CommentCommandTest(unittest.TestCase):
             "api", "-X", "POST", f"repos/{REPOSITORY}/issues/9/comments",
             "--input", "-"]])
         self.assertEqual([json.loads(text) for text in self.inputs], [{"body": "Thanks.\n"}])
+
+    def test_post_without_dir_fd_exits_2_without_calls(self):
+        self.repository.draft("reply.md", b"Thanks.\n")
+        with patch.object(trusted_gh.os, "supports_dir_fd", set()):
+            code, _stdout, stderr = self.run_main(
+                ["comment", "pr", "9", "--body-file", ".comment-drafts/reply.md"])
+        self.assertEqual(code, USAGE_EXIT_CODE)
+        self.assertIn("dir_fd", stderr)
+        self.assertEqual(self.calls, [])
+
+    def test_read_without_dir_fd_still_works(self):
+        with patch.object(trusted_gh.os, "supports_dir_fd", set()):
+            code, _stdout, _stderr = self.run_main(["comments", "issue", "5"])
+        self.assertEqual(code, 0)
+        self.assertEqual(len(self.calls), 1)
 
     def test_draft_change_after_validation_cannot_change_the_post(self):
         draft = self.repository.draft("reply.md", b"Approved text.\n")
