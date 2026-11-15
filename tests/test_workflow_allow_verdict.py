@@ -346,7 +346,11 @@ class AcceptedFormHintTest(unittest.TestCase):
     def test_other_programs_keep_the_plain_reason(self) -> None:
         for segment in (["node", "script.js"], ["python", "-c", "pass"]):
             with self.subTest(segment=segment):
-                self.assertEqual(self.gate.segment_program_reason(segment), OPAQUE_REASON)
+                reason = self.gate.segment_program_reason(segment)
+                self.assertTrue(reason.startswith(OPAQUE_REASON))
+                self.assertIn(f"(rejected: {segment[0]})", reason)
+                self.assertNotIn("Accepted", reason)
+                self.assertNotIn("lists the accepted", reason)
 
 
 class AllowVerdictHookTest(unittest.TestCase):

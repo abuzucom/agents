@@ -14,7 +14,9 @@ try:
     import _cmd_parser as cmd_parser
     import _gate_core as core
 except ImportError as error:  # pragma: no cover
-    failure_reason = f"shared CMD parser or core import failed ({error})"
+    failure_reason = (f"shared CMD parser or core import failed ({error}). "
+                      "Stop. Report this denial to the active human. Do not "
+                      "retry a variant or propose a gate change.")
     print(failure_reason, file=sys.stderr)
     sys.exit(POLICY_DENIAL_EXIT_CODE)
 

@@ -4,6 +4,7 @@ import json
 import os
 import re
 import shutil
+import stat
 import subprocess
 import sys
 import tempfile
@@ -87,6 +88,36 @@ REMOTE_PATH_PART_COUNT = 2
 ACCOUNT_FIELD_COUNT = 2
 # A repository command path holds a command and one subcommand.
 COMMAND_PATH_LENGTH = 2
+# Comment threads. Pull request conversation comments live on the issues
+# endpoint, so both kinds map to one REST path.
+COMMENT_KINDS = frozenset(("issue", "pr"))
+COMMENT_DRAFT_DIRECTORY = ".comment-drafts"
+COMMENT_BODY_OPTION = "--body-file"
+# GitHub caps a comment body at 65536 characters.
+MAX_COMMENT_BYTES = 65536
+# Draft reads open one descriptor that never follows a link and never blocks
+# on a FIFO, so a path swapped after the check cannot redirect the read.
+DRAFT_NO_FOLLOW = getattr(os, "O_NOFOLLOW", 0)
+DRAFT_READ_FLAGS = (os.O_RDONLY | DRAFT_NO_FOLLOW | getattr(os, "O_NONBLOCK", 0)
+                    | getattr(os, "O_BINARY", 0))
+DRAFT_DIRECTORY_FLAGS = os.O_RDONLY | DRAFT_NO_FOLLOW | getattr(os, "O_DIRECTORY", 0)
+THREAD_NUMBER = re.compile(r"\A[1-9][0-9]{0,9}\Z")
+COMMENTS_ARGUMENT_COUNT = 2
+COMMENT_ARGUMENT_COUNT = 4
+# A comment read fetches one page so a long thread cannot exhaust memory.
+# GitHub caps per_page at 100.
+COMMENT_PAGE_OPTION = "--page"
+COMMENT_PAGE_SIZE = 100
+COMMENT_PAGE_NUMBER = re.compile(r"\A[1-9][0-9]{0,3}\Z")
+MAX_COMMENT_PAGE = 1000
+COMMENT_PAGE_ARGUMENT_COUNT = 2
+GRAPHQL_UNAVAILABLE = "GraphQL is not available"
+GRAPHQL_ERROR_MESSAGE = (
+    "error: this session blocks GitHub GraphQL; read comments with "
+    "`python scripts/trusted_gh.py comments <issue|pr> <number>`, post with "
+    "`python scripts/trusted_gh.py comment <issue|pr> <number> --body-file "
+    ".comment-drafts/<file>`, or read other data through a REST `run api` call"
+)
 
 
 def is_connectivity_failure(stderr: str) -> bool:
@@ -380,8 +411,8 @@ def _sanitize_config_directory(environment: dict, repository: Path) -> None:
     environment["GH_CONFIG_DIR"] = str(resolved)
 
 
-def run_gh(repo_root, arguments: list[str], *, runner=None, timeout=None):
-    """Run trusted GitHub CLI from outside the repository."""
+def run_gh(repo_root, arguments: list[str], *, runner=None, timeout=None, input_text=None):
+    """Run trusted GitHub CLI from outside the repository, with optional stdin."""
     repository = Path(repo_root).resolve()
     executable = Path(resolve_gh(repository))
     environment = dict(os.environ)
@@ -402,6 +433,7 @@ def run_gh(repo_root, arguments: list[str], *, runner=None, timeout=None):
             [str(executable), *arguments],
             cwd=private,
             env=environment,
+            input=input_text,
             capture_output=True,
             text=True,
             encoding="utf-8",
@@ -500,6 +532,141 @@ def _safe_write(stream, text: str) -> None:
             stream.write(sanitized)
 
 
+def comment_thread(kind: str, number: str) -> int:
+    """Return the thread number for an issue or pr comment target."""
+    if kind not in COMMENT_KINDS:
+        raise ValueError("comment target kind must be issue or pr")
+    if not THREAD_NUMBER.fullmatch(number):
+        raise ValueError("comment target number must be a positive integer")
+    return int(number)
+
+
+def comment_body_path(repo_root: Path, raw: str) -> Path:
+    """Return the absolute path of a validated draft under .comment-drafts/."""
+    return read_comment_draft(repo_root, raw)[0]
+
+
+def read_comment_draft(repo_root: Path, raw: str) -> tuple[Path, str]:
+    """Return the path and validated text of one draft under .comment-drafts/.
+
+    The draft must be a regular non-link ASCII file. The wrapper reads it once
+    and posts these exact bytes, so a later change to the file cannot alter
+    the posted comment.
+    """
+    name = _draft_name(raw)
+    if not _safe_draft_open_supported():
+        raise ValueError("comment posting needs os.open dir_fd and O_NOFOLLOW support, which "
+                         "this platform lacks; post the comment through another approved path")
+    drafts = _find_git_entry(Path(repo_root)).parent / COMMENT_DRAFT_DIRECTORY
+    try:
+        body = _read_draft_bytes(drafts, name)
+    except (OSError, ValueError) as error:
+        raise ValueError(f"comment body file must be a readable regular file directly in "
+                         f"{COMMENT_DRAFT_DIRECTORY}/; write the draft there first") from error
+    if not body or len(body) > MAX_COMMENT_BYTES:
+        raise ValueError(f"comment body must hold 1 to {MAX_COMMENT_BYTES} bytes")
+    if not body.isascii():
+        raise ValueError("comment body must be ASCII")
+    text = body.decode("ascii")
+    if find_literal_escape_sequences(["--body", text]):
+        raise ValueError("comment body contains literal escape text; use real newlines")
+    return drafts / name, text
+
+
+def _draft_name(raw: str) -> str:
+    """Return the single file name of a `.comment-drafts/<name>` argument."""
+    prefix = COMMENT_DRAFT_DIRECTORY + "/"
+    name = raw[len(prefix):] if raw.startswith(prefix) else ""
+    if not name or name in (".", "..") or "/" in name or "\\" in name:
+        raise ValueError(f"comment body file must be {prefix}<name> with no subdirectory")
+    return name
+
+
+def _safe_draft_open_supported() -> bool:
+    """Return whether this platform can open a draft relative to a no-follow directory.
+
+    Windows lacks dir_fd and O_NOFOLLOW. A path-based check there cannot stop
+    a junction or link swapped in for the drafts directory, so posting fails
+    closed instead.
+    """
+    return os.open in os.supports_dir_fd and bool(DRAFT_NO_FOLLOW)
+
+
+def _read_draft_bytes(drafts: Path, name: str) -> bytes:
+    """Read one draft through a descriptor that no later path swap can redirect.
+
+    The drafts directory and the draft both open with O_NOFOLLOW, the draft
+    relative to the directory descriptor.
+    """
+    directory = os.open(drafts, DRAFT_DIRECTORY_FLAGS)
+    try:
+        descriptor = os.open(name, DRAFT_READ_FLAGS, dir_fd=directory)
+    finally:
+        os.close(directory)
+    with os.fdopen(descriptor, "rb") as handle:
+        if not stat.S_ISREG(os.fstat(handle.fileno()).st_mode):
+            raise ValueError("comment draft is not a regular file")
+        return handle.read(MAX_COMMENT_BYTES + 1)
+
+
+def comment_page(extra: list[str]) -> int:
+    """Return the page a comment read names, or 1 when it names none."""
+    if not extra:
+        return 1
+    if (len(extra) != COMMENT_PAGE_ARGUMENT_COUNT or extra[0] != COMMENT_PAGE_OPTION
+            or not COMMENT_PAGE_NUMBER.match(extra[1]) or int(extra[1]) > MAX_COMMENT_PAGE):
+        raise ValueError(f"comments takes <issue|pr> <number> [{COMMENT_PAGE_OPTION} "
+                         f"<1-{MAX_COMMENT_PAGE}>]")
+    return int(extra[1])
+
+
+def comment_arguments(repo_root, operation: str,
+                      arguments: list[str]) -> tuple[list[str], str | None]:
+    """Return the fixed REST GitHub CLI arguments and stdin for one comment operation."""
+    if operation == "comments":
+        if len(arguments) < COMMENTS_ARGUMENT_COUNT:
+            raise ValueError(f"comments takes <issue|pr> <number> [{COMMENT_PAGE_OPTION} <n>]")
+        page = comment_page(arguments[COMMENTS_ARGUMENT_COUNT:])
+    elif len(arguments) != COMMENT_ARGUMENT_COUNT:
+        raise ValueError(f"comment takes <issue|pr> <number> {COMMENT_BODY_OPTION} <path>")
+    number = comment_thread(arguments[0], arguments[1])
+    endpoint = f"repos/{repository_target(Path(repo_root))}/issues/{number}/comments"
+    if operation == "comments":
+        return ["api", f"{endpoint}?per_page={COMMENT_PAGE_SIZE}&page={page}"], None
+    if arguments[2] != COMMENT_BODY_OPTION:
+        raise ValueError(f"comment takes {COMMENT_BODY_OPTION} <path>")
+    _path, body = read_comment_draft(Path(repo_root), arguments[3])
+    return ["api", "-X", "POST", endpoint, "--input", "-"], json.dumps({"body": body})
+
+
+def next_page_note(page: int, output: str) -> str:
+    """Return a hint naming the next page when a comment read filled its page."""
+    if page >= MAX_COMMENT_PAGE:
+        return ""
+    try:
+        comments = json.loads(output)
+    except ValueError:
+        return ""
+    if not isinstance(comments, list) or len(comments) < COMMENT_PAGE_SIZE:
+        return ""
+    return (f"note: page {page} holds {COMMENT_PAGE_SIZE} comments; read more with "
+            f"{COMMENT_PAGE_OPTION} {page + 1}")
+
+
+def _run_comment_command(repo_root, operation: str, arguments: list[str]) -> int:
+    """Run one fixed comment read or post through the authenticated CLI."""
+    try:
+        gh_arguments, request_body = comment_arguments(repo_root, operation, arguments)
+    except (OSError, ValueError) as error:
+        print(f"error: {_bounded_path(error)}", file=sys.stderr)
+        return USAGE_ERROR_EXIT_CODE
+    if operation != "comments":
+        return _execute(repo_root, gh_arguments, input_text=request_body)
+    page = comment_page(arguments[COMMENTS_ARGUMENT_COUNT:])
+    return _execute(repo_root, gh_arguments,
+                    output_note=lambda output: next_page_note(page, output))
+
+
 def _run_requested_command(repo_root, arguments: list[str]) -> int:
     """Run one authenticated GitHub CLI command with bounded output."""
     if not arguments:
@@ -517,18 +684,37 @@ def _run_requested_command(repo_root, arguments: list[str]) -> int:
     except ImportError:
         print("error: GitHub safety policy is unavailable; repair adoption", file=sys.stderr)
         return POLICY_DENIAL_EXIT_CODE
-    decision, _reason = gate_core.forge_verdict("gh", arguments)
+    decision, reason = gate_core.forge_verdict("gh", arguments)
     if decision == "deny":
-        print("error: GitHub command denied by policy; review the command", file=sys.stderr)
+        print(f"error: GitHub command denied by policy: {gate_core.sanitize(reason)}",
+              file=sys.stderr)
         return POLICY_DENIAL_EXIT_CODE
+    return _execute(repo_root, arguments, gate_core)
+
+
+def _execute(repo_root, arguments: list[str], gate_core=None, input_text=None,
+             output_note=None) -> int:
+    """Verify the account, run gh, and relay bounded output and failures.
+
+    With `gate_core`, add repository context first and check the final
+    arguments again. Comment operations build fixed arguments and pass none.
+    `input_text` reaches gh on stdin. `output_note` maps successful stdout
+    to an optional stderr note.
+    """
     try:
-        effective_arguments = with_repository_context(Path(repo_root), arguments)
-        decision, _reason = gate_core.forge_verdict("gh", effective_arguments)
-        if decision == "deny":
-            print("error: GitHub command denied by policy; review the command", file=sys.stderr)
-            return POLICY_DENIAL_EXIT_CODE
+        effective_arguments = arguments
+        if gate_core is not None:
+            effective_arguments = with_repository_context(Path(repo_root), arguments)
+            decision, reason = gate_core.forge_verdict("gh", effective_arguments)
+            if decision == "deny":
+                print(f"error: GitHub command denied by policy: {gate_core.sanitize(reason)}",
+                      file=sys.stderr)
+                return POLICY_DENIAL_EXIT_CODE
         verify_account(repo_root)
-        result = run_gh(repo_root, effective_arguments)
+        if input_text is None:
+            result = run_gh(repo_root, effective_arguments)
+        else:
+            result = run_gh(repo_root, effective_arguments, input_text=input_text)
     except subprocess.TimeoutExpired:
         print(TIMEOUT_ERROR_MESSAGE, file=sys.stderr)
         return 1
@@ -556,6 +742,14 @@ def _run_requested_command(repo_root, arguments: list[str]) -> int:
     if result.returncode != 0 and is_connectivity_failure(result.stderr):
         print(CONNECTIVITY_ERROR_MESSAGE, file=sys.stderr)
         return 1
+    if result.returncode != 0 and GRAPHQL_UNAVAILABLE in result.stderr[:ERROR_SCAN_LIMIT]:
+        print(GRAPHQL_ERROR_MESSAGE, file=sys.stderr)
+        return 1
+    return _relay_result(result, output_note)
+
+
+def _relay_result(result, output_note=None) -> int:
+    """Write bounded gh output, add an optional success note, and return the exit code."""
     try:
         _safe_write(sys.stdout, result.stdout[:COMMAND_OUTPUT_LIMIT])
     except UnicodeEncodeError:
@@ -572,6 +766,9 @@ def _run_requested_command(repo_root, arguments: list[str]) -> int:
                 sys.stderr.encoding or "utf-8", errors="replace"
             )
         )
+    note = output_note(result.stdout) if output_note and result.returncode == 0 else ""
+    if note:
+        print(note, file=sys.stderr)
     return result.returncode
 
 
@@ -579,8 +776,11 @@ def main() -> int:
     """Print bounded authenticated account metadata as JSON."""
     if len(sys.argv) > 1:
         _program, operation, *gh_arguments = sys.argv
+        if operation in ("comments", "comment"):
+            return _run_comment_command(os.getcwd(), operation, gh_arguments)
         if operation != "run":
-            print("error: expected 'run' or no arguments", file=sys.stderr)
+            print("error: expected 'run', 'comments', 'comment', or no arguments",
+                  file=sys.stderr)
             return USAGE_ERROR_EXIT_CODE
         return _run_requested_command(os.getcwd(), gh_arguments)
     try:

@@ -24,7 +24,9 @@ try:
     import _command_execution_gate as command_gate
 except ImportError as error:  # pragma: no cover (exercised by the adoption test)
     print(f"shared hook parser, core, or command gate import failed ({error}). "
-          "Restore the missing file.", file=sys.stderr)
+          "Restore the missing file. Stop. Report this denial to the active "
+          "human. Do not retry a variant or propose a gate change.",
+          file=sys.stderr)
     sys.exit(POLICY_DENIAL_EXIT_CODE)
 
 CHECKER_PATH = os.path.join("scripts", "check_branch_name.py")
@@ -816,7 +818,7 @@ def recovery_authorization_reason(branch_name: str, rebase_active: bool = False)
 
 def _deny(client: str, reason: str, gate: str = GATE) -> int:
     """Emit one native client denial that names the deciding gate file."""
-    message = f"blocked by hooks/{gate}: {reason}"
+    message = core.with_denial_response(f"blocked by hooks/{gate}: {reason}")
     if client in ("gemini", "antigravity"):
         print(json.dumps({"decision": "deny", "reason": message}))
         return 0

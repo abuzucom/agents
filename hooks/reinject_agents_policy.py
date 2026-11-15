@@ -293,7 +293,9 @@ def main() -> int:
             raise ValueError("hook payload is not an object")
         return run_hook(args, payload)
     except (OSError, UnicodeError, ValueError, json.JSONDecodeError) as error:
-        print(f"policy reinjection failed: {error}. Restore readable AGENTS.md.", file=sys.stderr)
+        print(f"policy reinjection failed: {error}. Restore readable AGENTS.md. "
+              "Stop. Report this denial to the active human. Do not retry a "
+              "variant or propose a gate change.", file=sys.stderr)
         return POLICY_DENIAL_EXIT_CODE
 
 

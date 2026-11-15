@@ -417,9 +417,25 @@ def read_payload(empty_is_session_start: bool = False):
     return parsed if isinstance(parsed, dict) else None
 
 
+# Every deny ends with one fixed line so an agent stops and reports
+# instead of improvising a variant or a gate change (issue #102).
+DENIAL_RESPONSE = ("Stop. Report this denial to the active human. "
+                   "Do not retry a variant or propose a gate change.")
+
+
+def with_denial_response(message: str) -> str:
+    """Return a deny message that ends with the fixed agent response."""
+    text = message.rstrip()
+    if not text.endswith("."):
+        text += "."
+    return f"{text} {DENIAL_RESPONSE}"
+
+
 def emit(gate: str, decision: str, reason: str) -> int:
     """Print the gate's decision and return the exit code it needs."""
     message = f"blocked by hooks/{gate}: {reason}"
+    if decision == "deny":
+        message = with_denial_response(message)
     output = {
         "hookSpecificOutput": {
             "hookEventName": "PreToolUse",

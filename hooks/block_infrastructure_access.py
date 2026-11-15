@@ -11,7 +11,9 @@ POLICY_DENIAL_EXIT_CODE = 2
 try:
     import _gate_core as core
 except ImportError as error:  # pragma: no cover
-    print(f"shared gate core import failed ({error})", file=sys.stderr)
+    print(f"shared gate core import failed ({error}). Stop. Report this "
+          "denial to the active human. Do not retry a variant or propose "
+          "a gate change.", file=sys.stderr)
     sys.exit(POLICY_DENIAL_EXIT_CODE)
 
 
