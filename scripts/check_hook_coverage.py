@@ -13,6 +13,7 @@ fail is the failure mode this whole check exists to avoid.
 
 Regenerate with --write-baseline and commit the result.
 """
+import argparse
 import ast
 import concurrent.futures
 import io
@@ -544,7 +545,12 @@ def read_baseline(root: str) -> dict:
     if not os.path.isfile(path):
         return {}
     with io.open(path, encoding="utf-8") as handle:
-        return json.load(handle).get("unreached", {})
+        data = json.load(handle)
+    unreached = data.get("unreached", {}) if isinstance(data, dict) else None
+    if not isinstance(unreached, dict):
+        raise ValueError("%s must hold a JSON object whose \"unreached\" entry "
+                         "is a JSON object" % BASELINE)
+    return unreached
 
 
 def write_baseline(root: str, counts: dict) -> int:
@@ -578,13 +584,30 @@ def write_baseline(root: str, counts: dict) -> int:
     return 0
 
 
+def parse_arguments(argv: list) -> argparse.Namespace:
+    """Parse the optional --write-baseline flag. Unknown flags exit 2."""
+    parser = argparse.ArgumentParser(
+        prog="check_hook_coverage.py", allow_abbrev=False,
+        description="Compare hook statement coverage with the baseline.")
+    parser.add_argument("--write-baseline", action="store_true",
+                        help="record the measured counts as the baseline")
+    return parser.parse_args(argv)
+
+
 def main(argv: list) -> int:
     """Measure, then either record the result or check it. Return an exit code."""
+    arguments = parse_arguments(argv)
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     actual = measure(root)
-    if "--write-baseline" in argv:
+    if arguments.write_baseline:
         return write_baseline(root, actual)
-    problems = compare(actual, read_baseline(root))
+    try:
+        recorded = read_baseline(root)
+    except ValueError as error:
+        print("error: %s. Recovery: restore %s from the base branch, then "
+              "rerun this check." % (error, BASELINE), file=sys.stderr)
+        return 1
+    problems = compare(actual, recorded)
     if not problems:
         print("hook coverage matches %s (%d functions recorded)"
               % (BASELINE, len(actual)))

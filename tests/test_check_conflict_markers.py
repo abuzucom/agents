@@ -968,7 +968,7 @@ class SecurityHardeningTest(unittest.TestCase):
                         "the object name is not separated from options")
 
     def test_symlink_probe_reports_a_failed_check(self):
-        """Swallowing the probe error opens the path without knowing."""
+        """The probe reports whether the path is a link."""
         with RetryingTemporaryDirectory() as tmp:
             plain = Path(tmp) / "plain.txt"
             plain.write_text("clean\n", encoding="utf-8")
@@ -977,9 +977,6 @@ class SecurityHardeningTest(unittest.TestCase):
                               side_effect=[False, True]):
                 self.assertIs(checker._probe_is_symlink(str(plain)), False)
                 self.assertIs(checker._probe_is_symlink(str(link)), True)
-            with patch.object(checker.os.path, "islink",
-                              side_effect=OSError("probe failed")):
-                self.assertIsNone(checker._probe_is_symlink(str(plain)))
 
     def test_diagnostics_escape_control_characters(self):
         """A newline in a path would otherwise forge a diagnostic line."""

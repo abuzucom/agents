@@ -23,6 +23,10 @@ PROHIBITED_AGENT_PREFIX = "claude/"
 BRANCH_BANNED_TOKENS_PATH = Path(__file__).resolve().with_name(
     "branch_name_bans.txt"
 )
+# FOREIGN_STOPWORDS in check_english_only.py minus "mit" and "uma". Both
+# appear in legitimate English branch descriptions: "mit" names the MIT
+# license and the institute, and "uma" is a common name and acronym. This
+# copy stays local because adopters copy the branch checker standalone.
 FOREIGN_TOKENS = frozenset(
     "el la de que una para con las los por como pero esta este cuando "
     "le des une est dans avec pas pour sont vous nous cette mais der die "
@@ -90,12 +94,16 @@ def _pattern(prefixes: tuple[str, ...]) -> re.Pattern:
     return re.compile(rf"^(?:{prefix_group})/[a-z0-9]+(?:-[a-z0-9]+)*$")
 
 
-def _load_banned_tokens() -> frozenset[str]:
-    """Load exact branch tokens that are unsuitable for repository names."""
+def _load_banned_tokens() -> frozenset[str] | None:
+    """Load exact branch tokens that are unsuitable for repository names.
+
+    Return None when the list is missing or unreadable. The caller then
+    rejects the branch, so an absent list never disables the check.
+    """
     try:
         values = BRANCH_BANNED_TOKENS_PATH.read_text(encoding="ascii")
     except (OSError, UnicodeDecodeError):
-        return frozenset()
+        return None
     return frozenset(
         line.strip().casefold()
         for line in values.splitlines()
@@ -108,6 +116,13 @@ def _description_violations(branch: str) -> list[str]:
     description = branch.split("/", 1)[-1]
     tokens = description.split("-")
     banned_tokens = _load_banned_tokens()
+    if banned_tokens is None:
+        return [
+            f"branch '{branch}' cannot be checked: "
+            f"{BRANCH_BANNED_TOKENS_PATH.name} is missing or unreadable. "
+            "Recovery: restore scripts/branch_name_bans.txt from the source "
+            "policy repository."
+        ]
     violations = []
     for token in tokens:
         if token.casefold() in banned_tokens:

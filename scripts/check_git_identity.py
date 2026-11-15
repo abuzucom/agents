@@ -669,7 +669,12 @@ def main() -> int:
         parser.error("--strict cannot validate a commit range")
     if args.strict and args.allow:
         parser.error("--strict cannot be combined with --allow")
-    pattern = re.compile(args.allow) if args.allow else NOREPLY
+    pattern = NOREPLY
+    if args.allow:
+        try:
+            pattern = re.compile(args.allow)
+        except re.error as error:
+            parser.error(f"--allow is not a valid regular expression ({error})")
 
     try:
         identities = select_identities(args)

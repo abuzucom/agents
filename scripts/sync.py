@@ -12,6 +12,7 @@ against a manifest committed in each of them instead. A file that differs
 is either a fix one repository has and the other does not, or drift that
 belongs in the drift record. Both need somebody to look.
 """
+import argparse
 import hashlib
 import json
 import os
@@ -380,11 +381,17 @@ def read_manifest(root: Path) -> dict:
     if not manifest.is_file():
         return {}
     try:
-        return json.loads(manifest.read_text(encoding="utf-8"))
+        data = json.loads(manifest.read_text(encoding="utf-8"))
     except ValueError as error:
         print(f"error: {SHARED_MANIFEST} is not valid JSON ({error})",
               file=sys.stderr)
         return {}
+    if not isinstance(data, dict) or not isinstance(data.get("shared", {}), dict):
+        print(f"error: {SHARED_MANIFEST} must hold a JSON object whose "
+              "\"shared\" entry is a JSON object. Recovery: run "
+              "python scripts/sync.py --write-shared.", file=sys.stderr)
+        return {}
+    return data
 
 
 def shared_problems(root: Path, recorded: dict) -> list:
@@ -628,18 +635,38 @@ def backfill_digest_index(root: Path) -> int:
     return 0
 
 
+def parse_arguments(argv: list) -> argparse.Namespace:
+    """Parse at most one mode flag. Unknown or combined flags exit 2."""
+    parser = argparse.ArgumentParser(
+        prog="sync.py", allow_abbrev=False,
+        description="Write policy copies, or check them with --check.")
+    modes = parser.add_mutually_exclusive_group()
+    modes.add_argument("--check", action="store_true",
+                       help="report stale copies and digests without writing")
+    modes.add_argument("--print-adoptable", action="store_true",
+                       help="print the adoptable policy text")
+    modes.add_argument("--check-shared", action="store_true",
+                       help="compare shared files with the manifest")
+    modes.add_argument("--write-shared", action="store_true",
+                       help="record shared-file digests in the manifest")
+    modes.add_argument("--backfill-digests", action="store_true",
+                       help="add missing versions to the digest index")
+    return parser.parse_args(argv)
+
+
 def main(argv: list) -> int:
     """Dispatch on the mode flag and return a process exit code."""
+    arguments = parse_arguments(argv)
     root = Path(__file__).resolve().parent.parent
-    if "--print-adoptable" in argv:
+    if arguments.print_adoptable:
         return print_adoptable(root)
-    if "--check-shared" in argv:
+    if arguments.check_shared:
         return check_shared(root)
-    if "--write-shared" in argv:
+    if arguments.write_shared:
         return write_shared(root)
-    if "--backfill-digests" in argv:
+    if arguments.backfill_digests:
         return backfill_digest_index(root)
-    check_only = "--check" in argv
+    check_only = arguments.check
     copy_status = sync_copies(check_only)
     # A check reports stale copies and a stale index together. A write stops
     # at a failed copy, so the index never records a half-synchronized tree.

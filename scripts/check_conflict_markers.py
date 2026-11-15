@@ -101,6 +101,15 @@ def is_valid_setext_heading(
     return True
 
 
+def _try_decode(raw_bytes: bytes, encoding: str, errors: str,
+                failure: type[Exception]) -> str | None:
+    """Decode `raw_bytes`, or return None when the decoder raises `failure`."""
+    try:
+        return raw_bytes.decode(encoding, errors=errors)
+    except failure:
+        return None
+
+
 def decode_content(
     raw_bytes: bytes, encoding_hint: str | None = None
 ) -> tuple[str | None, str | None]:
@@ -127,23 +136,16 @@ def decode_content(
         return decoded.lstrip("\ufeff"), None
 
     if encoding_hint and encoding_hint != "unspecified":
-        try:
-            decoded = raw_bytes.decode(
-                encoding_hint, errors="replace"
-            )
+        # The working-tree-encoding attribute can name a codec this build
+        # of Python lacks. That case falls through to UTF-8.
+        decoded = _try_decode(raw_bytes, encoding_hint, "replace", LookupError)
+        if decoded is not None:
             return decoded.lstrip("\ufeff"), None
-        except (LookupError, UnicodeDecodeError):
-            # The declared working-tree-encoding did not apply. Fall
-            # through to UTF-8 rather than reporting, since the attribute
-            # can name an encoding this build of Python does not carry.
-            pass
 
-    try:
-        return raw_bytes.decode("utf-8").lstrip("\ufeff"), None
-    except UnicodeDecodeError:
-        # Not UTF-8 either, so treat the file as binary below. A file the
-        # decoder cannot read carries no conflict markers to find.
-        pass
+    # A file that is not UTF-8 falls through to the binary sniff below.
+    decoded = _try_decode(raw_bytes, "utf-8", "strict", UnicodeDecodeError)
+    if decoded is not None:
+        return decoded.lstrip("\ufeff"), None
 
     if b"\x00" in raw_bytes[:BINARY_SNIFF_BYTES]:
         return None, None
@@ -353,12 +355,13 @@ def _get_repo_root() -> str:
     return result.stdout.decode("utf-8", errors="replace").strip()
 
 
-def _probe_is_symlink(path: str):
-    """Return True, False, or None when the check itself failed."""
-    try:
-        return os.path.islink(path)
-    except OSError:
-        return None
+def _probe_is_symlink(path: str) -> bool:
+    """Return whether the path is a link.
+
+    os.path.islink reports False for a path it cannot inspect. The open in
+    _safe_read then reports that path's error.
+    """
+    return os.path.islink(path)
 
 
 def _safe_read(
@@ -380,12 +383,8 @@ def _safe_read(
         flags |= os.O_NOFOLLOW
     else:
         # Without O_NOFOLLOW the check and the open are separate calls, so
-        # this narrows the window rather than closing it. A probe that
-        # fails tells us nothing about the path, so refuse it.
-        is_link = _probe_is_symlink(path)
-        if is_link is None:
-            return None, f"could not determine whether {_sanitize(path)} is a link"
-        if is_link:
+        # this narrows the window rather than closing it.
+        if _probe_is_symlink(path):
             return None, None
 
     try:
@@ -536,7 +535,8 @@ def check_file(
 ) -> list[str]:
     """Check a single worktree file for conflict markers.
 
-    Uses _safe_read for race-free, bounded, no-follow-symlink I/O.
+    Uses _safe_read for bounded, no-follow-symlink I/O. Without O_NOFOLLOW
+    the probe-to-open window is narrowed, not closed.
     """
     raw_bytes, err = _safe_read(path, MAX_FILE_SIZE)
     if err:
@@ -563,18 +563,8 @@ def get_tracked_regular_files(
     """
     if repo_root is None:
         repo_root = _get_repo_root()
-    regular: list[str] = []
-    for part in _run_ls_files(repo_root, ["-s"]).split(b"\x00"):
-        if not part:
-            continue
-        try:
-            file_path, _, _, mode = _parse_index_entry(
-                part.decode("utf-8", errors="replace"))
-        except (ValueError, IndexError):
-            continue
-        if mode in REGULAR_MODES:
-            regular.append(file_path)
-    return regular
+    return [file_path for file_path, _sha, _stage, mode in _get_index_entries(repo_root)
+            if mode in REGULAR_MODES]
 
 
 def _skip_worktree_paths(repo_root: str) -> set:
@@ -1025,19 +1015,6 @@ def _check_tree(repo_root: str, raw_object_id: str) -> list[str]:
         violations.extend(_check_staged_blob(
             file_path, blob_id, repo_root, marker_size))
     return violations
-
-
-def _collect_files(resolved: list, repo_root: str) -> list:
-    """Return the files to check, expanding --all against the index."""
-    if not resolved or resolved == ["--all"]:
-        return get_tracked_regular_files(repo_root)
-    files: list[str] = []
-    for arg in resolved:
-        if arg == "--all":
-            files.extend(get_tracked_regular_files(repo_root))
-        else:
-            files.append(arg)
-    return files
 
 
 def _report(violations: list) -> int:
