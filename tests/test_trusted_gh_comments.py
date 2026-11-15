@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Issue and pull request comments through the trusted wrapper (issue #119)."""
 import io
+import json
 import os
 import subprocess
 import sys
@@ -112,17 +113,19 @@ class CommentCommandTest(unittest.TestCase):
     def setUp(self):
         self.repository = DraftRepository(self)
         self.calls = []
+        self.inputs = []
 
-    def run_main(self, argv: list) -> tuple[int, str, str]:
+    def run_main(self, argv: list, account_check=None) -> tuple[int, str, str]:
         """Run main() with a recording runner and return code and streams."""
-        def record(repo_root, arguments, **_keywords):
+        def record(repo_root, arguments, **keywords):
             self.calls.append(arguments)
+            self.inputs.append(keywords.get("input_text"))
             return completed(stdout="[]\n")
         stdout, stderr = io.StringIO(), io.StringIO()
         with patch.object(sys, "argv", ["trusted_gh.py", *argv]), \
                 patch.object(trusted_gh.os, "getcwd", return_value=str(self.repository.root)), \
                 patch.object(trusted_gh, "repository_target", return_value=REPOSITORY), \
-                patch.object(trusted_gh, "verify_account", return_value=None), \
+                patch.object(trusted_gh, "verify_account", side_effect=account_check), \
                 patch.object(trusted_gh, "run_gh", side_effect=record), \
                 redirect_stdout(stdout), redirect_stderr(stderr):
             code = trusted_gh.main()
@@ -135,14 +138,28 @@ class CommentCommandTest(unittest.TestCase):
             "api", "--paginate", f"repos/{REPOSITORY}/issues/5/comments"]])
         self.assertEqual(stdout, "[]\n")
 
-    def test_comment_post_uses_rest_with_absolute_body(self):
-        body = self.repository.draft("reply.md", b"Thanks.\n")
+    def test_comment_post_sends_validated_body_on_stdin(self):
+        self.repository.draft("reply.md", b"Thanks.\n")
         code, _stdout, _stderr = self.run_main(
             ["comment", "pr", "9", "--body-file", ".comment-drafts/reply.md"])
         self.assertEqual(code, 0)
         self.assertEqual(self.calls, [[
             "api", "-X", "POST", f"repos/{REPOSITORY}/issues/9/comments",
-            "-F", f"body=@{body}"]])
+            "--input", "-"]])
+        self.assertEqual([json.loads(text) for text in self.inputs], [{"body": "Thanks.\n"}])
+
+    def test_draft_change_after_validation_cannot_change_the_post(self):
+        draft = self.repository.draft("reply.md", b"Approved text.\n")
+
+        def replace_draft(_repo_root):
+            draft.write_bytes("Swapped é text.\n".encode("utf-8"))
+
+        code, _stdout, _stderr = self.run_main(
+            ["comment", "pr", "9", "--body-file", ".comment-drafts/reply.md"],
+            account_check=replace_draft)
+        self.assertEqual(code, 0)
+        self.assertEqual([json.loads(text) for text in self.inputs], [{"body": "Approved text.\n"}])
+        self.assertNotIn(str(draft), " ".join(self.calls[0]))
 
     def test_usage_errors_exit_2_without_calls(self):
         for argv in (["comments", "issue"], ["comments", "issue", "x"],
@@ -175,6 +192,16 @@ class RunReportingTest(unittest.TestCase):
             ["api", "-X", "POST", f"repos/{REPOSITORY}/issues/1/comments"])
         self.assertEqual(code, USAGE_EXIT_CODE)
         self.assertIn("gh api can mutate hosted GitHub resources", stderr)
+
+    def test_run_gh_delivers_stdin_to_the_process(self):
+        echo = ["-c", "import sys; sys.stdout.write(sys.stdin.read())"]
+        with patch.object(trusted_gh, "resolve_gh", return_value=sys.executable), \
+                patch.object(trusted_gh, "_safe_directory",
+                             return_value=Path(tempfile.gettempdir())):
+            result = trusted_gh.run_gh(Path(tempfile.gettempdir()), echo,
+                                       input_text='{"body": "Thanks.\\n"}')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(json.loads(result.stdout), {"body": "Thanks.\n"})
 
     def test_graphql_block_names_the_rest_path(self):
         code, stderr = self.run_main(

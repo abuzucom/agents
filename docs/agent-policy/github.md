@@ -65,7 +65,8 @@ read form on every branch state, a detached HEAD included. The post form asks
 for active-human consent and stays denied on a detached HEAD. The wrapper
 accepts only a regular ASCII draft file below the git-ignored
 `.comment-drafts/` directory. Real newlines in the draft carry the line
-breaks.
+breaks. The wrapper reads the draft once and sends the validated bytes to `gh`
+on standard input. A later change to the draft cannot alter the posted body.
 
 Comments have no Git equivalent. A failed comment operation has no fallback.
 Report the blocker to the active human and stop.

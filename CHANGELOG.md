@@ -30,6 +30,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   .comment-drafts/<file>` posts one comment over REST. The gate asks for
   consent and denies it on a detached HEAD. The wrapper accepts only a
   regular ASCII draft below the git-ignored `.comment-drafts/` directory.
+  It reads the draft once and sends the validated bytes on standard input.
+  A later change to the file cannot alter the posted body.
 - `docs/agent-policy/github.md` documents both comment forms, the missing
   comment fallback, and the unobserved MCP comment tools.
 - `hooks/_gate_core.py` defines `DENIAL_RESPONSE` (issue #102). Every hook

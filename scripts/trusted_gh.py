@@ -397,8 +397,8 @@ def _sanitize_config_directory(environment: dict, repository: Path) -> None:
     environment["GH_CONFIG_DIR"] = str(resolved)
 
 
-def run_gh(repo_root, arguments: list[str], *, runner=None, timeout=None):
-    """Run trusted GitHub CLI from outside the repository."""
+def run_gh(repo_root, arguments: list[str], *, runner=None, timeout=None, input_text=None):
+    """Run trusted GitHub CLI from outside the repository, with optional stdin."""
     repository = Path(repo_root).resolve()
     executable = Path(resolve_gh(repository))
     environment = dict(os.environ)
@@ -419,6 +419,7 @@ def run_gh(repo_root, arguments: list[str], *, runner=None, timeout=None):
             [str(executable), *arguments],
             cwd=private,
             env=environment,
+            input=input_text,
             capture_output=True,
             text=True,
             encoding="utf-8",
@@ -527,10 +528,16 @@ def comment_thread(kind: str, number: str) -> int:
 
 
 def comment_body_path(repo_root: Path, raw: str) -> Path:
-    """Return the absolute path of a validated draft under .comment-drafts/.
+    """Return the absolute path of a validated draft under .comment-drafts/."""
+    return read_comment_draft(repo_root, raw)[0]
 
-    The wrapper runs gh from a directory outside the repository, so it passes
-    gh an absolute path. The draft must be a regular non-link ASCII file.
+
+def read_comment_draft(repo_root: Path, raw: str) -> tuple[Path, str]:
+    """Return the path and validated text of one draft under .comment-drafts/.
+
+    The draft must be a regular non-link ASCII file. The wrapper reads it once
+    and posts these exact bytes, so a later change to the file cannot alter
+    the posted comment.
     """
     root = _find_git_entry(Path(repo_root)).parent
     drafts = root / COMMENT_DRAFT_DIRECTORY
@@ -550,13 +557,15 @@ def comment_body_path(repo_root: Path, raw: str) -> Path:
         raise ValueError(f"comment body must hold 1 to {MAX_COMMENT_BYTES} bytes")
     if not body.isascii():
         raise ValueError("comment body must be ASCII")
-    if find_literal_escape_sequences(["--body", body.decode("ascii")]):
+    text = body.decode("ascii")
+    if find_literal_escape_sequences(["--body", text]):
         raise ValueError("comment body contains literal escape text; use real newlines")
-    return resolved
+    return resolved, text
 
 
-def comment_arguments(repo_root, operation: str, arguments: list[str]) -> list[str]:
-    """Return the fixed REST GitHub CLI arguments for one comment operation."""
+def comment_arguments(repo_root, operation: str,
+                      arguments: list[str]) -> tuple[list[str], str | None]:
+    """Return the fixed REST GitHub CLI arguments and stdin for one comment operation."""
     expected = COMMENTS_ARGUMENT_COUNT if operation == "comments" else COMMENT_ARGUMENT_COUNT
     if len(arguments) != expected:
         raise ValueError(f"{operation} takes <issue|pr> <number>"
@@ -564,21 +573,21 @@ def comment_arguments(repo_root, operation: str, arguments: list[str]) -> list[s
     number = comment_thread(arguments[0], arguments[1])
     endpoint = f"repos/{repository_target(Path(repo_root))}/issues/{number}/comments"
     if operation == "comments":
-        return ["api", "--paginate", endpoint]
+        return ["api", "--paginate", endpoint], None
     if arguments[2] != COMMENT_BODY_OPTION:
         raise ValueError(f"comment takes {COMMENT_BODY_OPTION} <path>")
-    body = comment_body_path(Path(repo_root), arguments[3])
-    return ["api", "-X", "POST", endpoint, "-F", f"body=@{body}"]
+    _path, body = read_comment_draft(Path(repo_root), arguments[3])
+    return ["api", "-X", "POST", endpoint, "--input", "-"], json.dumps({"body": body})
 
 
 def _run_comment_command(repo_root, operation: str, arguments: list[str]) -> int:
     """Run one fixed comment read or post through the authenticated CLI."""
     try:
-        gh_arguments = comment_arguments(repo_root, operation, arguments)
+        gh_arguments, request_body = comment_arguments(repo_root, operation, arguments)
     except (OSError, ValueError) as error:
         print(f"error: {_bounded_path(error)}", file=sys.stderr)
         return USAGE_ERROR_EXIT_CODE
-    return _execute(repo_root, gh_arguments)
+    return _execute(repo_root, gh_arguments, input_text=request_body)
 
 
 def _run_requested_command(repo_root, arguments: list[str]) -> int:
@@ -606,11 +615,12 @@ def _run_requested_command(repo_root, arguments: list[str]) -> int:
     return _execute(repo_root, arguments, gate_core)
 
 
-def _execute(repo_root, arguments: list[str], gate_core=None) -> int:
+def _execute(repo_root, arguments: list[str], gate_core=None, input_text=None) -> int:
     """Verify the account, run gh, and relay bounded output and failures.
 
     With `gate_core`, add repository context first and check the final
     arguments again. Comment operations build fixed arguments and pass none.
+    `input_text` reaches gh on stdin.
     """
     try:
         effective_arguments = arguments
@@ -622,7 +632,10 @@ def _execute(repo_root, arguments: list[str], gate_core=None) -> int:
                       file=sys.stderr)
                 return POLICY_DENIAL_EXIT_CODE
         verify_account(repo_root)
-        result = run_gh(repo_root, effective_arguments)
+        if input_text is None:
+            result = run_gh(repo_root, effective_arguments)
+        else:
+            result = run_gh(repo_root, effective_arguments, input_text=input_text)
     except subprocess.TimeoutExpired:
         print(TIMEOUT_ERROR_MESSAGE, file=sys.stderr)
         return 1
