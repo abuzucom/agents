@@ -242,9 +242,6 @@ def _capture_bounded(
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
     )
-    if process.stdout is None:
-        _stop_process(process)
-        raise RuntimeError("could not capture Git output")
     try:
         output = process.stdout.read(limit + 1)
         if len(output) > limit:
@@ -576,7 +573,7 @@ def _workflow_violations(
 ) -> list[str]:
     """Check immutable actions and privileged workflow execution policy."""
     try:
-        documents = list(persist_checker.yaml.safe_load_all(text))
+        documents = persist_checker.load_documents(text)
     except persist_checker.yaml.YAMLError:
         return [f"{path}: malformed workflow YAML cannot be checked"]
     violations = []
@@ -809,21 +806,22 @@ def _scan_commit_range(
     head = values["--tree"]
     commits = banned.load_commits(base, head, repo)
     violations.extend(banned.find_violations(commits))
-    attribution = checkers.get("check_commit_attribution")
-    if attribution is not None:
-        violations.extend(attribution.trailer_violations(commits))
-        repository_name = os.environ.get("PR_BASE_REPOSITORY", "")
-        if repository_name:
-            try:
-                violations.extend(
-                    attribution.github_identity_violations(
-                        commits, repository_name, str(repo)
-                    )
+    # _load_checkers raises for any missing CHECKER_NAMES module, so the
+    # attribution checker is always present here.
+    attribution = checkers["check_commit_attribution"]
+    violations.extend(attribution.trailer_violations(commits))
+    repository_name = os.environ.get("PR_BASE_REPOSITORY", "")
+    if repository_name:
+        try:
+            violations.extend(
+                attribution.github_identity_violations(
+                    commits, repository_name, str(repo)
                 )
-            except (OSError, RuntimeError, subprocess.SubprocessError, ValueError) as error:
-                violations.append(
-                    "commit attribution lookup failed: " + _sanitize(error)
-                )
+            )
+        except (OSError, RuntimeError, subprocess.SubprocessError, ValueError) as error:
+            violations.append(
+                "commit attribution lookup failed: " + _sanitize(error)
+            )
     identity = checkers["check_git_identity"]
     identities = identity.log_identities(
         ["--end-of-options", f"{base}..{head}"], repo)

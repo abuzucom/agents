@@ -131,8 +131,9 @@ class ComplianceTreeWorkflowYamlTest(unittest.TestCase):
         self.assertEqual(findings, ["w.yml: malformed workflow YAML cannot be checked"])
 
     def test_loader_defect_is_not_reported_as_malformed(self):
-        broken = SimpleNamespace(yaml=SimpleNamespace(
-            safe_load_all=raise_defect, YAMLError=self.persist.yaml.YAMLError))
+        broken = SimpleNamespace(
+            load_documents=raise_defect,
+            yaml=SimpleNamespace(YAMLError=self.persist.yaml.YAMLError))
         with self.assertRaises(AttributeError):
             self.tree._workflow_violations(VALID_WORKFLOW, "w.yml", broken)
 

@@ -14,6 +14,47 @@ into the entry. Dates never decrease. Ask the active human when a date is in
 doubt.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.20.2] (2026-11-15)
+
+### Fixed
+- `scripts/sync.py` and `scripts/check_hook_coverage.py` parse arguments
+  with argparse. An unknown, abbreviated, or combined mode flag exits 2
+  before any work. A mistyped `--check` no longer writes policy copies.
+- `scripts/sync.py` and `scripts/check_hook_coverage.py` reject a manifest
+  or baseline that is not a JSON object with a recovery message.
+- `scripts/check_git_identity.py` reports an invalid `--allow` pattern as a
+  usage error with exit code 2.
+- `scripts/check_action_pins.py` walks YAML with an explicit stack and a
+  visited set. A recursive alias no longer raises `RecursionError`.
+- `scripts/_yaml_lines.py` holds the line-marking YAML loader and helpers
+  for `scripts/check_persist_credentials.py` and
+  `scripts/check_dockerfile_root.py`. The loader is a `SafeLoader`
+  subclass. Reported line numbers no longer depend on import order, and the
+  global `yaml.SafeLoader` stays unmodified.
+  `scripts/check_compliance_tree.py` loads workflows through the same
+  loader and keeps rejecting duplicate keys.
+- `scripts/check_branch_name.py` rejects every branch with a recovery step
+  when `scripts/branch_name_bans.txt` is missing or unreadable. A comment
+  records why `FOREIGN_TOKENS` omits `mit` and `uma`.
+- `scripts/check_gate_adoption.py` requires `scripts/branch_name_bans.txt`
+  and `scripts/_yaml_lines.py` in every adopted tree.
+- `scripts/check_compliance_tree.py` drops a `stdout` check that
+  `subprocess.PIPE` makes unreachable and indexes the attribution checker
+  directly.
+- `scripts/check_conflict_markers.py` drops an unreachable symlink-probe
+  branch, decodes through a `_try_decode` helper, builds the tracked listing
+  from `_get_index_entries`, deletes the unused `_collect_files`, and drops
+  a false race-free claim from a docstring.
+- The active human approved three existing test edits under Rule 3:
+  - `tests/test_checker_failure_boundaries.py` stubs `load_documents`.
+  - `tests/test_ci_branch_fixtures.py` copies `branch_name_bans.txt` into
+    its fixture.
+  - `tests/test_check_conflict_markers.py` drops the assertion for the
+    removed probe path.
+- Add `tests/test_cli_and_manifest_validation.py`,
+  `tests/test_yaml_handling.py`, `tests/test_policy_data_inventory.py`, and
+  `tests/test_conflict_marker_decoding.py`.
+
 ## [2.20.1] (2026-11-14)
 
 ### Added

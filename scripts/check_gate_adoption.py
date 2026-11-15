@@ -54,6 +54,9 @@ REQUIRED_CHECKERS = (
     "scripts/read_git_state.py",
     "scripts/trusted_gh.py",
     "scripts/trusted_git.py",
+    # Data and shared modules the checkers above load at run time.
+    "scripts/branch_name_bans.txt",
+    "scripts/_yaml_lines.py",
 )
 # The local-path checker and its approved allowlist form one gate (Rule 18).
 # Requiring both makes either one alone an incomplete adoption.
