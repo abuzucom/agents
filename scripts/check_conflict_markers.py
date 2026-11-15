@@ -35,6 +35,15 @@ MAX_VIOLATIONS = 100
 # invocation stays a reasonable size on a large repository.
 CHECK_ATTR_CHUNK = 500
 MAX_DIAGNOSTIC_LENGTH = 200
+MAX_LATIN1_CODE_POINT = 0xFF
+BINARY_SNIFF_BYTES = 4096
+MIN_GIT_MARKER_WIDTH = 3
+# Each check-attr -z record holds a path, an attribute, and a value.
+CHECK_ATTR_RECORD_FIELDS = 3
+SKIP_WORKTREE_PREFIX = "S "
+# An ls-files -s record lists the mode, the object ID, then the stage.
+STAGE_FIELD_INDEX = 2
+SHORT_SHA_LENGTH = 12
 REGULAR_MODES = {"100644", "100755"}
 OBJECT_ID_PATTERN = re.compile(r"(?:[0-9a-fA-F]{40}|[0-9a-fA-F]{64})\Z")
 
@@ -53,7 +62,7 @@ def _sanitize(value: object) -> str:
     for character in str(value):
         if " " <= character <= "~":
             rendered.append(character)
-        elif ord(character) <= 0xFF:
+        elif ord(character) <= MAX_LATIN1_CODE_POINT:
             rendered.append(f"\\x{ord(character):02x}")
         else:
             rendered.append(f"\\u{ord(character):04x}")
@@ -92,6 +101,15 @@ def is_valid_setext_heading(
     return True
 
 
+def _try_decode(raw_bytes: bytes, encoding: str, errors: str,
+                failure: type[Exception]) -> str | None:
+    """Decode `raw_bytes`, or return None when the decoder raises `failure`."""
+    try:
+        return raw_bytes.decode(encoding, errors=errors)
+    except failure:
+        return None
+
+
 def decode_content(
     raw_bytes: bytes, encoding_hint: str | None = None
 ) -> tuple[str | None, str | None]:
@@ -118,25 +136,18 @@ def decode_content(
         return decoded.lstrip("\ufeff"), None
 
     if encoding_hint and encoding_hint != "unspecified":
-        try:
-            decoded = raw_bytes.decode(
-                encoding_hint, errors="replace"
-            )
+        # The working-tree-encoding attribute can name a codec this build
+        # of Python lacks. That case falls through to UTF-8.
+        decoded = _try_decode(raw_bytes, encoding_hint, "replace", LookupError)
+        if decoded is not None:
             return decoded.lstrip("\ufeff"), None
-        except (LookupError, UnicodeDecodeError):
-            # The declared working-tree-encoding did not apply. Fall
-            # through to UTF-8 rather than reporting, since the attribute
-            # can name an encoding this build of Python does not carry.
-            pass
 
-    try:
-        return raw_bytes.decode("utf-8").lstrip("\ufeff"), None
-    except UnicodeDecodeError:
-        # Not UTF-8 either, so treat the file as binary below. A file the
-        # decoder cannot read carries no conflict markers to find.
-        pass
+    # A file that is not UTF-8 falls through to the binary sniff below.
+    decoded = _try_decode(raw_bytes, "utf-8", "strict", UnicodeDecodeError)
+    if decoded is not None:
+        return decoded.lstrip("\ufeff"), None
 
-    if b"\x00" in raw_bytes[:4096]:
+    if b"\x00" in raw_bytes[:BINARY_SNIFF_BYTES]:
         return None, None
 
     return raw_bytes.decode("latin-1"), None
@@ -158,7 +169,7 @@ class _BlockScan:
         where .gitattributes asked for it, since a lone "=" or ">" is
         ordinary text in most files.
         """
-        return marker_len >= 3 or (
+        return marker_len >= MIN_GIT_MARKER_WIDTH or (
             self.configured is not None and marker_len == self.configured
         )
 
@@ -344,12 +355,13 @@ def _get_repo_root() -> str:
     return result.stdout.decode("utf-8", errors="replace").strip()
 
 
-def _probe_is_symlink(path: str):
-    """Return True, False, or None when the check itself failed."""
-    try:
-        return os.path.islink(path)
-    except OSError:
-        return None
+def _probe_is_symlink(path: str) -> bool:
+    """Return whether the path is a link.
+
+    os.path.islink reports False for a path it cannot inspect. The open in
+    _safe_read then reports that path's error.
+    """
+    return os.path.islink(path)
 
 
 def _safe_read(
@@ -371,12 +383,8 @@ def _safe_read(
         flags |= os.O_NOFOLLOW
     else:
         # Without O_NOFOLLOW the check and the open are separate calls, so
-        # this narrows the window rather than closing it. A probe that
-        # fails tells us nothing about the path, so refuse it.
-        is_link = _probe_is_symlink(path)
-        if is_link is None:
-            return None, f"could not determine whether {_sanitize(path)} is a link"
-        if is_link:
+        # this narrows the window rather than closing it.
+        if _probe_is_symlink(path):
             return None, None
 
     try:
@@ -487,10 +495,11 @@ def _parse_check_attr(raw: bytes) -> dict:
     """Return {path: {attribute: value}} from -z check-attr output."""
     parsed: dict = {}
     parts = raw.split(b"\x00")
-    for index in range(0, len(parts) - 2, 3):
-        file_path = parts[index].decode("utf-8", errors="replace")
-        attribute = parts[index + 1].decode("utf-8", errors="replace")
-        value = parts[index + 2].decode("utf-8", errors="replace")
+    for index in range(0, len(parts) - CHECK_ATTR_RECORD_FIELDS + 1, CHECK_ATTR_RECORD_FIELDS):
+        raw_path, raw_attribute, raw_value = parts[index:index + CHECK_ATTR_RECORD_FIELDS]
+        file_path = raw_path.decode("utf-8", errors="replace")
+        attribute = raw_attribute.decode("utf-8", errors="replace")
+        value = raw_value.decode("utf-8", errors="replace")
         parsed.setdefault(file_path, {})[attribute] = value
     return parsed
 
@@ -526,7 +535,8 @@ def check_file(
 ) -> list[str]:
     """Check a single worktree file for conflict markers.
 
-    Uses _safe_read for race-free, bounded, no-follow-symlink I/O.
+    Uses _safe_read for bounded, no-follow-symlink I/O. Without O_NOFOLLOW
+    the probe-to-open window is narrowed, not closed.
     """
     raw_bytes, err = _safe_read(path, MAX_FILE_SIZE)
     if err:
@@ -553,18 +563,8 @@ def get_tracked_regular_files(
     """
     if repo_root is None:
         repo_root = _get_repo_root()
-    regular: list[str] = []
-    for part in _run_ls_files(repo_root, ["-s"]).split(b"\x00"):
-        if not part:
-            continue
-        try:
-            file_path, _, _, mode = _parse_index_entry(
-                part.decode("utf-8", errors="replace"))
-        except (ValueError, IndexError):
-            continue
-        if mode in REGULAR_MODES:
-            regular.append(file_path)
-    return regular
+    return [file_path for file_path, _sha, _stage, mode in _get_index_entries(repo_root)
+            if mode in REGULAR_MODES]
 
 
 def _skip_worktree_paths(repo_root: str) -> set:
@@ -581,8 +581,8 @@ def _skip_worktree_paths(repo_root: str) -> set:
         # git ls-files -v tags skip-worktree entries "S", then one space,
         # then the path. A lowercase tag is assume-unchanged, which still
         # has a working-tree file and stays in scope.
-        if len(entry) > 2 and entry[0] == "S" and entry[1] == " ":
-            skipped.add(entry[2:])
+        if len(entry) > len(SKIP_WORKTREE_PREFIX) and entry.startswith(SKIP_WORKTREE_PREFIX):
+            skipped.add(entry[len(SKIP_WORKTREE_PREFIX):])
     return skipped
 
 
@@ -608,7 +608,7 @@ def _parse_index_entry(entry: str):
     """Return (path, sha, stage, mode) for one ls-files -s record."""
     meta, file_path = entry.split("\t", 1)
     fields = meta.split()
-    stage = fields[2] if len(fields) > 2 else "0"
+    stage = fields[STAGE_FIELD_INDEX] if len(fields) > STAGE_FIELD_INDEX else "0"
     return (file_path, fields[1], stage, fields[0])
 
 
@@ -683,7 +683,7 @@ def _get_blob_size(sha: str, repo_root: str) -> int:
             "utf-8", errors="replace"
         ).strip()
         raise RuntimeError(
-            f"git cat-file -s {sha[:12]} failed: {error_msg}"
+            f"git cat-file -s {sha[:SHORT_SHA_LENGTH]} failed: {error_msg}"
         )
     return int(result.stdout.decode("utf-8", errors="replace").strip())
 
@@ -703,16 +703,16 @@ def _read_blob(
     if proc.returncode != 0:
         error_msg = err.decode("utf-8", errors="replace").strip()
         raise RuntimeError(
-            f"git cat-file blob {sha[:12]} failed: {error_msg}"
+            f"git cat-file blob {sha[:SHORT_SHA_LENGTH]} failed: {error_msg}"
         )
     if len(data) > max_size:
         raise RuntimeError(
-            f"blob {sha[:12]} size ({len(data)} bytes) exceeds "
+            f"blob {sha[:SHORT_SHA_LENGTH]} size ({len(data)} bytes) exceeds "
             f"limit ({max_size} bytes)"
         )
     if expected_size is not None and len(data) != expected_size:
         raise RuntimeError(
-            f"blob {sha[:12]} read {len(data)} bytes; "
+            f"blob {sha[:SHORT_SHA_LENGTH]} read {len(data)} bytes; "
             f"expected {expected_size}"
         )
     return data
@@ -910,15 +910,16 @@ def _parse_tree_attributes(
     if raw and not raw.endswith(b"\x00"):
         raise RuntimeError("truncated git check-attr output")
     parts = raw[:-1].split(b"\x00") if raw else []
-    if len(parts) % 3 != 0:
+    if len(parts) % CHECK_ATTR_RECORD_FIELDS != 0:
         raise RuntimeError("malformed git check-attr output")
     expected = set(requested)
     parsed: dict[str, dict[str, str]] = {}
-    for index in range(0, len(parts), 3):
+    for index in range(0, len(parts), CHECK_ATTR_RECORD_FIELDS):
+        raw_path, raw_attribute, raw_value = parts[index:index + CHECK_ATTR_RECORD_FIELDS]
         try:
-            path = parts[index].decode("utf-8")
-            attribute = parts[index + 1].decode("ascii")
-            value = parts[index + 2].decode("utf-8")
+            path = raw_path.decode("utf-8")
+            attribute = raw_attribute.decode("ascii")
+            value = raw_value.decode("utf-8")
         except UnicodeDecodeError as err:
             raise RuntimeError("malformed git check-attr output") from err
         values = parsed.setdefault(path, {})
@@ -1014,19 +1015,6 @@ def _check_tree(repo_root: str, raw_object_id: str) -> list[str]:
         violations.extend(_check_staged_blob(
             file_path, blob_id, repo_root, marker_size))
     return violations
-
-
-def _collect_files(resolved: list, repo_root: str) -> list:
-    """Return the files to check, expanding --all against the index."""
-    if not resolved or resolved == ["--all"]:
-        return get_tracked_regular_files(repo_root)
-    files: list[str] = []
-    for arg in resolved:
-        if arg == "--all":
-            files.extend(get_tracked_regular_files(repo_root))
-        else:
-            files.append(arg)
-    return files
 
 
 def _report(violations: list) -> int:

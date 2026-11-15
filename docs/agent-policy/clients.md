@@ -23,18 +23,22 @@ instruction.
 Client APIs differ. Do not claim coverage that the client cannot observe.
 Repository hooks remain defense in depth only.
 
+The reinjection hook states external hook precedence on every lifecycle
+event. No repository check verifies model compliance.
+Multi-repository cloud sessions load no repository hooks. The rule reaches
+those sessions only through the synchronized policy copies.
+
 A multi-repository Claude Code cloud session starts above the clones. It loads
 no repository hooks. Agents there run the branch checker manually. A setup
 script running `pre-commit install --hook-type pre-push` restores the pre-push
-check.
+check. Start a cloud session with one repository as the norm. The session then
+opens inside that repository and loads its hooks natively. Use a separate
+session for each repository of cross-repository work.
 
 ## Compaction events
 Claude and Codex report compaction through the session payload `source`
 field. The reinjection hook prepends a compaction directive to policy
-context for those events. The directive orders disclosure of the complete
-compaction text, a stop, plan-mode re-entry, a canonical `AGENTS.md`
-re-read, and a detailed plan from repository state, the compaction message,
-handoff material, and the active human's stated tasks and goals.
+context for those events.
 
 Claude and Codex deliver policy through hook context. Gemini prepends a
 system message. Antigravity uses an ephemeral message.

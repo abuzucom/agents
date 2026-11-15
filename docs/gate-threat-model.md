@@ -99,9 +99,16 @@ include the following actions:
   require an explicit inspectable program name.
   Incomplete parsing receives a syntax denial. Only recovered Git commands
   create ambiguous Git-write contexts. Parsing stops at 65,536 characters.
-  Bounded repository workflows request native consent. The route rejects
-  wrappers, chained commands, redirection, and shell expansion. Unsupported
-  consent responses and unattended Claude sessions remain closed.
+  Bounded repository workflows that write request native consent. Unsupported
+  consent responses and unattended Claude sessions deny those workflows.
+  Inspecting workflows run without a prompt for every client. Inspecting
+  workflows cover `allow` entries in `hooks/workflow-scripts.txt`, unittest runs, Ruff checking
+  forms, and `rg` searches bound to the repository. Listed scripts and tests
+  execute repository code without a human checkpoint. Repository writers
+  control that code and the list. The route accepts `&&` chains of accepted
+  forms. It rejects wrappers, other operators, `#`, redirection, and shell
+  expansion. A repository-resolved program turns an unprompted form into a
+  consent request.
 - Metadata checks classify the write destination separately from reference
   content. Linked worktrees use resolved administration paths. Unresolved
   directory-root writes deny. Copy target-directory options identify destinations.

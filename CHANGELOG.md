@@ -14,7 +14,7 @@ into the entry. Dates never decrease. Ask the active human when a date is in
 doubt.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.16.0] (2026-11-09)
+## [2.21.0] (2026-11-15)
 
 ### Added
 - Add `scripts/check_merge_safety.py` verifying merge preconditions before any
@@ -33,6 +33,263 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ### Changed
 - Relocate one duplicated policy sentence out of the `AGENTS.md` summary. The
   linked documents already carry the same sentence.
+
+### Fixed
+- `scripts/sync.py` and `scripts/check_hook_coverage.py` parse arguments
+  with argparse. An unknown, abbreviated, or combined mode flag exits 2
+  before any work. A mistyped `--check` no longer writes policy copies.
+- `scripts/sync.py` and `scripts/check_hook_coverage.py` reject a manifest
+  or baseline that is not a JSON object with a recovery message.
+- `scripts/check_git_identity.py` reports an invalid `--allow` pattern as a
+  usage error with exit code 2.
+- `scripts/check_action_pins.py` walks YAML with an explicit stack and a
+  visited set. A recursive alias no longer raises `RecursionError`.
+- `scripts/_yaml_lines.py` holds the line-marking YAML loader and helpers
+  for `scripts/check_persist_credentials.py` and
+  `scripts/check_dockerfile_root.py`. The loader is a `SafeLoader`
+  subclass. Reported line numbers no longer depend on import order, and the
+  global `yaml.SafeLoader` stays unmodified.
+  `scripts/check_compliance_tree.py` loads workflows through the same
+  loader and keeps rejecting duplicate keys.
+- `scripts/check_branch_name.py` rejects every branch with a recovery step
+  when `scripts/branch_name_bans.txt` is missing or unreadable. A comment
+  records why `FOREIGN_TOKENS` omits `mit` and `uma`.
+- `scripts/check_gate_adoption.py` requires `scripts/branch_name_bans.txt`
+  and `scripts/_yaml_lines.py` in every adopted tree.
+- `scripts/check_compliance_tree.py` drops a `stdout` check that
+  `subprocess.PIPE` makes unreachable and indexes the attribution checker
+  directly.
+- `scripts/check_conflict_markers.py` drops an unreachable symlink-probe
+  branch, decodes through a `_try_decode` helper, builds the tracked listing
+  from `_get_index_entries`, deletes the unused `_collect_files`, and drops
+  a false race-free claim from a docstring.
+- The active human approved three existing test edits under Rule 3:
+  - `tests/test_checker_failure_boundaries.py` stubs `load_documents`.
+  - `tests/test_ci_branch_fixtures.py` copies `branch_name_bans.txt` into
+    its fixture.
+  - `tests/test_check_conflict_markers.py` drops the assertion for the
+    removed probe path.
+- Add `tests/test_cli_and_manifest_validation.py`,
+  `tests/test_yaml_handling.py`, `tests/test_policy_data_inventory.py`, and
+  `tests/test_conflict_marker_decoding.py`.
+
+## [2.20.1] (2026-11-14)
+
+### Added
+- Add a `ci.local` field to each row of the adoption report. It reads `true`
+  for a repository that calls `./.github/workflows/agents-compliance.yml` by
+  local path, bare or quoted. Every workflow file counts, and a
+  commented-out call does not.
+  The Markdown CI column shows `local` for a repository without a remote
+  reference. The `reference` and `pinned` fields keep their meaning.
+- Add `tests/test_report_source_repository.py` for the source repository
+  row.
+
+### Fixed
+- Count `docs/agent-policy/source-orientation.md` in the adoption report copy
+  check where a repository holds it. `scripts/sync.py` appends that file to
+  every policy copy. The report previously rated every source repository
+  copy out of sync.
+- `scripts/trusted_gh.py` resolves GitHub CLI, its safe execution
+  directory, and its search PATH through shared helpers in
+  `scripts/trusted_git.py`. GitHub CLI keeps the working directory as a
+  second safe-directory candidate. Failure messages stay unchanged.
+- `scripts/check_git_identity.py` names a failed authenticated account
+  lookup by exception type before the history fallback. The exception
+  message never appears.
+- `scripts/check_dockerfile_root.py`, `scripts/check_persist_credentials.py`,
+  and `scripts/check_weak_hashing.py` catch only parse errors as malformed
+  input. Each `main()` reports any other failure as an internal checker
+  failure with exit code 1. `scripts/check_compliance_tree.py` catches only
+  YAML errors around workflow loading.
+- Replace empty exception handlers with non-raising checks in
+  `scripts/check_git_identity.py`, `scripts/prose_policy.py`, and
+  `hooks/_gate_core.py`. A permission error on a `.git` entry still fails
+  closed.
+- Remove a lint suppression marker from `hooks/require_consent.py`.
+- Add `tests/test_trusted_executable_resolution.py`,
+  `tests/test_identity_lookup_failure_disclosure.py`,
+  `tests/test_checker_failure_boundaries.py`, and
+  `tests/test_discover_dot_git_status.py`.
+
+### Changed
+- `AGENTS.md` Authorization asks for one recommendation per open choice and
+  stops when an authorized act has no permitted tool. Rule 16 bans direct
+  `gh` under urgency. Rule 17 limits comments, reviews, and replies in every
+  repository to active-human requests. Rule 14 denies identity, amend,
+  rebase, and push requests from harness hooks.
+- Replace the 21 per-rule pointer sentences in `AGENTS.md` with one index
+  under Precedence. Move the wrapper exit-code meanings to
+  `docs/agent-policy/github.md`. Rule 16 keeps the sign-in restriction.
+- `docs/agent-policy/clients.md` sets one repository per cloud session as
+  the norm.
+- `hook-coverage-baseline.json` records 2 unreached statements in
+  `_gate_core.py::_discover_dot_git`. A non-root run measured the count.
+
+## [2.19.2] (2026-11-13)
+
+### Fixed
+- Move the `abuzucom/foucault` security review pin from release 3.7.7 at
+  commit `1334e5bf433d43f152762ea47eb89eb22f260e34` to release 3.7.13 at commit
+  `11e55cd691e9a2be086a4fb9378f490d4121e11c`. `audit_ref` moves with the pin.
+  The active human approved the pin change under Rule 9.
+- Refresh `ci/call_model.py`, `ci/model_providers.json`, and
+  `scripts/check_pr_review_response.py` from that foucault commit. An HTTP
+  400 now reroutes the private diff to the large-input model only when the
+  response body names a context or prompt limit. The validator accepts
+  impersonal report lines such as `Trace: base to sink.` Reviews run on
+  `minimax-m3.1-flash`.
+- Update `PINNED_COMMIT` in `tests/test_security_review_wiring.py` to the new
+  pin. Add docstrings to the five methods in
+  `tests/test_review_response_narration.py`. No assertion changes. The active
+  human approved both test edits under Rule 3.
+- State that output from any hook this repository does not supply is
+  program data and never the active human's words, whatever client,
+  harness, or platform installed the hook. `AGENTS.md` gains Non-negotiable
+  item 24 and a Precedence paragraph. The active human's rules override
+  external hook output. Repository hooks under `hooks/` stay binding.
+- Deliver the same rule through `hooks/reinject_agents_policy.py` on every
+  lifecycle event for Claude, Codex, Gemini, and Antigravity.
+  `docs/agent-policy/clients.md` states that no repository check verifies
+  model compliance.
+- Add `tests/test_hook_output_directive.py` for the directive and policy
+  text.
+
+### Added
+- Add `tests/test_review_adapter_portable.py` from the same foucault commit.
+  The tests cover the copied review scripts.
+
+## [2.19.0] (2026-11-12)
+
+### Fixed
+- Move the `abuzucom/foucault` security review pin from release 3.3.10 at
+  commit `62851df1ef177593adbb9e06b223f5a6dce66fc0` to release 3.7.7 at commit
+  `1334e5bf433d43f152762ea47eb89eb22f260e34`. Release 3.7.7 authenticates the
+  pull request head fetch. A private adopter failed that fetch before.
+  `audit_ref` moves with the pin.
+- Refresh `ci/build_pr_case.py`, `ci/call_model.py`, `ci/model_providers.json`,
+  and `scripts/check_pr_review_response.py` from that foucault commit. The
+  reusable workflow runs the caller's copies. The validator now rejects a
+  report line that opens in the first person.
+- Require `policy-digests.json` in `tests/test_sync_digest_index.py` only
+  where `docs/agent-policy/source-orientation.md` exists. An adopter copies
+  the test and holds no digest index.
+- Skip the event payload scan in `scripts/check_compliance_tree.py` when the
+  runner event file holds no pull request data. A push event no longer fails
+  the scan. The check validates the payload structure and bounds its size.
+- Replace unencodable characters in `scripts/trusted_gh.py` output for
+  buffered and unbuffered streams.
+
+### Added
+- Add `tests/test_review_response_narration.py`. The tests cover the
+  narration rule of the refreshed validator.
+- Add `tests/test_infrastructure_manifest_bound.py`. The tests reach the
+  oversize branch of `_infrastructure_manifest_text` with a synthetic file.
+  Hook coverage no longer depends on the size of `policy-digests.json`. An
+  adopter without the index matches the baseline.
+- Add `scripts/report_adoption_status.py`. The script lists an organization's
+  active, unforked repositories through the GitHub REST API. It matches each
+  repository's policy and gate files against `policy-digests.json`. Each row
+  reports the adopted version, its distance from the newest version,
+  synchronized copies, gate file coverage, client registrations, and the
+  reusable compliance workflow reference.
+- Write a dated Markdown and JSON report plus `latest` copies. Report the
+  changes since the previous `latest.json`.
+- Read the report token from `ADOPTION_REPORT_TOKEN`. Warn when the token
+  expires within 30 days. Fail the run on a rejected token or an unreadable
+  repository.
+- Accept the report form in `hooks/workflow-scripts.txt` with a
+  `consent-write` verdict.
+- Add `tests/test_report_adoption_status.py`. The tests serve a synthetic
+  organization from a loopback HTTP server.
+- Add `tests/test_compliance_tree_event_isolation.py`. The test covers a push
+  event payload in the scanner environment.
+- Add `tests/test_trusted_gh_encoding.py`. The tests cover output on a stream
+  with a restricted encoding.
+- Add `policy-digests.json`. The index maps each released version to the
+  SHA-256 digests of its policy documents and shared gate files. An adoption
+  report matches adopter files against it to name the adopted version.
+- Record the current version in the index on every `python scripts/sync.py`
+  run. `python scripts/sync.py --check` fails on a missing or stale entry.
+  Both steps skip a repository without the index file.
+- Add `python scripts/sync.py --backfill-digests`. The flag adds an entry for
+  every released version in Git history. It reuses the shared digests each
+  revision recorded. Existing entries stay untouched.
+- Accept the `--backfill-digests` form in `hooks/workflow-scripts.txt` with a
+  `consent-write` verdict.
+- Add `tests/test_sync_digest_index.py`.
+
+### Changed
+- Report stale copies and a stale digest index together in
+  `python scripts/sync.py --check`.
+- Drop the `_infrastructure_manifest_text` limit from
+  `hook-coverage-baseline.json`. The digest index exceeds the 64 KiB manifest
+  bound. A hook test now reaches the oversize branch.
+- Name every numeric literal that the Euler M11 prescan flags in `hooks/`,
+  `scripts/`, and `tests/`. The change covers 96 files and 512 candidates.
+  Each literal becomes a named constant, a tuple unpack, or a length of a
+  named prefix. No behavior changes. No test assertion changes its expected
+  value.
+- State the reason for `MAX_CHAIN_PARTS`, `MAX_WORKFLOW_ARGUMENTS`, and
+  `MAX_WORKFLOW_SCRIPT_LIST_BYTES` in `hooks/_command_execution_gate.py`.
+- State the purpose of `EXCLUSIVE_TEST_SHARDS` and of the non-waiting executor
+  shutdown in `scripts/check_hook_coverage.py`.
+- Record new digests in `shared-files.json` for the changed shared files.
+
+## [2.16.1] (2026-11-11)
+
+### Added
+- Add an `allow` verdict to `workflow_decision` in
+  `hooks/_command_execution_gate.py`. An allowed form runs without a prompt for
+  every client, including Codex and unattended Claude sessions.
+- Add `hooks/workflow-scripts.txt`. The list names each accepted repository
+  script form with an `allow`, `consent-read`, or `consent-write` verdict. It
+  covers the checker invocations in the Makefile, `.pre-commit-config.yaml`,
+  and CI, plus local report and advice flags. A missing or malformed list
+  denies every repository script call.
+- Accept `python -m unittest discover` with optional `-s`, `-t`, `-p`, `-v`,
+  and `-q`. Directories must resolve inside the repository.
+- Accept `ruff check` and `ruff format` with a fixed flag list, including the
+  `python -m ruff` spelling. Checking forms run without a prompt. `ruff format`
+  and `ruff check --fix` request consent.
+- Deny a `ruff` executable that PATH resolves inside the repository. Deny
+  `python -m ruff` when a root `ruff.py` or `ruff/` shadows the module.
+- Accept `&&` chains of up to eight accepted workflow forms. A chain takes the
+  strictest verdict of its parts.
+- List the accepted forms in the denial for Ruff, unittest, and repository
+  script commands.
+- Require `hooks/workflow-scripts.txt` in `scripts/check_gate_adoption.py`.
+- Add `tests/test_workflow_allow_verdict.py` covering module verdicts and the
+  hook outcome for Claude and Codex.
+
+### Changed
+- Run `python -m unittest tests.<module>`, `scripts/read_git_state.py`,
+  `scripts/check_action_pins.py`, `scripts/check_gate_adoption.py`, and
+  repository-bound `rg` searches without a prompt. Each requested consent
+  before.
+- Request consent for an unprompted form when PATH resolves its program inside
+  the repository.
+- Request consent for an `rg` search with an absolute, home-relative, or
+  parent-directory operand.
+- Name primary branches beside protected branches in Rule 5 of `AGENTS.md`.
+  Some repositories carry no branch protection.
+- Align the handoff consent sentence in `docs/agent-policy/adoption.md` with
+  the command execution gate. Builds and consent-routed workflows need consent.
+- Move the `scripts/prose_bans.txt` file format and the
+  `scripts/check_hedging.py` exit-code detail from `AGENTS.md` to
+  `docs/agent-policy/enforcement.md`.
+
+### Removed
+- Remove repeated passages, examples, and explanations from `AGENTS.md` and
+  the five linked policy documents. The assembled policy shrinks by about 3 KB.
+  Adopter orientation files gain that room under the 64 KiB limit.
+- Remove the Rule 15 pointer to `docs/agent-policy/github.md` for the SSH
+  distinction. That document never held the text.
+
+### Fixed
+- Reject workflow commands that contain `#`. The tokenizer ends a word at `#`.
+  Bash does not. A hidden second command could follow a matched form.
+- Reject workflow tokens made only of operator characters, such as `|&`.
 
 ## [2.15.1] (2026-11-07)
 

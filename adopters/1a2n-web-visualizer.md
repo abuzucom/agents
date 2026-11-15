@@ -48,6 +48,17 @@ its declines.
   follow-up recorded above.
 - `CONTRIBUTING.md.example`. The adopter keeps its own `SECURITY.md`.
 
+## Available since adoption
+
+- The command execution gate allow verdict from template version 2.16.0.
+  Inspecting checkers, unittest runs, Ruff checking forms, and `&&` chains run
+  without a prompt. Re-adoption takes `hooks/_command_execution_gate.py`,
+  `hooks/enforce_branch_name.py`, `hooks/workflow-scripts.txt`,
+  `scripts/check_gate_adoption.py`, `tests/test_workflow_allow_verdict.py`,
+  the four updated gate tests, and the regenerated `shared-files.json` in one
+  transaction. The script list then needs entries for adopter-only scripts
+  such as `scripts/check_protected_files.py`.
+
 ## Adopter-only files
 
 - `scripts/check_protected_files.py`. The template declined adoption.

@@ -56,6 +56,8 @@ GIT_CONTEXT_IDENTITY_KEYS = frozenset((
 MAX_GIT_CONTEXT_PAIRS = 64
 USAGE_FAILURE = 2
 RUNNER_FAILURE = 1
+CLONE_ARGUMENT_COUNT = 3
+FETCH_MINIMUM_ARGUMENT_COUNT = 2
 # run_git config overrides may only neutralize filter drivers. A wider key
 # such as core.pager or credential.helper would let a caller run a program.
 CONFIG_OVERRIDE_SECTION = "filter"
@@ -106,10 +108,24 @@ def _candidate_names() -> tuple[str, ...]:
     return ("git",)
 
 
+def is_inside_directory(path: Path, directory: Path) -> bool:
+    """Return whether `path` is within `directory`. Shared with trusted_gh."""
+    return _is_inside(path, directory)
+
+
 def resolve_git(repo_root) -> str:
     """Return an absolute Git executable outside `repo_root`."""
+    return resolve_executable(repo_root, _candidate_names(), "Git")
+
+
+def resolve_executable(repo_root, names: tuple[str, ...], label: str) -> str:
+    """Return the first absolute PATH executable named `names` outside the repo.
+
+    Relative PATH entries, symlinks, non-files, repository paths, and (outside
+    Windows) files without the execute bit are skipped. `label` names the tool
+    in the failure message.
+    """
     repository = Path(repo_root).resolve()
-    names = _candidate_names()
     for raw_directory in os.environ.get("PATH", "").split(os.pathsep):
         if not raw_directory:
             continue
@@ -131,19 +147,30 @@ def resolve_git(repo_root) -> str:
             if os.name != "nt" and not os.access(resolved, os.X_OK):
                 continue
             return str(resolved)
-    raise FileNotFoundError("trusted Git executable was not found on PATH")
+    raise FileNotFoundError(f"trusted {label} executable was not found on PATH")
 
 
 def _safe_directory(repository: Path, executable: Path) -> Path:
     """Return an existing execution directory outside the repository."""
-    for candidate in (Path(tempfile.gettempdir()), executable.parent):
+    return select_safe_directory(
+        repository, (Path(tempfile.gettempdir()), executable.parent), "Git")
+
+
+def select_safe_directory(repository: Path, candidates: tuple, label: str) -> Path:
+    """Return the first existing candidate directory outside the repository."""
+    for candidate in candidates:
         try:
             resolved = candidate.resolve(strict=True)
         except OSError:
             continue
         if resolved.is_dir() and not _is_inside(resolved, repository):
             return resolved
-    raise OSError("no safe external directory is available for Git execution")
+    raise OSError(f"no safe external directory is available for {label} execution")
+
+
+def safe_search_path(repository: Path) -> str:
+    """Return PATH without unsafe entries. Shared with trusted_gh."""
+    return _safe_search_path(repository)
 
 
 def _safe_search_path(repository: Path) -> str:
@@ -378,20 +405,21 @@ def _transport_arguments(workspace: Path, arguments: list[str]) -> list[str] | N
         return None
     operation = arguments[0]
     if operation == "clone":
-        if len(arguments) != 3 or not _github_source(arguments[1]):
+        if len(arguments) != CLONE_ARGUMENT_COUNT or not _github_source(arguments[1]):
             return None
-        destination = _workspace_path(workspace, arguments[2], must_exist=False)
+        _clone, source, target = arguments
+        destination = _workspace_path(workspace, target, must_exist=False)
         if destination is None:
             return None
-        return ["clone", "--", arguments[1], str(destination)]
-    if len(arguments) < 2:
+        return ["clone", "--", source, str(destination)]
+    if len(arguments) < FETCH_MINIMUM_ARGUMENT_COUNT:
         return None
     repository = _workspace_path(
         workspace, arguments[1], must_exist=True, allow_root=True,
     )
     if repository is None or not (repository / ".git").exists():
         return None
-    remaining = arguments[2:]
+    _fetch, _repository, *remaining = arguments
     if any(not _literal(value) for value in remaining):
         return None
     if remaining and not _fetch_remote(remaining[0]):

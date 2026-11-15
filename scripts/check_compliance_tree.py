@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Run trusted compliance checks against one immutable Git tree."""
 import importlib.util
+import json
 import os
 import re
 import shutil
@@ -16,7 +17,21 @@ MAX_TREE_ENTRIES = 100_000
 MAX_VIOLATIONS = 1_000
 MAX_TREE_OUTPUT = 64 * 1024 * 1024
 MAX_GIT_DIAGNOSTIC = 64 * 1024
+# A runner event payload stays far below this bound. The cap bounds the read.
+MAX_EVENT_PAYLOAD_BYTES = 1024 * 1024
 MAX_DIAGNOSTIC_LENGTH = 500
+MAX_LATIN1_CODE_POINT = 0xFF
+UTF32_UNIT_BYTES = 4
+UTF16_UNIT_BYTES = 2
+# ASCII-heavy wide text holds NUL bytes at fixed positions in each code unit.
+UTF32_NUL_HEAVY_RATIO = 0.6
+UTF16_NUL_HEAVY_RATIO = 0.4
+NUL_SPARSE_RATIO = 0.2
+CHECKOUT_FETCH_DEPTH = 201
+TRUSTED_STEP_COUNT = 5
+SETUP_PYTHON_STEP_INDEX = 2
+# Each command-line option consumes its name and one value.
+OPTION_PAIR_WIDTH = 2
 OBJECT_ID_PATTERN = re.compile(r"(?:[0-9a-fA-F]{40}|[0-9a-fA-F]{64})\Z")
 ACTION_PATTERN = re.compile(r"[^@\s]+@[0-9a-fA-F]{40}\Z")
 PYTHON_VERSION_PATTERN = re.compile(r"^3\.\d+(?:\.\d+)?$")
@@ -78,7 +93,7 @@ def _sanitize(value: object) -> str:
     for character in str(value):
         if " " <= character <= "~":
             rendered.append(character)
-        elif ord(character) <= 0xFF:
+        elif ord(character) <= MAX_LATIN1_CODE_POINT:
             rendered.append(f"\\x{ord(character):02x}")
         else:
             rendered.append(f"\\u{ord(character):04x}")
@@ -227,9 +242,6 @@ def _capture_bounded(
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
     )
-    if process.stdout is None:
-        _stop_process(process)
-        raise RuntimeError("could not capture Git output")
     try:
         output = process.stdout.read(limit + 1)
         if len(output) > limit:
@@ -398,18 +410,18 @@ def _zero_ratio(content: bytes, offset: int, width: int) -> float:
 def _decode_bomless_unicode(content: bytes) -> str | None:
     """Decode UTF-16/32 text whose byte-position NUL pattern identifies it."""
     candidates = []
-    if len(content) % 4 == 0 and len(content) >= 4:
-        ratios = [_zero_ratio(content, offset, 4) for offset in range(4)]
-        if min(ratios[1:]) > 0.6 and ratios[0] < 0.2:
+    if len(content) % UTF32_UNIT_BYTES == 0 and len(content) >= UTF32_UNIT_BYTES:
+        ratios = [_zero_ratio(content, offset, UTF32_UNIT_BYTES) for offset in range(UTF32_UNIT_BYTES)]
+        if min(ratios[1:]) > UTF32_NUL_HEAVY_RATIO and ratios[0] < NUL_SPARSE_RATIO:
             candidates.append("utf-32-le")
-        if min(ratios[:3]) > 0.6 and ratios[3] < 0.2:
+        if min(ratios[:-1]) > UTF32_NUL_HEAVY_RATIO and ratios[-1] < NUL_SPARSE_RATIO:
             candidates.append("utf-32-be")
-    if len(content) % 2 == 0 and len(content) >= 2:
-        even = _zero_ratio(content, 0, 2)
-        odd = _zero_ratio(content, 1, 2)
-        if odd > 0.4 and even < 0.2:
+    if len(content) % UTF16_UNIT_BYTES == 0 and len(content) >= UTF16_UNIT_BYTES:
+        even = _zero_ratio(content, 0, UTF16_UNIT_BYTES)
+        odd = _zero_ratio(content, 1, UTF16_UNIT_BYTES)
+        if odd > UTF16_NUL_HEAVY_RATIO and even < NUL_SPARSE_RATIO:
             candidates.append("utf-16-le")
-        if even > 0.4 and odd < 0.2:
+        if even > UTF16_NUL_HEAVY_RATIO and odd < NUL_SPARSE_RATIO:
             candidates.append("utf-16-be")
     for encoding in candidates:
         try:
@@ -474,7 +486,7 @@ def _checkout_step(base: bool) -> dict:
             "ref": f"${{{{ env.PR_{prefix}_SHA }}}}",
             "path": "trusted-base" if base else "pr-head",
             "persist-credentials": False,
-            "fetch-depth": 201,
+            "fetch-depth": CHECKOUT_FETCH_DEPTH,
         },
     }
 
@@ -516,8 +528,8 @@ def _pull_target_violations(document: dict, text: str, path: str) -> list[str]:
     if isinstance(candidate_job, dict):
         candidate_job = dict(candidate_job)
         candidate_steps = candidate_job.get("steps")
-        if isinstance(candidate_steps, list) and len(candidate_steps) == 5:
-            python_step = candidate_steps[2]
+        if isinstance(candidate_steps, list) and len(candidate_steps) == TRUSTED_STEP_COUNT:
+            python_step = candidate_steps[SETUP_PYTHON_STEP_INDEX]
             version = (python_step.get("with", {}).get("python-version")
                        if isinstance(python_step, dict)
                        else None)
@@ -526,11 +538,11 @@ def _pull_target_violations(document: dict, text: str, path: str) -> list[str]:
                 candidate_steps = list(candidate_steps)
                 python_step = dict(python_step)
                 python_step["with"] = {"python-version": version_text}
-                candidate_steps[2] = python_step
+                candidate_steps[SETUP_PYTHON_STEP_INDEX] = python_step
                 candidate_job["steps"] = candidate_steps
                 trusted_steps = _trusted_steps()
-                trusted_steps[2] = dict(trusted_steps[2])
-                trusted_steps[2]["with"] = {"python-version": version_text}
+                trusted_steps[SETUP_PYTHON_STEP_INDEX] = dict(trusted_steps[SETUP_PYTHON_STEP_INDEX])
+                trusted_steps[SETUP_PYTHON_STEP_INDEX]["with"] = {"python-version": version_text}
                 trusted_job["steps"] = trusted_steps
     candidate_jobs = dict(raw_jobs) if isinstance(raw_jobs, dict) else {}
     if isinstance(candidate_job, dict):
@@ -561,8 +573,8 @@ def _workflow_violations(
 ) -> list[str]:
     """Check immutable actions and privileged workflow execution policy."""
     try:
-        documents = list(persist_checker.yaml.safe_load_all(text))
-    except Exception:
+        documents = persist_checker.load_documents(text)
+    except persist_checker.yaml.YAMLError:
         return [f"{path}: malformed workflow YAML cannot be checked"]
     violations = []
     for document in documents:
@@ -723,6 +735,20 @@ def _scan_metadata(
     return violations
 
 
+def _has_pull_request_payload(event_path: str) -> bool:
+    """Return whether the runner event file contains pull request data."""
+    if not event_path:
+        return False
+    try:
+        path = Path(event_path)
+        if not path.is_file() or path.stat().st_size > MAX_EVENT_PAYLOAD_BYTES:
+            return False
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        return isinstance(payload, dict) and isinstance(payload.get("pull_request"), dict)
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        return False
+
+
 def _local_path_metadata(
     values: dict[str, str], repo: Path, checkers: dict[str, ModuleType],
     local_scanner: object,
@@ -736,7 +762,7 @@ def _local_path_metadata(
             repo, ["--end-of-options", f"{base}..{values['--tree']}"])
         findings += local_paths.scan_log(local_scanner, log)
     event_path = os.environ.get("GITHUB_EVENT_PATH", "")
-    if event_path:
+    if event_path and _has_pull_request_payload(event_path):
         findings += local_paths.scan_event(local_scanner, event_path)
     return _local_path_violations(findings)
 
@@ -780,21 +806,22 @@ def _scan_commit_range(
     head = values["--tree"]
     commits = banned.load_commits(base, head, repo)
     violations.extend(banned.find_violations(commits))
-    attribution = checkers.get("check_commit_attribution")
-    if attribution is not None:
-        violations.extend(attribution.trailer_violations(commits))
-        repository_name = os.environ.get("PR_BASE_REPOSITORY", "")
-        if repository_name:
-            try:
-                violations.extend(
-                    attribution.github_identity_violations(
-                        commits, repository_name, str(repo)
-                    )
+    # _load_checkers raises for any missing CHECKER_NAMES module, so the
+    # attribution checker is always present here.
+    attribution = checkers["check_commit_attribution"]
+    violations.extend(attribution.trailer_violations(commits))
+    repository_name = os.environ.get("PR_BASE_REPOSITORY", "")
+    if repository_name:
+        try:
+            violations.extend(
+                attribution.github_identity_violations(
+                    commits, repository_name, str(repo)
                 )
-            except (OSError, RuntimeError, subprocess.SubprocessError, ValueError) as error:
-                violations.append(
-                    "commit attribution lookup failed: " + _sanitize(error)
-                )
+            )
+        except (OSError, RuntimeError, subprocess.SubprocessError, ValueError) as error:
+            violations.append(
+                "commit attribution lookup failed: " + _sanitize(error)
+            )
     identity = checkers["check_git_identity"]
     identities = identity.log_identities(
         ["--end-of-options", f"{base}..{head}"], repo)
@@ -827,7 +854,7 @@ def _parse_cli(arguments: list[str]) -> tuple[dict[str, str], bool]:
         if index + 1 >= len(arguments):
             raise RuntimeError(f"{option} requires a value")
         values[option] = arguments[index + 1]
-        index += 2
+        index += OPTION_PAIR_WIDTH
     missing = [option for option in ("--repo", "--tree") if option not in values]
     if missing:
         raise RuntimeError(f"required argument missing: {', '.join(missing)}")

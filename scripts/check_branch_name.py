@@ -23,6 +23,10 @@ PROHIBITED_AGENT_PREFIX = "claude/"
 BRANCH_BANNED_TOKENS_PATH = Path(__file__).resolve().with_name(
     "branch_name_bans.txt"
 )
+# FOREIGN_STOPWORDS in check_english_only.py minus "mit" and "uma". Both
+# appear in legitimate English branch descriptions: "mit" names the MIT
+# license and the institute, and "uma" is a common name and acronym. This
+# copy stays local because adopters copy the branch checker standalone.
 FOREIGN_TOKENS = frozenset(
     "el la de que una para con las los por como pero esta este cuando "
     "le des une est dans avec pas pour sont vous nous cette mais der die "
@@ -79,6 +83,9 @@ GENERATED_SURNAMES = frozenset(
     "wright wu yalow yonath zhukovsky".split()
 )
 GENERATED_SUFFIX_LENGTH = 6
+GENERATED_NAME_TOKEN_COUNT = 3
+OPAQUE_TOKEN_MIN_LENGTH = 6
+OPAQUE_TOKEN_MAX_LENGTH = 12
 
 
 def _pattern(prefixes: tuple[str, ...]) -> re.Pattern:
@@ -87,12 +94,16 @@ def _pattern(prefixes: tuple[str, ...]) -> re.Pattern:
     return re.compile(rf"^(?:{prefix_group})/[a-z0-9]+(?:-[a-z0-9]+)*$")
 
 
-def _load_banned_tokens() -> frozenset[str]:
-    """Load exact branch tokens that are unsuitable for repository names."""
+def _load_banned_tokens() -> frozenset[str] | None:
+    """Load exact branch tokens that are unsuitable for repository names.
+
+    Return None when the list is missing or unreadable. The caller then
+    rejects the branch, so an absent list never disables the check.
+    """
     try:
         values = BRANCH_BANNED_TOKENS_PATH.read_text(encoding="ascii")
     except (OSError, UnicodeDecodeError):
-        return frozenset()
+        return None
     return frozenset(
         line.strip().casefold()
         for line in values.splitlines()
@@ -105,6 +116,13 @@ def _description_violations(branch: str) -> list[str]:
     description = branch.split("/", 1)[-1]
     tokens = description.split("-")
     banned_tokens = _load_banned_tokens()
+    if banned_tokens is None:
+        return [
+            f"branch '{branch}' cannot be checked: "
+            f"{BRANCH_BANNED_TOKENS_PATH.name} is missing or unreadable. "
+            "Recovery: restore scripts/branch_name_bans.txt from the source "
+            "policy repository."
+        ]
     violations = []
     for token in tokens:
         if token.casefold() in banned_tokens:
@@ -117,7 +135,7 @@ def _description_violations(branch: str) -> list[str]:
             )
     final_token = tokens[-1]
     if (final_token.casefold() not in TECHNICAL_SUFFIXES
-            and 6 <= len(final_token) <= 12
+            and OPAQUE_TOKEN_MIN_LENGTH <= len(final_token) <= OPAQUE_TOKEN_MAX_LENGTH
             and any(character.isalpha() for character in final_token)
             and any(character.isdigit() for character in final_token)):
         violations.append(
@@ -132,7 +150,7 @@ def _description_violations(branch: str) -> list[str]:
 
 def _is_generated_name(tokens: list[str]) -> bool:
     """Return whether tokens match the <adjective>-<surname>-<suffix> shape."""
-    if len(tokens) != 3:
+    if len(tokens) != GENERATED_NAME_TOKEN_COUNT:
         return False
     adjective, surname, suffix = tokens
     return (adjective in GENERATED_ADJECTIVES

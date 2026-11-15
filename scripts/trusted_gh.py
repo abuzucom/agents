@@ -11,15 +11,21 @@ import urllib.parse
 from pathlib import Path
 
 # The proxy constants stay importable from this module for existing callers.
+# Executable resolution, the repository-containment test, and PATH filtering
+# come from trusted_git so both wrappers apply one set of rules.
 try:
     from scripts.trusted_git import (
         MANAGED_PROXY_HOST, MANAGED_PROXY_PORT, PROXY_VARIABLES,
         is_managed_proxy_placeholder, sanitize_managed_proxy,
+        is_inside_directory as _is_inside, resolve_executable,
+        safe_search_path as _safe_search_path, select_safe_directory,
     )
 except ModuleNotFoundError:
     from trusted_git import (
         MANAGED_PROXY_HOST, MANAGED_PROXY_PORT, PROXY_VARIABLES,
         is_managed_proxy_placeholder, sanitize_managed_proxy,
+        is_inside_directory as _is_inside, resolve_executable,
+        safe_search_path as _safe_search_path, select_safe_directory,
     )
 
 
@@ -73,6 +79,14 @@ GLOBAL_VALUE_OPTIONS = frozenset(("-R", "--repo", "--hostname"))
 PRIVATE_TEMP_PREFIX = "trusted-gh-"
 TEMP_VARIABLES = ("TMPDIR", "TMP", "TEMP")
 MAX_REPORTED_PATH = 200
+USAGE_ERROR_EXIT_CODE = 2
+POLICY_DENIAL_EXIT_CODE = 2
+HTTPS_PORT = 443
+SSH_PORT = 22
+REMOTE_PATH_PART_COUNT = 2
+ACCOUNT_FIELD_COUNT = 2
+# A repository command path holds a command and one subcommand.
+COMMAND_PATH_LENGTH = 2
 
 
 def is_connectivity_failure(stderr: str) -> bool:
@@ -162,8 +176,7 @@ def _remote_url_from_config(config_path: Path, remote_name: str) -> str:
 def parse_repository_target(url: str) -> str:
     """Extract owner/repo from a GitHub remote URL."""
     cleaned = url.strip()
-    if cleaned.endswith(".git"):
-        cleaned = cleaned[:-4]
+    cleaned = cleaned.removesuffix(".git")
     if cleaned.startswith("git@github.com:"):
         path = cleaned[len("git@github.com:"):]
     else:
@@ -178,11 +191,11 @@ def parse_repository_target(url: str) -> str:
             raise ValueError("repository remote SSH URL must use git user")
         if parsed.password is not None:
             raise ValueError("repository remote URL cannot contain a password")
-        if parsed.port not in (None, 443 if parsed.scheme == "https" else 22):
+        if parsed.port not in (None, HTTPS_PORT if parsed.scheme == "https" else SSH_PORT):
             raise ValueError("repository remote uses an invalid port")
         path = parsed.path.lstrip("/")
     parts = path.strip("/").split("/")
-    if len(parts) != 2:
+    if len(parts) != REMOTE_PATH_PART_COUNT:
         raise ValueError("repository remote path must be owner/repo")
     owner, repo = parts
     if not REPOSITORY_NAME.fullmatch(owner) or not REPOSITORY_NAME.fullmatch(repo):
@@ -226,7 +239,7 @@ def _has_repository_option(arguments: list[str]) -> bool:
     for index, argument in enumerate(option_tokens):
         if argument in ("-R", "--repo") and index + 1 < len(option_tokens):
             return True
-        if argument.startswith("--repo=") or (argument.startswith("-R") and len(argument) > 2):
+        if argument.startswith("--repo=") or (argument.startswith("-R") and len(argument) > len("-R")):
             return True
     return False
 
@@ -249,7 +262,7 @@ def with_repository_context(repository: Path, arguments: list[str]) -> list[str]
     delimiter = arguments.index("--") if "--" in arguments else len(arguments)
     option_tokens = arguments[:delimiter]
     context = [*option_tokens, "--repo", target, *arguments[delimiter:]]
-    command = option_tokens[position:position + 2]
+    command = option_tokens[position:position + COMMAND_PATH_LENGTH]
     has_head = any(argument == "--head" or argument.startswith("--head=")
                    for argument in option_tokens)
     if command == ["pr", "create"] and not has_head:
@@ -257,16 +270,6 @@ def with_repository_context(repository: Path, arguments: list[str]) -> list[str]
             "--head", f"{target.split('/')[0]}:{repository_branch(repository)}"
         )
     return context
-
-
-def _is_inside(path: Path, directory: Path) -> bool:
-    """Return whether one path resides under a directory."""
-    try:
-        path.relative_to(directory)
-        return True
-    except ValueError:
-        # Paths on different roots or outside directory are not inside it.
-        return False
 
 
 def _candidate_names() -> tuple[str, ...]:
@@ -279,59 +282,16 @@ def _candidate_names() -> tuple[str, ...]:
 
 def resolve_gh(repo_root) -> str:
     """Return an absolute GitHub CLI executable outside the repository."""
-    repository = Path(repo_root).resolve()
-    names = _candidate_names()
-    for raw_directory in os.environ.get("PATH", "").split(os.pathsep):
-        if not raw_directory:
-            continue
-        directory = Path(raw_directory.strip('"'))
-        if not directory.is_absolute():
-            continue
-        for name in names:
-            candidate = directory / name
-            if _is_inside(Path(os.path.abspath(candidate)), repository):
-                continue
-            try:
-                if candidate.is_symlink() or not candidate.is_file():
-                    continue
-                resolved = candidate.resolve(strict=True)
-            except OSError:
-                continue
-            if _is_inside(resolved, repository):
-                continue
-            if os.name != "nt" and not os.access(resolved, os.X_OK):
-                continue
-            return str(resolved)
-    raise FileNotFoundError("trusted GitHub CLI executable was not found on PATH")
+    return resolve_executable(repo_root, _candidate_names(), "GitHub CLI")
 
 
 def _safe_directory(repository: Path, executable: Path) -> Path:
-    """Return an existing execution directory outside the repository."""
-    for candidate in (Path(tempfile.gettempdir()), Path.cwd(), executable.parent):
-        try:
-            resolved = candidate.resolve(strict=True)
-        except OSError:
-            continue
-        if resolved.is_dir() and not _is_inside(resolved, repository):
-            return resolved
-    raise OSError("no safe external directory is available for GitHub CLI execution")
+    """Return an existing execution directory outside the repository.
 
-
-def _safe_search_path(repository: Path) -> str:
-    """Return PATH without relative or repository-controlled entries."""
-    entries = []
-    for raw_directory in os.environ.get("PATH", "").split(os.pathsep):
-        directory = Path(raw_directory.strip('"')) if raw_directory else Path()
-        if not raw_directory or not directory.is_absolute():
-            continue
-        try:
-            resolved = directory.resolve(strict=False)
-        except OSError:
-            # Drop unresolvable PATH entries rather than aborting sanitization.
-            continue
-        if not _is_inside(resolved, repository):
-            entries.append(str(resolved))
-    return os.pathsep.join(entries)
+    GitHub CLI also accepts the working directory, after the temp directory.
+    """
+    candidates = (Path(tempfile.gettempdir()), Path.cwd(), executable.parent)
+    return select_safe_directory(repository, candidates, "GitHub CLI")
 
 
 def _is_managed_proxy_placeholder(value: str) -> bool:
@@ -482,7 +442,7 @@ def parse_account(output: str) -> dict:
     if len(output.encode("utf-8")) > ACCOUNT_OUTPUT_LIMIT:
         raise ValueError("GitHub account output exceeds the bound")
     fields = output.strip().split("\t")
-    if len(fields) != 2 or not fields[0].isdigit() or int(fields[0]) < 1:
+    if len(fields) != ACCOUNT_FIELD_COUNT or not fields[0].isdigit() or int(fields[0]) < 1:
         raise ValueError("GitHub account output has an invalid account ID")
     if not LOGIN.fullmatch(fields[1]):
         raise ValueError("GitHub account output has an invalid login")
@@ -526,33 +486,47 @@ def verify_account(repo_root) -> None:
         raise
 
 
+def _safe_write(stream, text: str) -> None:
+    """Write text to a stream, replacing unencodable characters if needed."""
+    try:
+        stream.write(text)
+    except UnicodeEncodeError:
+        encoding = getattr(stream, "encoding", None) or "utf-8"
+        buffer = getattr(stream, "buffer", None)
+        if buffer is not None:
+            buffer.write(text.encode(encoding, errors="replace"))
+        else:
+            sanitized = text.encode(encoding, errors="replace").decode(encoding, errors="replace")
+            stream.write(sanitized)
+
+
 def _run_requested_command(repo_root, arguments: list[str]) -> int:
     """Run one authenticated GitHub CLI command with bounded output."""
     if not arguments:
         print("error: run requires GitHub CLI arguments", file=sys.stderr)
-        return 2
+        return USAGE_ERROR_EXIT_CODE
     if find_literal_escape_sequences(arguments):
         print(
             "error: an argument contains literal escape text; use real newlines "
             "or --body-file",
             file=sys.stderr,
         )
-        return 2
+        return POLICY_DENIAL_EXIT_CODE
     try:
         gate_core = _load_gate_core()
     except ImportError:
         print("error: GitHub safety policy is unavailable; repair adoption", file=sys.stderr)
-        return 2
+        return POLICY_DENIAL_EXIT_CODE
     decision, _reason = gate_core.forge_verdict("gh", arguments)
     if decision == "deny":
         print("error: GitHub command denied by policy; review the command", file=sys.stderr)
-        return 2
+        return POLICY_DENIAL_EXIT_CODE
     try:
         effective_arguments = with_repository_context(Path(repo_root), arguments)
         decision, _reason = gate_core.forge_verdict("gh", effective_arguments)
         if decision == "deny":
             print("error: GitHub command denied by policy; review the command", file=sys.stderr)
-            return 2
+            return POLICY_DENIAL_EXIT_CODE
         verify_account(repo_root)
         result = run_gh(repo_root, effective_arguments)
     except subprocess.TimeoutExpired:
@@ -583,7 +557,7 @@ def _run_requested_command(repo_root, arguments: list[str]) -> int:
         print(CONNECTIVITY_ERROR_MESSAGE, file=sys.stderr)
         return 1
     try:
-        sys.stdout.write(result.stdout[:COMMAND_OUTPUT_LIMIT])
+        _safe_write(sys.stdout, result.stdout[:COMMAND_OUTPUT_LIMIT])
     except UnicodeEncodeError:
         sys.stdout.buffer.write(
             result.stdout[:COMMAND_OUTPUT_LIMIT].encode(
@@ -591,7 +565,7 @@ def _run_requested_command(repo_root, arguments: list[str]) -> int:
             )
         )
     try:
-        sys.stderr.write(result.stderr[:COMMAND_OUTPUT_LIMIT])
+        _safe_write(sys.stderr, result.stderr[:COMMAND_OUTPUT_LIMIT])
     except UnicodeEncodeError:
         sys.stderr.buffer.write(
             result.stderr[:COMMAND_OUTPUT_LIMIT].encode(
@@ -604,10 +578,11 @@ def _run_requested_command(repo_root, arguments: list[str]) -> int:
 def main() -> int:
     """Print bounded authenticated account metadata as JSON."""
     if len(sys.argv) > 1:
-        if sys.argv[1] != "run":
+        _program, operation, *gh_arguments = sys.argv
+        if operation != "run":
             print("error: expected 'run' or no arguments", file=sys.stderr)
-            return 2
-        return _run_requested_command(os.getcwd(), sys.argv[2:])
+            return USAGE_ERROR_EXIT_CODE
+        return _run_requested_command(os.getcwd(), gh_arguments)
     try:
         account = authenticated_account(os.getcwd())
     except subprocess.TimeoutExpired:

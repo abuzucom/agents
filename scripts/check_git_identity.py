@@ -84,6 +84,11 @@ COMMITTER_EMAIL_SOURCES = (
 
 HISTORY_CANDIDATE_LIMIT = 5
 HISTORY_COMMIT_LIMIT = 50
+SHORT_SHA_LENGTH = 12
+IDENTITY_FIELD_COUNT = 3
+CANDIDATE_FIELD_COUNT = 4
+# Git writes an escaped character as a backslash pair between two quotes.
+QUOTE_ESCAPE_LENGTH = 2
 GIT_CONTEXT_VARIABLES = frozenset((
     "GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR",
     "GIT_CONFIG_GLOBAL", "GIT_CONFIG_SYSTEM", "GIT_CONFIG_NOSYSTEM",
@@ -141,22 +146,18 @@ def _standalone_resolve_git(repo) -> str:
             continue
         for name in names:
             candidate = directory / name
-            try:
-                Path(os.path.abspath(candidate)).relative_to(repository)
+            if Path(os.path.abspath(candidate)).is_relative_to(repository):
                 continue
-            except ValueError:
-                pass
             try:
                 if candidate.is_symlink() or not candidate.is_file():
                     continue
                 executable = candidate.resolve(strict=True)
-                executable.relative_to(repository)
-                continue
-            except ValueError:
-                if os.name == "nt" or os.access(executable, os.X_OK):
-                    return str(executable)
             except OSError:
                 continue
+            if executable.is_relative_to(repository):
+                continue
+            if os.name == "nt" or os.access(executable, os.X_OK):
+                return str(executable)
     raise FileNotFoundError("trusted Git executable was not found on PATH")
 
 
@@ -282,10 +283,10 @@ def _read_quoted(text: str, index: int) -> tuple:
             raise ValueError(CONFIG_PARAMETERS_ERROR)
         parts.append(text[index:end])
         index = end + 1
-        if not (text.startswith(("\\'", "\\!"), index) and text.startswith("'", index + 2)):
+        if not (text.startswith(("\\'", "\\!"), index) and text.startswith("'", index + QUOTE_ESCAPE_LENGTH)):
             return "".join(parts), index
         parts.append(text[index + 1])
-        index += 3
+        index += QUOTE_ESCAPE_LENGTH + 1
 
 
 def _parse_config_parameters(text: str) -> list:
@@ -424,12 +425,12 @@ def log_identities(revisions: list, repo=None) -> list:
         if not line:
             continue
         fields = line.split("\x00")
-        if len(fields) != 3 or not re.fullmatch(r"[0-9a-fA-F]{40,64}", fields[0]):
+        if len(fields) != IDENTITY_FIELD_COUNT or not re.fullmatch(r"[0-9a-fA-F]{40,64}", fields[0]):
             raise ValueError("git log returned malformed identity metadata")
         sha, author_email, committer_email = fields
         identities.append(
             {
-                "label": sha[:12],
+                "label": sha[:SHORT_SHA_LENGTH],
                 "author_email": author_email,
                 "committer_email": committer_email,
                 "unset_name": False,
@@ -501,9 +502,10 @@ def history_identity_candidates(repo=None) -> list:
     seen = set()
     for line in result.stdout.splitlines():
         fields = line.split("\x00")
-        if len(fields) != 4:
+        if len(fields) != CANDIDATE_FIELD_COUNT:
             raise ValueError("git log returned malformed identity candidates")
-        for name, email in ((fields[0], fields[1]), (fields[2], fields[3])):
+        author_name, author_email, committer_name, committer_email = fields
+        for name, email in ((author_name, author_email), (committer_name, committer_email)):
             candidate = (name.strip(), email.strip())
             if not candidate[0] or not NUMBERED_NOREPLY.fullmatch(candidate[1]):
                 continue
@@ -574,6 +576,7 @@ def gh_advisory(email: str, repo=None) -> str:
 def bootstrap_identity_advisory(repo=None) -> str:
     """Return one confirmation-first identity proposal or history fallback."""
     repository = repo or os.getcwd()
+    lookup_failure = ""
     if authenticated_account is not None:
         try:
             account = authenticated_account(repository)
@@ -583,8 +586,14 @@ def bootstrap_identity_advisory(repo=None) -> str:
                 "identity candidate from authenticated gh for explicit confirmation: "
                 f"repository-local name '{candidate[0]}', email '{candidate[1]}'"
             )
-        except (OSError, subprocess.TimeoutExpired, ValueError):
-            pass
+        except (OSError, subprocess.TimeoutExpired, ValueError) as error:
+            # Name only the type: the message can carry account or token text.
+            lookup_failure = f"authenticated lookup failed ({type(error).__name__}); "
+    return lookup_failure + _history_identity_advisory(repository)
+
+
+def _history_identity_advisory(repository) -> str:
+    """Return the untrusted history fallback for the identity advisory."""
     candidates = history_identity_candidates(repository)
     if not candidates:
         return ("identity candidate unavailable; derive name and email from an "
@@ -660,7 +669,12 @@ def main() -> int:
         parser.error("--strict cannot validate a commit range")
     if args.strict and args.allow:
         parser.error("--strict cannot be combined with --allow")
-    pattern = re.compile(args.allow) if args.allow else NOREPLY
+    pattern = NOREPLY
+    if args.allow:
+        try:
+            pattern = re.compile(args.allow)
+        except re.error as error:
+            parser.error(f"--allow is not a valid regular expression ({error})")
 
     try:
         identities = select_identities(args)

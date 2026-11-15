@@ -14,14 +14,15 @@ the configured provider, posts a fenced report, and publishes a
 `security-review` check run.
 
 Both the reusable workflow and `audit_ref` are pinned to foucault commit
-`62851df1ef177593adbb9e06b223f5a6dce66fc0`, release 3.3.10. Keeping one
+`11e55cd691e9a2be086a4fb9378f490d4121e11c`, release 3.7.13. Keeping one
 revision for both means the policy and its runner never diverge. Change the
 pin deliberately, and record the change in `CHANGELOG.md`.
 
 `ci/build_pr_case.py`, `ci/run_model_command.py`, `ci/call_model.py`, and
 `ci/model_providers.json` are copied from that same foucault revision and run
 from this repository's checkout. Foucault supplies only `AUDIT.md` at
-runtime.
+runtime. `tests/test_review_adapter_portable.py` comes from the same revision
+and covers the copied scripts.
 
 `scripts/check_pr_review_response.py` is also copied from that revision. The
 reusable workflow's "Validate report structure" step runs it from the
