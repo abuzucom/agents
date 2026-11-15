@@ -72,6 +72,11 @@ COMMENT_DRAFT_PREFIX = ".comment-drafts/"
 COMMENT_BODY_OPTION = "--body-file"
 COMMENTS_ARGUMENT_COUNT = 3
 COMMENT_ARGUMENT_COUNT = 5
+# A comment read fetches one bounded page, so a long thread cannot exhaust memory.
+COMMENT_PAGE_OPTION = "--page"
+COMMENT_PAGE_NUMBER = re.compile(r"[1-9][0-9]{0,3}")
+MAX_COMMENT_PAGE = 1000
+COMMENT_PAGE_ARGUMENT_COUNT = 2
 SHELL_OPERATORS = (";", "&", "&&", "|", "||", "(", ")")
 OPERATOR_CHARACTERS = frozenset(bash_parser.PUNCTUATION_CHARS)
 CHAIN_OPERATOR = "&&"
@@ -456,6 +461,15 @@ def _trusted_wrapper_accepted(script: str, arguments: tuple, project_dir: str) -
     return decision != DENY
 
 
+def _comment_page_accepted(extra: tuple) -> bool:
+    """Return whether comment read arguments hold no page or one bounded page."""
+    if not extra:
+        return True
+    return (len(extra) == COMMENT_PAGE_ARGUMENT_COUNT and extra[0] == COMMENT_PAGE_OPTION
+            and bool(COMMENT_PAGE_NUMBER.fullmatch(extra[1]))
+            and int(extra[1]) <= MAX_COMMENT_PAGE)
+
+
 def _trusted_comment_verdict(arguments: tuple) -> tuple:
     """Return (decision, reason, read-only) for trusted_gh.py comment operations.
 
@@ -467,7 +481,8 @@ def _trusted_comment_verdict(arguments: tuple) -> tuple:
             or not THREAD_NUMBER.fullmatch(arguments[2])):
         return "", "", False
     if operation == "comments":
-        return (ALLOW, "", True) if len(arguments) == COMMENTS_ARGUMENT_COUNT else ("", "", False)
+        return (ALLOW, "", True) if _comment_page_accepted(
+            arguments[COMMENTS_ARGUMENT_COUNT:]) else ("", "", False)
     body = arguments[COMMENTS_ARGUMENT_COUNT + 1] if len(arguments) == COMMENT_ARGUMENT_COUNT else ""
     if (arguments[COMMENTS_ARGUMENT_COUNT:COMMENTS_ARGUMENT_COUNT + 1] != (COMMENT_BODY_OPTION,)
             or not body.startswith(COMMENT_DRAFT_PREFIX) or not _is_workflow_path(body)):

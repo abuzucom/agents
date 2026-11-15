@@ -1190,9 +1190,13 @@ Some sessions block GitHub GraphQL. `gh issue` and `gh pr` subcommands then
 fail. Read and post issue and pull request comments over REST through these
 fixed wrapper forms:
 
-- `python scripts/trusted_gh.py comments <issue|pr> <number>`
+- `python scripts/trusted_gh.py comments <issue|pr> <number> [--page <n>]`
 - `python scripts/trusted_gh.py comment <issue|pr> <number> --body-file
   .comment-drafts/<file>`
+
+A read fetches one page of 100 comments. `--page` selects a page from 1 to
+1000 and defaults to 1. A full page prints a note naming the next page. One
+call never buffers a whole thread.
 
 Both forms target the `origin` repository only. The command gate allows the
 read form on every branch state, a detached HEAD included. The post form asks

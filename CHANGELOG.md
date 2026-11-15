@@ -23,9 +23,10 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `and`, `or`, and `not`. Workspace-relative paths may follow. The verdict
   asks for consent because pytest imports repository code. A `pytest` on
   PATH inside the repository or a shadowing `pytest.py` denies.
-- `scripts/trusted_gh.py comments <issue|pr> <number>` reads issue and pull
-  request comments over REST (issue #119). The gate allows it on every
-  branch state.
+- `scripts/trusted_gh.py comments <issue|pr> <number> [--page <n>]` reads
+  one page of 100 issue or pull request comments over REST (issue #119).
+  The page runs from 1 to 1000. A full page prints a note naming the next
+  page. The gate allows both forms on every branch state.
 - `scripts/trusted_gh.py comment <issue|pr> <number> --body-file
   .comment-drafts/<file>` posts one comment over REST. The gate asks for
   consent and denies it on a detached HEAD. The wrapper accepts only a

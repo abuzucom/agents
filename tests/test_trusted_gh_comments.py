@@ -115,12 +115,13 @@ class CommentCommandTest(unittest.TestCase):
         self.calls = []
         self.inputs = []
 
-    def run_main(self, argv: list, account_check=None) -> tuple[int, str, str]:
+    def run_main(self, argv: list, account_check=None,
+                 response: str = "[]\n") -> tuple[int, str, str]:
         """Run main() with a recording runner and return code and streams."""
         def record(repo_root, arguments, **keywords):
             self.calls.append(arguments)
             self.inputs.append(keywords.get("input_text"))
-            return completed(stdout="[]\n")
+            return completed(stdout=response)
         stdout, stderr = io.StringIO(), io.StringIO()
         with patch.object(sys, "argv", ["trusted_gh.py", *argv]), \
                 patch.object(trusted_gh.os, "getcwd", return_value=str(self.repository.root)), \
@@ -135,8 +136,40 @@ class CommentCommandTest(unittest.TestCase):
         code, stdout, _stderr = self.run_main(["comments", "issue", "5"])
         self.assertEqual(code, 0)
         self.assertEqual(self.calls, [[
-            "api", "--paginate", f"repos/{REPOSITORY}/issues/5/comments"]])
+            "api", f"repos/{REPOSITORY}/issues/5/comments?per_page=100&page=1"]])
         self.assertEqual(stdout, "[]\n")
+
+    def test_comments_read_takes_one_bounded_page(self):
+        code, _stdout, stderr = self.run_main(["comments", "pr", "8", "--page", "3"])
+        self.assertEqual(code, 0)
+        self.assertEqual(self.calls, [[
+            "api", f"repos/{REPOSITORY}/issues/8/comments?per_page=100&page=3"]])
+        self.assertNotIn("--page", stderr)
+
+    def test_full_page_names_the_next_page(self):
+        full_page = json.dumps([{"id": index} for index in range(trusted_gh.COMMENT_PAGE_SIZE)])
+        code, _stdout, stderr = self.run_main(
+            ["comments", "issue", "5", "--page", "2"], response=full_page)
+        self.assertEqual(code, 0)
+        self.assertIn("--page 3", stderr)
+
+    def test_last_page_has_no_next_page_hint(self):
+        full_page = json.dumps([{"id": index} for index in range(trusted_gh.COMMENT_PAGE_SIZE)])
+        last = str(trusted_gh.MAX_COMMENT_PAGE)
+        code, _stdout, stderr = self.run_main(
+            ["comments", "issue", "5", "--page", last], response=full_page)
+        self.assertEqual(code, 0)
+        self.assertNotIn("--page", stderr)
+
+    def test_invalid_pages_exit_2_without_calls(self):
+        for page in ("0", "-1", "01", "1001", "x", "2.5"):
+            with self.subTest(page=page):
+                code, _stdout, stderr = self.run_main(["comments", "issue", "5", "--page", page])
+                self.assertEqual(code, USAGE_EXIT_CODE)
+                self.assertIn("error:", stderr)
+        code, _stdout, _stderr = self.run_main(["comments", "issue", "5", "--limit", "2"])
+        self.assertEqual(code, USAGE_EXIT_CODE)
+        self.assertEqual(self.calls, [])
 
     def test_comment_post_sends_validated_body_on_stdin(self):
         self.repository.draft("reply.md", b"Thanks.\n")

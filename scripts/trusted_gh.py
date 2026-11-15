@@ -97,6 +97,13 @@ MAX_COMMENT_BYTES = 65536
 THREAD_NUMBER = re.compile(r"\A[1-9][0-9]{0,9}\Z")
 COMMENTS_ARGUMENT_COUNT = 2
 COMMENT_ARGUMENT_COUNT = 4
+# A comment read fetches one page so a long thread cannot exhaust memory.
+# GitHub caps per_page at 100.
+COMMENT_PAGE_OPTION = "--page"
+COMMENT_PAGE_SIZE = 100
+COMMENT_PAGE_NUMBER = re.compile(r"\A[1-9][0-9]{0,3}\Z")
+MAX_COMMENT_PAGE = 1000
+COMMENT_PAGE_ARGUMENT_COUNT = 2
 GRAPHQL_UNAVAILABLE = "GraphQL is not available"
 GRAPHQL_ERROR_MESSAGE = (
     "error: this session blocks GitHub GraphQL; read comments with "
@@ -563,21 +570,48 @@ def read_comment_draft(repo_root: Path, raw: str) -> tuple[Path, str]:
     return resolved, text
 
 
+def comment_page(extra: list[str]) -> int:
+    """Return the page a comment read names, or 1 when it names none."""
+    if not extra:
+        return 1
+    if (len(extra) != COMMENT_PAGE_ARGUMENT_COUNT or extra[0] != COMMENT_PAGE_OPTION
+            or not COMMENT_PAGE_NUMBER.match(extra[1]) or int(extra[1]) > MAX_COMMENT_PAGE):
+        raise ValueError(f"comments takes <issue|pr> <number> [{COMMENT_PAGE_OPTION} "
+                         f"<1-{MAX_COMMENT_PAGE}>]")
+    return int(extra[1])
+
+
 def comment_arguments(repo_root, operation: str,
                       arguments: list[str]) -> tuple[list[str], str | None]:
     """Return the fixed REST GitHub CLI arguments and stdin for one comment operation."""
-    expected = COMMENTS_ARGUMENT_COUNT if operation == "comments" else COMMENT_ARGUMENT_COUNT
-    if len(arguments) != expected:
-        raise ValueError(f"{operation} takes <issue|pr> <number>"
-                         + ("" if operation == "comments" else f" {COMMENT_BODY_OPTION} <path>"))
+    if operation == "comments":
+        if len(arguments) < COMMENTS_ARGUMENT_COUNT:
+            raise ValueError(f"comments takes <issue|pr> <number> [{COMMENT_PAGE_OPTION} <n>]")
+        page = comment_page(arguments[COMMENTS_ARGUMENT_COUNT:])
+    elif len(arguments) != COMMENT_ARGUMENT_COUNT:
+        raise ValueError(f"comment takes <issue|pr> <number> {COMMENT_BODY_OPTION} <path>")
     number = comment_thread(arguments[0], arguments[1])
     endpoint = f"repos/{repository_target(Path(repo_root))}/issues/{number}/comments"
     if operation == "comments":
-        return ["api", "--paginate", endpoint], None
+        return ["api", f"{endpoint}?per_page={COMMENT_PAGE_SIZE}&page={page}"], None
     if arguments[2] != COMMENT_BODY_OPTION:
         raise ValueError(f"comment takes {COMMENT_BODY_OPTION} <path>")
     _path, body = read_comment_draft(Path(repo_root), arguments[3])
     return ["api", "-X", "POST", endpoint, "--input", "-"], json.dumps({"body": body})
+
+
+def next_page_note(page: int, output: str) -> str:
+    """Return a hint naming the next page when a comment read filled its page."""
+    if page >= MAX_COMMENT_PAGE:
+        return ""
+    try:
+        comments = json.loads(output)
+    except ValueError:
+        return ""
+    if not isinstance(comments, list) or len(comments) < COMMENT_PAGE_SIZE:
+        return ""
+    return (f"note: page {page} holds {COMMENT_PAGE_SIZE} comments; read more with "
+            f"{COMMENT_PAGE_OPTION} {page + 1}")
 
 
 def _run_comment_command(repo_root, operation: str, arguments: list[str]) -> int:
@@ -587,7 +621,11 @@ def _run_comment_command(repo_root, operation: str, arguments: list[str]) -> int
     except (OSError, ValueError) as error:
         print(f"error: {_bounded_path(error)}", file=sys.stderr)
         return USAGE_ERROR_EXIT_CODE
-    return _execute(repo_root, gh_arguments, input_text=request_body)
+    if operation != "comments":
+        return _execute(repo_root, gh_arguments, input_text=request_body)
+    page = comment_page(arguments[COMMENTS_ARGUMENT_COUNT:])
+    return _execute(repo_root, gh_arguments,
+                    output_note=lambda output: next_page_note(page, output))
 
 
 def _run_requested_command(repo_root, arguments: list[str]) -> int:
@@ -615,12 +653,14 @@ def _run_requested_command(repo_root, arguments: list[str]) -> int:
     return _execute(repo_root, arguments, gate_core)
 
 
-def _execute(repo_root, arguments: list[str], gate_core=None, input_text=None) -> int:
+def _execute(repo_root, arguments: list[str], gate_core=None, input_text=None,
+             output_note=None) -> int:
     """Verify the account, run gh, and relay bounded output and failures.
 
     With `gate_core`, add repository context first and check the final
     arguments again. Comment operations build fixed arguments and pass none.
-    `input_text` reaches gh on stdin.
+    `input_text` reaches gh on stdin. `output_note` maps successful stdout
+    to an optional stderr note.
     """
     try:
         effective_arguments = arguments
@@ -666,6 +706,11 @@ def _execute(repo_root, arguments: list[str], gate_core=None, input_text=None) -
     if result.returncode != 0 and GRAPHQL_UNAVAILABLE in result.stderr[:ERROR_SCAN_LIMIT]:
         print(GRAPHQL_ERROR_MESSAGE, file=sys.stderr)
         return 1
+    return _relay_result(result, output_note)
+
+
+def _relay_result(result, output_note=None) -> int:
+    """Write bounded gh output, add an optional success note, and return the exit code."""
     try:
         _safe_write(sys.stdout, result.stdout[:COMMAND_OUTPUT_LIMIT])
     except UnicodeEncodeError:
@@ -682,6 +727,9 @@ def _execute(repo_root, arguments: list[str], gate_core=None, input_text=None) -
                 sys.stderr.encoding or "utf-8", errors="replace"
             )
         )
+    note = output_note(result.stdout) if output_note and result.returncode == 0 else ""
+    if note:
+        print(note, file=sys.stderr)
     return result.returncode
 
 

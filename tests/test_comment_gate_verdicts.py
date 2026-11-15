@@ -46,6 +46,28 @@ class CommentWorkflowVerdictTest(unittest.TestCase):
                 self.assertEqual(self.gate.workflow_decision(command, PROJECT_DIR)[0], "")
 
 
+class CommentPageVerdictTest(unittest.TestCase):
+    """A comment read may name one bounded page."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.gate = _load_gate_module()
+
+    def test_bounded_page_is_allowed_and_read_only(self) -> None:
+        for page in ("1", "42", "1000"):
+            command = f"{READ_COMMAND} --page {page}"
+            with self.subTest(page=page):
+                self.assertEqual(self.gate.workflow_decision(command, PROJECT_DIR), ("allow", ""))
+                self.assertTrue(self.gate.read_only_workflow(command, PROJECT_DIR))
+
+    def test_other_page_shapes_stay_unmatched(self) -> None:
+        for suffix in ("--page 0", "--page 01", "--page 1001", "--page x", "--page",
+                       "--page 2 --page 3", "--limit 5"):
+            command = f"{READ_COMMAND} {suffix}"
+            with self.subTest(suffix=suffix):
+                self.assertEqual(self.gate.workflow_decision(command, PROJECT_DIR)[0], "")
+
+
 class OpaqueReasonNamesProgramTest(unittest.TestCase):
     """An opaque refusal names the rejected program."""
 
