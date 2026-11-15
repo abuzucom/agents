@@ -399,7 +399,7 @@ def _run() -> int:
 def main() -> int:
     try:
         return _run()
-    except Exception:  # noqa: BLE001 (the boundary is the point)
+    except Exception:
         # Claude Code treats any non-zero exit other than 2 as a
         # non-blocking error, so an unhandled exception waves the write
         # through. Emit a fixed reason: a traceback here would carry

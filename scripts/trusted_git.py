@@ -108,10 +108,24 @@ def _candidate_names() -> tuple[str, ...]:
     return ("git",)
 
 
+def is_inside_directory(path: Path, directory: Path) -> bool:
+    """Return whether `path` is within `directory`. Shared with trusted_gh."""
+    return _is_inside(path, directory)
+
+
 def resolve_git(repo_root) -> str:
     """Return an absolute Git executable outside `repo_root`."""
+    return resolve_executable(repo_root, _candidate_names(), "Git")
+
+
+def resolve_executable(repo_root, names: tuple[str, ...], label: str) -> str:
+    """Return the first absolute PATH executable named `names` outside the repo.
+
+    Relative PATH entries, symlinks, non-files, repository paths, and (outside
+    Windows) files without the execute bit are skipped. `label` names the tool
+    in the failure message.
+    """
     repository = Path(repo_root).resolve()
-    names = _candidate_names()
     for raw_directory in os.environ.get("PATH", "").split(os.pathsep):
         if not raw_directory:
             continue
@@ -133,19 +147,30 @@ def resolve_git(repo_root) -> str:
             if os.name != "nt" and not os.access(resolved, os.X_OK):
                 continue
             return str(resolved)
-    raise FileNotFoundError("trusted Git executable was not found on PATH")
+    raise FileNotFoundError(f"trusted {label} executable was not found on PATH")
 
 
 def _safe_directory(repository: Path, executable: Path) -> Path:
     """Return an existing execution directory outside the repository."""
-    for candidate in (Path(tempfile.gettempdir()), executable.parent):
+    return select_safe_directory(
+        repository, (Path(tempfile.gettempdir()), executable.parent), "Git")
+
+
+def select_safe_directory(repository: Path, candidates: tuple, label: str) -> Path:
+    """Return the first existing candidate directory outside the repository."""
+    for candidate in candidates:
         try:
             resolved = candidate.resolve(strict=True)
         except OSError:
             continue
         if resolved.is_dir() and not _is_inside(resolved, repository):
             return resolved
-    raise OSError("no safe external directory is available for Git execution")
+    raise OSError(f"no safe external directory is available for {label} execution")
+
+
+def safe_search_path(repository: Path) -> str:
+    """Return PATH without unsafe entries. Shared with trusted_gh."""
+    return _safe_search_path(repository)
 
 
 def _safe_search_path(repository: Path) -> str:

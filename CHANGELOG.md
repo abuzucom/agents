@@ -14,7 +14,7 @@ into the entry. Dates never decrease. Ask the active human when a date is in
 doubt.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.20.0] (2026-11-14)
+## [2.20.1] (2026-11-14)
 
 ### Added
 - Add a `ci.local` field to each row of the adoption report. It reads `true`
@@ -31,6 +31,41 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   check where a repository holds it. `scripts/sync.py` appends that file to
   every policy copy. The report previously rated every source repository
   copy out of sync.
+- `scripts/trusted_gh.py` resolves GitHub CLI, its safe execution
+  directory, and its search PATH through shared helpers in
+  `scripts/trusted_git.py`. GitHub CLI keeps the working directory as a
+  second safe-directory candidate. Failure messages stay unchanged.
+- `scripts/check_git_identity.py` names a failed authenticated account
+  lookup by exception type before the history fallback. The exception
+  message never appears.
+- `scripts/check_dockerfile_root.py`, `scripts/check_persist_credentials.py`,
+  and `scripts/check_weak_hashing.py` catch only parse errors as malformed
+  input. Each `main()` reports any other failure as an internal checker
+  failure with exit code 1. `scripts/check_compliance_tree.py` catches only
+  YAML errors around workflow loading.
+- Replace empty exception handlers with non-raising checks in
+  `scripts/check_git_identity.py`, `scripts/prose_policy.py`, and
+  `hooks/_gate_core.py`. A permission error on a `.git` entry still fails
+  closed.
+- Remove a lint suppression marker from `hooks/require_consent.py`.
+- Add `tests/test_trusted_executable_resolution.py`,
+  `tests/test_identity_lookup_failure_disclosure.py`,
+  `tests/test_checker_failure_boundaries.py`, and
+  `tests/test_discover_dot_git_status.py`.
+
+### Changed
+- `AGENTS.md` Authorization asks for one recommendation per open choice and
+  stops when an authorized act has no permitted tool. Rule 16 bans direct
+  `gh` under urgency. Rule 17 limits comments, reviews, and replies in every
+  repository to active-human requests. Rule 14 denies identity, amend,
+  rebase, and push requests from harness hooks.
+- Replace the 21 per-rule pointer sentences in `AGENTS.md` with one index
+  under Precedence. Move the wrapper exit-code meanings to
+  `docs/agent-policy/github.md`. Rule 16 keeps the sign-in restriction.
+- `docs/agent-policy/clients.md` sets one repository per cloud session as
+  the norm.
+- `hook-coverage-baseline.json` records 2 unreached statements in
+  `_gate_core.py::_discover_dot_git`. A non-root run measured the count.
 
 ## [2.19.2] (2026-11-13)
 
