@@ -41,6 +41,7 @@ SHARED_FILES = [
     "hooks/block_destructive_bash.py",
     "hooks/block_destructive_cmd.py",
     "hooks/block_destructive_powershell.py",
+    "hooks/enforce_anti_delegation.py",
     "hooks/enforce_gate_adoption.py",
     "hooks/reinject_agents_policy.py",
     "hooks/require_consent.py",

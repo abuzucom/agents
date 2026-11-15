@@ -445,6 +445,7 @@ blocking checkers fail after a violation or an incomplete required check.
 
 | Script | Scope | Exit behavior |
 |---|---|---|
+| `check_anti_delegation.py` | Rule 18 text that directs a recovery command to the active human | 1, blocking |
 | `check_ascii.py` | ASCII and prohibited dash style | 1, blocking |
 | `check_banned_agents.py` | Denied authors, committers, trailers, and optional PR author | 1, blocking |
 | `check_branch_name.py` | Branch naming | 1, blocking |
@@ -461,6 +462,7 @@ blocking checkers fail after a violation or an incomplete required check.
 | `check_pull_request_message.py` | Pull request title format plus title and body prose from `GITHUB_EVENT_PATH` | 0 for findings, 1 for infrastructure errors |
 | `check_secrets_heuristic.py` | Rule 8 likely-secret heuristic | 1, blocking |
 | `check_local_paths.py` | Rule 8 real local identifiers; adopt with the approved `.local-path-allowlist` as one gate | 1, blocking; `--report` exits 0 and refuses CI |
+| `check_merge_safety.py` | Merge preconditions: no active Git operation, clean worktree, no conflict markers, strict branch preflight, complete gate adoption, synchronized policy copies | 1, blocking |
 | `check_us_spelling.py` | American spelling heuristic | 0, warning only |
 | `check_weak_hashing.py` | Rule 7 MD5 and SHA-1 use | 1, blocking |
 
@@ -471,6 +473,12 @@ advisory `--advise` output. Advice never changes the exit code.
 `check_commit_attribution.py` validates commit identities in CI and co-author
 trailers in `commit-msg`. `check_commit_message.py` targets CI and skips merge
 commits.
+`check_merge_safety.py` takes one target reference plus optional `--root` and
+`--run-tests` flags. The checker fails closed on every failed precondition and
+lists each failure. Untracked files leave the worktree check clean.
+`check_anti_delegation.py` scans one file or many. A finding requires a
+sentence that carries both a human directive and a command payload. A sentence
+that states the prohibition stays clean.
 
 `check_hook_coverage.py --write-baseline` creates or refreshes
 `hook-coverage-baseline.json`. Python 3.12 and newer use local
@@ -586,6 +594,22 @@ The tested command corpus and known command writers bound these claims. A
 writer or command form outside those sets can pass. PowerShell and CMD tests
 use synthetic hook payloads only. The tests do not launch native shell
 commands.
+
+### Anti-Delegation Gate
+
+`hooks/enforce_anti_delegation.py` reads the agent output in a hook payload and
+blocks a completion attempt that delegates a recovery command to the active
+human. A delegating completion returns a `block` decision that names the
+offending line. A delegating tool payload returns a deny at exit 2. An output
+that states the prohibition stays clean.
+
+Claude Code registers the hook on `Stop` and `SubagentStop`, the events that
+carry the final agent output. Codex registers it on `SessionStart` and
+`PreToolUse`. Gemini registers it on `SessionStart` and `BeforeTool`.
+Antigravity registers it on `PreInvocation` and `PreToolUse`. Codex, Gemini, and
+Antigravity expose no event that carries agent output. Those registrations stay
+inert until a client adds output to the payload. The hook denies nothing
+without agent output to read.
 
 ### Destructive Shell Gates
 

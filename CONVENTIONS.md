@@ -473,6 +473,8 @@ after all applicable tests pass.
 
 **Lint clean.** Run the project lint command when defined. Fix every error.
 
+**Merge gate.** Run `scripts/check_merge_safety.py`.
+
 **Keep checks active.** Never silence a linter, type checker, or CI check to
 pass. Never add `# noqa`, `eslint-disable`, `type: ignore`, `@ts-ignore`, or
 similar suppressions. Never disable or weaken a CI step. Fix the cause. If no
