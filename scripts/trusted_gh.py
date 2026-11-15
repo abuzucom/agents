@@ -87,6 +87,23 @@ REMOTE_PATH_PART_COUNT = 2
 ACCOUNT_FIELD_COUNT = 2
 # A repository command path holds a command and one subcommand.
 COMMAND_PATH_LENGTH = 2
+# Comment threads. Pull request conversation comments live on the issues
+# endpoint, so both kinds map to one REST path.
+COMMENT_KINDS = frozenset(("issue", "pr"))
+COMMENT_DRAFT_DIRECTORY = ".comment-drafts"
+COMMENT_BODY_OPTION = "--body-file"
+# GitHub caps a comment body at 65536 characters.
+MAX_COMMENT_BYTES = 65536
+THREAD_NUMBER = re.compile(r"\A[1-9][0-9]{0,9}\Z")
+COMMENTS_ARGUMENT_COUNT = 2
+COMMENT_ARGUMENT_COUNT = 4
+GRAPHQL_UNAVAILABLE = "GraphQL is not available"
+GRAPHQL_ERROR_MESSAGE = (
+    "error: this session blocks GitHub GraphQL; read comments with "
+    "`python scripts/trusted_gh.py comments <issue|pr> <number>`, post with "
+    "`python scripts/trusted_gh.py comment <issue|pr> <number> --body-file "
+    ".comment-drafts/<file>`, or read other data through a REST `run api` call"
+)
 
 
 def is_connectivity_failure(stderr: str) -> bool:
@@ -500,6 +517,70 @@ def _safe_write(stream, text: str) -> None:
             stream.write(sanitized)
 
 
+def comment_thread(kind: str, number: str) -> int:
+    """Return the thread number for an issue or pr comment target."""
+    if kind not in COMMENT_KINDS:
+        raise ValueError("comment target kind must be issue or pr")
+    if not THREAD_NUMBER.fullmatch(number):
+        raise ValueError("comment target number must be a positive integer")
+    return int(number)
+
+
+def comment_body_path(repo_root: Path, raw: str) -> Path:
+    """Return the absolute path of a validated draft under .comment-drafts/.
+
+    The wrapper runs gh from a directory outside the repository, so it passes
+    gh an absolute path. The draft must be a regular non-link ASCII file.
+    """
+    root = _find_git_entry(Path(repo_root)).parent
+    drafts = root / COMMENT_DRAFT_DIRECTORY
+    candidate = Path(raw) if Path(raw).is_absolute() else Path(repo_root) / raw
+    if drafts.is_symlink() or candidate.is_symlink():
+        raise ValueError("comment body file must not be a link")
+    try:
+        resolved = candidate.resolve(strict=True)
+        drafts_root = drafts.resolve(strict=True)
+        if not resolved.is_relative_to(drafts_root) or not resolved.is_file():
+            raise ValueError
+        body = resolved.read_bytes()
+    except (OSError, ValueError) as error:
+        raise ValueError(f"comment body file must be a readable regular file under "
+                         f"{COMMENT_DRAFT_DIRECTORY}/; write the draft there first") from error
+    if not body or len(body) > MAX_COMMENT_BYTES:
+        raise ValueError(f"comment body must hold 1 to {MAX_COMMENT_BYTES} bytes")
+    if not body.isascii():
+        raise ValueError("comment body must be ASCII")
+    if find_literal_escape_sequences(["--body", body.decode("ascii")]):
+        raise ValueError("comment body contains literal escape text; use real newlines")
+    return resolved
+
+
+def comment_arguments(repo_root, operation: str, arguments: list[str]) -> list[str]:
+    """Return the fixed REST GitHub CLI arguments for one comment operation."""
+    expected = COMMENTS_ARGUMENT_COUNT if operation == "comments" else COMMENT_ARGUMENT_COUNT
+    if len(arguments) != expected:
+        raise ValueError(f"{operation} takes <issue|pr> <number>"
+                         + ("" if operation == "comments" else f" {COMMENT_BODY_OPTION} <path>"))
+    number = comment_thread(arguments[0], arguments[1])
+    endpoint = f"repos/{repository_target(Path(repo_root))}/issues/{number}/comments"
+    if operation == "comments":
+        return ["api", "--paginate", endpoint]
+    if arguments[2] != COMMENT_BODY_OPTION:
+        raise ValueError(f"comment takes {COMMENT_BODY_OPTION} <path>")
+    body = comment_body_path(Path(repo_root), arguments[3])
+    return ["api", "-X", "POST", endpoint, "-F", f"body=@{body}"]
+
+
+def _run_comment_command(repo_root, operation: str, arguments: list[str]) -> int:
+    """Run one fixed comment read or post through the authenticated CLI."""
+    try:
+        gh_arguments = comment_arguments(repo_root, operation, arguments)
+    except (OSError, ValueError) as error:
+        print(f"error: {_bounded_path(error)}", file=sys.stderr)
+        return USAGE_ERROR_EXIT_CODE
+    return _execute(repo_root, gh_arguments)
+
+
 def _run_requested_command(repo_root, arguments: list[str]) -> int:
     """Run one authenticated GitHub CLI command with bounded output."""
     if not arguments:
@@ -517,16 +598,29 @@ def _run_requested_command(repo_root, arguments: list[str]) -> int:
     except ImportError:
         print("error: GitHub safety policy is unavailable; repair adoption", file=sys.stderr)
         return POLICY_DENIAL_EXIT_CODE
-    decision, _reason = gate_core.forge_verdict("gh", arguments)
+    decision, reason = gate_core.forge_verdict("gh", arguments)
     if decision == "deny":
-        print("error: GitHub command denied by policy; review the command", file=sys.stderr)
+        print(f"error: GitHub command denied by policy: {gate_core.sanitize(reason)}",
+              file=sys.stderr)
         return POLICY_DENIAL_EXIT_CODE
+    return _execute(repo_root, arguments, gate_core)
+
+
+def _execute(repo_root, arguments: list[str], gate_core=None) -> int:
+    """Verify the account, run gh, and relay bounded output and failures.
+
+    With `gate_core`, add repository context first and check the final
+    arguments again. Comment operations build fixed arguments and pass none.
+    """
     try:
-        effective_arguments = with_repository_context(Path(repo_root), arguments)
-        decision, _reason = gate_core.forge_verdict("gh", effective_arguments)
-        if decision == "deny":
-            print("error: GitHub command denied by policy; review the command", file=sys.stderr)
-            return POLICY_DENIAL_EXIT_CODE
+        effective_arguments = arguments
+        if gate_core is not None:
+            effective_arguments = with_repository_context(Path(repo_root), arguments)
+            decision, reason = gate_core.forge_verdict("gh", effective_arguments)
+            if decision == "deny":
+                print(f"error: GitHub command denied by policy: {gate_core.sanitize(reason)}",
+                      file=sys.stderr)
+                return POLICY_DENIAL_EXIT_CODE
         verify_account(repo_root)
         result = run_gh(repo_root, effective_arguments)
     except subprocess.TimeoutExpired:
@@ -556,6 +650,9 @@ def _run_requested_command(repo_root, arguments: list[str]) -> int:
     if result.returncode != 0 and is_connectivity_failure(result.stderr):
         print(CONNECTIVITY_ERROR_MESSAGE, file=sys.stderr)
         return 1
+    if result.returncode != 0 and GRAPHQL_UNAVAILABLE in result.stderr[:ERROR_SCAN_LIMIT]:
+        print(GRAPHQL_ERROR_MESSAGE, file=sys.stderr)
+        return 1
     try:
         _safe_write(sys.stdout, result.stdout[:COMMAND_OUTPUT_LIMIT])
     except UnicodeEncodeError:
@@ -579,8 +676,11 @@ def main() -> int:
     """Print bounded authenticated account metadata as JSON."""
     if len(sys.argv) > 1:
         _program, operation, *gh_arguments = sys.argv
+        if operation in ("comments", "comment"):
+            return _run_comment_command(os.getcwd(), operation, gh_arguments)
         if operation != "run":
-            print("error: expected 'run' or no arguments", file=sys.stderr)
+            print("error: expected 'run', 'comments', 'comment', or no arguments",
+                  file=sys.stderr)
             return USAGE_ERROR_EXIT_CODE
         return _run_requested_command(os.getcwd(), gh_arguments)
     try:

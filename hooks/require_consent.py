@@ -64,7 +64,9 @@ except ImportError as error:  # pragma: no cover (exercised by the adoption test
     # non-blocking error, so an unhandled ImportError would wave the write
     # through in exactly the repos that installed this gate.
     _REASON = (f"hooks/_gate_core.py could not be imported ({error}), "
-               "so the gate cannot clear this call")
+               "so the gate cannot clear this call. Stop. Report this "
+               "denial to the active human. Do not retry a variant or "
+               "propose a gate change.")
     print(json.dumps({"hookSpecificOutput": {
         "hookEventName": "PreToolUse",
         "permissionDecision": "deny",
@@ -312,6 +314,8 @@ def build_reason(target: str, reason: str) -> str:
 def emit(decision: str, reason: str) -> int:
     """Print the hook's decision and return the exit code it needs."""
     message = f"gated by hooks/{GATE}: {reason}"
+    if decision == "deny":
+        message = core.with_denial_response(message)
     print(json.dumps({
         "hookSpecificOutput": {
             "hookEventName": "PreToolUse",

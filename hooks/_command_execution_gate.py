@@ -64,6 +64,14 @@ TRUSTED_GH_SCRIPT = "scripts/trusted_gh.py"
 TRUSTED_GIT_SCRIPT = "scripts/trusted_git.py"
 # trusted_git.py validates the full argument shape itself and exits 2 otherwise.
 TRUSTED_GIT_MINIMUM_ARGUMENTS = {"clone": 3, "fetch": 2}
+# trusted_gh.py comment operations. The wrapper validates the target and body
+# again before it calls GitHub CLI.
+COMMENT_KINDS = frozenset({"issue", "pr"})
+THREAD_NUMBER = re.compile(r"[1-9][0-9]{0,9}")
+COMMENT_DRAFT_PREFIX = ".comment-drafts/"
+COMMENT_BODY_OPTION = "--body-file"
+COMMENTS_ARGUMENT_COUNT = 3
+COMMENT_ARGUMENT_COUNT = 5
 SHELL_OPERATORS = (";", "&", "&&", "|", "||", "(", ")")
 OPERATOR_CHARACTERS = frozenset(bash_parser.PUNCTUATION_CHARS)
 CHAIN_OPERATOR = "&&"
@@ -82,6 +90,20 @@ RUFF_FLAGS = {
 }
 # `python -m` imports from the working directory first, so either name replaces Ruff.
 RUFF_SHADOW_NAMES = ("ruff.py", "ruff")
+PYTEST_PROGRAM = "pytest"
+PYTEST_MODULE_LAUNCHER = "python -m pytest"
+# Output and stop flags only. Options that load plugins, change the root,
+# read another config, or start a debugger stay outside the accepted form.
+PYTEST_FLAGS = frozenset({"-q", "-x", "-v", "--tb=short"})
+PYTEST_KEYWORD_OPTION = "-k"
+PYTEST_KEYWORD_OPERATORS = frozenset({"and", "or", "not"})
+PYTEST_KEYWORD_NAME = re.compile(r"[A-Za-z0-9_]{1,128}")
+# `python -m` imports from the working directory first, so either name replaces pytest.
+PYTEST_SHADOW_NAMES = ("pytest.py", "pytest")
+PYTEST_CONSENT = (
+    "Repository workflow requires execution consent. "
+    "pytest imports repository code, including conftest.py."
+)
 UNITTEST_VERBOSITY_OPTIONS = ("-v", "-q")
 UNITTEST_DIRECTORY_OPTIONS = frozenset({"-s", "--start-directory", "-t", "--top-level-directory"})
 UNITTEST_PATTERN_OPTIONS = frozenset({"-p", "--pattern"})
@@ -94,6 +116,9 @@ RUFF_HINT = ("Accepted Ruff forms: ruff check [--fix|--no-fix|--diff|--statistic
 UNITTEST_HINT = ("Accepted unittest forms: python -m unittest [-v|-q] tests.<module>, and "
                  "python -m unittest discover [-v|-q] [-s <directory>] [-t <directory>] [-p <pattern>]. "
                  + CHAIN_HINT)
+PYTEST_HINT = ("Accepted pytest forms: pytest [-q|-x|-v|--tb=short] [-k <expression>] <paths>, "
+               "and the same after python -m pytest. A -k expression holds names joined by and, or, "
+               "and not. Paths stay repository-relative. " + CHAIN_HINT)
 SCRIPT_HINT = (f"hooks/{WORKFLOW_SCRIPT_LIST} lists the accepted repository script forms. " + CHAIN_HINT)
 # Prefix wrappers that only adjust the environment or skip shell lookup.
 TRANSPARENT_WRAPPERS = ("env", "command", "exec")
@@ -147,8 +172,9 @@ def segment_program_reason(segment: list) -> str:
     if any(token.startswith("-") for token in segment[:prefix_count]):
         return "Command wrapper changes unresolved execution settings"
     if program != "git" and program not in INSPECTABLE_PROGRAMS:
+        reason = f"{OPAQUE_REASON} (rejected: {core.sanitize(program)})"
         hint = _accepted_forms_hint(program, executable[1:])
-        return f"{OPAQUE_REASON}. {hint}" if hint else OPAQUE_REASON
+        return f"{reason}. {hint}" if hint else reason
     return ""
 
 
@@ -156,10 +182,14 @@ def _accepted_forms_hint(program: str, arguments: list) -> str:
     """Return the accepted forms for a known tool, or "" for another program."""
     if program == RUFF_PROGRAM:
         return RUFF_HINT
+    if program == PYTEST_PROGRAM:
+        return PYTEST_HINT
     if not _python_program(program):
         return ""
     if arguments[:MODULE_LAUNCH_ARGUMENTS] == ["-m", RUFF_PROGRAM]:
         return RUFF_HINT
+    if arguments[:MODULE_LAUNCH_ARGUMENTS] == ["-m", PYTEST_PROGRAM]:
+        return PYTEST_HINT
     if arguments[:MODULE_LAUNCH_ARGUMENTS] == ["-m", "unittest"]:
         return UNITTEST_HINT
     if any(argument.endswith(".py") for argument in arguments):
@@ -241,7 +271,7 @@ def _load_workflow_scripts() -> tuple:
     except ValueError as error:
         detail = str(error)
     raise ValueError(f"hooks/{WORKFLOW_SCRIPT_LIST} cannot be used ({detail}). "
-                     "Restore the file from the policy source, then retry.")
+                     "Restore the file from the policy source.")
 
 
 def _literal_script_arguments(verdicts: frozenset) -> dict:
@@ -338,20 +368,55 @@ def _unittest_accepted(arguments: list, project_dir: str) -> bool:
     return _unittest_modules_accepted(arguments)
 
 
-def _ruff_lookup_error(launcher: str, project_dir: str) -> str:
-    """Deny a Ruff launch that repository content can replace."""
-    if launcher == RUFF_PROGRAM:
-        relative = _repository_program_path(RUFF_PROGRAM, project_dir)
+def _program_lookup_error(program: str, shadow_names: tuple, launcher: str,
+                          project_dir: str) -> str:
+    """Deny a tool launch that repository content can replace."""
+    if launcher == program:
+        relative = _repository_program_path(program, project_dir)
         if not relative:
             return ""
-        return (f"PATH resolves ruff to `{relative}` inside the repository. "
-                "Remove that directory from PATH, then retry.")
-    shadow = next((name for name in RUFF_SHADOW_NAMES
+        return (f"PATH resolves {program} to `{relative}` inside the repository. "
+                "Remove that directory from PATH.")
+    shadow = next((name for name in shadow_names
                    if os.path.lexists(os.path.join(project_dir, name))), "")
     if not shadow:
         return ""
-    return (f"`{shadow}` at the repository root shadows the ruff module under python -m. "
-            "Run the ruff executable instead, then retry.")
+    return (f"`{shadow}` at the repository root shadows the {program} module under python -m. "
+            f"Run the {program} executable instead.")
+
+
+def _pytest_keyword_accepted(expression: str) -> bool:
+    """Return whether a -k expression holds only names joined by and, or, and not."""
+    words = expression.split()
+    if not words or all(word in PYTEST_KEYWORD_OPERATORS for word in words):
+        return False
+    return all(word in PYTEST_KEYWORD_OPERATORS or PYTEST_KEYWORD_NAME.fullmatch(word)
+               for word in words)
+
+
+def _pytest_arguments_accepted(arguments: list) -> bool:
+    """Return whether pytest arguments use only fixed flags, -k, and inert paths."""
+    index = 0
+    while index < len(arguments):
+        argument = arguments[index]
+        if argument == PYTEST_KEYWORD_OPTION:
+            index += 1
+            if index >= len(arguments) or not _pytest_keyword_accepted(arguments[index]):
+                return False
+        elif argument not in PYTEST_FLAGS and not _is_workflow_path(argument):
+            return False
+        index += 1
+    return True
+
+
+def _pytest_verdict(arguments: list, project_dir: str, launcher: str) -> tuple:
+    """Return (decision, reason, read-only) for one accepted pytest invocation."""
+    if not _pytest_arguments_accepted(arguments):
+        return "", "", False
+    error = _program_lookup_error(PYTEST_PROGRAM, PYTEST_SHADOW_NAMES, launcher, project_dir)
+    if error:
+        return DENY, error, False
+    return ASK, PYTEST_CONSENT, True
 
 
 def _ruff_writes(subcommand: str, flags: list) -> bool:
@@ -373,7 +438,7 @@ def _ruff_verdict(arguments: list, project_dir: str, launcher: str) -> tuple:
     if (any(flag not in RUFF_FLAGS[subcommand] for flag in flags)
             or not all(_is_workflow_path(path) for path in paths)):
         return "", "", False
-    error = _ruff_lookup_error(launcher, project_dir)
+    error = _program_lookup_error(RUFF_PROGRAM, RUFF_SHADOW_NAMES, launcher, project_dir)
     if error:
         return DENY, error, False
     if _ruff_writes(subcommand, flags):
@@ -391,6 +456,25 @@ def _trusted_wrapper_accepted(script: str, arguments: tuple, project_dir: str) -
     return decision != DENY
 
 
+def _trusted_comment_verdict(arguments: tuple) -> tuple:
+    """Return (decision, reason, read-only) for trusted_gh.py comment operations.
+
+    A comment read is a GET on this repository, so it passes on every branch
+    state. A comment post changes hosted state, so it asks.
+    """
+    operation = arguments[0]
+    if (len(arguments) < COMMENTS_ARGUMENT_COUNT or arguments[1] not in COMMENT_KINDS
+            or not THREAD_NUMBER.fullmatch(arguments[2])):
+        return "", "", False
+    if operation == "comments":
+        return (ALLOW, "", True) if len(arguments) == COMMENTS_ARGUMENT_COUNT else ("", "", False)
+    body = arguments[COMMENTS_ARGUMENT_COUNT + 1] if len(arguments) == COMMENT_ARGUMENT_COUNT else ""
+    if (arguments[COMMENTS_ARGUMENT_COUNT:COMMENTS_ARGUMENT_COUNT + 1] != (COMMENT_BODY_OPTION,)
+            or not body.startswith(COMMENT_DRAFT_PREFIX) or not _is_workflow_path(body)):
+        return "", "", False
+    return ASK, "Posting a GitHub comment requires active-human consent.", False
+
+
 def _python_verdict(tokens: list, project_dir: str) -> tuple:
     """Return (decision, reason, read-only) for one Python interpreter invocation."""
     if tokens[1:MODULE_LAUNCH_END] == ["-m", "unittest"]:
@@ -398,9 +482,13 @@ def _python_verdict(tokens: list, project_dir: str) -> tuple:
         return (ALLOW if accepted else ""), "", accepted
     if tokens[1:MODULE_LAUNCH_END] == ["-m", RUFF_PROGRAM]:
         return _ruff_verdict(tokens[MODULE_LAUNCH_END:], project_dir, RUFF_MODULE_LAUNCHER)
+    if tokens[1:MODULE_LAUNCH_END] == ["-m", PYTEST_PROGRAM]:
+        return _pytest_verdict(tokens[MODULE_LAUNCH_END:], project_dir, PYTEST_MODULE_LAUNCHER)
     script, arguments = _python_script_call(tokens, project_dir)
     if not script:
         return "", "", False
+    if script == TRUSTED_GH_SCRIPT and arguments[:1] in (("comments",), ("comment",)):
+        return _trusted_comment_verdict(arguments)
     if script in (TRUSTED_GH_SCRIPT, TRUSTED_GIT_SCRIPT):
         accepted = _trusted_wrapper_accepted(script, arguments, project_dir)
         return (ASK if accepted else ""), "", False
@@ -463,10 +551,10 @@ def _regular_file_details(project_dir: str, name: str) -> tuple:
         details = os.lstat(os.path.join(project_dir, name))
     except OSError as error:
         return None, (f"{name} cannot be read ({_os_error_text(error)}). "
-                      f"Add a regular {name} at the repository root, then retry.")
+                      f"Add a regular {name} at the repository root.")
     if not stat.S_ISREG(details.st_mode):
         return None, (f"{name} is not a regular file. Replace the symlink or special file "
-                      "with a regular file, then retry.")
+                      "with a regular file.")
     return details, ""
 
 
@@ -482,13 +570,13 @@ def _read_package_manifest(project_dir: str) -> tuple:
             # A swap between lstat and open could substitute a symlink target or a FIFO.
             if (opened.st_dev, opened.st_ino) != (details.st_dev, details.st_ino):
                 return None, (f"{NPM_MANIFEST} changed while the gate read it. "
-                              "Retry once the file is stable.")
+                              "Keep the file unchanged while the gate reads it.")
             content = handle.read(MAX_PACKAGE_MANIFEST_BYTES + 1)
     except OSError as error:
         return None, (f"{NPM_MANIFEST} cannot be read ({_os_error_text(error)}). "
-                      f"Add a regular {NPM_MANIFEST} at the repository root, then retry.")
+                      f"Add a regular {NPM_MANIFEST} at the repository root.")
     if len(content) > MAX_PACKAGE_MANIFEST_BYTES:
-        return None, f"{NPM_MANIFEST} exceeds 1 MiB. Reduce the manifest size, then retry."
+        return None, f"{NPM_MANIFEST} exceeds 1 MiB. Reduce the manifest size."
     return content, ""
 
 
@@ -499,13 +587,13 @@ def _manifest_depth_error(text: str) -> str:
         token = match.group()
         if token == '"':
             return (f"{NPM_MANIFEST} is not valid JSON (unterminated string). "
-                    "Fix the JSON syntax, then retry.")
+                    "Fix the JSON syntax.")
         if token[0] == '"':
             continue
         depth = max(0, depth + (1 if token in "[{" else -1))
         if depth > MAX_PACKAGE_MANIFEST_DEPTH:
             return (f"{NPM_MANIFEST} nests deeper than {MAX_PACKAGE_MANIFEST_DEPTH} levels. "
-                    "Flatten the manifest, then retry.")
+                    "Flatten the manifest.")
     return ""
 
 
@@ -515,7 +603,7 @@ def _parse_package_manifest(content: bytes) -> tuple:
         text = content.decode("utf-8")
     except UnicodeDecodeError as error:
         return None, (f"{NPM_MANIFEST} is not valid UTF-8 (byte offset {error.start}). "
-                      "Re-save it as UTF-8, then retry.")
+                      "Re-save it as UTF-8.")
     error_text = _manifest_depth_error(text)
     if error_text:
         return None, error_text
@@ -523,11 +611,11 @@ def _parse_package_manifest(content: bytes) -> tuple:
         return json.loads(text), ""
     except json.JSONDecodeError as error:
         return None, (f"{NPM_MANIFEST} is not valid JSON (lineno {error.lineno}, colno {error.colno}). "
-                      "Fix the JSON syntax, then retry.")
+                      "Fix the JSON syntax.")
     except ValueError as error:
         # Integers past the interpreter's digit limit raise plain ValueError.
         return None, (f"{NPM_MANIFEST} holds a value the gate cannot parse ({type(error).__name__}). "
-                      "Shorten the value, then retry.")
+                      "Shorten the value.")
 
 
 def _package_scripts(project_dir: str) -> tuple:
@@ -539,15 +627,15 @@ def _package_scripts(project_dir: str) -> tuple:
     if error:
         return None, error
     if not isinstance(manifest, dict):
-        return None, f"{NPM_MANIFEST} root is not a JSON object. Make the root an object, then retry."
+        return None, f"{NPM_MANIFEST} root is not a JSON object. Make the root an object."
     scripts = manifest.get("scripts", {})
     if not isinstance(scripts, dict):
         return None, (f"{NPM_MANIFEST} `scripts` is not a JSON object. "
-                      "Make `scripts` an object, then retry.")
+                      "Make `scripts` an object.")
     invalid = next((name for name, body in scripts.items() if not isinstance(body, str)), None)
     if invalid is not None:
         return None, (f"Script `{core.sanitize(invalid)}` in {NPM_MANIFEST} is not a string. "
-                      "Make every script a string, then retry.")
+                      "Make every script a string.")
     return scripts, ""
 
 
@@ -555,10 +643,10 @@ def _script_display_error(name: str, body: str) -> str:
     """Deny a script the consent prompt cannot show in full and in plain text."""
     if len(body) > core.MAX_REASON_VALUE:
         return (f"Script `{name}` exceeds {core.MAX_REASON_VALUE} characters, so the consent prompt "
-                "cannot show it in full. Move the logic into a file the script calls, then retry.")
+                "cannot show it in full. Move the logic into a file the script calls.")
     if not all(" " <= character <= "~" for character in body):
         return (f"Script `{name}` contains characters outside printable ASCII. "
-                "Remove them, then retry.")
+                "Remove them.")
     return ""
 
 
@@ -581,11 +669,11 @@ def _repository_program_path(program: str, project_dir: str) -> str:
 def _npm_lookup_error(project_dir: str) -> str:
     """Deny an npm executable that PATH resolves to inside the repository."""
     if shutil.which("npm") is None:
-        return "npm is not on PATH. Install Node.js and npm, then retry."
+        return "npm is not on PATH. Install Node.js and npm."
     relative = _repository_program_path("npm", project_dir)
     if relative:
         return (f"PATH resolves npm to `{relative}` inside the repository. "
-                "Remove that directory from PATH, then retry.")
+                "Remove that directory from PATH.")
     return ""
 
 
@@ -602,19 +690,19 @@ def _test_path_components(argument: str) -> tuple:
     """Return (components, "") for one inert relative path, or ((), reason)."""
     label = core.sanitize(argument)
     if argument.startswith("-"):
-        return (), f"`{label}`: npm options stay denied. Remove the option, then retry."
+        return (), f"`{label}`: npm options stay denied. Remove the option."
     if not TEST_PATH_PATTERN.fullmatch(argument):
         return (), (f"`{label}` uses characters outside A-Z a-z 0-9 . _ @ + / -. "
-                    "Rename the file or pass another path, then retry.")
+                    "Rename the file or pass another path.")
     parts = tuple(part for part in argument.split("/") if part not in ("", "."))
     if argument.startswith("/") or ".." in parts:
         return (), (f"`{label}` must be a repository-relative path without `..`. "
-                    "Pass a path below the repository root, then retry.")
+                    "Pass a path below the repository root.")
     if not parts:
-        return (), f"`{label}` does not name a test file. Pass a repository-relative file path, then retry."
+        return (), f"`{label}` does not name a test file. Pass a repository-relative file path."
     if len(parts) > MAX_TEST_PATH_COMPONENTS:
         return (), (f"`{label}` has more than {MAX_TEST_PATH_COMPONENTS} path components. "
-                    "Pass a shorter path, then retry.")
+                    "Pass a shorter path.")
     return parts, ""
 
 
@@ -629,11 +717,11 @@ def _test_file_error(base: str, parts: tuple, verified_directories: set) -> str:
         try:
             details = os.lstat(os.path.join(base, *prefix))
         except OSError as error:
-            return f"`{label}` cannot be read ({_os_error_text(error)}). Check the path, then retry."
+            return f"`{label}` cannot be read ({_os_error_text(error)}). Check the path."
         expected_type = stat.S_ISREG if leaf else stat.S_ISDIR
         if not expected_type(details.st_mode):
             return (f"`{label}` passes through a symlink or is not a regular file. "
-                    "Pass the real file path, then retry.")
+                    "Pass the real file path.")
         verified_directories.add(prefix)
     return ""
 
@@ -641,7 +729,7 @@ def _test_file_error(base: str, parts: tuple, verified_directories: set) -> str:
 def _npm_test_files_error(arguments: list, project_dir: str) -> str:
     """Check every test file argument with string rules first, then the filesystem."""
     if not arguments:
-        return "npm test -- needs at least one test file. Name a test file after --, then retry."
+        return "npm test -- needs at least one test file. Name a test file after --."
     checked_paths = []
     for argument in dict.fromkeys(arguments):
         parts, error = _test_path_components(argument)
@@ -676,7 +764,7 @@ def _npm_requirement_error(main: str, scripts: dict, test_files, project_dir: st
         if any(_regular_file_details(project_dir, name)[0] is not None for name in NPM_LOCKFILES):
             return ""
         return ("npm ci requires package-lock.json or npm-shrinkwrap.json as a regular file. "
-                "Commit a lockfile, then retry.")
+                "Commit a lockfile.")
     if main not in scripts:
         return (f"{NPM_MANIFEST} defines no `{main}` script, so the repository does not require "
                 "this workflow. Add the script or skip the command.")
@@ -693,7 +781,7 @@ def _npm_decision(tokens: list, project_dir: str) -> tuple:
     main, lifecycle, test_files = shape
     if os.path.lexists(os.path.join(project_dir, NPM_CONFIG)):
         return "deny", (f"Project {NPM_CONFIG} can change the shell, node options, and registry "
-                        f"npm uses. Remove {NPM_CONFIG}, then retry.")
+                        f"npm uses. Remove {NPM_CONFIG}.")
     error = _npm_lookup_error(project_dir)
     if error:
         return "deny", error
@@ -734,6 +822,8 @@ def _program_verdict(tokens: list, project_dir: str) -> tuple:
         return decision, reason, False
     if program == RUFF_PROGRAM:
         return _ruff_verdict(tokens[1:], project_dir, RUFF_PROGRAM)
+    if program == PYTEST_PROGRAM:
+        return _pytest_verdict(tokens[1:], project_dir, PYTEST_PROGRAM)
     if _python_program(program):
         return _python_verdict(tokens, project_dir)
     if program == "make":

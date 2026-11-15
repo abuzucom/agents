@@ -73,7 +73,6 @@
     "enforce_branch_name.py::_branch_from_git_directory": 1,
     "enforce_branch_name.py::_write_content": 2,
     "enforce_branch_name.py::file_write_names_prohibited_metadata": 1,
-    "enforce_git_identity.py::_handle_pre_tool_use": 2,
     "require_consent.py::_handle_write": 1,
     "require_consent.py::escapes_root": 1,
     "require_consent.py::given_path": 1,

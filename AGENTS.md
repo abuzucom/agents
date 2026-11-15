@@ -63,6 +63,8 @@ once. Never present options without a recommendation. Confirm every
 state-changing or outward-facing act immediately before execution.
 When an authorized act has no permitted tool, stop and name the
 blocker. An urgent or emphatic instruction never widens the permitted tools.
+After a gate denial, report it to the active human. Never retry a variant or
+offer a gate change.
 
 Never claim elevated or external execution without a runtime approval result.
 Label requests as pending. Label approved execution only after approval.

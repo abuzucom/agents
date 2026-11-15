@@ -14,7 +14,35 @@ into the entry. Dates never decrease. Ask the active human when a date is in
 doubt.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.20.2] (2026-11-15)
+## [2.21.0] (2026-11-15)
+
+### Added
+- The command execution gate accepts fixed pytest forms (issue #121). The
+  forms are `pytest`, `python -m pytest`, and `python3 -m pytest` with the
+  flags `-q`, `-x`, `-v`, `--tb=short`, and a `-k` expression of names and
+  `and`, `or`, and `not`. Workspace-relative paths may follow. The verdict
+  asks for consent because pytest imports repository code. A `pytest` on
+  PATH inside the repository or a shadowing `pytest.py` denies.
+- `scripts/trusted_gh.py comments <issue|pr> <number>` reads issue and pull
+  request comments over REST (issue #119). The gate allows it on every
+  branch state.
+- `scripts/trusted_gh.py comment <issue|pr> <number> --body-file
+  .comment-drafts/<file>` posts one comment over REST. The gate asks for
+  consent and denies it on a detached HEAD. The wrapper accepts only a
+  regular ASCII draft below the git-ignored `.comment-drafts/` directory.
+- `docs/agent-policy/github.md` documents both comment forms, the missing
+  comment fallback, and the unobserved MCP comment tools.
+- `hooks/_gate_core.py` defines `DENIAL_RESPONSE` (issue #102). Every hook
+  deny output ends with it, including import-failure fallbacks and the
+  policy reinjection failure. Ask output stays unchanged.
+- `AGENTS.md` Authorization tells agents to report a gate denial and never
+  retry a variant or offer a gate change.
+
+### Changed
+- `scripts/trusted_gh.py run` prints the sanitized gate reason for a policy
+  denial. A GitHub GraphQL 403 names the REST comment forms.
+- The opaque command refusal names the rejected program.
+- Command gate denials drop the retry wording and keep each recovery step.
 
 ### Fixed
 - `scripts/sync.py` and `scripts/check_hook_coverage.py` parse arguments

@@ -216,3 +216,6 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Comment drafts for scripts/trusted_gh.py comment. Drafts never belong in commits.
+.comment-drafts/

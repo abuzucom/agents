@@ -1,0 +1,187 @@
+#!/usr/bin/env python3
+"""Issue and pull request comments through the trusted wrapper (issue #119)."""
+import io
+import os
+import subprocess
+import sys
+import tempfile
+import unittest
+from contextlib import redirect_stderr, redirect_stdout
+from pathlib import Path
+from unittest.mock import patch
+
+REPOSITORY_ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(REPOSITORY_ROOT / "scripts"))
+
+import trusted_gh
+
+REPOSITORY = "example-owner/example-repo"
+USAGE_EXIT_CODE = 2
+FAILURE_EXIT_CODE = 1
+GRAPHQL_BLOCKED = "HTTP 403: GitHub GraphQL is not available from Claude Code sessions"
+OVERSIZED_BODY_BYTES = trusted_gh.MAX_COMMENT_BYTES + 1
+
+
+class DraftRepository:
+    """A temporary checkout root holding a .comment-drafts directory."""
+
+    def __init__(self, test_case: unittest.TestCase):
+        temporary = tempfile.TemporaryDirectory()
+        test_case.addCleanup(temporary.cleanup)
+        self.root = Path(temporary.name).resolve()
+        (self.root / ".git").mkdir()
+        self.drafts = self.root / trusted_gh.COMMENT_DRAFT_DIRECTORY
+        self.drafts.mkdir()
+
+    def draft(self, name: str, content: bytes) -> Path:
+        """Write one draft body and return its path."""
+        path = self.drafts / name
+        path.write_bytes(content)
+        return path
+
+
+def completed(stdout: str = "", stderr: str = "", returncode: int = 0):
+    """Return a fixed GitHub CLI result."""
+    return subprocess.CompletedProcess([], returncode, stdout, stderr)
+
+
+class CommentTargetTest(unittest.TestCase):
+    """Only issue or pr kinds and positive numbers name a comment thread."""
+
+    def test_valid_targets(self):
+        self.assertEqual(trusted_gh.comment_thread("issue", "12"), 12)
+        self.assertEqual(trusted_gh.comment_thread("pr", "7"), 7)
+
+    def test_invalid_targets(self):
+        for kind, number in (("discussion", "1"), ("issue", "0"), ("issue", "-3"),
+                             ("pr", "1e3"), ("pr", ""), ("issue", "01")):
+            with self.subTest(kind=kind, number=number):
+                with self.assertRaises(ValueError):
+                    trusted_gh.comment_thread(kind, number)
+
+
+class CommentBodyTest(unittest.TestCase):
+    """A body file must be a plain ASCII draft under .comment-drafts/."""
+
+    def setUp(self):
+        self.repository = DraftRepository(self)
+
+    def resolve(self, raw: str) -> Path:
+        """Resolve one body argument from the repository root."""
+        return trusted_gh.comment_body_path(self.repository.root, raw)
+
+    def test_relative_draft_resolves_to_absolute_path(self):
+        expected = self.repository.draft("reply.md", b"Line one.\nLine two.\n")
+        self.assertEqual(self.resolve(".comment-drafts/reply.md"), expected)
+
+    def test_file_outside_drafts_is_rejected(self):
+        (self.repository.root / "notes.md").write_bytes(b"text\n")
+        with self.assertRaises(ValueError):
+            self.resolve("notes.md")
+
+    def test_parent_escape_is_rejected(self):
+        self.repository.draft("reply.md", b"text\n")
+        with self.assertRaises(ValueError):
+            self.resolve(".comment-drafts/../notes.md")
+
+    @unittest.skipIf(os.name == "nt", "Symlink creation needs privileges on Windows")
+    def test_symlinked_draft_is_rejected(self):
+        target = self.repository.root / "outside.md"
+        target.write_bytes(b"text\n")
+        (self.repository.drafts / "link.md").symlink_to(target)
+        with self.assertRaises(ValueError):
+            self.resolve(".comment-drafts/link.md")
+
+    def test_invalid_bodies_are_rejected(self):
+        bodies = {
+            "empty.md": b"",
+            "accent.md": "café\n".encode("utf-8"),
+            "escape.md": b"first\\nsecond\n",
+            "large.md": b"a" * OVERSIZED_BODY_BYTES,
+        }
+        for name, content in bodies.items():
+            self.repository.draft(name, content)
+            with self.subTest(name=name):
+                with self.assertRaises(ValueError):
+                    self.resolve(f".comment-drafts/{name}")
+
+
+class CommentCommandTest(unittest.TestCase):
+    """The subcommands build fixed REST calls against this repository."""
+
+    def setUp(self):
+        self.repository = DraftRepository(self)
+        self.calls = []
+
+    def run_main(self, argv: list) -> tuple[int, str, str]:
+        """Run main() with a recording runner and return code and streams."""
+        def record(repo_root, arguments, **_keywords):
+            self.calls.append(arguments)
+            return completed(stdout="[]\n")
+        stdout, stderr = io.StringIO(), io.StringIO()
+        with patch.object(sys, "argv", ["trusted_gh.py", *argv]), \
+                patch.object(trusted_gh.os, "getcwd", return_value=str(self.repository.root)), \
+                patch.object(trusted_gh, "repository_target", return_value=REPOSITORY), \
+                patch.object(trusted_gh, "verify_account", return_value=None), \
+                patch.object(trusted_gh, "run_gh", side_effect=record), \
+                redirect_stdout(stdout), redirect_stderr(stderr):
+            code = trusted_gh.main()
+        return code, stdout.getvalue(), stderr.getvalue()
+
+    def test_comments_read_uses_rest(self):
+        code, stdout, _stderr = self.run_main(["comments", "issue", "5"])
+        self.assertEqual(code, 0)
+        self.assertEqual(self.calls, [[
+            "api", "--paginate", f"repos/{REPOSITORY}/issues/5/comments"]])
+        self.assertEqual(stdout, "[]\n")
+
+    def test_comment_post_uses_rest_with_absolute_body(self):
+        body = self.repository.draft("reply.md", b"Thanks.\n")
+        code, _stdout, _stderr = self.run_main(
+            ["comment", "pr", "9", "--body-file", ".comment-drafts/reply.md"])
+        self.assertEqual(code, 0)
+        self.assertEqual(self.calls, [[
+            "api", "-X", "POST", f"repos/{REPOSITORY}/issues/9/comments",
+            "-F", f"body=@{body}"]])
+
+    def test_usage_errors_exit_2_without_calls(self):
+        for argv in (["comments", "issue"], ["comments", "issue", "x"],
+                     ["comment", "issue", "1"], ["comment", "issue", "1", "--body", "hi"],
+                     ["comment", "issue", "1", "--body-file", "notes.md"]):
+            with self.subTest(argv=argv):
+                code, _stdout, stderr = self.run_main(argv)
+                self.assertEqual(code, USAGE_EXIT_CODE)
+                self.assertIn("error:", stderr)
+        self.assertEqual(self.calls, [])
+
+
+class RunReportingTest(unittest.TestCase):
+    """run names the policy reason and the GraphQL block."""
+
+    def run_main(self, argv: list, result=None) -> tuple[int, str]:
+        """Run `trusted_gh.py run` with a fixed CLI result."""
+        stderr = io.StringIO()
+        with patch.object(sys, "argv", ["trusted_gh.py", "run", *argv]), \
+                patch.object(trusted_gh, "with_repository_context",
+                             side_effect=lambda root, arguments: arguments), \
+                patch.object(trusted_gh, "verify_account", return_value=None), \
+                patch.object(trusted_gh, "run_gh", return_value=result or completed()), \
+                redirect_stdout(io.StringIO()), redirect_stderr(stderr):
+            code = trusted_gh.main()
+        return code, stderr.getvalue()
+
+    def test_denial_names_the_policy_reason(self):
+        code, stderr = self.run_main(
+            ["api", "-X", "POST", f"repos/{REPOSITORY}/issues/1/comments"])
+        self.assertEqual(code, USAGE_EXIT_CODE)
+        self.assertIn("gh api can mutate hosted GitHub resources", stderr)
+
+    def test_graphql_block_names_the_rest_path(self):
+        code, stderr = self.run_main(
+            ["issue", "view", "1"], completed(stderr=GRAPHQL_BLOCKED, returncode=1))
+        self.assertEqual(code, FAILURE_EXIT_CODE)
+        self.assertIn("trusted_gh.py comments", stderr)
+
+
+if __name__ == "__main__":
+    unittest.main()
