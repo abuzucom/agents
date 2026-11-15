@@ -26,7 +26,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - `scripts/trusted_gh.py comments <issue|pr> <number> [--page <n>]` reads
   one page of 100 issue or pull request comments over REST (issue #119).
   The page runs from 1 to 1000. A full page prints a note naming the next
-  page. The gate allows both forms on every branch state.
+  page. The gate allows the read, with or without `--page`, on every
+  branch state.
 - `scripts/trusted_gh.py comment <issue|pr> <number> --body-file
   .comment-drafts/<file>` posts one comment over REST. The gate asks for
   consent and denies it on a detached HEAD. The wrapper accepts only a

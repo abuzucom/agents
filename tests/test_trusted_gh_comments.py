@@ -21,6 +21,10 @@ USAGE_EXIT_CODE = 2
 FAILURE_EXIT_CODE = 1
 GRAPHQL_BLOCKED = "HTTP 403: GitHub GraphQL is not available from Claude Code sessions"
 OVERSIZED_BODY_BYTES = trusted_gh.MAX_COMMENT_BYTES + 1
+# Comment posting reads drafts only where os.open supports dir_fd and
+# O_NOFOLLOW. Elsewhere, Windows included, the wrapper refuses posts.
+SAFE_DRAFT_OPEN = trusted_gh._safe_draft_open_supported()
+NO_SAFE_DRAFT_OPEN = "this platform lacks dir_fd and O_NOFOLLOW, so posting refuses"
 
 
 class DraftRepository:
@@ -71,6 +75,7 @@ class CommentBodyTest(unittest.TestCase):
         """Resolve one body argument from the repository root."""
         return trusted_gh.comment_body_path(self.repository.root, raw)
 
+    @unittest.skipUnless(SAFE_DRAFT_OPEN, NO_SAFE_DRAFT_OPEN)
     def test_relative_draft_resolves_to_absolute_path(self):
         expected = self.repository.draft("reply.md", b"Line one.\nLine two.\n")
         self.assertEqual(self.resolve(".comment-drafts/reply.md"), expected)
@@ -232,6 +237,7 @@ class CommentCommandTest(unittest.TestCase):
         self.assertEqual(code, USAGE_EXIT_CODE)
         self.assertEqual(self.calls, [])
 
+    @unittest.skipUnless(SAFE_DRAFT_OPEN, NO_SAFE_DRAFT_OPEN)
     def test_comment_post_sends_validated_body_on_stdin(self):
         self.repository.draft("reply.md", b"Thanks.\n")
         code, _stdout, _stderr = self.run_main(
@@ -257,6 +263,16 @@ class CommentCommandTest(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertEqual(len(self.calls), 1)
 
+    @unittest.skipIf(SAFE_DRAFT_OPEN, "this platform supports dir_fd and O_NOFOLLOW")
+    def test_post_refuses_on_this_platform(self):
+        self.repository.draft("reply.md", b"Thanks.\n")
+        code, _stdout, stderr = self.run_main(
+            ["comment", "pr", "9", "--body-file", ".comment-drafts/reply.md"])
+        self.assertEqual(code, USAGE_EXIT_CODE)
+        self.assertIn("dir_fd", stderr)
+        self.assertEqual(self.calls, [])
+
+    @unittest.skipUnless(SAFE_DRAFT_OPEN, NO_SAFE_DRAFT_OPEN)
     def test_draft_change_after_validation_cannot_change_the_post(self):
         draft = self.repository.draft("reply.md", b"Approved text.\n")
 
