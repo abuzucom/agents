@@ -86,7 +86,7 @@ class LintStyleTest(unittest.TestCase):
     """lint_style reports dash findings under the canonical source name."""
 
     def test_em_dash_is_reported(self):
-        violations = lint_style.find_violations("One clause — another clause.\n")
+        violations = lint_style.find_violations("One clause \u2014 another clause.\n")
         self.assertTrue(violations)
         self.assertTrue(all(message.startswith("AGENTS.md") for message in violations))
 

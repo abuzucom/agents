@@ -16,7 +16,7 @@ from unittest.mock import patch
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SCRIPTS = REPO_ROOT / "scripts"
 SANITIZER_SAMPLES = ("plain text", "tab\there", "line\nbreak", "escape \x1b[31m red",
-                     "café", "bidi ‮ mark", "\x00nul")
+                     "caf\u00e9", "bidi \u202e mark", "\x00nul")
 OBJECT_IDS = ("a" * 40, "B" * 64, "a" * 39, "g" * 40, "", "a" * 40 + "\n")
 TREE_PATHS = (b"docs/readme.md", b"/absolute", b"a//b", b"a/./b", b"a/../b", b"", b"\xff\xfe")
 
@@ -76,11 +76,11 @@ class ConflictReportTest(unittest.TestCase):
 
     def test_decode_error_sanitizes_path_and_message(self):
         markers = load_script("check_conflict_markers")
-        with tempfile.TemporaryDirectory() as directory:
-            path = os.path.join(directory, "name\x1b.txt")
-            Path(path).write_bytes(b"text\n")
-            with patch.object(markers, "decode_content", return_value=(None, "bad\x1b[31m")):
-                violations = markers.check_file(path)
+        # Windows rejects a control character in a file name, so the read
+        # is replaced and the hostile path stays a plain string.
+        with patch.object(markers, "_safe_read", return_value=(b"text\n", None)), \
+                patch.object(markers, "decode_content", return_value=(None, "bad\x1b[31m")):
+            violations = markers.check_file("name\x1b.txt")
         self.assertEqual(len(violations), 1)
         self.assertNotIn("\x1b", violations[0])
 

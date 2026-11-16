@@ -39,8 +39,14 @@ ERROR_SCAN_LIMIT = 4096
 # Relayed gh output is untrusted text. These characters can move the cursor,
 # rewrite the terminal, or reorder displayed text. Tab, newline, and carriage
 # return stay so multi-line output keeps its shape.
-TERMINAL_CONTROLS = re.compile(
-    "[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f؜‎‏‪-‮⁦-⁩]")
+# Code points: C0 except tab (0x09), newline (0x0A), and carriage return
+# (0x0D), then DEL and C1 (0x7F-0x9F), then the Arabic letter mark and the
+# bidi marks, embeddings, overrides, and isolates.
+TERMINAL_CONTROL_CODEPOINTS = (
+    *range(0x00, 0x09), 0x0B, 0x0C, *range(0x0E, 0x20), *range(0x7F, 0xA0),
+    0x061C, 0x200E, 0x200F, *range(0x202A, 0x202F), *range(0x2066, 0x206A),
+)
+TERMINAL_CONTROL_TABLE = dict.fromkeys(TERMINAL_CONTROL_CODEPOINTS, "?")
 MAX_GIT_DISCOVERY_DEPTH = 100
 GH_TIMEOUT_SECONDS = 5
 # GitHub CLI exits with 4 when a command requires authentication.
@@ -757,7 +763,7 @@ def _execute(repo_root, arguments: list[str], gate_core=None, input_text=None,
 
 def strip_terminal_controls(text: str) -> str:
     """Replace terminal control and bidi override characters with '?'."""
-    return TERMINAL_CONTROLS.sub("?", text)
+    return text.translate(TERMINAL_CONTROL_TABLE)
 
 
 def _relay_result(result, output_note=None) -> int:

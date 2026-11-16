@@ -12,7 +12,7 @@ sys.path.insert(0, str(REPO_ROOT / "scripts"))
 
 import trusted_gh
 
-CONTROLLED = "ok\x1b[31mred\x07\x7f\x85‮bidi⁦x\ttab\nline\r\n"
+CONTROLLED = "ok\x1b[31mred\x07\x7f\x85\u202ebidi\u2066x\ttab\nline\r\n"
 EXPECTED = "ok?[31mred????bidi?x\ttab\nline\r\n"
 
 
@@ -23,7 +23,7 @@ class ControlStrippingTest(unittest.TestCase):
         self.assertEqual(trusted_gh.strip_terminal_controls(CONTROLLED), EXPECTED)
 
     def test_plain_json_is_unchanged(self):
-        text = '{"body": "café \\u001b escaped", "n": 1}\n'
+        text = '{"body": "caf\u00e9 \\u001b escaped", "n": 1}\n'
         self.assertEqual(trusted_gh.strip_terminal_controls(text), text)
 
     def test_relay_strips_both_streams(self):
