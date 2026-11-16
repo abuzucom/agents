@@ -7,6 +7,7 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
 from contextlib import contextmanager
 from pathlib import Path
 from types import ModuleType
@@ -19,6 +20,9 @@ MAX_TREE_OUTPUT = 64 * 1024 * 1024
 MAX_GIT_DIAGNOSTIC = 64 * 1024
 # A runner event payload stays far below this bound. The cap bounds the read.
 MAX_EVENT_PAYLOAD_BYTES = 1024 * 1024
+# check_conflict_markers keeps its own _sanitize copy capped at 200, so each
+# file stays standalone. tests/test_tree_checker_parity.py pins the shared
+# rendering below both caps.
 MAX_DIAGNOSTIC_LENGTH = 500
 MAX_LATIN1_CODE_POINT = 0xFF
 UTF32_UNIT_BYTES = 4
@@ -135,10 +139,14 @@ def _is_within(path: Path, parent: Path) -> bool:
 
 
 def _safe_search_path(repo: Path) -> str:
-    """Return PATH without directories controlled by the candidate repo."""
+    """Return PATH without relative entries or directories in the candidate repo.
+
+    A relative entry resolves against the process working directory, which a
+    caller can point into the candidate repo.
+    """
     safe_entries = []
     for raw_entry in os.environ.get("PATH", "").split(os.pathsep):
-        if not raw_entry:
+        if not raw_entry or not Path(raw_entry).is_absolute():
             continue
         try:
             entry = Path(raw_entry).resolve(strict=False)
@@ -151,7 +159,7 @@ def _safe_search_path(repo: Path) -> str:
 
 def _safe_execution_directory(repo: Path, executable: str) -> Path:
     """Return an existing process directory outside the candidate repo."""
-    for candidate in (Path(os.getenv("TEMP", "")), Path(executable).parent):
+    for candidate in (Path(tempfile.gettempdir()), Path(executable).parent):
         if not str(candidate):
             continue
         try:
@@ -187,6 +195,8 @@ def _resolve_git(repo: Path) -> tuple[str, str]:
         if not callable(resolve_git):
             raise RuntimeError("trusted_git.py does not define resolve_git")
         return _validate_executable(resolve_git(repo), repo), safe_path
+    # The search covers only absolute entries outside the candidate repo, and
+    # _validate_executable re-checks the result.
     executable = shutil.which("git", path=safe_path)
     if executable is None:
         raise RuntimeError("could not find Git outside the candidate repo")
@@ -194,7 +204,12 @@ def _resolve_git(repo: Path) -> tuple[str, str]:
 
 
 def _git_environment(safe_path: str) -> dict[str, str]:
-    """Return a noninteractive Git environment with unsafe features disabled."""
+    """Return a noninteractive Git environment with unsafe features disabled.
+
+    This stays a denylist. The immutable compliance workflow passes the
+    candidate objects through GIT_ALTERNATE_OBJECT_DIRECTORIES, which the
+    trusted_git allowlist would drop.
+    """
     environment = os.environ.copy()
     for name in (
         "GIT_COMMON_DIR", "GIT_CONFIG", "GIT_CONFIG_COUNT",
@@ -299,7 +314,10 @@ def _run_git(
 def _validate_object_id(object_id: str) -> str:
     """Return a normalized 40- or 64-character hexadecimal object ID."""
     if not OBJECT_ID_PATTERN.fullmatch(object_id):
-        raise RuntimeError("--tree requires 40 or 64 hexadecimal characters")
+        raise RuntimeError(
+            "--tree requires a validated hexadecimal object id "
+            "with 40 or 64 characters"
+        )
     return object_id.lower()
 
 

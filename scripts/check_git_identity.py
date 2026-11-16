@@ -31,6 +31,7 @@ import re
 import subprocess
 import sys
 import tempfile
+import urllib.parse
 from pathlib import Path
 
 try:
@@ -113,6 +114,16 @@ STANDALONE_CHILD_ENVIRONMENT = frozenset((
     "HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "NO_PROXY",
     "http_proxy", "https_proxy", "all_proxy", "no_proxy",
 ))
+# A standalone copy cannot import trusted_git. Keep these equal to
+# trusted_git.PROXY_VARIABLES, MANAGED_PROXY_HOSTS, and MANAGED_PROXY_PORT.
+# Managed sandboxes point proxies at this closed loopback port.
+STANDALONE_PROXY_VARIABLES = ("HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY",
+                              "http_proxy", "https_proxy", "all_proxy")
+STANDALONE_PROXY_HOSTS = frozenset({"127.0.0.1", "localhost", "::1"})
+STANDALONE_PROXY_PORT = 9
+# Identity checks run local config and log reads. The bound stops a hung Git
+# from stalling a hook or a CI job.
+GIT_TIMEOUT_SECONDS = 120
 CONFIG_PARAMETERS_ERROR = (
     "GIT_CONFIG_PARAMETERS is malformed. Rerun the command without -c identity overrides."
 )
@@ -145,20 +156,27 @@ def _standalone_resolve_git(repo) -> str:
         if not directory.is_absolute():
             continue
         for name in names:
-            candidate = directory / name
-            if Path(os.path.abspath(candidate)).is_relative_to(repository):
-                continue
-            try:
-                if candidate.is_symlink() or not candidate.is_file():
-                    continue
-                executable = candidate.resolve(strict=True)
-            except OSError:
-                continue
-            if executable.is_relative_to(repository):
-                continue
-            if os.name == "nt" or os.access(executable, os.X_OK):
-                return str(executable)
+            executable = _standalone_trusted_candidate(directory / name, repository)
+            if executable:
+                return executable
     raise FileNotFoundError("trusted Git executable was not found on PATH")
+
+
+def _standalone_trusted_candidate(candidate: Path, repository: Path) -> str:
+    """Return the resolved candidate when it is a trusted executable, else ""."""
+    if Path(os.path.abspath(candidate)).is_relative_to(repository):
+        return ""
+    try:
+        if candidate.is_symlink() or not candidate.is_file():
+            return ""
+        executable = candidate.resolve(strict=True)
+    except OSError:
+        return ""
+    if executable.is_relative_to(repository):
+        return ""
+    if os.name == "nt" or os.access(executable, os.X_OK):
+        return str(executable)
+    return ""
 
 
 def _standalone_safe_directory(repository: Path, executable: Path) -> str:
@@ -205,17 +223,59 @@ def _standalone_child_environment() -> dict:
             if name in STANDALONE_CHILD_ENVIRONMENT}
 
 
+def _standalone_is_proxy_placeholder(value: str) -> bool:
+    """Return whether a proxy value is the managed loopback placeholder."""
+    candidate = value.strip()
+    try:
+        parsed = urllib.parse.urlsplit(candidate if "://" in candidate else "//" + candidate)
+        port = parsed.port
+        hostname = parsed.hostname
+    except ValueError:
+        return False
+    return bool(hostname and hostname.casefold() in STANDALONE_PROXY_HOSTS
+                and port == STANDALONE_PROXY_PORT)
+
+
+def _standalone_strip_proxy_placeholders(environment: dict) -> None:
+    """Remove managed proxy placeholders, as trusted_git.sanitize_managed_proxy does."""
+    for variable in STANDALONE_PROXY_VARIABLES:
+        value = environment.get(variable)
+        if value and _standalone_is_proxy_placeholder(value):
+            environment.pop(variable, None)
+
+
+def _standalone_context_environment(git_context: dict) -> dict:
+    """Return the accepted context subset, as trusted_git._context_environment does.
+
+    Location values must be non-empty strings without NUL. Identity pairs with
+    a NUL value are dropped, and the rest are renumbered.
+    """
+    context = _git_context(git_context)
+    environment = {
+        name: value for name, value in context.items()
+        if name in GIT_CONTEXT_VARIABLES and isinstance(value, str) and value
+        and "\0" not in value
+    }
+    pairs = [(key, value) for key, value in _count_pairs(context) if "\0" not in value]
+    if pairs:
+        environment["GIT_CONFIG_COUNT"] = str(len(pairs))
+    for index, (key, value) in enumerate(pairs):
+        environment[f"GIT_CONFIG_KEY_{index}"] = key
+        environment[f"GIT_CONFIG_VALUE_{index}"] = value
+    return environment
+
+
 def _standalone_run_git(repo, arguments: list[str], *, check=False, runner=None,
-                        git_context=None):
+                        git_context=None, timeout=None):
     """Run trusted Git for a standalone copy of this checker.
 
-    The child receives allowlisted variables plus the location and identity
-    values of `git_context`.
+    The child receives allowlisted variables plus the validated location and
+    identity values of `git_context`.
     """
     repository = Path(repo).resolve()
     executable = Path(_standalone_resolve_git(repository))
     environment = _standalone_child_environment()
-    environment.update(_git_context(git_context or {}))
+    environment.update(_standalone_context_environment(git_context or {}))
     environment.update({"GIT_PAGER": "", "PAGER": "", "GIT_TERMINAL_PROMPT": "0"})
     environment.update(
         {
@@ -227,6 +287,7 @@ def _standalone_run_git(repo, arguments: list[str], *, check=False, runner=None,
             "PATH": _standalone_safe_path(repository),
         }
     )
+    _standalone_strip_proxy_placeholders(environment)
     if os.name == "nt":
         environment["NoDefaultCurrentDirectoryInExePath"] = "1"
     command = [
@@ -259,6 +320,7 @@ def _standalone_run_git(repo, arguments: list[str], *, check=False, runner=None,
         encoding="utf-8",
         errors="replace",
         check=check,
+        timeout=timeout,
     )
 
 
@@ -365,7 +427,8 @@ def _git_context(source=None) -> dict:
 
 
 def _git(repo, arguments: list[str], **options):
-    """Run Git with the inspected command's context."""
+    """Run Git with the inspected command's context and a bounded wait."""
+    options.setdefault("timeout", GIT_TIMEOUT_SECONDS)
     return run_git(repo, arguments, git_context=_git_context(), **options)
 
 
@@ -520,7 +583,7 @@ def history_identity_candidates(repo=None) -> list:
 
 def _allowed(email: str, pattern: re.Pattern) -> bool:
     """Return True when `email` matches the allowlist pattern."""
-    return bool(pattern.match(email.strip()))
+    return bool(pattern.fullmatch(email.strip()))
 
 
 def find_violations(identities: list, pattern: re.Pattern = NOREPLY) -> list:
@@ -680,6 +743,11 @@ def main() -> int:
         identities = select_identities(args)
         if args.advise:
             _print_advisories(identities, args.repo)
+    except subprocess.TimeoutExpired as error:
+        command = " ".join(str(part) for part in error.cmd) if isinstance(error.cmd, (list, tuple)) else str(error.cmd)
+        print(f"error: git timed out after {error.timeout} seconds: {command}. "
+              "Re-run once Git responds.", file=sys.stderr)
+        return 1
     except (subprocess.CalledProcessError, UnicodeError, ValueError) as error:
         print(f"error: git log failed: {error}", file=sys.stderr)
         return 1

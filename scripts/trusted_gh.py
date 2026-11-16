@@ -33,7 +33,20 @@ except ModuleNotFoundError:
 ACCOUNT_OUTPUT_LIMIT = 256
 COMMAND_OUTPUT_LIMIT = 1024 * 1024
 METADATA_OUTPUT_LIMIT = 65536
+# gh prints the GraphQL block and connectivity errors first, so their
+# classifiers scan only this prefix of stderr.
 ERROR_SCAN_LIMIT = 4096
+# Relayed gh output is untrusted text. These characters can move the cursor,
+# rewrite the terminal, or reorder displayed text. Tab, newline, and carriage
+# return stay so multi-line output keeps its shape.
+# Code points: C0 except tab (0x09), newline (0x0A), and carriage return
+# (0x0D), then DEL and C1 (0x7F-0x9F), then the Arabic letter mark and the
+# bidi marks, embeddings, overrides, and isolates.
+TERMINAL_CONTROL_CODEPOINTS = (
+    *range(0x00, 0x09), 0x0B, 0x0C, *range(0x0E, 0x20), *range(0x7F, 0xA0),
+    0x061C, 0x200E, 0x200F, *range(0x202A, 0x202F), *range(0x2066, 0x206A),
+)
+TERMINAL_CONTROL_TABLE = dict.fromkeys(TERMINAL_CONTROL_CODEPOINTS, "?")
 MAX_GIT_DISCOVERY_DEPTH = 100
 GH_TIMEOUT_SECONDS = 5
 # GitHub CLI exits with 4 when a command requires authentication.
@@ -748,24 +761,15 @@ def _execute(repo_root, arguments: list[str], gate_core=None, input_text=None,
     return _relay_result(result, output_note)
 
 
+def strip_terminal_controls(text: str) -> str:
+    """Replace terminal control and bidi override characters with '?'."""
+    return text.translate(TERMINAL_CONTROL_TABLE)
+
+
 def _relay_result(result, output_note=None) -> int:
-    """Write bounded gh output, add an optional success note, and return the exit code."""
-    try:
-        _safe_write(sys.stdout, result.stdout[:COMMAND_OUTPUT_LIMIT])
-    except UnicodeEncodeError:
-        sys.stdout.buffer.write(
-            result.stdout[:COMMAND_OUTPUT_LIMIT].encode(
-                sys.stdout.encoding or "utf-8", errors="replace"
-            )
-        )
-    try:
-        _safe_write(sys.stderr, result.stderr[:COMMAND_OUTPUT_LIMIT])
-    except UnicodeEncodeError:
-        sys.stderr.buffer.write(
-            result.stderr[:COMMAND_OUTPUT_LIMIT].encode(
-                sys.stderr.encoding or "utf-8", errors="replace"
-            )
-        )
+    """Write bounded, control-free gh output, add an optional note, and return the exit code."""
+    _safe_write(sys.stdout, strip_terminal_controls(result.stdout[:COMMAND_OUTPUT_LIMIT]))
+    _safe_write(sys.stderr, strip_terminal_controls(result.stderr[:COMMAND_OUTPUT_LIMIT]))
     note = output_note(result.stdout) if output_note and result.returncode == 0 else ""
     if note:
         print(note, file=sys.stderr)
