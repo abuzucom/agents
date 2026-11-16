@@ -15,7 +15,8 @@ from unittest.mock import patch
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SCRIPTS = REPO_ROOT / "scripts"
 COMPLIANT_BRANCH = "fix/branch-name-validation"
-INVENTORIED_FILES = ("scripts/branch_name_bans.txt", "scripts/_yaml_lines.py")
+INVENTORIED_FILES = ("scripts/branch_name_bans.txt", "scripts/_yaml_lines.py",
+                     "scripts/_commit_trailers.py", "scripts/_pr_event.py")
 # check_branch_name.py omits these two stopwords on purpose. See the comment
 # beside FOREIGN_TOKENS.
 ENGLISH_COLLISIONS = {"mit", "uma"}

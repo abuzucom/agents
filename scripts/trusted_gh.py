@@ -33,7 +33,14 @@ except ModuleNotFoundError:
 ACCOUNT_OUTPUT_LIMIT = 256
 COMMAND_OUTPUT_LIMIT = 1024 * 1024
 METADATA_OUTPUT_LIMIT = 65536
+# gh prints the GraphQL block and connectivity errors first, so their
+# classifiers scan only this prefix of stderr.
 ERROR_SCAN_LIMIT = 4096
+# Relayed gh output is untrusted text. These characters can move the cursor,
+# rewrite the terminal, or reorder displayed text. Tab, newline, and carriage
+# return stay so multi-line output keeps its shape.
+TERMINAL_CONTROLS = re.compile(
+    "[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f؜‎‏‪-‮⁦-⁩]")
 MAX_GIT_DISCOVERY_DEPTH = 100
 GH_TIMEOUT_SECONDS = 5
 # GitHub CLI exits with 4 when a command requires authentication.
@@ -748,24 +755,15 @@ def _execute(repo_root, arguments: list[str], gate_core=None, input_text=None,
     return _relay_result(result, output_note)
 
 
+def strip_terminal_controls(text: str) -> str:
+    """Replace terminal control and bidi override characters with '?'."""
+    return TERMINAL_CONTROLS.sub("?", text)
+
+
 def _relay_result(result, output_note=None) -> int:
-    """Write bounded gh output, add an optional success note, and return the exit code."""
-    try:
-        _safe_write(sys.stdout, result.stdout[:COMMAND_OUTPUT_LIMIT])
-    except UnicodeEncodeError:
-        sys.stdout.buffer.write(
-            result.stdout[:COMMAND_OUTPUT_LIMIT].encode(
-                sys.stdout.encoding or "utf-8", errors="replace"
-            )
-        )
-    try:
-        _safe_write(sys.stderr, result.stderr[:COMMAND_OUTPUT_LIMIT])
-    except UnicodeEncodeError:
-        sys.stderr.buffer.write(
-            result.stderr[:COMMAND_OUTPUT_LIMIT].encode(
-                sys.stderr.encoding or "utf-8", errors="replace"
-            )
-        )
+    """Write bounded, control-free gh output, add an optional note, and return the exit code."""
+    _safe_write(sys.stdout, strip_terminal_controls(result.stdout[:COMMAND_OUTPUT_LIMIT]))
+    _safe_write(sys.stderr, strip_terminal_controls(result.stderr[:COMMAND_OUTPUT_LIMIT]))
     note = output_note(result.stdout) if output_note and result.returncode == 0 else ""
     if note:
         print(note, file=sys.stderr)

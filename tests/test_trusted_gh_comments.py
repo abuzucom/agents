@@ -143,16 +143,6 @@ class CommentBodyTest(unittest.TestCase):
                     with self.assertRaises(ValueError):
                         trusted_gh.read_comment_draft(self.repository.root, ".comment-drafts/reply.md")
 
-    def test_fallback_rejects_a_file_replaced_after_lstat(self):
-        self.repository.draft("reply.md", b"Approved text.\n")
-        other = self.repository.root / "other.md"
-        other.write_bytes(b"Other text.\n")
-        other_details = os.stat(other)
-        with patch.object(trusted_gh.os, "supports_dir_fd", set()), \
-                patch.object(trusted_gh.os, "fstat", return_value=other_details):
-            with self.assertRaises(ValueError):
-                self.resolve(".comment-drafts/reply.md")
-
     def test_fallback_refuses_without_dir_fd(self):
         self.repository.draft("reply.md", b"Approved text.\n")
         with patch.object(trusted_gh.os, "supports_dir_fd", set()):

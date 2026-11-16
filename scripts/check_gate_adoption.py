@@ -57,6 +57,8 @@ REQUIRED_CHECKERS = (
     # Data and shared modules the checkers above load at run time.
     "scripts/branch_name_bans.txt",
     "scripts/_yaml_lines.py",
+    "scripts/_commit_trailers.py",
+    "scripts/_pr_event.py",
 )
 # The local-path checker and its approved allowlist form one gate (Rule 18).
 # Requiring both makes either one alone an incomplete adoption.
