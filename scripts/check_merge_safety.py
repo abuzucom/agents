@@ -130,17 +130,20 @@ def _conflict_markers(root: Path, scripts: Path) -> tuple[bool, str]:
 def _branch_preflight(root: Path, scripts: Path) -> tuple[bool, str]:
     """Return whether the checked-out branch passes strict agent preflight."""
     checker = scripts / BRANCH_CHECKER
-    code, diagnostic = _run(
-        [
-            sys.executable,
-            str(checker),
-            "--strict-agent-preflight",
-            "--repo",
-            str(root),
-        ],
-        root,
-        CHECKER_TIMEOUT_SECONDS,
-    )
+    command = [
+        sys.executable,
+        str(checker),
+        "--strict-agent-preflight",
+        "--repo",
+        str(root),
+    ]
+    # The branch checker prefers the CI pull request head name over the
+    # repository it inspects. An explicit name binds the verdict to the
+    # branch that the merge would run on.
+    branch = _current_branch(root)
+    if branch:
+        command.append(branch)
+    code, diagnostic = _run(command, root, CHECKER_TIMEOUT_SECONDS)
     return code == 0, diagnostic
 
 

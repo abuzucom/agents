@@ -34,6 +34,11 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Relocate one duplicated policy sentence out of the `AGENTS.md` summary. The
   linked documents already carry the same sentence.
 
+### Fixed
+- `scripts/check_merge_safety.py` passes the checked-out branch name to the
+  branch checker. A pull request head name in `GITHUB_HEAD_REF` no longer
+  replaces the branch of the inspected repository.
+
 ## [2.21.1] (2026-11-16)
 
 ### Changed
