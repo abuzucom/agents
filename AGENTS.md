@@ -25,7 +25,6 @@
 17. Get consent before outward-facing acts on external repositories. Never
     create a cross-reference to an external repository.
 18. Gate adoption is atomic across clients. Each gets coverage or none activate.
-    Partial hook or gate adoption is a prohibited destructive action.
     Never remove, narrow, move, disable, bypass, weaken, or misreport a gate.
 19. Never modify Git Credential Manager or GitHub authentication state.
 20. Never open a browser to refresh or recover a GitHub token.
@@ -484,6 +483,8 @@ act-specific consent before editing an existing test. A task finishes only
 after all applicable tests pass.
 
 **Lint clean.** Run the project lint command when defined. Fix every error.
+
+**Merge gate.** Run `scripts/check_merge_safety.py`.
 
 **Keep checks active.** Never silence a linter, type checker, or CI check to
 pass. Never add `# noqa`, `eslint-disable`, `type: ignore`, `@ts-ignore`, or

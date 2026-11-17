@@ -9,6 +9,12 @@
             "type": "command",
             "command": "python $GEMINI_PROJECT_DIR/hooks/reinject_agents_policy.py --client gemini",
             "timeout": 30000
+          },
+          {
+            "name": "anti-delegation-session",
+            "type": "command",
+            "command": "python $GEMINI_PROJECT_DIR/hooks/enforce_anti_delegation.py --client gemini",
+            "timeout": 30000
           }
         ]
       }
@@ -39,6 +45,12 @@
             "name": "strict-branch-preflight",
             "type": "command",
             "command": "python $GEMINI_PROJECT_DIR/hooks/enforce_branch_name.py --client gemini",
+            "timeout": 30000
+          },
+          {
+            "name": "anti-delegation-tool",
+            "type": "command",
+            "command": "python $GEMINI_PROJECT_DIR/hooks/enforce_anti_delegation.py --client gemini",
             "timeout": 30000
           }
         ]

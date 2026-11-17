@@ -69,6 +69,16 @@
               "claude"
             ],
             "timeout": 30
+          },
+          {
+            "type": "command",
+            "command": "python",
+            "args": [
+              "${CLAUDE_PROJECT_DIR}/hooks/enforce_anti_delegation.py",
+              "--client",
+              "claude"
+            ],
+            "timeout": 30
           }
         ]
       }
@@ -82,6 +92,16 @@
             "command": "python",
             "args": [
               "${CLAUDE_PROJECT_DIR}/hooks/enforce_branch_name.py",
+              "--client",
+              "claude"
+            ],
+            "timeout": 30
+          },
+          {
+            "type": "command",
+            "command": "python",
+            "args": [
+              "${CLAUDE_PROJECT_DIR}/hooks/enforce_anti_delegation.py",
               "--client",
               "claude"
             ],

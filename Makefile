@@ -24,6 +24,7 @@ lint:
 	$(PYTHON) scripts/check_us_spelling.py $(PROSE_FILES)
 	$(PYTHON) scripts/check_english_only.py $(PROSE_FILES)
 	$(PYTHON) scripts/check_hedging.py $(PROSE_FILES)
+	$(PYTHON) scripts/check_anti_delegation.py $(PROSE_FILES)
 	$(PYTHON) scripts/check_conflict_markers.py
 
 test:
