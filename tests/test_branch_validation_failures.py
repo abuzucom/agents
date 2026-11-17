@@ -39,22 +39,26 @@ class BranchFailureTest(unittest.TestCase):
                     hook._valid_recovery(command, "claude/x", str(REPO_ROOT)))
         for command in ("env -S 'unfinished", "env -u GIT_DIR git status"):
             with self.subTest(command=command):
-                self.assertTrue(hook.command_execution_reason(command, str(REPO_ROOT), "Bash"))
+                self.assertTrue(hook.command_execution_violation(command, str(REPO_ROOT), "Bash")[1])
         self.assertFalse(hook._segment_names_prohibited_metadata([">", "output"]))
         self.assertEqual(hook._segment_execution_reason([">", "output"], str(REPO_ROOT)), "")
 
     def test_parser_recovers_only_git_literal_targets(self):
-        self.assertFalse(hook.command_names_prohibited_branch("env -S 'unfinished"))
-        self.assertFalse(hook.command_names_prohibited_branch("git status"))
+        for command in ("env -S 'unfinished", "git status"):
+            with self.subTest(command=command):
+                self.assertNotIn("prohibited", hook.command_execution_violation(command, str(REPO_ROOT), "Bash")[1])
 
-    def test_alias_compatibility_helper_and_bounds(self):
+    def test_environment_alias_and_depth_bound(self):
         environment = {
             "GIT_CONFIG_COUNT": "1", "GIT_CONFIG_KEY_0": "alias.branchtest",
             "GIT_CONFIG_VALUE_0": "branch claude/x",
         }
         with patch.dict(os.environ, environment):
-            self.assertTrue(hook.alias_names_prohibited_branch(str(REPO_ROOT), "branchtest", []))
-        self.assertFalse(hook.alias_names_prohibited_branch("", "x", [], depth=hook.MAX_ALIAS_DEPTH))
+            context = hook.core.git_branch_context(["branchtest"], str(REPO_ROOT), [])
+            self.assertTrue(hook._context_names_prohibited_branch(context))
+        entries = {f"alias.step{index}": f"step{index + 1}"
+                   for index in range(hook.core.MAX_GIT_ALIAS_DEPTH)}
+        self.assertIn("limit", hook.core.resolve_branch_alias("step0", [], entries)[2])
 
     def test_actual_git_directory_selects_branch_metadata(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -124,7 +128,7 @@ class AdditionalBoundaryTest(unittest.TestCase):
 
     def test_recovered_wrappers_and_dynamic_arguments(self) -> None:
         self.assertIn("wrapper", hook._segment_execution_reason(["env", "-S", "'"], str(REPO_ROOT)))
-        self.assertIn("unresolved", hook.command_execution_reason("echo $value", str(REPO_ROOT), "Bash"))
+        self.assertIn("unresolved", hook.command_execution_violation("echo $value", str(REPO_ROOT), "Bash")[1])
         self.assertFalse(hook.bash_parser.has_quoted_redirects(r"echo a\b"))
 
     def test_empty_common_directory_and_literal_metadata(self) -> None:
@@ -154,8 +158,8 @@ class AdditionalBoundaryTest(unittest.TestCase):
             "printf '%s' \\> .git/HEAD refs/heads/claude/x",
         ):
             with self.subTest(command=command):
-                self.assertFalse(hook.command_names_prohibited_metadata(command))
-                reason = hook.command_execution_reason(command, str(REPO_ROOT), "Bash")
+                reason = hook.command_execution_violation(command, str(REPO_ROOT), "Bash")[1]
+                self.assertNotIn("prohibited", reason)
                 self.assertNotIn("Git", reason)
 
 

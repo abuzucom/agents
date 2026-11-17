@@ -309,8 +309,7 @@ reason.
   a recognized interpreter. Shared corpus rows cover fixed scripts, command
   payloads, dynamic targets, and plain shell transitions.
 - Branch enforcement retains malformed lifecycle payloads and uncommon Git target positions in
-  `alias_names_prohibited_branch`, `command_names_prohibited_branch`,
-  `command_names_prohibited_metadata`, `handle_context_event`, and `_run`.
+  `handle_context_event` and `_run`.
   Hook tests cover every lifecycle event and client consent response.
   Tests also cover exact recovery, aliases, metadata, and branch publication.
 - `read_payload`, `resolved_under`, and `sanitize` retain defensive exceptions

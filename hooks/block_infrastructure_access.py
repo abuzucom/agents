@@ -34,26 +34,12 @@ def _path(tool_input: dict) -> str:
     return ""
 
 
-def _content(tool_input: dict) -> str:
-    """Return bounded text introduced by one write request."""
-    values = []
-    for key in ("content", "new_string", "new_source"):
-        value = tool_input.get(key)
-        if isinstance(value, str):
-            values.append(value[:core.MAX_INFRASTRUCTURE_FILE_BYTES])
-    edits = tool_input.get("edits", [])
-    if isinstance(edits, list):
-        for edit in edits:
-            if isinstance(edit, dict) and isinstance(edit.get("new_string"), str):
-                values.append(edit["new_string"][:core.MAX_INFRASTRUCTURE_FILE_BYTES])
-    return " ".join(values)
-
 
 def _file_access_denied(tool_input: dict, project_dir: str) -> bool:
     """Return whether one direct file operation reaches protected content."""
     path = _path(tool_input)
     return bool(path and core.is_protected_infrastructure_path(
-        path, project_dir, _content(tool_input)))
+        path, project_dir, core.write_content(tool_input, core.MAX_INFRASTRUCTURE_FILE_BYTES)))
 
 
 def _search_denied(tool_name: str, tool_input: dict, project_dir: str) -> str:

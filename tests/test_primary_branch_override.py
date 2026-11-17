@@ -5,7 +5,7 @@ from tests.read_only_branch_support import BranchFixture, decision
 
 INVALID_OVERRIDES = (
     b"", b"\n", b"develop\nmain\n", b"master\n", b"HEAD\n", b"bad name\n",
-    b"-develop\n", "dévelop\n".encode("utf-8"), b"x" * 300 + b"\n",
+    b"-develop\n", "d\xe9velop\n".encode("utf-8"), b"x" * 300 + b"\n",
 )
 SUBTEST_LABEL_LENGTH = 20
 
