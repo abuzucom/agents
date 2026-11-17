@@ -14,9 +14,17 @@ into the entry. Dates never decrease. Ask the active human when a date is in
 doubt.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.22.0] (2026-11-17)
+## [2.23.0] (2026-11-17)
 
 ### Added
+- Add `.github/workflows/quality-review-pr.yml`. The workflow runs the
+  `abuzucom/euler` quality review on same-repository pull requests after
+  `Convention Sync Check` and `Immutable Compliance` both pass for the
+  head revision. The reusable workflow and `quality_ref` pin euler 0.9.0
+  at `940c53a39b7cc7345b1f6232d43bec7c4d7623df`. Fork pull requests
+  receive a skipped `quality-review` check and no provider secret.
+- Add `tests/test_quality_review_wiring.py` covering the trigger, the
+  pin, the secret mapping, and the fork skip.
 - Add `scripts/check_merge_safety.py` verifying merge preconditions before any
   merge action. The checker requires no active Git operation, a clean worktree,
   no conflict markers, a compliant branch, complete gate adoption, and
