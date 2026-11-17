@@ -22,6 +22,7 @@ FILE_TOOLS = frozenset({"Edit", "MultiEdit", "NotebookEdit", "Read", "Write"})
 SEARCH_TOOLS = frozenset({"Glob", "Grep"})
 PATH_KEYS = ("file_path", "notebook_path", "path")
 BROAD_PATTERNS = frozenset({"", "*", "**", "**/*"})
+PROTECTED_REASON = "infrastructure credentials and configuration are protected from agent access"
 
 
 def _path(tool_input: dict) -> str:
@@ -55,28 +56,33 @@ def _file_access_denied(tool_input: dict, project_dir: str) -> bool:
         path, project_dir, _content(tool_input)))
 
 
-def _search_denied(tool_name: str, tool_input: dict, project_dir: str) -> bool:
-    """Return whether one search can traverse protected infrastructure files."""
+def _search_denied(tool_name: str, tool_input: dict, project_dir: str) -> str:
+    """Return why one search may traverse protected files, or an empty string.
+
+    A scan that hits its file limit or an unreadable directory denies with
+    a reason naming that outcome, so the agent sees a recovery step.
+    """
     root = _path(tool_input) or project_dir
     include = tool_input.get("include", tool_input.get("glob", ""))
     pattern = tool_input.get("pattern", "")
     for candidate in (root, include, pattern):
         if isinstance(candidate, str) and core.is_protected_infrastructure_path(
                 candidate, project_dir):
-            return True
-    if isinstance(include, str) and include not in BROAD_PATTERNS:
-        resolved_root = root if os.path.isabs(root) else os.path.join(project_dir, root)
-        return core.tree_contains_protected_infrastructure(resolved_root, include)
-    if isinstance(pattern, str) and pattern not in BROAD_PATTERNS:
-        if tool_name == "Glob":
-            resolved_root = root if os.path.isabs(root) else os.path.join(project_dir, root)
-            return core.tree_contains_protected_infrastructure(resolved_root, pattern)
+            return PROTECTED_REASON
     resolved_root = root if os.path.isabs(root) else os.path.join(project_dir, root)
-    return core.tree_contains_protected_infrastructure(resolved_root)
+    scan_include = ""
+    if isinstance(include, str) and include not in BROAD_PATTERNS:
+        scan_include = include
+    elif (isinstance(pattern, str) and pattern not in BROAD_PATTERNS
+          and tool_name == "Glob"):
+        scan_include = pattern
+    status = core.infrastructure_scan_status(resolved_root, scan_include)
+    return core.infrastructure_scan_reason(status)
 
 
 def main() -> int:
     """Read one file-tool payload and deny protected infrastructure access."""
+    core.reset_invocation_caches()
     payload = core.read_payload()
     if payload is None:
         return core.emit(GATE, "deny", "the hook payload cannot be inspected")
@@ -87,16 +93,13 @@ def main() -> int:
     if not isinstance(tool_input, dict):
         return core.emit(GATE, "deny", "the file tool input cannot be inspected")
     project_dir = core.project_dir(payload)
-    denied = (_file_access_denied(tool_input, project_dir)
-              if tool_name in FILE_TOOLS else _search_denied(
-                  tool_name, tool_input, project_dir))
-    if not denied:
+    if tool_name in FILE_TOOLS:
+        reason = PROTECTED_REASON if _file_access_denied(tool_input, project_dir) else ""
+    else:
+        reason = _search_denied(tool_name, tool_input, project_dir)
+    if not reason:
         return 0
-    return core.emit(
-        GATE,
-        "deny",
-        "infrastructure credentials and configuration are protected from agent access",
-    )
+    return core.emit(GATE, "deny", reason)
 
 
 if __name__ == "__main__":

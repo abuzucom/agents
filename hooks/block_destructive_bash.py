@@ -319,6 +319,7 @@ def emit(decision: str, reason: str) -> int:
 
 def main() -> int:
     """Classify one Bash tool call, denying on any unexpected error."""
+    core.reset_invocation_caches()
     return core.run_fail_closed(_run, functools.partial(emit, "deny"))
 
 

@@ -151,7 +151,7 @@ def _same_file(first: os.stat_result, second: os.stat_result) -> bool:
     return (first.st_dev, first.st_ino) == (second.st_dev, second.st_ino)
 
 
-def reaches_a_test_inode(target: str, project_dir: str) -> bool:
+def reaches_a_test_inode(target: str, project_dir: str) -> bool | None:
     """Return True if `target` is hard-linked to a file in the test tree.
 
     `realpath` resolves a symlink because a symlink has a target. A hard

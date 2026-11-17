@@ -14,6 +14,35 @@ into the entry. Dates never decrease. Ask the active human when a date is in
 doubt.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.21.2] (2026-11-17)
+
+### Fixed
+- `hooks/_gate_core.py` reads a worktree `.git` pointer up to 4096
+  characters. A longer pointer fails closed instead of being cut at 160.
+- The infrastructure tree scan reports a protected file, its 20000-file
+  limit, and an unreadable root as separate outcomes. Each still denies.
+  The limit and unreadable reasons name a recovery step. The shell gates
+  and `block_infrastructure_access.py` use the new reasons.
+- `forge_verdict` reads the origin owner only for a forge CLI. A cache
+  holds the owner and the scan result for one hook invocation. Each hook
+  main clears the cache first.
+- A cyclic git alias, or one past the 10-alias depth limit, denies with a
+  named reason instead of a recursion error.
+- `git filter-repo` reaches the history-rewrite ask.
+- The GitHub routing gate skips every global option value.
+  `git --namespace x remote add` now reaches the routing deny.
+- `_exec_capable_key` detects drivers under a dotted subsection, such as
+  `filter.a.b.clean`.
+- The PowerShell policy denies `manage-bde` and `bcdedit` in every form.
+  The policy drops the unreachable allow branches for both.
+- The Stop hook names only rebase recovery when the rebase lookup fails,
+  and keeps the lookup failure text. The invalid-branch handler keeps its
+  caller's violation instead of looking the branch up again.
+- `enforce_git_identity.py` denies a command that is not a string. Its
+  checker stops after 20 seconds. PreToolUse denies with the timeout
+  named, and SessionStart reports it as an advisory.
+- `require_consent.reaches_a_test_inode` declares its `None` result.
+
 ## [2.21.1] (2026-11-16)
 
 ### Changed
