@@ -181,6 +181,14 @@ requests receive no provider secret. See `docs/pr-security-review.md` for the
 pinned revision, the required `OLLAMA_API_KEY` repository secret, and why the
 check fails until the repository has that secret.
 
+`quality-review-pr.yml` triggers after `Convention Sync Check` and
+`Immutable Compliance` both pass for a pull request head. It calls the
+`abuzucom/euler` reusable quality review, pinned to one commit SHA for both
+the workflow and its `quality_ref`. The review gates on `BLOCK` and
+`NEEDS-HUMAN` verdicts. It reuses the `OLLAMA_API_KEY` repository secret.
+Fork pull requests receive a skipped check and no provider secret.
+`workflow_run` runs only the default-branch copy of this file.
+
 ### Prose Checks
 
 Run file prose checks with:
