@@ -155,16 +155,17 @@ result. Repository hooks enforce observable command gates. An external harness
 must enforce client output claims when the client API hides those claims.
 
 `.pre-commit-config.yaml` runs each check on owned paths. `sync-check.yml`
-runs tests and authored pull request checks on `pull_request`. The same
-workflow also runs push checks. `immutable-conflict-check.yml` uses trusted
-base code to inspect the immutable pull request tree and commit metadata.
-`agents-md-compliance.yml` runs push compliance through the reusable
-`agents-compliance.yml` workflow. That caller stays push-only. The
-`pr-checks` and `advisory-pr-checks` jobs of the reusable workflow therefore
-skip on every event this repository fires. `sync-check.yml` carries the
-banned-agent and commit-identity checks for pull requests. An adopter calling
-`agents-compliance.yml` on `pull_request` receives those checks from that
-workflow instead.
+runs tests and authored pull request checks on `pull_request` only.
+`immutable-conflict-check.yml` uses trusted base code to inspect the
+immutable pull request tree and commit metadata.
+`agents-md-compliance.yml` runs compliance on pull requests to `main`
+through the reusable `agents-compliance.yml` workflow. The `static-checks`
+job runs before merge on every listed pull request activity. The
+`pr-checks` job skips draft pull requests. The `ready_for_review` activity
+starts it when a draft becomes ready. `sync-check.yml` also carries the
+banned-agent and commit-identity checks. That copy covers draft pull
+requests. A push to `main` after a merge reruns neither `sync-check.yml`
+nor `agents-md-compliance.yml`.
 
 `sync-check.yml` also runs
 [AgentLint](https://github.com/0xmariowu/AgentLint) as an advisory audit with
@@ -180,6 +181,14 @@ commit SHA for both the workflow and its audit revision. The review gates on
 requests receive no provider secret. See `docs/pr-security-review.md` for the
 pinned revision, the required `OLLAMA_API_KEY` repository secret, and why the
 check fails until the repository has that secret.
+
+`quality-review-pr.yml` triggers after `Convention Sync Check` and
+`Immutable Compliance` both pass for a pull request head. It calls the
+`abuzucom/euler` reusable quality review, pinned to one commit SHA for both
+the workflow and its `quality_ref`. The review gates on `BLOCK` and
+`NEEDS-HUMAN` verdicts. It reuses the `OLLAMA_API_KEY` repository secret.
+Fork pull requests receive a skipped check and no provider secret.
+`workflow_run` runs only the default-branch copy of this file.
 
 ### Prose Checks
 

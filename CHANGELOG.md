@@ -14,9 +14,17 @@ into the entry. Dates never decrease. Ask the active human when a date is in
 doubt.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.22.1] (2026-11-17)
+## [2.23.2] (2026-11-17)
 
 ### Added
+- Add `.github/workflows/quality-review-pr.yml`. The workflow runs the
+  `abuzucom/euler` quality review on same-repository pull requests after
+  `Convention Sync Check` and `Immutable Compliance` both pass for the
+  head revision. The reusable workflow and `quality_ref` pin euler 0.9.0
+  at `940c53a39b7cc7345b1f6232d43bec7c4d7623df`. Fork pull requests
+  receive a skipped `quality-review` check and no provider secret.
+- Add `tests/test_quality_review_wiring.py` covering the trigger, the
+  pin, the secret mapping, and the fork skip.
 - Add `scripts/check_merge_safety.py` verifying merge preconditions before any
   merge action. The checker requires no active Git operation, a clean worktree,
   no conflict markers, a compliant branch, complete gate adoption, and
@@ -33,6 +41,17 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ### Changed
 - Relocate one duplicated policy sentence out of the `AGENTS.md` summary. The
   linked documents already carry the same sentence.
+- `.github/workflows/agents-md-compliance.yml` triggers on pull requests to
+  `main` instead of pushes to `main`. The `opened`, `synchronize`,
+  `reopened`, and `ready_for_review` activities start it. The
+  `static-checks` job of `agents-compliance.yml` now runs before merge.
+  `ready_for_review` starts the draft-skipping `pr-checks` job.
+- `.github/workflows/sync-check.yml` drops its push trigger. The
+  `check-sync`, `tests-windows`, and `tests-macos` jobs no longer rerun on
+  a push to `main` after a merge. The `pull_request` trigger keeps its
+  branches and activity types.
+- Add `tests/test_agents_md_compliance_trigger.py` covering both trigger
+  shapes.
 
 ### Fixed
 - `scripts/check_merge_safety.py` passes the checked-out branch name to the
