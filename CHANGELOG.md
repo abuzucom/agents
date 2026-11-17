@@ -14,6 +14,31 @@ into the entry. Dates never decrease. Ask the active human when a date is in
 doubt.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.22.0] (2026-11-17)
+
+### Added
+- Add `scripts/check_merge_safety.py` verifying merge preconditions before any
+  merge action. The checker requires no active Git operation, a clean worktree,
+  no conflict markers, a compliant branch, complete gate adoption, and
+  synchronized policy copies.
+- Add `scripts/check_anti_delegation.py` detecting text that directs a recovery
+  command to the active human.
+- Add `hooks/enforce_anti_delegation.py` blocking a completion attempt that
+  delegates a recovery command to the active human.
+- Register the anti-delegation hook with every adopted client.
+- Require the merge safety check in `AGENTS.md`.
+- Run the anti-delegation scan over the prose files in `make lint` and in the
+  pull request workflow.
+
+### Changed
+- Relocate one duplicated policy sentence out of the `AGENTS.md` summary. The
+  linked documents already carry the same sentence.
+
+### Fixed
+- `scripts/check_merge_safety.py` passes the checked-out branch name to the
+  branch checker. A pull request head name in `GITHUB_HEAD_REF` no longer
+  replaces the branch of the inspected repository.
+
 ## [2.21.1] (2026-11-16)
 
 ### Changed

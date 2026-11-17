@@ -32,6 +32,7 @@ consent-write scripts/report_adoption_status.py --config <path> --index <path> -
 
 allow scripts/check_action_pins.py
 allow scripts/check_agent_prose_gate.py --base <revision> --head <revision>
+allow scripts/check_anti_delegation.py <paths>
 allow scripts/check_ascii.py <paths>
 allow scripts/check_banned_agents.py --base <revision> --head <revision>
 allow scripts/check_branch_name.py
@@ -58,6 +59,9 @@ allow scripts/check_hook_launchers.py
 allow scripts/check_local_paths.py <paths>
 allow scripts/check_local_paths.py --unpushed
 allow scripts/check_local_paths.py --report
+allow scripts/check_merge_safety.py <revision>
+allow scripts/check_merge_safety.py <revision> --root <path>
+consent-read scripts/check_merge_safety.py <revision> --run-tests
 allow scripts/check_persist_credentials.py <paths>
 allow scripts/check_policy_size.py
 allow scripts/check_pull_request_message.py

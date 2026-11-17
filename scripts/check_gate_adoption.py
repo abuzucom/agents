@@ -30,6 +30,7 @@ TRANSACTION_HOOK = "enforce_gate_adoption.py"
 CLIENT_HOOKS = (
     "hooks/_command_execution_gate.py",
     "hooks/block_infrastructure_access.py",
+    "hooks/enforce_anti_delegation.py",
     "hooks/enforce_branch_name.py",
     "hooks/enforce_git_identity.py",
     f"hooks/{TRANSACTION_HOOK}",
@@ -78,6 +79,10 @@ SUBAGENT_MATCHER = "Explore|Plan"
 EDIT_MATCHER = "Edit|Write|MultiEdit|NotebookEdit"
 FILE_TOOL_MATCHER = "Edit|Write|MultiEdit|NotebookEdit|Read|Glob|Grep"
 REQUIRED_REGISTRATIONS = {
+    "enforce_anti_delegation.py": {
+        "Stop": {""},
+        "SubagentStop": {SUBAGENT_MATCHER},
+    },
     "enforce_branch_name.py": {
         "SessionStart": {SESSION_START_MATCHER},
         "UserPromptSubmit": {""},
