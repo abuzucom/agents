@@ -41,7 +41,9 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - `hooks/_gate_core.py` reads a worktree `.git` pointer up to 4096
   characters. A longer pointer fails closed instead of being cut at 160.
 - The infrastructure tree scan reports a protected file, its 20000-file
-  limit, and an unreadable root as separate outcomes. Each still denies.
+  limit, and an unreadable directory as separate outcomes. Each still
+  denies. A subdirectory the scan cannot list now counts as unreadable
+  instead of clear.
   The limit and unreadable reasons name a recovery step. The shell gates
   and `block_infrastructure_access.py` use the new reasons.
 - `forge_verdict` reads the origin owner only for a forge CLI. A cache

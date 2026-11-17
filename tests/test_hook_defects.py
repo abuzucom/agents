@@ -4,6 +4,7 @@
 Each class stays small because the hook coverage runner gives every test
 class one shard with a fixed time limit.
 """
+import contextlib
 import importlib.util
 import json
 import os
@@ -122,6 +123,50 @@ class InfrastructureScanStatusTest(unittest.TestCase):
             self.assertTrue(core.tree_contains_protected_infrastructure(self.root))
         core.reset_invocation_caches()
         self.assertFalse(core.tree_contains_protected_infrastructure(self.root))
+
+
+class UnreadableDescendantTest(unittest.TestCase):
+    """A subdirectory the scan cannot list denies as unreadable (H2 review)."""
+
+    def setUp(self):
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        self.root = temporary.name
+        self.locked = os.path.join(self.root, "locked")
+        os.mkdir(self.locked)
+        Path(self.locked, "main.tf").write_text("terraform {}\n", encoding="utf-8")
+        core.reset_invocation_caches()
+        self.addCleanup(core.reset_invocation_caches)
+
+    def lock_descendant(self):
+        """Make the subdirectory unlistable for real, or by refusing its listing as root."""
+        if os.name != "nt" and os.geteuid() != 0:
+            os.chmod(self.locked, 0)
+            self.addCleanup(os.chmod, self.locked, 0o700)
+            return contextlib.nullcontext()
+        real_scandir = os.scandir
+
+        def refuse_locked(path="."):
+            if os.path.realpath(path) == os.path.realpath(self.locked):
+                raise PermissionError(f"synthetic refusal: {path}")
+            return real_scandir(path)
+
+        return patch.object(core.os, "scandir", side_effect=refuse_locked)
+
+    def test_unlistable_descendant_is_unreadable(self):
+        with self.lock_descendant():
+            status = core.infrastructure_scan_status(self.root)
+            decision, reason = core.infrastructure_path_verdict("ls", ["."], [], self.root)
+        self.assertEqual(status, core.SCAN_UNREADABLE)
+        self.assertEqual(decision, "deny")
+        self.assertIn("could not be read", reason)
+
+    def test_missing_root_and_file_root_stay_clear(self):
+        missing = os.path.join(self.root, "absent")
+        single_file = os.path.join(self.root, "notes.txt")
+        Path(single_file).write_text("safe\n", encoding="utf-8")
+        self.assertEqual(core.infrastructure_scan_status(missing), core.SCAN_CLEAR)
+        self.assertEqual(core.infrastructure_scan_status(single_file), core.SCAN_CLEAR)
 
 
 class FileToolScanReasonTest(unittest.TestCase):

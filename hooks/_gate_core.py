@@ -934,6 +934,11 @@ def _scan_filenames(root: str, current: str, filenames: list,
     return SCAN_CLEAR, seen
 
 
+def _raise_walk_error(error: OSError) -> None:
+    """Re-raise a directory listing failure so the scan reports it."""
+    raise error
+
+
 @lru_cache(maxsize=None)
 def infrastructure_scan_status(root: str, include: str = "") -> str:
     """Return how a bounded scan of `root` ended.
@@ -943,9 +948,15 @@ def infrastructure_scan_status(root: str, include: str = "") -> str:
     file. The cache lasts one hook invocation: each hook main calls
     reset_invocation_caches() first.
     """
+    # A missing path or a single file holds no tree to walk. Callers check
+    # that path itself before scanning.
+    if not os.path.isdir(root):
+        return SCAN_CLEAR
     seen = 0
     try:
-        for current, directories, filenames in os.walk(root):
+        # os.walk skips a directory it cannot list unless onerror raises.
+        # A skipped directory could hide protected files, so it fails closed.
+        for current, directories, filenames in os.walk(root, onerror=_raise_walk_error):
             directories[:] = [name for name in directories
                                if name not in INFRASTRUCTURE_SCAN_SKIP]
             status, seen = _scan_filenames(root, current, filenames, include, seen)
