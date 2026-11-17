@@ -55,7 +55,7 @@ class BanListFailClosedTest(unittest.TestCase):
     def test_non_ascii_list_rejects_compliant_branch(self):
         with tempfile.TemporaryDirectory() as temporary:
             unreadable = Path(temporary) / "branch_name_bans.txt"
-            unreadable.write_bytes("café\n".encode("utf-8"))
+            unreadable.write_bytes("caf\xe9\n".encode("utf-8"))
             with patch.object(self.branch, "BRANCH_BANNED_TOKENS_PATH", unreadable):
                 findings = self.branch.find_violations(COMPLIANT_BRANCH)
         self.assertEqual(len(findings), 1)

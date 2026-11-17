@@ -18,19 +18,19 @@ class BranchExecutionTest(unittest.TestCase):
     """Reject execution paths that hide branch writes behind a Git read."""
 
     def test_git_read_redirection_cannot_write_a_prohibited_ref(self):
-        reason = hook.command_execution_reason(
-            "git status > .git/refs/heads/claude/x", str(REPO_ROOT), "Bash")
+        reason = hook.command_execution_violation(
+            "git status > .git/refs/heads/claude/x", str(REPO_ROOT), "Bash")[1]
         self.assertIn("prohibited", reason)
 
     def test_repository_program_names_do_not_grant_execution(self):
         for command in ("./git status", "./echo hello", "echo.ps1 hello", "git.cmd status"):
             with self.subTest(command=command):
-                self.assertTrue(hook.command_execution_reason(command, str(REPO_ROOT), "Bash"))
+                self.assertTrue(hook.command_execution_violation(command, str(REPO_ROOT), "Bash")[1])
 
     def test_input_and_privilege_wrappers_remain_opaque(self):
         for command in ("xargs git branch", "sudo git status", "nohup git push origin HEAD"):
             with self.subTest(command=command):
-                self.assertTrue(hook.command_execution_reason(command, str(REPO_ROOT), "Bash"))
+                self.assertTrue(hook.command_execution_violation(command, str(REPO_ROOT), "Bash")[1])
 
     def test_implicit_push_targets_remain_unresolved(self):
         for arguments in ([], ["origin"], ["--repo=origin"], ["--repo", "origin"]):

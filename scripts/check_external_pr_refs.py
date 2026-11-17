@@ -25,6 +25,7 @@ except ImportError:
 SHORT_SHA_LENGTH = 12
 MAX_SANITIZED_LENGTH = 120
 OWNER_REPOSITORY_SEGMENT_COUNT = 2
+GITHUB_DOMAINS = frozenset({"github.com", "githubusercontent.com"})
 
 # A remote URL splits into host and path. The host is validated in code
 # rather than in the pattern, which keeps the pattern free of the nested
@@ -80,13 +81,16 @@ def find_external_references(text: str, owner: str, field: str) -> list[str]:
 
 
 def is_github_host(host: str) -> bool:
-    """Return True when `host` is github.com itself or a subdomain of it.
+    """Return True when `host` is a GitHub domain or a subdomain of one.
 
-    A suffix test alone would accept `attacker-github.com`, so the domain
-    boundary is explicit.
+    A port and a trailing dot are stripped first. A suffix test alone would
+    accept `attacker-github.com`, so the domain boundary is explicit. This
+    copies hooks/_gate_core.is_github_hostname. Hooks cannot import scripts,
+    and a parity test pins the two.
     """
-    name = host.lower().partition(":")[0]
-    return name == "github.com" or name.endswith(".github.com")
+    normalized = host.partition(":")[0].rstrip(".").casefold()
+    return any(normalized == domain or normalized.endswith("." + domain)
+               for domain in GITHUB_DOMAINS)
 
 
 def parse_remote_owner(url: str) -> str:

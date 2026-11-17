@@ -115,8 +115,7 @@ def _nested_command_verdict(command: str, depth: int, shell: str) -> tuple:
     return classify(command, depth + 1)
 
 
-def _powershell_interpreter_verdict(program: str, args: list,
-                                    depth: int):
+def _powershell_interpreter_verdict(program: str, args: list):
     """Return a PowerShell payload verdict, or None when none is present."""
     if program.lower() not in core.POWERSHELL_PROGRAMS:
         return None
@@ -137,17 +136,17 @@ def _interpreter_argument_verdict(token: str, has_payload: bool):
     return None
 
 
-def _interpreter_verdict(program: str, args: list, depth: int) -> tuple:
+def _interpreter_verdict(program: str, args: list) -> tuple:
     """Return (decision, reason) for a shell handed a command string.
 
-    Only the payload after -c, /c, or /k is another command. A shell
-    invoked without one runs a script or a REPL, which this gate cannot
-    read either way, so it is not gated on the interpreter's own name.
+    Only the payload after -c, /c, or /k is another command, and a payload
+    denies. A shell invoked without one runs a script or a REPL, which this
+    gate cannot read, so it asks. Only `--version` passes.
     A shell name among the arguments (busybox sh -c) hands the rest to that
     shell. The scan follows it in place rather than recursing, so a long
     run of names cannot exhaust the stack and crash the gate open.
     """
-    verdict = _powershell_interpreter_verdict(program, args, depth)
+    verdict = _powershell_interpreter_verdict(program, args)
     if verdict is not None:
         return verdict
     start = 0
@@ -160,7 +159,7 @@ def _interpreter_verdict(program: str, args: list, depth: int) -> tuple:
             continue
         start = index + 1
         if lowered in core.POWERSHELL_PROGRAMS:
-            verdict = _powershell_interpreter_verdict(lowered, args[start:], depth)
+            verdict = _powershell_interpreter_verdict(lowered, args[start:])
             if verdict is not None:
                 return verdict
     args = args[start:]
@@ -219,8 +218,9 @@ def _named_program_verdict(program: str, args: list,
                            environment: list, depth: int) -> tuple:
     """Return the verdict for a program read by name, or None.
 
-    None means the program is not one of the three the gate reads whole,
-    so the caller runs it past every other check instead.
+    The gate reads six kinds whole: prohibited programs, curl transfers,
+    eval, interpreters, delete programs, and git. None means the program is
+    none of them, so the caller runs it past every other check instead.
     """
     lowered = program.lower()
     prohibited = core.prohibited_command_verdict(program, args)
@@ -232,7 +232,7 @@ def _named_program_verdict(program: str, args: list,
     if lowered == "eval":
         return _eval_verdict(args, depth)
     if lowered in INTERPRETERS:
-        return _interpreter_verdict(program, args, depth)
+        return _interpreter_verdict(program, args)
     if lowered in core.DELETE_PROGRAMS:
         return core.any_delete_verdict(lowered, args)
     if core.normalize_windows_command_name(program) == "git":

@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 """Gate CMD commands through behavior-based operation policies."""
-import json
 import ntpath
 import os
 import sys
@@ -36,19 +35,10 @@ SENSITIVE_DISCOVERY_PROGRAMS = frozenset({
 })
 REMOTE_EXECUTION_PROGRAMS = frozenset({"psexec", "winrs"})
 SCRIPT_SUFFIXES = (".bat", ".cmd", ".ps1")
-INTERPRETER_PROGRAMS = frozenset({
-    "bash",
-    "cmd",
-    "csh",
-    "dash",
-    "fish",
-    "ksh",
-    "powershell",
-    "pwsh",
-    "sh",
-    "tcsh",
-    "zsh",
-})
+# The core list, normalized the way CMD names programs, so a shell the core
+# treats as an interpreter hop (busybox included) is one here too.
+INTERPRETER_PROGRAMS = frozenset(
+    core.normalize_windows_command_name(name) for name in core.SHELL_INTERPRETERS)
 _CWD = [""]
 
 

@@ -152,7 +152,7 @@ class CommentBodyTest(unittest.TestCase):
     def test_invalid_bodies_are_rejected(self):
         bodies = {
             "empty.md": b"",
-            "accent.md": "café\n".encode("utf-8"),
+            "accent.md": "caf\xe9\n".encode("utf-8"),
             "escape.md": b"first\\nsecond\n",
             "large.md": b"a" * OVERSIZED_BODY_BYTES,
         }
@@ -267,7 +267,7 @@ class CommentCommandTest(unittest.TestCase):
         draft = self.repository.draft("reply.md", b"Approved text.\n")
 
         def replace_draft(_repo_root):
-            draft.write_bytes("Swapped é text.\n".encode("utf-8"))
+            draft.write_bytes("Swapped \xe9 text.\n".encode("utf-8"))
 
         code, _stdout, _stderr = self.run_main(
             ["comment", "pr", "9", "--body-file", ".comment-drafts/reply.md"],
