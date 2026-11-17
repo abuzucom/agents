@@ -14,7 +14,7 @@ into the entry. Dates never decrease. Ask the active human when a date is in
 doubt.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.23.3] (2026-11-17)
+## [2.23.4] (2026-11-17)
 
 ### Added
 - Add `.github/workflows/quality-review-pr.yml`. The workflow runs the
@@ -73,6 +73,15 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Comments and docstrings in the core and the shell gates now match the
   code. The PowerShell flag tables derive each range from the flag
   name. Unused parameters leave three shell-gate helpers.
+- `requirements-checkers.txt` pins PyYAML 6.0.3 by sha256 hash. The
+  hashes cover every file PyPI publishes for that version. The three
+  `sync-check.yml` installs pass `--require-hashes`. Workflows that
+  install a requirements file from an adopter or from the base branch
+  rely on pip's automatic hash mode. `.pre-commit-config.yaml` keeps
+  exact version pins, because pre-commit cannot check hashes.
+- The weak-hash and secrets scans in `agents-compliance.yml` and
+  `.pre-commit-config.yaml` also read `hooks/*.py`.
+- Add `tests/test_scan_and_hash_wiring.py` covering both changes.
 
 ### Fixed
 - `scripts/check_merge_safety.py` passes the checked-out branch name to the

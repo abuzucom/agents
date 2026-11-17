@@ -116,7 +116,7 @@ jobs:
       - name: Check for unjustified MD5/SHA-1
         run: |
           shopt -s nullglob
-          files=(scripts/*.py)
+          files=(scripts/*.py hooks/*.py)
           if [ ${#files[@]} -gt 0 ]; then
             python scripts/check_weak_hashing.py "${files[@]}"
           fi
@@ -130,7 +130,7 @@ jobs:
       - name: Check for likely secrets
         run: |
           shopt -s nullglob
-          files=(scripts/*.py .github/workflows/*.yml .pre-commit-config.yaml Makefile)
+          files=(scripts/*.py hooks/*.py .github/workflows/*.yml .pre-commit-config.yaml Makefile)
           if [ ${#files[@]} -gt 0 ]; then
             python scripts/check_secrets_heuristic.py "${files[@]}"
           fi

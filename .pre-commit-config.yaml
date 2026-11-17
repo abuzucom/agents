@@ -1,3 +1,6 @@
+# pre-commit installs additional_dependencies without hash checking, so
+# these hooks pin PyYAML by exact version. requirements-checkers.txt
+# carries the sha256 hashes that CI installs against.
 repos:
   - repo: local
     hooks:
@@ -41,7 +44,7 @@ repos:
         name: Check for unjustified MD5/SHA-1 (Rule 7)
         entry: python scripts/check_weak_hashing.py
         language: python
-        files: ^scripts/.*\.py$
+        files: ^(scripts|hooks)/.*\.py$
       - id: check-dockerfile-root
         name: Check for non-root containers (Rule 12)
         entry: python scripts/check_dockerfile_root.py
@@ -52,7 +55,7 @@ repos:
         name: Check for likely secrets (Rule 8)
         entry: python scripts/check_secrets_heuristic.py
         language: python
-        files: ^(scripts/.*\.py|\.github/workflows/.*\.ya?ml|\.pre-commit-config\.yaml|Makefile)$
+        files: ^((scripts|hooks)/.*\.py|\.github/workflows/.*\.ya?ml|\.pre-commit-config\.yaml|Makefile)$
       - id: check-local-paths
         name: Check for real local identifiers (Rule 8)
         entry: python -I scripts/check_local_paths.py
