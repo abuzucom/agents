@@ -51,7 +51,9 @@ except ImportError as error:  # pragma: no cover
     # non-blocking error, so an unhandled ImportError would wave the command
     # through in exactly the repos that installed this gate.
     _REASON = (f"hooks/_gate_core.py could not be imported ({error}), so the "
-               "gate cannot clear this command")
+               "gate cannot clear this command. Stop. Report this denial to "
+               "the active human. Do not retry a variant or propose a gate "
+               "change.")
     print(json.dumps({"hookSpecificOutput": {
         "hookEventName": "PreToolUse",
         "permissionDecision": "deny",

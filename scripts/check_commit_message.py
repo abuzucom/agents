@@ -179,6 +179,10 @@ def _parse_message_records(stdout: str) -> list[tuple[str, str, str]]:
         if len(fields) != MESSAGE_FIELD_COUNT or not re.fullmatch(r"[0-9a-fA-F]{40,64}", fields[0]):
             raise ValueError("git log returned malformed commit metadata")
         messages.append(tuple(fields))
+    if len(messages) > MAX_COMMIT_COUNT:
+        raise ValueError(
+            f"the commit range exceeds the {MAX_COMMIT_COUNT}-commit scan limit; "
+            "split the range or review the remaining commits by hand")
     return messages
 
 
@@ -188,7 +192,8 @@ def _message_log_arguments(revisions: list[str]) -> list[str]:
         "log",
         "--no-merges",
         "--no-ext-diff",
-        f"--max-count={MAX_COMMIT_COUNT}",
+        # One commit past the cap shows that the range was truncated.
+        f"--max-count={MAX_COMMIT_COUNT + 1}",
         f"--format=%H{FIELD_SEPARATOR}%s{FIELD_SEPARATOR}%b{RECORD_SEPARATOR}",
         *revisions,
     ]

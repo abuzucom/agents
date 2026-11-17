@@ -28,12 +28,25 @@ import sys
 import tempfile
 from pathlib import Path
 
+# A copy beside trusted_git uses its resolver. A copy shipped alone falls
+# back to the equivalent standalone lookup below.
+try:
+    from scripts.trusted_git import resolve_git as _trusted_resolve_git
+except ModuleNotFoundError:
+    try:
+        from trusted_git import resolve_git as _trusted_resolve_git
+    except ModuleNotFoundError:
+        _trusted_resolve_git = None
+
 MAX_FILE_SIZE = 50 * 1024 * 1024  # 50 MB
 MAX_LINE_LENGTH = 65536  # 64 KB
 MAX_VIOLATIONS = 100
 # git check-attr reads paths from stdin; chunk them so one
 # invocation stays a reasonable size on a large repository.
 CHECK_ATTR_CHUNK = 500
+# check_compliance_tree keeps its own _sanitize copy capped at 500, so each
+# file stays standalone. tests/test_tree_checker_parity.py pins the shared
+# rendering below both caps.
 MAX_DIAGNOSTIC_LENGTH = 200
 MAX_LATIN1_CODE_POINT = 0xFF
 BINARY_SNIFF_BYTES = 4096
@@ -338,10 +351,66 @@ def check_content(
     return violations
 
 
+def _repository_anchor() -> Path:
+    """Return the nearest working-directory ancestor that holds .git."""
+    current = Path.cwd().resolve()
+    for candidate in (current, *current.parents):
+        if (candidate / ".git").exists():
+            return candidate
+    return current
+
+
+def _trusted_candidate(candidate: Path, repository: Path) -> str:
+    """Return the resolved candidate when it is an executable outside the repo, else ""."""
+    if Path(os.path.abspath(candidate)).is_relative_to(repository):
+        return ""
+    try:
+        if candidate.is_symlink() or not candidate.is_file():
+            return ""
+        executable = candidate.resolve(strict=True)
+    except OSError:
+        return ""
+    if executable.is_relative_to(repository):
+        return ""
+    if os.name == "nt" or os.access(executable, os.X_OK):
+        return str(executable)
+    return ""
+
+
+def _standalone_resolve_git(repository: Path) -> str:
+    """Return Git from an absolute PATH entry outside the repository."""
+    names = ("git.exe", "git.com") if os.name == "nt" else ("git",)
+    for raw_directory in os.environ.get("PATH", "").split(os.pathsep):
+        directory = Path(raw_directory.strip('"'))
+        if not raw_directory or not directory.is_absolute():
+            continue
+        for name in names:
+            executable = _trusted_candidate(directory / name, repository)
+            if executable:
+                return executable
+    raise FileNotFoundError("trusted Git executable was not found on PATH")
+
+
+def _git_executable(repo_root: str | None = None) -> str:
+    """Return an absolute Git outside the repository.
+
+    A bare `git` would let a repository-controlled PATH entry choose the
+    program that reads the tree.
+    """
+    repository = Path(repo_root).resolve() if repo_root else _repository_anchor()
+    resolver = _trusted_resolve_git or _standalone_resolve_git
+    try:
+        return resolver(repository)
+    except FileNotFoundError as err:
+        raise RuntimeError(
+            "trusted Git was not found on PATH outside the repository; "
+            "install Git or fix PATH") from err
+
+
 def _get_repo_root() -> str:
     """Resolve the git repository root directory."""
     result = subprocess.run(
-        ["git", "--no-pager", "rev-parse", "--show-toplevel"],
+        [_git_executable(), "--no-pager", "rev-parse", "--show-toplevel"],
         capture_output=True,
         check=False,
     )
@@ -465,7 +534,7 @@ def _run_check_attr(rel_paths: list, repo_root: str | None,
                     cached: bool) -> bytes:
     """Return raw check-attr output for one chunk of repo-relative paths."""
     cmd = [
-        "git", "--no-pager",
+        _git_executable(repo_root), "--no-pager",
         "-c", "core.fsmonitor=",
         "check-attr",
         "conflict-marker-size",
@@ -546,7 +615,7 @@ def check_file(
 
     text, decode_err = decode_content(raw_bytes, encoding_hint)
     if decode_err:
-        return [f"error: {path}: {decode_err}"]
+        return [f"error: {_sanitize(path)}: {_sanitize(decode_err)}"]
     if text is None:
         return []
 
@@ -589,7 +658,7 @@ def _skip_worktree_paths(repo_root: str) -> set:
 def _run_ls_files(repo_root: str, extra: list) -> bytes:
     """Return raw ls-files output, raising with git's own message."""
     result = subprocess.run(
-        ["git", "--no-pager", "-c", "core.fsmonitor=", "ls-files",
+        [_git_executable(repo_root), "--no-pager", "-c", "core.fsmonitor=", "ls-files",
          *extra, "-z", "--full-name"],
         capture_output=True,
         check=False,
@@ -642,7 +711,7 @@ def _supports_no_lazy_fetch(repo_root: str) -> bool:
     the option without carrying the version number.
     """
     probe = subprocess.run(
-        ["git", "--no-lazy-fetch", "rev-parse", "--git-dir"],
+        [_git_executable(repo_root), "--no-lazy-fetch", "rev-parse", "--git-dir"],
         capture_output=True, check=False, cwd=repo_root)
     stderr = probe.stderr.decode("utf-8", errors="replace")
     if "unknown option" not in stderr:
@@ -663,7 +732,7 @@ def _object_command(repo_root: str, *args: str) -> list:
     git has it. --no-lazy-fetch is added only where it exists, because a git
     that rejects it fails the whole scan instead of reading one object.
     """
-    command = ["git", "--no-pager", "--no-replace-objects"]
+    command = [_git_executable(repo_root), "--no-pager", "--no-replace-objects"]
     if _supports_no_lazy_fetch(repo_root):
         command.append("--no-lazy-fetch")
     command += ["-c", "core.fsmonitor=", *args]
@@ -852,7 +921,7 @@ def _run_immutable_git(
 
 
 def _validate_object_id(object_id: str) -> str:
-    """Return a normalized validated hexadecimal object ID."""
+    """Return a normalized 40- or 64-character hexadecimal object ID."""
     if not OBJECT_ID_PATTERN.fullmatch(object_id):
         raise RuntimeError(
             "--tree requires a validated hexadecimal object id "
@@ -971,7 +1040,7 @@ def _get_tree_attributes(
     with tempfile.TemporaryDirectory() as temp_dir:
         env = _isolated_git_env(repo_root, temp_dir)
         init = subprocess.run(
-            ["git", "--no-pager", "-c", "init.templateDir=", "init",
+            [_git_executable(repo_root), "--no-pager", "-c", "init.templateDir=", "init",
              "--bare", "--quiet", temp_dir],
             capture_output=True, check=False, env=env)
         if init.returncode != 0:
@@ -1018,9 +1087,9 @@ def _check_tree(repo_root: str, raw_object_id: str) -> list[str]:
 
 
 def _report(violations: list) -> int:
-    """Print violations and return the exit code they imply."""
+    """Print sanitized violations and return the exit code they imply."""
     for violation in violations:
-        print(violation, file=sys.stderr)
+        print(_sanitize(violation), file=sys.stderr)
     return 1 if violations else 0
 
 
@@ -1041,6 +1110,17 @@ def _check_worktree(args: list, repo_root: str) -> list:
     return violations
 
 
+def _store_cli_value(argument: str, value: str, tree_id: str | None,
+                     repo_path: str | None) -> tuple[str | None, str | None]:
+    """Return (tree_id, repo_path) after recording one --tree or --repo value."""
+    current = tree_id if argument == "--tree" else repo_path
+    if current is not None:
+        raise RuntimeError(f"{argument} may be supplied only once")
+    if argument == "--tree":
+        return value, repo_path
+    return tree_id, value
+
+
 def _parse_cli(raw_args: list[str]) -> tuple[bool, list[str], str | None,
                                              str | None]:
     """Parse the staged, tree, and worktree CLI modes."""
@@ -1056,16 +1136,9 @@ def _parse_cli(raw_args: list[str]) -> tuple[bool, list[str], str | None,
         elif argument in ("--tree", "--repo"):
             if index + 1 >= len(raw_args):
                 raise RuntimeError(f"{argument} requires a value")
-            value = raw_args[index + 1]
             index += 1
-            if argument == "--tree":
-                if tree_id is not None:
-                    raise RuntimeError("--tree may be supplied only once")
-                tree_id = value
-            else:
-                if repo_path is not None:
-                    raise RuntimeError("--repo may be supplied only once")
-                repo_path = value
+            tree_id, repo_path = _store_cli_value(
+                argument, raw_args[index], tree_id, repo_path)
         else:
             files.append(argument)
         index += 1

@@ -9,9 +9,13 @@ import sys
 from pathlib import Path
 
 try:
+    from scripts._commit_trailers import (
+        COAUTHOR_PATTERN, TRAILER_PATTERN, terminal_paragraph, terminal_trailers)
     from scripts.trusted_git import run_git
     from scripts.trusted_gh import run_gh
 except ModuleNotFoundError:
+    from _commit_trailers import (
+        COAUTHOR_PATTERN, TRAILER_PATTERN, terminal_paragraph, terminal_trailers)
     from trusted_git import run_git
     from trusted_gh import run_gh
 
@@ -22,10 +26,6 @@ NOREPLY_PATTERN = re.compile(
     r"@users\.noreply\.github\.com\Z",
     re.IGNORECASE,
 )
-TRAILER_PATTERN = re.compile(
-    r"^(?P<key>[A-Za-z0-9]+(?:[- ][A-Za-z0-9]+)*):[ \t]*(?P<value>.*)$"
-)
-COAUTHOR_PATTERN = re.compile(r"\A(?P<name>[^<>]+?)\s*(?:<(?P<email>[^<>]+)>)?\Z")
 OBJECT_ID_PATTERN = re.compile(r"\A[0-9a-fA-F]{40,64}\Z")
 # A bare vendor or tool name ("Claude", "Codex") names no model. Every
 # released model name carries a version digit.
@@ -42,47 +42,13 @@ GITHUB_API_TIMEOUT_SECONDS = 30
 COMMIT_METADATA_FIELD_COUNT = 2
 
 
-def terminal_trailers(body: str) -> list[tuple[str, str]]:
-    """Return structured trailers from the terminal message paragraph."""
-    lines = body.splitlines()
-    while lines and not lines[-1].strip():
-        lines.pop()
-    if not lines:
-        return []
-    trailer_lines = []
-    for line in reversed(lines):
-        if not line.strip():
-            break
-        trailer_lines.append(line)
-    trailer_lines.reverse()
-    trailers = []
-    for line in trailer_lines:
-        if line.startswith((" ", "\t")):
-            if trailers:
-                key, value = trailers[-1]
-                trailers[-1] = (key, f"{value}\n{line.lstrip()}")
-            continue
-        match = TRAILER_PATTERN.fullmatch(line)
-        if match:
-            trailers.append((match.group("key"), match.group("value")))
-    return trailers
-
-
 def trailer_violations(commits: list[dict]) -> list[str]:
     """Return violations for unapproved co-author and assisted-by trailers."""
     violations = []
     for commit in commits:
         sha = commit["sha"][:SHORT_SHA_LENGTH]
         body = commit.get("body", "")
-        lines = body.splitlines()
-        while lines and not lines[-1].strip():
-            lines.pop()
-        trailer_lines = []
-        for line in reversed(lines):
-            if not line.strip():
-                break
-            trailer_lines.append(line)
-        trailer_lines.reverse()
+        trailer_lines = terminal_paragraph(body)
         has_trailer = any(TRAILER_PATTERN.fullmatch(line) for line in trailer_lines)
         if has_trailer:
             for line in trailer_lines:

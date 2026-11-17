@@ -4,27 +4,9 @@ import sys
 from pathlib import Path
 
 try:
-    from scripts.check_ascii import (
-        DASH_SUBSTITUTE,
-        EM_EN_DASH,
-        LIST_MARKER,
-        MAX_ASCII_CODEPOINT,
-        TABLE_SEPARATOR,
-        find_violations as find_path_violations,
-        strip_code,
-        strip_marker,
-    )
+    from scripts.check_ascii import find_violations as find_path_violations
 except ModuleNotFoundError:
-    from check_ascii import (
-        DASH_SUBSTITUTE,
-        EM_EN_DASH,
-        LIST_MARKER,
-        MAX_ASCII_CODEPOINT,
-        TABLE_SEPARATOR,
-        find_violations as find_path_violations,
-        strip_code,
-        strip_marker,
-    )
+    from check_ascii import find_violations as find_path_violations
 
 SOURCE = "AGENTS.md"
 

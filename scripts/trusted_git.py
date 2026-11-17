@@ -133,21 +133,27 @@ def resolve_executable(repo_root, names: tuple[str, ...], label: str) -> str:
         if not directory.is_absolute():
             continue
         for name in names:
-            candidate = directory / name
-            if _is_inside(Path(os.path.abspath(candidate)), repository):
-                continue
-            try:
-                if candidate.is_symlink() or not candidate.is_file():
-                    continue
-                resolved = candidate.resolve(strict=True)
-            except OSError:
-                continue
-            if _is_inside(resolved, repository):
-                continue
-            if os.name != "nt" and not os.access(resolved, os.X_OK):
-                continue
-            return str(resolved)
+            resolved = _trusted_candidate(directory / name, repository)
+            if resolved:
+                return resolved
     raise FileNotFoundError(f"trusted {label} executable was not found on PATH")
+
+
+def _trusted_candidate(candidate: Path, repository: Path) -> str:
+    """Return the resolved candidate when it is a trusted executable, else ""."""
+    if _is_inside(Path(os.path.abspath(candidate)), repository):
+        return ""
+    try:
+        if candidate.is_symlink() or not candidate.is_file():
+            return ""
+        resolved = candidate.resolve(strict=True)
+    except OSError:
+        return ""
+    if _is_inside(resolved, repository):
+        return ""
+    if os.name != "nt" and not os.access(resolved, os.X_OK):
+        return ""
+    return str(resolved)
 
 
 def _safe_directory(repository: Path, executable: Path) -> Path:

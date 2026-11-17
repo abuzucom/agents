@@ -14,7 +14,7 @@ into the entry. Dates never decrease. Ask the active human when a date is in
 doubt.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.21.0] (2026-11-15)
+## [2.22.0] (2026-11-17)
 
 ### Added
 - Add `scripts/check_merge_safety.py` verifying merge preconditions before any
@@ -33,6 +33,81 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ### Changed
 - Relocate one duplicated policy sentence out of the `AGENTS.md` summary. The
   linked documents already carry the same sentence.
+
+## [2.21.1] (2026-11-16)
+
+### Changed
+- `scripts/_commit_trailers.py` holds the trailer parser and co-author
+  pattern that `check_banned_agents.py` and `check_commit_attribution.py`
+  share. Both callers strip a value before the strict match.
+- `scripts/_pr_event.py` holds the event loader, size limits, and the
+  Dependabot login for `check_external_pr_refs.py`,
+  `check_pull_request_message.py`, and `check_agent_prose_gate.py`.
+  `check_gate_adoption.py` requires both new modules.
+- `check_english_only.py` and `check_us_spelling.py` mask code through
+  `prose_policy.mask_markdown_code`. Tilde fences no longer produce
+  warnings. Both checkers now load `prose_policy.py` and
+  `handoff_policy.py` from the same directory.
+- `run_tests.py` discovers shards through `check_hook_coverage.py`. One
+  flatten helper serves both.
+
+### Fixed
+- The standalone Git runner in `check_git_identity.py` strips managed
+  proxy placeholders, drops empty or NUL-bearing context values, and
+  passes a timeout. Identity Git calls stop after 120 seconds and exit 1
+  with the command named. A custom `--allow` pattern must match the whole
+  address.
+- `check_compliance_tree.py` drops relative PATH entries and uses the
+  system temporary directory for Git.
+- `check_conflict_markers.py` runs Git from a trusted absolute path. It
+  uses `trusted_git.resolve_git` when present and an equivalent lookup
+  otherwise. Its report and its decode errors sanitize untrusted text.
+- The object ID validators in `check_compliance_tree.py` and
+  `check_conflict_markers.py` share one error message.
+- `check_commit_message.py` fails closed with exit 1 when a range holds
+  more than 200 commits. `check_external_pr_refs.py` and the compliance
+  tree inherit the limit.
+- `trusted_gh.py` replaces terminal control and bidi override characters
+  in relayed gh output with `?`.
+- `lint_style.py` drops 7 unused imports. `check_hedging.py` drops an
+  uncalled helper. `prose_policy.py` no longer reassigns `HANDOFF_PATH`.
+
+## [2.21.0] (2026-11-15)
+
+### Added
+- The command execution gate accepts fixed pytest forms (issue #121). The
+  forms are `pytest`, `python -m pytest`, and `python3 -m pytest` with the
+  flags `-q`, `-x`, `-v`, `--tb=short`, and a `-k` expression of names and
+  `and`, `or`, and `not`. Workspace-relative paths may follow. The verdict
+  asks for consent because pytest imports repository code. A `pytest` on
+  PATH inside the repository or a shadowing `pytest.py` denies.
+- `scripts/trusted_gh.py comments <issue|pr> <number> [--page <n>]` reads
+  one page of 100 issue or pull request comments over REST (issue #119).
+  The page runs from 1 to 1000. A full page prints a note naming the next
+  page. The gate allows the read, with or without `--page`, on every
+  branch state.
+- `scripts/trusted_gh.py comment <issue|pr> <number> --body-file
+  .comment-drafts/<file>` posts one comment over REST. The gate asks for
+  consent and denies it on a detached HEAD. The wrapper accepts only a
+  regular ASCII draft directly in the git-ignored `.comment-drafts/`
+  directory. It opens the draft once through a descriptor that follows no
+  link and sends the validated bytes on standard input. A later change or
+  link swap cannot alter the posted body. A platform without `dir_fd` and
+  `O_NOFOLLOW` support refuses posts with exit 2. Windows is one such
+  platform.
+- `docs/agent-policy/github.md` documents both comment forms, the missing
+  comment fallback, and the unobserved MCP comment tools.
+- `hooks/_gate_core.py` defines `DENIAL_RESPONSE` (issue #102). Every hook
+  deny output ends with it, including import-failure fallbacks and the
+  policy reinjection failure. Ask output stays unchanged.
+- `AGENTS.md` Authorization tells agents to report a gate denial and never
+  retry a variant or offer a gate change.
+
+### Changed
+- `scripts/trusted_gh.py run` prints the sanitized gate reason for a policy
+  denial. A GitHub GraphQL 403 names the REST comment forms.
+- The opaque command refusal names the rejected program.
+- Command gate denials drop the retry wording and keep each recovery step.
 
 ### Fixed
 - `scripts/sync.py` and `scripts/check_hook_coverage.py` parse arguments

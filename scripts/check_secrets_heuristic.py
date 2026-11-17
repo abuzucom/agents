@@ -32,15 +32,17 @@ def find_violations(text: str, path: str) -> list[str]:
     if basename == ".env" or blocked_variant:
         violations.append(f"{path}: file must not be committed (Rule 8)")
     for number, line in enumerate(text.splitlines(), start=1):
-        for pattern in TOKEN_PATTERNS:
-            if pattern.search(line):
-                violations.append(
-                    f"{path}:{number}: likely secret token committed (Rule 8)"
-                )
-                if len(violations) >= MAX_VIOLATIONS:
-                    return violations
-                break
+        if not _has_token(line):
+            continue
+        violations.append(f"{path}:{number}: likely secret token committed (Rule 8)")
+        if len(violations) >= MAX_VIOLATIONS:
+            return violations
     return violations
+
+
+def _has_token(line: str) -> bool:
+    """Return whether any token pattern matches the line."""
+    return any(pattern.search(line) for pattern in TOKEN_PATTERNS)
 
 
 def main() -> int:

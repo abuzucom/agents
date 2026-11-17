@@ -15,7 +15,6 @@ except ModuleNotFoundError:
 ROOT = Path(__file__).resolve().parent.parent
 DENYLIST_PATH = Path(__file__).resolve().with_name("prose_bans.txt")
 DENYLIST_RELATIVE_PATH = "scripts/prose_bans.txt"
-HANDOFF_PATH = "plan/HANDOFF.md.example"
 MAX_DENYLIST_BYTES = 64 * 1024
 
 SCOPES = {"global", "handoff-exempt"}

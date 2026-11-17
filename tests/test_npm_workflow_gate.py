@@ -153,7 +153,7 @@ class NpmShapeTest(NpmFixture):
         self.assert_deny("npm ci", "Commit a lockfile")
 
     def test_missing_manifest_denies_with_reason(self) -> None:
-        self.assert_deny("npm test", "package.json", "FileNotFoundError", "retry")
+        self.assert_deny("npm test", "package.json", "FileNotFoundError", "Add a regular package.json")
 
     def test_unlisted_shapes_keep_the_opaque_denial(self) -> None:
         self.write_manifest(DEFAULT_SCRIPTS)
@@ -203,12 +203,13 @@ class NpmManifestTest(NpmFixture):
         self.assert_ask("npm test")
 
     def test_malformed_manifests_deny_with_reason(self) -> None:
-        cases = (("{", "lineno"), ("[]", "JSON object"), ('{"scripts": []}', "`scripts`"),
-                 ('{"scripts": {"test": 1}}', "`test`"))
-        for text, fragment in cases:
+        cases = (("{", "lineno", "Fix the JSON syntax"), ("[]", "JSON object", "Make the root an object"),
+                 ('{"scripts": []}', "`scripts`", "Make `scripts` an object"),
+                 ('{"scripts": {"test": 1}}', "`test`", "Make every script a string"))
+        for text, fragment, recovery in cases:
             with self.subTest(text=text):
                 self.write_manifest(text=text)
-                self.assert_deny("npm test", fragment, "retry")
+                self.assert_deny("npm test", fragment, recovery)
         (self.root / "package.json").write_bytes(b'{"scripts": {"test": "\xff"}}')
         self.assert_deny("npm test", "UTF-8")
         self.write_manifest(text='{"a": "')
@@ -232,13 +233,13 @@ class NpmManifestTest(NpmFixture):
         other = self.write_file("other.json", "{}")
         other_details = os.stat(other)
         with patch.object(self.gate.os, "fstat", return_value=other_details):
-            self.assert_deny("npm test", "changed while the gate read it", "Retry")
+            self.assert_deny("npm test", "changed while the gate read it", "Keep the file unchanged")
 
     def test_manifest_open_failure_names_its_cause(self) -> None:
         self.write_manifest(DEFAULT_SCRIPTS)
         error = PermissionError(PERMISSION_DENIED_ERRNO, "Permission denied")
         with patch.object(self.gate.os, "open", side_effect=error):
-            self.assert_deny("npm test", "PermissionError", "Permission denied", "retry")
+            self.assert_deny("npm test", "PermissionError", "Permission denied", "Add a regular package.json")
 
     @unittest.skipUnless(hasattr(os, "mkfifo"), "FIFOs need POSIX")
     def test_fifo_manifest_denies_without_hanging(self) -> None:
@@ -301,12 +302,14 @@ class NpmPromptIntegrityTest(NpmFixture):
         self.assertIn('prepare="husky"', reason)
 
     def test_undisplayable_executed_scripts_deny(self) -> None:
-        cases = ({"test": "x" * (DISPLAY_LIMIT + 1)}, {"test": "vitest", "posttest": "a\u202eb"},
-                 {"test": "vitest\trun"}, {"test": "vitest", "pretest": "y" * (DISPLAY_LIMIT + 1)})
-        for scripts in cases:
+        cases = (({"test": "x" * (DISPLAY_LIMIT + 1)}, "Move the logic into a file"),
+                 ({"test": "vitest", "posttest": "a\u202eb"}, "Remove them"),
+                 ({"test": "vitest\trun"}, "Remove them"),
+                 ({"test": "vitest", "pretest": "y" * (DISPLAY_LIMIT + 1)}, "Move the logic into a file"))
+        for scripts, recovery in cases:
             with self.subTest(scripts=sorted(scripts)):
                 self.write_manifest(scripts)
-                self.assert_deny("npm test", "Script `", "then retry")
+                self.assert_deny("npm test", "Script `", recovery)
         self.write_manifest({"test": "x" * DISPLAY_LIMIT, "build": "z" * (DISPLAY_LIMIT + 1)})
         self.assertIn("x" * DISPLAY_LIMIT, self.assert_ask("npm test"))
 

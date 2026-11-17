@@ -179,29 +179,43 @@ def unreached_counts(root: str, hit: set) -> dict:
     return counts
 
 
-def discover_test_shards(root: str) -> list[tuple[str, str]]:
-    """Return display labels and import names for discovered test classes."""
-    tests = os.path.join(root, "tests")
-    resolved_root = os.path.abspath(root)
-    if resolved_root not in sys.path:
-        sys.path.insert(0, resolved_root)
-    remove_stale_test_modules(tests)
-    loader = unittest.TestLoader()
-    suite = loader.discover(tests, pattern="test_*.py")
+def iterate_tests(suite: unittest.TestSuite):
+    """Yield every test case in a nested suite in discovery order."""
     stack = [suite]
-    shards = {}
     while stack:
         item = stack.pop()
         if isinstance(item, unittest.TestSuite):
             stack.extend(reversed(list(item)))
             continue
-        test_class = item.__class__
+        yield item
+
+
+def discover_tests(root: str) -> unittest.TestSuite:
+    """Return the discovered test suite below root/tests."""
+    tests = os.path.join(root, "tests")
+    resolved_root = os.path.abspath(root)
+    if resolved_root not in sys.path:
+        sys.path.insert(0, resolved_root)
+    remove_stale_test_modules(tests)
+    return unittest.TestLoader().discover(tests, pattern="test_*.py")
+
+
+def shards_from_suite(suite: unittest.TestSuite) -> list[tuple[str, str]]:
+    """Return sorted (display label, import name) pairs, one per test class."""
+    shards = {}
+    for test in iterate_tests(suite):
+        test_class = test.__class__
         import_name = "%s.%s" % (
             test_class.__module__, test_class.__qualname__)
         module_path = test_class.__module__.replace(".", "/") + ".py"
         shards[import_name] = "%s::%s" % (
             module_path, test_class.__qualname__)
     return sorted((label, name) for name, label in shards.items())
+
+
+def discover_test_shards(root: str) -> list[tuple[str, str]]:
+    """Return display labels and import names for discovered test classes."""
+    return shards_from_suite(discover_tests(root))
 
 
 def remove_stale_test_modules(tests_directory: str) -> None:

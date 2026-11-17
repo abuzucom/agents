@@ -10,16 +10,18 @@ from pathlib import Path
 
 try:
     from scripts import check_commit_message, read_git_state
+    from scripts._pr_event import (
+        DEPENDABOT_LOGIN, MAX_BODY_LENGTH, MAX_EVENT_BYTES, MAX_TITLE_LENGTH,
+        load_event_payload, pull_request_data, pull_request_prose, repository_owner_login)
     from scripts.prose_policy import mask_markdown_code
 except ImportError:
     import check_commit_message
     import read_git_state
+    from _pr_event import (
+        DEPENDABOT_LOGIN, MAX_BODY_LENGTH, MAX_EVENT_BYTES, MAX_TITLE_LENGTH,
+        load_event_payload, pull_request_data, pull_request_prose, repository_owner_login)
     from prose_policy import mask_markdown_code
 
-MAX_EVENT_BYTES = 1024 * 1024
-MAX_TITLE_LENGTH = 4096
-MAX_BODY_LENGTH = 1024 * 1024
-DEPENDABOT_LOGIN = "dependabot[bot]"
 SHORT_SHA_LENGTH = 12
 MAX_SANITIZED_LENGTH = 120
 OWNER_REPOSITORY_SEGMENT_COUNT = 2
@@ -48,34 +50,11 @@ RESOURCE_URL = re.compile(
 
 def _load_event(path: Path) -> tuple[str, str, str, str]:
     """Load bounded pull request prose, author, and repository owner."""
-    if path.stat().st_size > MAX_EVENT_BYTES:
-        raise ValueError("event payload exceeds the size limit")
-    payload = json.loads(path.read_text(encoding="utf-8"))
-    if not isinstance(payload, dict):
-        raise ValueError("event payload must contain an object")
-    pull_request = payload.get("pull_request")
-    if not isinstance(pull_request, dict):
-        raise ValueError("event payload lacks pull request data")
-    repository = payload.get("repository")
-    if not isinstance(repository, dict):
-        raise ValueError("event payload lacks repository data")
-    owner = repository.get("owner")
-    if not isinstance(owner, dict) or not isinstance(owner.get("login"), str):
-        raise ValueError("event payload lacks a repository owner login")
-    title = pull_request.get("title")
-    body = pull_request.get("body")
-    author = pull_request.get("user")
-    if not isinstance(title, str):
-        raise ValueError("pull request title must contain text")
-    if body is None:
-        body = ""
-    if not isinstance(body, str):
-        raise ValueError("pull request body must contain text or null")
-    if not isinstance(author, dict) or not isinstance(author.get("login"), str):
-        raise ValueError("pull request author must contain a login")
-    if len(title) > MAX_TITLE_LENGTH or len(body) > MAX_BODY_LENGTH:
-        raise ValueError("pull request prose exceeds the size limit")
-    return title, body, author["login"], owner["login"]
+    payload = load_event_payload(path)
+    pull_request = pull_request_data(payload)
+    owner = repository_owner_login(payload)
+    title, body, author = pull_request_prose(pull_request)
+    return title, body, author, owner
 
 
 def _sanitize(value: str) -> str:

@@ -14,7 +14,9 @@ POLICY_DENIAL_EXIT_CODE = 2
 try:
     import _gate_core as core
 except ImportError as error:  # pragma: no cover
-    print(f"shared gate core import failed ({error})", file=sys.stderr)
+    print(f"shared gate core import failed ({error}). Stop. Report this "
+          "denial to the active human. Do not retry a variant or propose "
+          "a gate change.", file=sys.stderr)
     sys.exit(POLICY_DENIAL_EXIT_CODE)
 
 GATE = "enforce_gate_adoption.py"
@@ -67,7 +69,7 @@ def _command(tool_input: object) -> str:
 
 def _deny(client: str, reason: str) -> int:
     """Emit the native deny response for one supported client."""
-    message = f"blocked by hooks/{GATE}: {reason}"
+    message = core.with_denial_response(f"blocked by hooks/{GATE}: {reason}")
     if client in ("gemini", "antigravity"):
         print(json.dumps({"decision": "deny", "reason": message}))
         return 0
