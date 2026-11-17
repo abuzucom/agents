@@ -14,7 +14,7 @@ into the entry. Dates never decrease. Ask the active human when a date is in
 doubt.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.23.0] (2026-11-17)
+## [2.23.1] (2026-11-17)
 
 ### Added
 - Add `.github/workflows/quality-review-pr.yml`. The workflow runs the
@@ -41,6 +41,17 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ### Changed
 - Relocate one duplicated policy sentence out of the `AGENTS.md` summary. The
   linked documents already carry the same sentence.
+- `.github/workflows/agents-md-compliance.yml` triggers on pull requests to
+  `main` instead of pushes to `main`. The `opened`, `synchronize`,
+  `reopened`, and `ready_for_review` activities start it. The
+  `static-checks` job of `agents-compliance.yml` now runs before merge.
+  `ready_for_review` starts the draft-skipping `pr-checks` job.
+- `.github/workflows/sync-check.yml` drops its push trigger. The
+  `check-sync`, `tests-windows`, and `tests-macos` jobs no longer rerun on
+  a push to `main` after a merge. The `pull_request` trigger keeps its
+  branches and activity types.
+- Add `tests/test_agents_md_compliance_trigger.py` covering both trigger
+  shapes.
 
 ### Fixed
 - `scripts/check_merge_safety.py` passes the checked-out branch name to the

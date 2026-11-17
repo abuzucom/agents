@@ -1,8 +1,6 @@
 name: Convention Sync Check
 
 on:
-  push:
-    branches: [ main ]
   pull_request:
     branches: [ main ]
     types: [opened, synchronize, reopened, ready_for_review, edited]
@@ -56,10 +54,9 @@ jobs:
         run: python scripts/run_tests.py
 
   pr-authorship:
-    # agents-md-compliance.yml stays push-only by design, so the pr-checks
-    # job of the reusable agents-compliance.yml never runs here: its
-    # pull_request condition is false on a push. These two checkers live
-    # only in that job, so without this one they run on no event at all.
+    # agents-md-compliance.yml runs the reusable pr-checks job on pull
+    # requests. That job skips drafts. This job runs these two checkers on
+    # draft pull requests too.
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
