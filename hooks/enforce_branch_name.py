@@ -1226,12 +1226,10 @@ def _handle_invalid_branch(
     branch_violation: str,
     branch_name: str = "",
 ) -> int:
-    """Allow only questions and exact recovery while preflight fails."""
-    if not branch_name:
-        recovered_branch, lookup_violation = read_branch_preflight(project_dir)
-        branch_name = recovered_branch
-        if lookup_violation:
-            branch_violation = lookup_violation
+    """Allow only questions and exact recovery while preflight fails.
+
+    The caller already ran the branch lookup, so its violation stands.
+    """
     tool_name, tool_input = _tool_call(payload, client)
     if not isinstance(tool_name, str):
         return _deny(client, "Tool name is missing or malformed")
@@ -1304,6 +1302,18 @@ def _handle_pre_tool_use(payload: dict, project_dir: str, client: str) -> int:
     return 0
 
 
+def _rebase_assumed(project_dir: str) -> bool:
+    """Return whether recovery text must assume an active rebase.
+
+    The tool gate accepts only rebase commands during a rebase. An
+    unreadable lookup cannot rule one out, so it counts as a rebase.
+    """
+    try:
+        return rebase_is_active(project_dir)
+    except OSError:
+        return True
+
+
 def handle_stop_event(payload: dict, project_dir: str) -> int:
     """Block one completion attempt while strict branch preflight fails."""
     if payload.get("stop_hook_active") is True:
@@ -1317,8 +1327,8 @@ def handle_stop_event(payload: dict, project_dir: str) -> int:
     if message:
         reason = message
     else:
-        reason = (f"{recovery_authorization_reason(branch_name)} "
-                  f"{core.sanitize(branch_violation)}")
+        recovery = recovery_authorization_reason(branch_name, _rebase_assumed(project_dir))
+        reason = f"{recovery} {core.sanitize(branch_violation)}"
     output = {
         "decision": "block",
         "reason": reason,
@@ -1349,6 +1359,7 @@ def handle_context_event(project_dir: str, event_name: str) -> int:
 
 def main() -> int:
     """Run the branch gate, denying in the client's format on any unexpected error."""
+    core.reset_invocation_caches()
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--client",

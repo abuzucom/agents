@@ -43,6 +43,9 @@ UNC_SHARE_ROOT_PARTS = 2
 DRIVE_ROOT_LENGTH = 2
 MAX_GIT_CONFIG_COUNT = 1000
 MAX_GIT_ALIAS_DEPTH = 10
+# A worktree .git file holds "gitdir: <path>". PATH_MAX on Linux is 4096,
+# so a longer pointer cannot name a real directory.
+MAX_GITDIR_POINTER_CHARACTERS = 4096
 GITHUB_DOMAINS = frozenset({"github.com", "githubusercontent.com"})
 CONFIG_READ_TIMEOUT_SECONDS = 5
 CONFIG_READ_ENVIRONMENT = frozenset({
@@ -52,7 +55,7 @@ CONFIG_READ_ENVIRONMENT = frozenset({
     "GIT_CEILING_DIRECTORIES", "GIT_DISCOVERY_ACROSS_FILESYSTEM",
 })
 GIT_SHORT_OPTION_VALUE_INDEX = 2
-# section.subsection.key, the only shape a driver name takes.
+# section.subsection.key is the shortest shape a driver name takes.
 GIT_CONFIG_SUBSECTION_PARTS = 3
 # Latin-1 renders as \\xNN; everything above it needs \\uNNNN.
 MAX_LATIN1_CODEPOINT = 0xFF
@@ -272,14 +275,19 @@ KNOWN_SUBCOMMANDS = frozenset({
     "switch", "restore", "merge", "fetch", "pull", "clone", "branch", "tag",
     "remote", "stash", "config", "init", "rm", "mv", "cherry-pick", "revert",
     "bisect", "worktree", "submodule", "describe", "rev-parse", "ls-files",
-    "clean",
+    "clean", "filter-repo",
     "cat-file", "hash-object", "check-attr", "replace", "update-index",
     "apply", "am", "format-patch", "archive", "gc", "reflog", "notes",
 }) | READ_SUBCOMMANDS
 
 
-def _git_alias_verdict(subcommand: str, rest: list, cwd: str) -> tuple:
-    """Return (decision, reason) for a subcommand git does not define."""
+def _git_alias_verdict(subcommand: str, rest: list, cwd: str,
+                       alias_chain: tuple = ()) -> tuple:
+    """Return (decision, reason) for a subcommand git does not define.
+
+    `alias_chain` holds the aliases already expanded. git refuses to run a
+    cyclic alias, so a cycle or an over-deep chain denies rather than asks.
+    """
     expansion = resolve_alias(cwd, subcommand)
     if not expansion:
         return "ask", (f"git {sanitize(subcommand)}: not a git subcommand "
@@ -289,11 +297,20 @@ def _git_alias_verdict(subcommand: str, rest: list, cwd: str) -> tuple:
         # A shell alias. Classify the text; never expand or run it.
         return "ask", (f"git {sanitize(subcommand)} is a shell alias, "
                        "which the gate cannot read as a git command")
-    return git_verdict(expansion.split() + rest, cwd)
+    alias_name = subcommand.lower()
+    if alias_name in alias_chain:
+        return "deny", (f"git alias {sanitize(subcommand)} expands into a "
+                        "cycle, which git refuses to run")
+    if len(alias_chain) >= MAX_GIT_ALIAS_DEPTH:
+        return "deny", (f"git alias expansion exceeds the {MAX_GIT_ALIAS_DEPTH}"
+                        "-alias inspection limit")
+    return git_verdict(expansion.split() + rest, cwd,
+                       alias_chain=alias_chain + (alias_name,))
 
 
 def _git_resolution_verdict(subcommand: str, rest: list, args: list,
-                            cwd: str, environment: list) -> tuple:
+                            cwd: str, environment: list,
+                            alias_chain: tuple = ()) -> tuple:
     """Return a verdict for a subcommand needing resolution, else None.
 
     None means git defines the subcommand and it is not a read, so the
@@ -306,7 +323,7 @@ def _git_resolution_verdict(subcommand: str, rest: list, args: list,
         return git_read_verdict(args, cwd, environment)
     if subcommand in KNOWN_SUBCOMMANDS:
         return None
-    return _git_alias_verdict(subcommand, rest, cwd)
+    return _git_alias_verdict(subcommand, rest, cwd, alias_chain)
 
 
 def _git_branch_verdict(rest: list) -> tuple:
@@ -355,11 +372,16 @@ GIT_SUBCOMMAND_READERS = {
 }
 
 
-def git_verdict(args: list, cwd: str = "", environment: list = None) -> tuple:
-    """Return (decision, reason) for a git argument list."""
+def git_verdict(args: list, cwd: str = "", environment: list = None,
+                alias_chain: tuple = ()) -> tuple:
+    """Return (decision, reason) for a git argument list.
+
+    `alias_chain` carries the aliases expanded so far. Only alias
+    expansion sets it.
+    """
     subcommand, rest = git_subcommand(args)
     resolved = _git_resolution_verdict(
-        subcommand, rest, args, cwd, environment or [])
+        subcommand, rest, args, cwd, environment or [], alias_chain)
     if resolved is not None:
         return resolved
     if subcommand == "push":
@@ -659,6 +681,10 @@ KUBERNETES_FILENAMES = frozenset({
 INFRASTRUCTURE_SCAN_SKIP = frozenset({".git", ".venv", "node_modules", "__pycache__"})
 MAX_INFRASTRUCTURE_FILE_BYTES = 65536
 MAX_INFRASTRUCTURE_SCAN_FILES = 20000
+SCAN_CLEAR = "clear"
+SCAN_PROTECTED = "protected"
+SCAN_LIMIT = "limit"
+SCAN_UNREADABLE = "unreadable"
 
 
 def _account_delete_command(name: str, args: list) -> bool:
@@ -892,26 +918,74 @@ def is_protected_infrastructure_path(path: str, cwd: str = "", content: str = ""
     return False
 
 
-def tree_contains_protected_infrastructure(root: str, include: str = "") -> bool:
-    """Return whether a bounded search root contains protected files."""
+def _scan_filenames(root: str, current: str, filenames: list,
+                    include: str, seen: int) -> tuple:
+    """Return (status, files seen) after scanning one directory's files."""
+    for filename in filenames:
+        seen += 1
+        if seen > MAX_INFRASTRUCTURE_SCAN_FILES:
+            return SCAN_LIMIT, seen
+        candidate = os.path.join(current, filename)
+        relative = os.path.relpath(candidate, root).replace("\\", "/")
+        matches = (not include or fnmatch.fnmatch(relative, include)
+                   or fnmatch.fnmatch(filename, include))
+        if matches and is_protected_infrastructure_path(candidate, root):
+            return SCAN_PROTECTED, seen
+    return SCAN_CLEAR, seen
+
+
+def _raise_walk_error(error: OSError) -> None:
+    """Re-raise a directory listing failure so the scan reports it."""
+    raise error
+
+
+@lru_cache(maxsize=None)
+def infrastructure_scan_status(root: str, include: str = "") -> str:
+    """Return how a bounded scan of `root` ended.
+
+    The result is SCAN_CLEAR, SCAN_PROTECTED, SCAN_LIMIT, or
+    SCAN_UNREADABLE. Only SCAN_CLEAR proves the tree holds no protected
+    file. The cache lasts one hook invocation: each hook main calls
+    reset_invocation_caches() first.
+    """
+    # A missing path or a single file holds no tree to walk. Callers check
+    # that path itself before scanning.
+    if not os.path.isdir(root):
+        return SCAN_CLEAR
     seen = 0
     try:
-        for current, directories, filenames in os.walk(root):
+        # os.walk skips a directory it cannot list unless onerror raises.
+        # A skipped directory could hide protected files, so it fails closed.
+        for current, directories, filenames in os.walk(root, onerror=_raise_walk_error):
             directories[:] = [name for name in directories
                                if name not in INFRASTRUCTURE_SCAN_SKIP]
-            for filename in filenames:
-                seen += 1
-                if seen > MAX_INFRASTRUCTURE_SCAN_FILES:
-                    return True
-                candidate = os.path.join(current, filename)
-                relative = os.path.relpath(candidate, root).replace("\\", "/")
-                matches = (not include or fnmatch.fnmatch(relative, include)
-                           or fnmatch.fnmatch(filename, include))
-                if matches and is_protected_infrastructure_path(candidate, root):
-                    return True
+            status, seen = _scan_filenames(root, current, filenames, include, seen)
+            if status != SCAN_CLEAR:
+                return status
     except OSError:
-        return True
-    return False
+        return SCAN_UNREADABLE
+    return SCAN_CLEAR
+
+
+def tree_contains_protected_infrastructure(root: str, include: str = "") -> bool:
+    """Return whether a bounded search root may contain protected files.
+
+    An incomplete scan counts as protected, so every caller fails closed.
+    """
+    return infrastructure_scan_status(root, include) != SCAN_CLEAR
+
+
+def infrastructure_scan_reason(status: str) -> str:
+    """Return the deny reason for a scan status, or an empty string when clear."""
+    if status == SCAN_LIMIT:
+        return (f"a broad search root holds more than {MAX_INFRASTRUCTURE_SCAN_FILES} "
+                "files, too many to clear. Narrow the search root or the include pattern")
+    if status == SCAN_UNREADABLE:
+        return ("a broad search root could not be read in full. Check its "
+                "permissions or search a readable root")
+    if status == SCAN_PROTECTED:
+        return "a broad search includes protected infrastructure files"
+    return ""
 
 
 def infrastructure_path_verdict(program: str, args: list,
@@ -923,12 +997,13 @@ def infrastructure_path_verdict(program: str, args: list,
         return "deny", "infrastructure credentials and configuration are protected"
     name = normalize_windows_command_name(program)
     broad_readers = {"dir", "find", "get-childitem", "grep", "ls", "rg"}
-    if name in broad_readers:
-        roots = [token for token in args if not token.startswith("-")]
-        if any(token in {".", "./", ".\\"} and
-               tree_contains_protected_infrastructure(cwd) for token in roots):
-            return "deny", "a broad search includes protected infrastructure files"
-    return "", ""
+    if name not in broad_readers:
+        return "", ""
+    roots = [token for token in args if not token.startswith("-")]
+    if not any(token in {".", "./", ".\\"} for token in roots):
+        return "", ""
+    reason = infrastructure_scan_reason(infrastructure_scan_status(cwd))
+    return ("deny", reason) if reason else ("", "")
 
 
 def decode_powershell_command(value: str) -> tuple:
@@ -1152,16 +1227,13 @@ def _powershell_cli_policy(name: str, args: list) -> tuple:
         return (("deny", "event log modification removes security evidence")
                 if lowered and lowered[0] in {"cl", "clear-log", "sl", "set-log"}
                 else ("", ""))
+    # PROHIBITED_COMMANDS denies both names in every shell, read-only forms
+    # included. This layer denies as well, so no path that skips the
+    # prohibited check can treat them as allowed.
     if name == "manage-bde":
-        if lowered and all(token == "-status" or token.startswith("-") is False
-                           for token in lowered):
-            return "", ""
-        return "deny", "BitLocker modification changes storage protection"
+        return "deny", "manage-bde administers BitLocker storage protection, which agents may not run"
     if name == "bcdedit":
-        markers = {"/set", "/delete", "/deletevalue", "/create", "/copy",
-                   "/import", "/export", "/sysstore"}
-        return (("deny", "boot policy modification changes host security")
-                if markers.intersection(lowered) else ("", ""))
+        return "deny", "bcdedit reads or changes boot policy, which agents may not run"
     if name == "secedit":
         if any(token in {"/configure", "/import", "/export"} for token in lowered):
             return "deny", "local security policy modification changes host controls"
@@ -1650,7 +1722,9 @@ def _exec_capable_key(entries: dict) -> str:
                 and name.endswith(".path") and value):
             return name
         parts = name.split(".")
-        if (len(parts) == GIT_CONFIG_SUBSECTION_PARTS
+        # A subsection may hold dots (filter.a.b.clean), so read the
+        # section and the final key rather than a fixed part count.
+        if (len(parts) >= GIT_CONFIG_SUBSECTION_PARTS
                 and parts[-1] in EXEC_CAPABLE_SUBSECTIONS.get(parts[0], ())
                 and value.lower() not in ("", "false", "0")):
             return name
@@ -1780,11 +1854,15 @@ def _read_gitdir_pointer(path: str, marker: str):
     """Return a path stored in a small git administrative pointer file."""
     try:
         with open(path, encoding="utf-8") as handle:
-            raw = handle.read(MAX_REASON_VALUE).strip()
+            raw = handle.read(MAX_GITDIR_POINTER_CHARACTERS + 1)
     except FileNotFoundError:
         return ""
     except (OSError, UnicodeDecodeError):
         return None
+    if len(raw) > MAX_GITDIR_POINTER_CHARACTERS:
+        # A truncated path would name some other directory, so refuse it.
+        return None
+    raw = raw.strip()
     if marker:
         name, separator, raw = raw.partition(":")
         if name.strip().lower() != marker or not separator:
@@ -3260,11 +3338,24 @@ def _repository_target_owner(token: str) -> str:
     return owner
 
 
+def reset_invocation_caches() -> None:
+    """Clear the lookups cached for one hook invocation.
+
+    Each hook main calls this first. A process that serves several
+    requests, such as the test worker, then never reuses an origin owner
+    or a scan result from an earlier request.
+    """
+    _origin_owner.cache_clear()
+    infrastructure_scan_status.cache_clear()
+
+
+@lru_cache(maxsize=None)
 def _origin_owner(cwd: str) -> str:
     """Return the GitHub owner of the origin remote, or an empty string.
 
     The URL is parsed with string operations because this module carries no
     regular expressions: a gate must not depend on backtracking behavior.
+    The cache lasts one hook invocation (see reset_invocation_caches).
     """
     entries = parse_git_config(cwd)
     if not entries:
@@ -3406,22 +3497,13 @@ def trusted_gh_arguments(program: str, args: list, cwd: str) -> list:
 
 
 def _git_subcommand(args: list) -> tuple:
-    """Return a Git subcommand and its remaining arguments."""
-    index = 0
-    while index < len(args):
-        token = args[index]
-        lowered = token.lower()
-        if lowered in {"-c", "--git-dir", "--work-tree"}:
-            index += OPTION_WITH_VALUE_TOKEN_COUNT
-            continue
-        if lowered.startswith(("-c", "--git-dir=", "--work-tree=")):
-            index += 1
-            continue
-        if token.startswith("-"):
-            index += 1
-            continue
-        return lowered, args[index + 1:]
-    return "", []
+    """Return a lowercased Git subcommand and its remaining arguments.
+
+    git_subcommand skips the value of every GIT_VALUE_OPTIONS entry, so
+    `git --namespace x remote add` reads as remote.
+    """
+    subcommand, remaining = git_subcommand(args)
+    return subcommand.lower(), remaining
 
 
 def _is_github_hostname(hostname: str) -> bool:
@@ -3500,16 +3582,18 @@ def forge_verdict(program: str, args: list, cwd: str = "") -> tuple:
     """Return (decision, reason) for a destructive forge command."""
     name = os.path.basename(program).lower().removesuffix(".exe")
     repository = cwd or os.getcwd()
-    owner = _origin_owner(repository)
     wrapped = trusted_gh_arguments(program, args, repository)
+    # Only a forge CLI needs the origin owner, so every other program
+    # skips the config parse.
+    if not wrapped and name not in FORGE_PROGRAMS:
+        return "", ""
+    owner = _origin_owner(repository)
     if wrapped:
         decision, reason = github_cli_verdict(wrapped, repo_owner=owner)
         if decision:
             return decision, reason
         name = "gh"
         args = wrapped
-    if name not in FORGE_PROGRAMS:
-        return "", ""
     if name == "gh" and not wrapped:
         decision, reason = github_cli_verdict(args, repo_owner=owner)
         if decision:

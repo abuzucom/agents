@@ -320,6 +320,7 @@ def classify(command, depth: int = 0) -> tuple:
 
 def main() -> int:
     """Classify one PowerShell tool call, denying on any unexpected error."""
+    core.reset_invocation_caches()
     return core.run_fail_closed(_run, functools.partial(core.emit, GATE, "deny"))
 
 

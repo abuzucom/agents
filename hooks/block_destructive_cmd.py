@@ -186,6 +186,7 @@ def classify_cmd_command(command_text: str) -> tuple[str, str]:
 
 def main() -> int:
     """Read one hook payload and emit its CMD policy decision."""
+    core.reset_invocation_caches()
     payload = core.read_payload()
     if payload is None:
         return core.emit(

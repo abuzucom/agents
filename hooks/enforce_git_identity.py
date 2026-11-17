@@ -54,6 +54,9 @@ except ImportError as error:  # pragma: no cover (exercised by the adoption test
 
 CHECKER_PATH = os.path.join("scripts", "check_git_identity.py")
 PUSH_LABEL = "git push"
+# Below the 30-second hook registration, so the hook names a slow checker
+# instead of the client killing it. Leaves room for the account lookup.
+CHECKER_TIMEOUT_SECONDS = 20
 
 
 def _read_payload() -> dict:
@@ -88,7 +91,14 @@ def run_checker(project_dir: str, extra_args: list, invocation: dict = None):
         text=True,
         check=False,
         env=environment,
+        timeout=CHECKER_TIMEOUT_SECONDS,
     )
+
+
+def checker_timeout_message() -> str:
+    """Return the report for an identity checker that ran past its bound."""
+    return (f"the identity checker timed out after {CHECKER_TIMEOUT_SECONDS} "
+            "seconds. Re-run once Git and the account lookup respond.")
 
 
 def find_violation(project_dir: str, extra_args: list,
@@ -99,7 +109,10 @@ def find_violation(project_dir: str, extra_args: list,
     scripts/check_git_identity.py has no identity policy for this hook to
     enforce.
     """
-    result = run_checker(project_dir, extra_args, invocation)
+    try:
+        result = run_checker(project_dir, extra_args, invocation)
+    except subprocess.TimeoutExpired:
+        return checker_timeout_message()
     if result is None or result.returncode == 0:
         return ""
     return result.stderr.strip() or "the git identity does not meet this repo's policy"
@@ -164,13 +177,23 @@ def blocked_command(command: str, project_dir: str = "") -> list:
         command, core.git_write_context, project_dir)
 
 
+def _session_warning(project_dir: str) -> str:
+    """Return the SessionStart advisory, or an empty string when the identity passes."""
+    try:
+        result = run_checker(project_dir, ["--advise"])
+    except subprocess.TimeoutExpired:
+        return build_warning(checker_timeout_message(), "")
+    if result is None or result.returncode == 0:
+        return ""
+    violation = result.stderr.strip() or "the git identity does not meet this repo's policy"
+    return build_warning(violation, result.stdout.strip())
+
+
 def _handle_session_start(project_dir: str) -> int:
     """Inject a stop-and-ask instruction into the session context."""
-    result = run_checker(project_dir, ["--advise"])
-    if result is None or result.returncode == 0:
+    warning = _session_warning(project_dir)
+    if not warning:
         return 0
-    violation = result.stderr.strip() or "the git identity does not meet this repo's policy"
-    warning = build_warning(violation, result.stdout.strip())
     output = {
         "hookSpecificOutput": {
             "hookEventName": "SessionStart",
@@ -217,6 +240,11 @@ def _handle_pre_tool_use(payload: dict, project_dir: str) -> int:
               file=sys.stderr)
         return POLICY_DENIAL_EXIT_CODE
     command = tool_input.get("command", "")
+    if not isinstance(command, str):
+        print(core.with_denial_response(
+            "blocked by hooks/enforce_git_identity.py: malformed tool input: "
+            "command is not a string."), file=sys.stderr)
+        return POLICY_DENIAL_EXIT_CODE
     for invocation in blocked_command(command, project_dir):
         if _blocks_invocation(project_dir, invocation):
             return POLICY_DENIAL_EXIT_CODE
