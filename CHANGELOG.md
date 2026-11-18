@@ -82,10 +82,14 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
     class each.
   - `tests/test_primary_branch_override.py` moves the directory override
     and lifecycle blocking checks into `UnusableOverrideFileTest`.
-  - `tests/test_trusted_gh_api_read_gate.py` splits `ApiReadHookCase`
-    into `ApiRepositoryFixture`, `ApiHookRunner`, and
-    `read_hook_decision`. `ApiReadHookCase` composes all three and keeps
-    its method names.
+  - `tests/test_trusted_gh_api_read_gate.py` replaces the
+    `ApiReadHookCase` base class with `ApiRepositoryFixture`,
+    `ApiHookRunner`, and `read_hook_decision`. `ApiHookFixture` composes
+    all three. Each hook test class inherits only `unittest.TestCase` and
+    builds one `ApiHookFixture` in setUp.
+  - `tests/test_sync_digest_index.py` replaces the backfill base class
+    with `BackfillHistory`. Each backfill test class builds one in
+    setUpClass and copies it for each test.
 - Check each precondition in the same tests before the first use of its
   value.
   - `decision` in `tests/read_only_branch_support.py` checks the hook

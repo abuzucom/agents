@@ -184,15 +184,17 @@ def read_hook_decision(test_case: unittest.TestCase,
     return json.loads(result.stdout)["hookSpecificOutput"]["permissionDecision"]
 
 
-class ApiReadHookCase(unittest.TestCase):
+class ApiHookFixture:
     """Compose the repository fixture, hook runner, and decision reader.
 
+    Each test class builds one in setUp and inherits only unittest.TestCase.
     Each class stays small because the hook coverage runner gives every test
     class one shard with a fixed time limit, and every case launches the hook.
     """
 
-    def setUp(self):
-        self.repository = ApiRepositoryFixture(self)
+    def __init__(self, test_case: unittest.TestCase):
+        self.test_case = test_case
+        self.repository = ApiRepositoryFixture(test_case)
         self.runner = ApiHookRunner(self.repository.root, self.repository.environment)
 
     def set_head(self, branch: str) -> None:
@@ -205,26 +207,33 @@ class ApiReadHookCase(unittest.TestCase):
 
     def decision(self, result: subprocess.CompletedProcess) -> str:
         """Return allow, ask, or deny from one hook result."""
-        return read_hook_decision(self, result)
+        return read_hook_decision(self.test_case, result)
 
 
-class ApiReadHookTest(ApiReadHookCase):
+class ApiReadHookTest(unittest.TestCase):
     """The registered branch hook applies the allow to every shell tool and branch state."""
+
+    def setUp(self):
+        self.hook = ApiHookFixture(self)
 
     def test_get_passes_without_prompt_for_every_shell_tool_and_branch_state(self):
         for branch in (FEATURE_BRANCH, "main", "HEAD"):
-            self.set_head(branch)
+            self.hook.set_head(branch)
             for tool_name in SHELL_TOOL_NAMES:
                 with self.subTest(branch=branch, tool=tool_name):
-                    result = self.run_hook(tool_name, WRAPPER + "api repos/OWNER/REPO/issues/5")
-                    self.assertEqual(self.decision(result), "allow")
+                    result = self.hook.run_hook(
+                        tool_name, WRAPPER + "api repos/OWNER/REPO/issues/5")
+                    self.assertEqual(self.hook.decision(result), "allow")
 
 
-class ApiNonGetHookTest(ApiReadHookCase):
+class ApiNonGetHookTest(unittest.TestCase):
     """Wrapper calls other than a plain GET keep their verdict."""
 
+    def setUp(self):
+        self.hook = ApiHookFixture(self)
+
     def test_non_get_wrapper_calls_keep_their_verdict_for_every_shell_tool(self):
-        self.set_head(FEATURE_BRANCH)
+        self.hook.set_head(FEATURE_BRANCH)
         cases = (
             ("pr list", "ask"),
             ("api -X POST repos/OWNER/REPO/issues", "deny"),
@@ -239,22 +248,25 @@ class ApiNonGetHookTest(ApiReadHookCase):
         for arguments, expected in cases:
             for tool_name in SHELL_TOOL_NAMES:
                 with self.subTest(arguments=arguments, tool=tool_name):
-                    result = self.run_hook(tool_name, WRAPPER + arguments)
-                    self.assertEqual(self.decision(result), expected)
+                    result = self.hook.run_hook(tool_name, WRAPPER + arguments)
+                    self.assertEqual(self.hook.decision(result), expected)
 
 
-class ApiHeaderHookTest(ApiReadHookCase):
+class ApiHeaderHookTest(unittest.TestCase):
     """Header, hostname, GraphQL, and full-URL requests never pass."""
 
+    def setUp(self):
+        self.hook = ApiHookFixture(self)
+
     def test_header_and_graphql_requests_never_pass_without_prompt(self):
-        self.set_head(FEATURE_BRANCH)
+        self.hook.set_head(FEATURE_BRANCH)
         for arguments in ("api repos/OWNER/REPO -H Accept:application/json",
                           "api --hostname github.example repos/OWNER/REPO",
                           "api GraphQL", "api https://api.github.com/repos/OWNER/REPO"):
             for tool_name in SHELL_TOOL_NAMES:
                 with self.subTest(arguments=arguments, tool=tool_name):
-                    result = self.run_hook(tool_name, WRAPPER + arguments)
-                    self.assertNotEqual(self.decision(result), "allow")
+                    result = self.hook.run_hook(tool_name, WRAPPER + arguments)
+                    self.assertNotEqual(self.hook.decision(result), "allow")
 
 
 if __name__ == "__main__":
