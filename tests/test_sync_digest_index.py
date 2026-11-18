@@ -70,9 +70,9 @@ class IndexFixture(unittest.TestCase):
     """A synthetic source repository with an empty digest index."""
 
     def setUp(self):
-        self.tmp = tempfile.TemporaryDirectory()
-        self.addCleanup(self.tmp.cleanup)
-        self.root = Path(self.tmp.name)
+        self.temporary_directory = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temporary_directory.cleanup)
+        self.root = Path(self.temporary_directory.name)
         build_index_tree(self.root)
 
 
@@ -225,9 +225,9 @@ class BackfillFixture(unittest.TestCase):
                 f"sync.py --write-shared failed in the fixture: {result.stderr}")
 
     def setUp(self):
-        self.tmp = tempfile.TemporaryDirectory()
-        self.addCleanup(self.tmp.cleanup)
-        self.root = Path(self.tmp.name) / "repo"
+        self.temporary_directory = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temporary_directory.cleanup)
+        self.root = Path(self.temporary_directory.name) / "repo"
         shutil.copytree(self.template, self.root, symlinks=True)
         self.first_shared = json.loads(self.first_shared_text)
 

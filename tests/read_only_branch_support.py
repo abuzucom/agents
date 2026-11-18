@@ -133,8 +133,8 @@ class HookRunner:
 
     def shell(self, command: str, tool_name: str = "Bash", client: str = "claude"):
         """Send one shell command through the hook."""
-        key = "CommandLine" if client == "antigravity" else "command"
-        return self.run(tool_name, {key: command}, client)
+        command_key = "CommandLine" if client == "antigravity" else "command"
+        return self.run(tool_name, {command_key: command}, client)
 
     def lifecycle(self, event: str) -> subprocess.CompletedProcess:
         """Send one lifecycle event through the hook."""
