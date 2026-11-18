@@ -68,6 +68,9 @@ class WebFlowCommitterTest(unittest.TestCase):
             "account id": lambda doc: doc["committer"].update(id=42),
             "unverified": lambda doc: doc["commit"]["verification"].update(verified=False),
             "no verification": lambda doc: doc["commit"].pop("verification"),
+            "reason not valid": lambda doc: doc["commit"]["verification"].update(
+                reason="unknown_key"),
+            "no reason": lambda doc: doc["commit"]["verification"].pop("reason"),
             "other signer": lambda doc: doc["commit"]["verification"].update(
                 signature=OTHER_SIGNATURE),
             "no signature": lambda doc: doc["commit"]["verification"].pop("signature"),

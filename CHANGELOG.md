@@ -50,6 +50,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   GitHub's web-flow key `B5690EEEBB952194`. The checker reads the
   issuer from the signature's hashed subpackets with the standard
   library. A commit verified under any other key still fails.
+  GitHub must also report the verification reason `valid`.
 
 ## [2.23.3] (2026-11-17)
 

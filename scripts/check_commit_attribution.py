@@ -45,6 +45,8 @@ GITHUB_WEB_COMMITTER_ID = 19864447
 # GitHub signs web-flow commits with this key. It signed every GitHub-made
 # commit in this repository's history.
 GITHUB_WEB_SIGNING_KEYS = frozenset({"B5690EEEBB952194"})
+# GitHub reports this reason for a signature that verifies cleanly.
+GITHUB_VALID_REASON = "valid"
 ARMOR_HEADER = "-----BEGIN PGP SIGNATURE-----"
 MAX_SIGNATURE_CHARACTERS = 16384
 SIGNATURE_PACKET_TAG = 2
@@ -270,6 +272,7 @@ def _is_github_web_commit(commit: dict, identity: dict) -> bool:
             and identity.get("id") == GITHUB_WEB_COMMITTER_ID
             and isinstance(verification, dict)
             and verification.get("verified") is True
+            and verification.get("reason") == GITHUB_VALID_REASON
             and signature_issuer(verification.get("signature")) in GITHUB_WEB_SIGNING_KEYS)
 
 
