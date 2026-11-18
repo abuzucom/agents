@@ -14,21 +14,21 @@ into the entry. Dates never decrease. Ask the active human when a date is in
 doubt.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.23.4] (2026-11-18)
+## [2.23.5] (2026-11-18)
 
 ### Changed
 - `requirements-checkers.txt` pins PyYAML 6.0.3 by sha256 hash. The
   hashes cover every file PyPI publishes for that version.
-- The four jobs that install the repository's own requirements file run
-  on Python 3.14 and pass `--only-binary :all:`. PyYAML 6.0.3 has no
+- The five jobs that install a checker requirements file run on Python
+  3.14 and pass `--only-binary :all:`. PyYAML 6.0.3 has no
   wheel for a newer Python. A source build there would run a build
   backend that no hash covers. The three `sync-check.yml` installs also
   pass `--require-hashes`. The reusable `agents-compliance.yml` relies on
   pip's automatic hash mode. An adopter's unhashed file still installs.
-- `scripts/check_compliance_tree.py` admits the privileged install
-  command with `--only-binary :all:` beside the pinned form. Every other
-  command still fails. The privileged job keeps its current command until
-  this checker reaches the base branch.
+- The privileged `immutable-conflict-check.yml` job installs the trusted
+  requirements file from wheels only on Python 3.14.
+  `scripts/check_compliance_tree.py` accepts only that install command. A
+  pull request cannot drop the job back to a source build.
 - `.pre-commit-config.yaml` keeps exact PyYAML version pins, because
   pre-commit cannot check hashes.
 - The weak-hash and secrets scans in `agents-compliance.yml` and

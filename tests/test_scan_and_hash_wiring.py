@@ -12,13 +12,8 @@ LOCAL_INSTALL = "python -m pip install --requirement requirements-checkers.txt"
 # PyYAML 6.0.3 publishes cp314 wheels for every runner. A newer Python has
 # none, and its sdist build would run an unhashed build backend.
 PINNED_PYTHON = "python-version: '3.14'"
-CHECKER_INSTALL_COUNT = 4
+CHECKER_INSTALL_COUNT = 5
 SYNC_CHECK_INSTALL_COUNT = 3
-# The privileged job's exact install command is pinned by
-# scripts/check_compliance_tree.py, which CI runs from the base branch. The
-# job adopts the wheel-only form in its own change after that checker
-# accepts it.
-PRIVILEGED_WORKFLOW = "immutable-conflict-check.yml"
 
 
 def read_text(path: Path) -> str:
@@ -90,8 +85,6 @@ class HashPinTest(unittest.TestCase):
         """A plain YAML scalar ending in `:all:` would parse as a mapping."""
         import yaml
         for workflow in sorted(WORKFLOWS.glob("*.yml")):
-            if workflow.name == PRIVILEGED_WORKFLOW:
-                continue
             data = yaml.safe_load(read_text(workflow))
             for job in data["jobs"].values():
                 for step in job.get("steps", []):
@@ -104,8 +97,6 @@ class HashPinTest(unittest.TestCase):
         """No install may build an sdist, whose build backend skips hash checks."""
         installs = 0
         for workflow in sorted(WORKFLOWS.glob("*.yml")):
-            if workflow.name == PRIVILEGED_WORKFLOW:
-                continue
             lines = read_text(workflow).splitlines()
             for index, line in enumerate(lines):
                 if "requirements-checkers.txt" not in line or "pip install" not in "".join(

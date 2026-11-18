@@ -34,8 +34,8 @@ class TrustedInstallFormTest(unittest.TestCase):
         workflow, text = variant(command, python_version)
         return checker._pull_target_violations(workflow, text, str(WORKFLOW))
 
-    def test_current_form_passes(self):
-        self.assertEqual(self.violations(checker.TRUSTED_REQUIREMENTS_COMMAND, "3.x"), [])
+    def test_unhardened_form_fails(self):
+        self.assertTrue(self.violations(checker.TRUSTED_REQUIREMENTS_COMMAND, "3.x"))
 
     def test_hardened_form_passes(self):
         self.assertEqual(self.violations(HARDENED_COMMAND, "3.14"), [])
