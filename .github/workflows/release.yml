@@ -72,14 +72,25 @@ jobs:
           version="${GITHUB_REF_NAME#v}"
           python scripts/release.py build "$version" "$RUNNER_TEMP/release-assets"
           python scripts/release.py check-assets "$RUNNER_TEMP/release-assets" "$version"
+      # Only a "release not found" answer means no draft exists. Any other
+      # lookup failure stops the job. A transient or permission error then
+      # cannot send a rerun down the fresh-draft path.
       - name: Inspect existing draft
         id: draft
         run: |
           tag="$GITHUB_REF_NAME"
-          if ! is_draft="$(gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft 2>/dev/null)"; then
-            echo "bundle_on_draft=false" >> "$GITHUB_OUTPUT"
-            exit 0
+          lookup_error="$(mktemp "$RUNNER_TEMP/draft-lookup.XXXXXX")"
+          if ! is_draft="$(gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft 2>"$lookup_error")"; then
+            if grep -Fq "release not found" "$lookup_error"; then
+              echo "release_exists=false" >> "$GITHUB_OUTPUT"
+              echo "bundle_on_draft=false" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            cat "$lookup_error"
+            echo "The lookup of release $tag failed. Check the token permissions and GitHub status, then rerun the release job."
+            exit 1
           fi
+          echo "release_exists=true" >> "$GITHUB_OUTPUT"
           if [ "$is_draft" != "true" ]; then
             echo "Release $tag is already published. This job only fills drafts."
             exit 1
@@ -133,11 +144,13 @@ jobs:
         with:
           subject-path: ${{ runner.temp }}/release-assets/SHA256SUMS.txt
       - name: Upload to draft release
+        env:
+          RELEASE_EXISTS: ${{ steps.draft.outputs.release_exists }}
         run: |
           tag="$GITHUB_REF_NAME"
           repo="$GITHUB_REPOSITORY"
           assets="$RUNNER_TEMP/release-assets"
-          if ! gh release view "$tag" --repo "$repo" > /dev/null 2>&1; then
+          if [ "$RELEASE_EXISTS" != "true" ]; then
             gh release create "$tag" --repo "$repo" --draft --verify-tag \
               --title "agents $tag" \
               --notes-file "$RUNNER_TEMP/release-notes.md" --generate-notes

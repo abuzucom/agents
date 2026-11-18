@@ -23,8 +23,10 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `scripts/sync.py --check` and requires the commit on `main`. The
   `release` job alone holds write permissions. It attests the release files
   and `SHA256SUMS.txt` with `actions/attest` v4.2.2. A rerun reuses the
-  draft and stops on a SHA-256 mismatch. The repository owner publishes
-  each draft and selects pre-release or stable at that moment.
+  draft and stops on a SHA-256 mismatch. Only a "release not found"
+  lookup answer counts as an absent draft. Any other lookup failure stops
+  the job. The repository owner publishes each draft and selects
+  pre-release or stable at that moment.
 - `scripts/release.py` provides `check-tag`, `build`, `check-assets`,
   `checksums`, and `notes`. `build` writes the adoptable policy, a stable
   archive of the shared gate files, and the version digest entry. Two
@@ -36,8 +38,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - README documents the release steps, the development and stable
   channels, one-at-a-time merging, and the adopter pin rule.
 - Add `tests/test_release_check_tag.py`, `tests/test_release_notes.py`,
-  `tests/test_release_assets.py`, and
-  `tests/test_release_workflow_wiring.py`. The wiring test compares the
+  `tests/test_release_assets.py`, `tests/test_release_draft_lookup.py`,
+  and `tests/test_release_workflow_wiring.py`. The wiring test compares the
   release job permissions with `RELEASE_JOB_PERMISSIONS`.
 - `scripts/check_policy_size.py` fails when the assembled policy exceeds
   the `scripts/sync.py` limit of 65536 bytes. The failure names the
