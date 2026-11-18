@@ -122,8 +122,9 @@ Shell gates deny direct `gh`, Git, and HTTP substitutes. High-risk hosted
 mutations deny. Confirmable changes ask. Local Git and ordinary fetch, pull,
 and push transport remain available.
 
-The wrapper sends two issue body forms over REST.
-`docs/agent-policy/github.md` lists both forms.
+The wrapper sends six write forms over REST. The forms cover issue edits, issue
+creation, issue close and reopen, draft pull request creation, and pull
+request edits. `docs/agent-policy/github.md` lists each form.
 
 The command gate allows `python scripts/trusted_gh.py run api <path>`
 without a prompt when every condition holds:
