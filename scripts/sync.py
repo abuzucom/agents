@@ -106,6 +106,18 @@ GIT_TIMEOUT_SECONDS = 60
 
 def policy_bytes(root: Path) -> bytes:
     """Return canonical policy plus available supporting documents."""
+    assembled = assemble_policy_bytes(root)
+    if len(assembled) > MAX_POLICY_BYTES:
+        raise ValueError("AGENTS.md exceeds the policy size limit")
+    return assembled
+
+
+def assemble_policy_bytes(root: Path) -> bytes:
+    """Return the assembled policy without the combined size limit.
+
+    scripts/check_policy_size.py reports the assembled size. The report
+    needs the total even when that total exceeds the limit.
+    """
     source, _ = _inspect_source(root)
     if source.stat().st_size > MAX_POLICY_BYTES:
         raise ValueError("AGENTS.md exceeds the policy size limit")
@@ -128,10 +140,7 @@ def policy_bytes(root: Path) -> bytes:
         content = path.read_bytes()
         content.decode("ascii")
         parts.append(content + (b"\n" if not content.endswith(b"\n") else b""))
-    assembled = raw + (b"\n" if not raw.endswith(b"\n") else b"") + b"".join(parts)
-    if len(assembled) > MAX_POLICY_BYTES:
-        raise ValueError("AGENTS.md exceeds the policy size limit")
-    return assembled
+    return raw + (b"\n" if not raw.endswith(b"\n") else b"") + b"".join(parts)
 
 
 def adoptable_content(content: str) -> str:

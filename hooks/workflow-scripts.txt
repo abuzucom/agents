@@ -64,6 +64,8 @@ allow scripts/check_merge_safety.py <revision> --root <path>
 consent-read scripts/check_merge_safety.py <revision> --run-tests
 allow scripts/check_persist_credentials.py <paths>
 allow scripts/check_policy_size.py
+allow scripts/check_policy_size.py --json
+allow scripts/check_policy_size.py --render-markdown <path>
 allow scripts/check_pull_request_message.py
 allow scripts/check_secrets_heuristic.py <paths>
 allow scripts/check_test_first.py

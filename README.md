@@ -207,6 +207,15 @@ the workflow and its `quality_ref`. The review gates on `BLOCK` and
 Fork pull requests receive a skipped check and no provider secret.
 `workflow_run` runs only the default-branch copy of this file.
 
+`policy-size-report.yml` triggers after `Convention Sync Check` completes
+for a pull request that touches `AGENTS.md`, a supporting policy file, or a
+generated copy. It posts one comment with the byte count, limit, headroom,
+and percent used for `AGENTS.md` and the assembled policy. The comment
+carries a directive that forbids agents from trimming policy text without
+active-human approval. The job reads head files through the contents API
+and runs only default-branch code. `Convention Sync Check` fails the pull
+request on a size breach.
+
 ### Prose Checks
 
 Run file prose checks with:
@@ -500,6 +509,7 @@ blocking checkers fail after a violation or an incomplete required check.
 | `check_hedging.py` | Shared file prose policy | 0 for findings, 1 for infrastructure errors |
 | `check_hook_coverage.py` | Hook function coverage against a baseline | 1, blocking |
 | `check_persist_credentials.py` | Rule 11 workflow checkout configuration | 1, blocking |
+| `check_policy_size.py` | `AGENTS.md` and assembled policy size limits, LF endings, ASCII, required headings | 1, blocking; `--json` and `--render-markdown` exit 0 on a report |
 | `check_pull_request_message.py` | Pull request title format plus title and body prose from `GITHUB_EVENT_PATH` | 0 for findings, 1 for infrastructure errors |
 | `check_secrets_heuristic.py` | Rule 8 likely-secret heuristic | 1, blocking |
 | `check_local_paths.py` | Rule 8 real local identifiers; adopt with the approved `.local-path-allowlist` as one gate | 1, blocking; `--report` exits 0 and refuses CI |

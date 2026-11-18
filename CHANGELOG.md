@@ -14,9 +14,28 @@ into the entry. Dates never decrease. Ask the active human when a date is in
 doubt.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.24.2] (2026-11-18)
+## [2.25.0] (2026-11-18)
 
 ### Added
+- `scripts/check_policy_size.py` fails when the assembled policy exceeds
+  the `scripts/sync.py` limit of 65536 bytes. The failure names the
+  overage. The existing `AGENTS.md` check keeps its 32768-byte limit.
+  Every failure prints an agent directive. The directive forbids an
+  independent agent decision to trim, reword, move, or remove policy
+  text. It requires an itemized proposal and active-human approval.
+- `--json` prints both sizes and limits. `--render-markdown <path>`
+  validates such a report and prints the pull request comment body. The
+  body shows bytes, limit, headroom, percent used, and the directive.
+- `.github/workflows/policy-size-report.yml` posts that comment on pull
+  requests touching `AGENTS.md`, a supporting policy file, or a
+  generated copy. It runs on `workflow_run` from default-branch code. It
+  reads head policy files through the contents API and runs no pull
+  request code. One marked comment receives every update.
+- `scripts/sync.py` exposes `assemble_policy_bytes`. `policy_bytes`
+  keeps its limit check and behavior.
+- `hooks/workflow-scripts.txt` allows the two new checker forms.
+- Add `tests/test_policy_size_combined.py` and
+  `tests/test_policy_size_report_wiring.py`.
 - `scripts/trusted_gh.py` sends `run issue edit <n> --body-file
   .comment-drafts/<file> [--title <text>]` as a REST `PATCH` and
   `run issue create --title <text> --body-file .comment-drafts/<file>` as
