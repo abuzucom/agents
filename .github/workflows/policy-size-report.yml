@@ -5,11 +5,15 @@ name: Policy Size Report
 # scripts/check_policy_size.py and fails the pull request on a size breach.
 # This workflow only reports.
 #
-# The workflow_run trigger keeps this job on default-branch code. The job
-# reads the pull request head policy files as data through the contents API.
-# It never checks out or runs pull request code. The default-branch checker
-# measures the files and renders the comment from validated numbers. One
-# comment per pull request carries the marker and receives each update.
+# The workflow_run trigger keeps both jobs on default-branch code. The measure
+# job reads the pull request head policy files as data through the contents
+# API. It never checks out or runs pull request code. The default-branch
+# checker measures the files and renders the comment from validated numbers.
+# One comment per pull request carries the marker and receives each update.
+#
+# Only the comment job holds a write token. It runs no checkout and no code
+# over pull request data. It runs on a separate runner. A process left behind
+# by a measure step cannot reach that token.
 
 on:
   workflow_run:
@@ -26,12 +30,16 @@ permissions:
   contents: read
 
 jobs:
-  report:
+  measure:
     if: github.event.workflow_run.event == 'pull_request'
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      pull-requests: write
+      pull-requests: read
+    outputs:
+      touched: ${{ steps.pr.outputs.touched }}
+      number: ${{ steps.pr.outputs.number }}
+      comment: ${{ steps.render.outputs.comment }}
     steps:
       - name: Resolve pull request and read head policy files
         id: pr
@@ -138,6 +146,7 @@ jobs:
           python-version: '3.14'
 
       - name: Measure and render the policy size report
+        id: render
         if: steps.pr.outputs.touched == 'true'
         env:
           HEAD_ROOT: ${{ steps.pr.outputs.head_root }}
@@ -148,23 +157,34 @@ jobs:
             "$RUNNER_TEMP/policy-size-report.json" \
             > "$RUNNER_TEMP/policy-size-comment.md"
           cat "$RUNNER_TEMP/policy-size-comment.md" >> "$GITHUB_STEP_SUMMARY"
+          # A random delimiter keeps any rendered line from ending the output.
+          delimiter="policy_size_comment_$(od -An -N16 -tx1 /dev/urandom | tr -d ' \n')"
+          {
+            echo "comment<<$delimiter"
+            cat "$RUNNER_TEMP/policy-size-comment.md"
+            echo "$delimiter"
+          } >> "$GITHUB_OUTPUT"
 
+  comment:
+    needs: measure
+    if: needs.measure.outputs.touched == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    steps:
       - name: Post or update the policy size comment
-        if: steps.pr.outputs.touched == 'true'
         uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
         env:
-          PR_NUMBER: ${{ steps.pr.outputs.number }}
+          PR_NUMBER: ${{ needs.measure.outputs.number }}
+          COMMENT_BODY: ${{ needs.measure.outputs.comment }}
         with:
           script: |
-            // The resolve step sets PR_NUMBER from the pull request list. The
-            // render step runs under bash -e, so this step runs only after the
+            // The measure job sets PR_NUMBER from the pull request list. Its
+            // render step runs under bash -e, so this job runs only after the
             // renderer wrote a body that starts with the marker.
-            const fs = require('fs');
-            const path = require('path');
             const marker = '<!-- policy-size-report -->';
             const issueNumber = Number(process.env.PR_NUMBER);
-            const body = fs.readFileSync(
-              path.join(process.env.RUNNER_TEMP, 'policy-size-comment.md'), 'utf8');
+            const body = process.env.COMMENT_BODY;
 
             const comments = await github.paginate(
               github.rest.issues.listComments,

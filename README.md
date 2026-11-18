@@ -214,9 +214,10 @@ generated copy. It posts one comment with the byte count, limit, headroom,
 and percent used for `AGENTS.md` and the assembled policy. It ranks up to
 10 assembled policy files by size, largest first. The comment
 carries a directive that forbids agents from trimming policy text without
-active-human approval. The job reads head files through the contents API
-and runs only default-branch code. `Convention Sync Check` fails the pull
-request on a size breach.
+active-human approval. A read-only `measure` job reads head files through
+the contents API and runs only default-branch code. A separate `comment` job
+holds the only write permission and runs no code over pull request data.
+`Convention Sync Check` fails the pull request on a size breach.
 
 ### Prose Checks
 

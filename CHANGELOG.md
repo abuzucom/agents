@@ -42,7 +42,10 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   requests touching `AGENTS.md`, a supporting policy file, or a
   generated copy. It runs on `workflow_run` from default-branch code. It
   reads head policy files through the contents API and runs no pull
-  request code. One marked comment receives every update. Runs for one
+  request code. One marked comment receives every update. A read-only
+  `measure` job fetches, measures, and renders. A separate `comment` job
+  holds the only write permission and runs no checkout and no code over
+  pull request data. Runs for one
   head branch queue in one concurrency group. Two runs cannot both
   create the comment.
 - `scripts/sync.py` exposes `assemble_policy_bytes`. `policy_bytes`

@@ -38,15 +38,38 @@ class PolicySizeReportWiringTests(unittest.TestCase):
             encoding="utf-8")
         self.assertIn(f"name: {UPSTREAM_WORKFLOW}\n", text)
 
-    def test_report_job_has_minimal_permissions_and_no_persisted_token(self):
-        job = _load_workflow()["jobs"]["report"]
+    def test_measure_job_reads_only_and_persists_no_token(self):
+        job = _load_workflow()["jobs"]["measure"]
         self.assertEqual(
-            job["permissions"], {"contents": "read", "pull-requests": "write"})
+            job["permissions"], {"contents": "read", "pull-requests": "read"})
         checkout = [step for step in job["steps"]
                     if str(step.get("uses", "")).startswith("actions/checkout@")]
         self.assertEqual(len(checkout), 1)
         self.assertIs(checkout[0]["with"]["persist-credentials"], False)
         self.assertNotIn("ref", checkout[0]["with"])
+        self.assertIn("comment", job["outputs"])
+
+    def test_comment_job_holds_write_and_runs_no_checkout_or_code(self):
+        job = _load_workflow()["jobs"]["comment"]
+        self.assertEqual(job["needs"], "measure")
+        self.assertEqual(job["permissions"], {"pull-requests": "write"})
+        for step in job["steps"]:
+            with self.subTest(step=step.get("name")):
+                self.assertNotIn("run", step)
+                uses = str(step.get("uses", ""))
+                self.assertFalse(uses.startswith("actions/checkout@"))
+                self.assertFalse(uses.startswith("actions/setup-python@"))
+        environments = [step.get("env", {}) for step in job["steps"]]
+        self.assertIn("${{ needs.measure.outputs.comment }}",
+                      [value for env in environments for value in env.values()])
+
+    def test_only_the_comment_job_can_write(self):
+        for name, job in _load_workflow()["jobs"].items():
+            with self.subTest(job=name):
+                writes = [scope for scope, level in job.get("permissions", {}).items()
+                          if level == "write"]
+                expected = ["pull-requests"] if name == "comment" else []
+                self.assertEqual(writes, expected)
 
     def test_report_job_measures_renders_and_posts_sticky_comment(self):
         text = WORKFLOW.read_text(encoding="utf-8")
