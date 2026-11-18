@@ -252,8 +252,42 @@ def push_ask_reason(token: str, name: str) -> str:
     return _push_operand_reason(token)
 
 
+TAG_PUSH_REASON = ("git push sending a tag: agents never create, push, move, "
+                   "or delete Git tags. The repository owner pushes release tags")
+TAG_REF_PREFIX = "refs/tags/"
+ASCII_DIGITS = "0123456789"
+
+
+def _names_version_tag(side: str) -> bool:
+    """Return True for one refspec side that names a tag ref or a vX tag.
+
+    Branch names follow <type>/<description>, so no valid branch starts
+    with v and a digit. Ref names compare without case because macOS and
+    Windows ref storage ignores case.
+    """
+    folded = side.casefold()
+    if folded.startswith(TAG_REF_PREFIX):
+        return True
+    return folded[:1] == "v" and folded[1:2] != "" and folded[1:2] in ASCII_DIGITS
+
+
+def _push_sends_tag(token: str, name: str) -> bool:
+    """Return True when one git push argument sends a tag."""
+    if token.startswith("-"):
+        return (long_option_matches(name, "--tags")
+                or long_option_matches(name, "--follow-tags"))
+    refspec = token.removeprefix("+")
+    return any(_names_version_tag(side) for side in refspec.split(":"))
+
+
 def push_verdict(args: list) -> tuple:
-    """Return (decision, reason) for a git push argument list."""
+    """Return (decision, reason) for a git push argument list.
+
+    A tag push denies before any other check. A forced tag push therefore
+    denies rather than asks.
+    """
+    if any(_push_sends_tag(token, token.split("=", 1)[0]) for token in args):
+        return "deny", TAG_PUSH_REASON
     ask = ""
     for token in args:
         name = token.split("=", 1)[0]
@@ -374,6 +408,70 @@ def _git_clean_verdict(rest: list) -> tuple:
                    "decided at run time")
 
 
+TAG_WRITE_REASON = ("git tag creating, signing, forcing, or deleting a tag: "
+                    "agents never create, move, or delete Git tags")
+# Short flags that make git tag write: annotate, delete, force, file,
+# message, sign, local user, and edit.
+TAG_WRITE_SHORT_FLAGS = frozenset("adfFmsue")
+TAG_WRITE_LONG_OPTIONS = ("--annotate", "--delete", "--force", "--file",
+                          "--message", "--sign", "--local-user", "--edit",
+                          "--create-reflog")
+TAG_READ_MODE_SHORT_FLAGS = frozenset("lvn")
+TAG_READ_MODE_LONG_OPTIONS = ("--list", "--verify")
+# Read filters whose value can arrive as the next token.
+TAG_VALUE_OPTIONS = ("--contains", "--no-contains", "--points-at", "--merged",
+                     "--no-merged", "--sort", "--format")
+
+
+def _is_tag_write_flag(token: str) -> bool:
+    """Return True for one git tag flag that writes a tag."""
+    if is_short_group(token):
+        return any(flag in TAG_WRITE_SHORT_FLAGS for flag in token[1:])
+    return any(long_option_matches(token, option) for option in TAG_WRITE_LONG_OPTIONS)
+
+
+def _is_tag_read_mode_flag(token: str) -> bool:
+    """Return True for one git tag flag that selects listing or verifying."""
+    if is_short_group(token):
+        return token[1] in TAG_READ_MODE_SHORT_FLAGS
+    return any(long_option_matches(token, option) for option in TAG_READ_MODE_LONG_OPTIONS)
+
+
+def _takes_separate_value(token: str) -> bool:
+    """Return True for a git tag read filter whose value is the next token."""
+    return "=" not in token and any(
+        long_option_matches(token, option) for option in TAG_VALUE_OPTIONS)
+
+
+def _split_tag_arguments(rest: list) -> tuple:
+    """Return the flags and the operands of a git tag argument list."""
+    flags, operands = [], []
+    index = 0
+    while index < len(rest):
+        token = rest[index]
+        if not token.startswith("-"):
+            operands.append(token)
+        else:
+            flags.append(token)
+            index += 1 if _takes_separate_value(token) else 0
+        index += 1
+    return flags, operands
+
+
+def _git_tag_verdict(rest: list) -> tuple:
+    """Return (decision, reason) for a git tag argument list.
+
+    Listing and verifying pass. A name operand without a listing flag
+    creates a tag, so it denies like an explicit write flag.
+    """
+    flags, operands = _split_tag_arguments(rest)
+    if any(_is_tag_write_flag(flag) for flag in flags):
+        return "deny", TAG_WRITE_REASON
+    if operands and not any(_is_tag_read_mode_flag(flag) for flag in flags):
+        return "deny", TAG_WRITE_REASON
+    return "", ""
+
+
 def _git_flag_verdict(subcommand: str, rest: list) -> tuple:
     """Return (decision, reason) for the subcommands one flag decides."""
     if subcommand == "reset" and any(
@@ -392,6 +490,7 @@ def _git_flag_verdict(subcommand: str, rest: list) -> tuple:
 GIT_SUBCOMMAND_READERS = {
     "branch": _git_branch_verdict,
     "clean": _git_clean_verdict,
+    "tag": _git_tag_verdict,
 }
 
 

@@ -50,6 +50,9 @@ jobs:
   # build's SHA-256, and a mismatch stops the job.
   release:
     needs: check-tag
+    # The repository owner configures this environment with a required
+    # reviewer. The job receives its write token only after that approval.
+    environment: release
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:

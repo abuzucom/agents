@@ -61,6 +61,7 @@ Each checker covers only its inspected files and behavior.
 | `.github/workflows/` | Pull request, push, immutable-tree, and reusable compliance workflows |
 | `plan/HANDOFF.md.example` | Optional handoff and progress template |
 | `SECURITY.md.example` | Optional vulnerability-reporting policy |
+| `SECURITY.md` | This repository's own vulnerability-reporting and release-integrity policy |
 | `CONTRIBUTING.md.example` | Optional human contribution guide |
 | `.github/PULL_REQUEST_TEMPLATE.md`, `.github/ISSUE_TEMPLATE.md` | Repository pull request and issue templates |
 | `DRIFT.md`, `adopters/` | Adoption drift policy and adopter records |
@@ -607,7 +608,9 @@ version for normal use.
      `policy-digests.json`.
 5. The job attests the three files with `actions/attest`. It saves the
    Sigstore bundle as `agents-X.Y.Z.sigstore.json`. It writes and attests
-   `SHA256SUMS.txt`.
+   `SHA256SUMS.txt`. Verify a release file with
+   `gh attestation verify <file> --repo abuzucom/agents --signer-workflow abuzucom/agents/.github/workflows/release.yml`.
+   The `--signer-workflow` flag rejects a signature from any other workflow.
 6. The job fills a draft release. The notes hold every changelog section
    newer than the latest published stable release. An adoption block and the
    GitHub list of merged pull requests follow.
@@ -622,9 +625,15 @@ against every rebuilt file. The job never changes a published release.
 No reviewer workflow runs on a tag push. Every tagged commit passed review on
 its way to `main`.
 
-The repository owner configures two repository settings. A tag ruleset
-blocks deletion and moves of `v*` tags. Immutable releases lock a published
-release. Repository files cannot enforce either setting. The owner can sign
+The repository owner configures three repository settings:
+
+- A tag ruleset limits creation, moves, and deletion of `v*` tags to the
+  owner.
+- The `release` environment names the owner as a required reviewer. The
+  release job receives its write token only after that approval.
+- Immutable releases lock a published release.
+
+Repository files cannot enforce any of the three settings. The owner can sign
 tags with `git tag -s`. The workflow does not verify tag signatures.
 
 Adopters pin the commit of a stable release and put `# vX.Y.Z` beside the

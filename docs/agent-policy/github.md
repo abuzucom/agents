@@ -35,6 +35,9 @@ denied. Administrative merges, visibility changes, authentication changes,
 token output, GraphQL mutations, and state-changing API methods require the
 applicable denial or consent path.
 
+Agents never create, push, move, or delete Git tags. Agents never create,
+edit, publish, or delete releases.
+
 Managed sandboxes may set `127.0.0.1:9`, `localhost:9`, or `[::1]:9` as a
 closed loopback proxy placeholder or block outbound sockets by default.
 `scripts/trusted_gh.py` strips loopback discard proxies on port 9 and reports

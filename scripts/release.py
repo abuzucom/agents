@@ -71,7 +71,7 @@ ADOPTION_NOTES = """\
 - `{digests}` holds the SHA-256 digests recorded for this version.
 - Check each file against `SHA256SUMS.txt`.
 - Verify the build provenance of a file with
-  `gh attestation verify <file> --repo {repository}`.
+  `gh attestation verify <file> --repo {repository} --signer-workflow {repository}/.github/workflows/release.yml`.
 - A pre-release marks a development build. Adopt a stable release for
   normal use.
 """

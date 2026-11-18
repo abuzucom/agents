@@ -35,11 +35,33 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   adoption block follows the sections.
 - `hooks/workflow-scripts.txt` allows `release.py check-tag` and routes
   `build` and `notes` to consent.
+- The release job runs in the `release` environment. The repository owner
+  configures that environment with a required reviewer.
+- The release notes and README verify provenance with
+  `--signer-workflow abuzucom/agents/.github/workflows/release.yml`.
+- `scripts/check_gate_pr_integrity.py` protects `scripts/release.py`.
+  `shared-files.json` records the new digest.
+- `hooks/_gate_core.py` denies tag pushes in every shell gate. Covered
+  forms include `--tags`, `--follow-tags`, a `refs/tags/` refspec side,
+  and a refspec side shaped `v<digit>`. It also denies `git tag`
+  creation, signing, forcing, and deletion. Listing and verifying pass.
+  `shared-files.json` records the new digest.
+- `docs/agent-policy/github.md` states that agents never create, push,
+  move, or delete Git tags and never create, edit, publish, or delete
+  releases. `docs/agent-policy/adoption.md` drops four handoff sentences
+  that `AGENTS.md` states verbatim.
+- `SECURITY.md` covers this repository. It supports the latest stable
+  release only and states the release integrity check.
+  `SECURITY.md.example` tells adopters to verify an adopted release.
+- `docs/gate-threat-model.md` lists what a release attestation proves and
+  what it leaves unproven. `docs/pr-security-review.md` states that a tag
+  push starts no review.
 - README documents the release steps, the development and stable
   channels, one-at-a-time merging, and the adopter pin rule.
 - Add `tests/test_release_check_tag.py`, `tests/test_release_notes.py`,
   `tests/test_release_assets.py`, `tests/test_release_draft_lookup.py`,
-  and `tests/test_release_workflow_wiring.py`. The wiring test compares the
+  `tests/test_release_hardening.py`, `tests/test_tag_push_gate.py`, and
+  `tests/test_release_workflow_wiring.py`. The wiring test compares the
   release job permissions with `RELEASE_JOB_PERMISSIONS`.
 - `scripts/check_policy_size.py` fails when the assembled policy exceeds
   the `scripts/sync.py` limit of 65536 bytes. The failure names the
