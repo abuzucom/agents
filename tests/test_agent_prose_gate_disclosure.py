@@ -62,6 +62,27 @@ class DisclosureExemptionTest(unittest.TestCase):
         findings = find_body_findings(body)
         self.assertTrue(any("personal pronoun" in item for item in findings))
 
+    def test_prose_inside_a_disclosure_value_is_still_checked(self):
+        for line in (
+            "Assisted-by: Claude they wrote this summary",
+            "**Assisted-by:** Claude we wrote this summary",
+            "Co-authored-by: Claude and they wrote it",
+            "Assisted-by: Claude.They wrote this summary.",
+            "Assisted-by: Claude!They wrote this summary",
+        ):
+            with self.subTest(line=line):
+                findings = find_body_findings(f"{CLEAN_SUMMARY}\n\n{line}\n")
+                self.assertTrue(any("personal pronoun" in item for item in findings))
+
+    def test_disclosure_value_findings_keep_their_column(self):
+        line = "Assisted-by: Claude they wrote this summary"
+        findings = find_body_findings(f"{line}\n")
+        column = line.index("they") + 1
+        self.assertTrue(any(
+            f"pull_request.body:1:{column}:" in item and "personal pronoun" in item
+            for item in findings
+        ))
+
     def test_other_lines_keep_their_findings_and_line_numbers(self):
         body = f"{PLAIN_DISCLOSURE}\n\nThey wrote this summary.\n"
         findings = find_body_findings(body)
