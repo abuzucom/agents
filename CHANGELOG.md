@@ -57,6 +57,9 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   move, or delete Git tags and never create, edit, publish, or delete
   releases. `docs/agent-policy/adoption.md` drops four handoff sentences
   that `AGENTS.md` states verbatim.
+- `_names_version_tag` drops a `refs/tags/` branch that the tag namespace
+  check made unreachable. `hook-coverage-baseline.json` records one fewer
+  unreached statement in `_apply_git_environment_locations`.
 - README states that tags exist only for releases in `vX.Y.Z` form. The
   owner tag ruleset covers every tag.
 - `SECURITY.md` covers this repository. It supports the latest stable

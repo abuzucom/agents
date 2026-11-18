@@ -259,15 +259,13 @@ ASCII_DIGITS = "0123456789"
 
 
 def _names_version_tag(side: str) -> bool:
-    """Return True for one refspec side that names a tag ref or a vX tag.
+    """Return True for one refspec side shaped like a vX release tag.
 
-    Branch names follow <type>/<description>, so no valid branch starts
-    with v and a digit. Ref names compare without case because macOS and
-    Windows ref storage ignores case.
+    Release tags take the vX.Y.Z form. Ref names compare without case
+    because macOS and Windows ref storage ignores case. The tag namespace
+    check runs first and covers refs/tags/ and tags/ sides.
     """
     folded = side.casefold()
-    if folded.startswith(TAG_REF_PREFIX):
-        return True
     return folded[:1] == "v" and folded[1:2] != "" and folded[1:2] in ASCII_DIGITS
 
 
