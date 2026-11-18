@@ -9,6 +9,16 @@ WORKFLOWS = ROOT / ".github" / "workflows"
 SHA256_HASH = re.compile(r"--hash=sha256:[0-9a-f]{64}")
 PINNED_REQUIREMENT = re.compile(r"^([A-Za-z0-9_.-]+)==([0-9][0-9A-Za-z.]*)")
 LOCAL_INSTALL = "python -m pip install --requirement requirements-checkers.txt"
+# PyYAML 6.0.3 publishes cp314 wheels for every runner. A newer Python has
+# none, and its sdist build would run an unhashed build backend.
+PINNED_PYTHON = "python-version: '3.14'"
+CHECKER_INSTALL_COUNT = 4
+SYNC_CHECK_INSTALL_COUNT = 3
+# The privileged job's exact install command is pinned by
+# scripts/check_compliance_tree.py, which CI runs from the base branch. The
+# job adopts the wheel-only form in its own change after that checker
+# accepts it.
+PRIVILEGED_WORKFLOW = "immutable-conflict-check.yml"
 
 
 def read_text(path: Path) -> str:
@@ -72,8 +82,43 @@ class HashPinTest(unittest.TestCase):
 
     def test_local_installs_require_hashes(self):
         text = read_text(WORKFLOWS / "sync-check.yml")
-        self.assertNotIn(LOCAL_INSTALL + "\n", text)
-        self.assertGreater(text.count(LOCAL_INSTALL + " --require-hashes"), 0)
+        self.assertEqual(text.count(LOCAL_INSTALL), SYNC_CHECK_INSTALL_COUNT)
+        self.assertEqual(text.count(LOCAL_INSTALL + " --require-hashes"),
+                         SYNC_CHECK_INSTALL_COUNT)
+
+    def test_install_commands_parse_as_written(self):
+        """A plain YAML scalar ending in `:all:` would parse as a mapping."""
+        import yaml
+        for workflow in sorted(WORKFLOWS.glob("*.yml")):
+            if workflow.name == PRIVILEGED_WORKFLOW:
+                continue
+            data = yaml.safe_load(read_text(workflow))
+            for job in data["jobs"].values():
+                for step in job.get("steps", []):
+                    run = step.get("run", "")
+                    if "requirements-checkers.txt" in run and "pip install" in run:
+                        with self.subTest(workflow=workflow.name):
+                            self.assertTrue(" ".join(run.split()).endswith("--only-binary :all:"))
+
+    def test_checker_installs_use_wheels_on_a_pinned_python(self):
+        """No install may build an sdist, whose build backend skips hash checks."""
+        installs = 0
+        for workflow in sorted(WORKFLOWS.glob("*.yml")):
+            if workflow.name == PRIVILEGED_WORKFLOW:
+                continue
+            lines = read_text(workflow).splitlines()
+            for index, line in enumerate(lines):
+                if "requirements-checkers.txt" not in line or "pip install" not in "".join(
+                        lines[max(index - 2, 0):index + 1]):
+                    continue
+                installs += 1
+                command = " ".join(lines[max(index - 2, 0):index + 2])
+                with self.subTest(workflow=workflow.name, line=index + 1):
+                    self.assertIn("--only-binary :all:", command)
+                    setup = [entry for entry in lines[:index] if "python-version:" in entry]
+                    self.assertTrue(setup)
+                    self.assertIn(PINNED_PYTHON, setup[-1])
+        self.assertEqual(installs, CHECKER_INSTALL_COUNT)
 
     def test_pre_commit_pins_match_the_requirements_version(self):
         name, version = PINNED_REQUIREMENT.match(requirement_blocks()[0][0]).groups()

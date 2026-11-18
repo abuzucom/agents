@@ -14,7 +14,29 @@ into the entry. Dates never decrease. Ask the active human when a date is in
 doubt.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.23.4] (2026-11-17)
+## [2.23.4] (2026-11-18)
+
+### Changed
+- `requirements-checkers.txt` pins PyYAML 6.0.3 by sha256 hash. The
+  hashes cover every file PyPI publishes for that version.
+- The four jobs that install the repository's own requirements file run
+  on Python 3.14 and pass `--only-binary :all:`. PyYAML 6.0.3 has no
+  wheel for a newer Python. A source build there would run a build
+  backend that no hash covers. The three `sync-check.yml` installs also
+  pass `--require-hashes`. The reusable `agents-compliance.yml` relies on
+  pip's automatic hash mode. An adopter's unhashed file still installs.
+- `scripts/check_compliance_tree.py` admits the privileged install
+  command with `--only-binary :all:` beside the pinned form. Every other
+  command still fails. The privileged job keeps its current command until
+  this checker reaches the base branch.
+- `.pre-commit-config.yaml` keeps exact PyYAML version pins, because
+  pre-commit cannot check hashes.
+- The weak-hash and secrets scans in `agents-compliance.yml` and
+  `.pre-commit-config.yaml` also read `hooks/*.py`.
+- Add `tests/test_scan_and_hash_wiring.py` and
+  `tests/test_trusted_install_forms.py` covering these changes.
+
+## [2.23.3] (2026-11-17)
 
 ### Added
 - Add `.github/workflows/quality-review-pr.yml`. The workflow runs the
@@ -73,15 +95,6 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Comments and docstrings in the core and the shell gates now match the
   code. The PowerShell flag tables derive each range from the flag
   name. Unused parameters leave three shell-gate helpers.
-- `requirements-checkers.txt` pins PyYAML 6.0.3 by sha256 hash. The
-  hashes cover every file PyPI publishes for that version. The three
-  `sync-check.yml` installs pass `--require-hashes`. Workflows that
-  install a requirements file from an adopter or from the base branch
-  rely on pip's automatic hash mode. `.pre-commit-config.yaml` keeps
-  exact version pins, because pre-commit cannot check hashes.
-- The weak-hash and secrets scans in `agents-compliance.yml` and
-  `.pre-commit-config.yaml` also read `hooks/*.py`.
-- Add `tests/test_scan_and_hash_wiring.py` covering both changes.
 
 ### Fixed
 - `scripts/check_merge_safety.py` passes the checked-out branch name to the

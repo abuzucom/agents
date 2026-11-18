@@ -48,6 +48,14 @@ TRUSTED_REQUIREMENTS_COMMAND = (
     "python -m pip install --requirement "
     "trusted-base/requirements-checkers.txt"
 )
+# The wheel-only form keeps a Python with no PyYAML wheel from building the
+# sdist, whose build backend no hash covers. The schema admits both forms so
+# the privileged job can switch once this checker is on the base branch.
+TRUSTED_REQUIREMENTS_COMMANDS = (
+    TRUSTED_REQUIREMENTS_COMMAND,
+    TRUSTED_REQUIREMENTS_COMMAND + " --only-binary :all:",
+)
+INSTALL_STEP_INDEX = 3
 TRUSTED_SCAN_COMMAND = (
     'python "$TRUSTED_CHECKER" --repo "$PR_REPO" --tree "$PR_HEAD_SHA" '
     '--base "$PR_BASE_SHA" --branch "$PR_HEAD_BRANCH" '
@@ -509,8 +517,11 @@ def _checkout_step(base: bool) -> dict:
     }
 
 
-def _trusted_steps() -> list[dict]:
-    """Return the exact privileged step sequence allowed for promotion."""
+def _trusted_steps(install_command: str = TRUSTED_REQUIREMENTS_COMMAND) -> list[dict]:
+    """Return the exact privileged step sequence allowed for promotion.
+
+    `install_command` must be one of TRUSTED_REQUIREMENTS_COMMANDS.
+    """
     return [
         _checkout_step(True),
         _checkout_step(False),
@@ -521,7 +532,7 @@ def _trusted_steps() -> list[dict]:
         },
         {
             "name": "Install trusted checker dependencies",
-            "run": TRUSTED_REQUIREMENTS_COMMAND,
+            "run": install_command,
         },
         {
             "name": "Scan immutable pull request objects with the trusted checker",
@@ -531,18 +542,35 @@ def _trusted_steps() -> list[dict]:
     ]
 
 
+def _candidate_install_command(candidate_job) -> str:
+    """Return the candidate's install command when it is an accepted form.
+
+    Any other command falls back to the pinned form, so the exact schema
+    comparison still rejects it.
+    """
+    steps = candidate_job.get("steps") if isinstance(candidate_job, dict) else None
+    if not isinstance(steps, list) or len(steps) != TRUSTED_STEP_COUNT:
+        return TRUSTED_REQUIREMENTS_COMMAND
+    install_step = steps[INSTALL_STEP_INDEX]
+    command = install_step.get("run") if isinstance(install_step, dict) else None
+    if command in TRUSTED_REQUIREMENTS_COMMANDS:
+        return command
+    return TRUSTED_REQUIREMENTS_COMMAND
+
+
 def _pull_target_violations(document: dict, text: str, path: str) -> list[str]:
     """Require the exact closed privileged workflow execution surface."""
     if not _pull_target_trigger(document):
         return []
+    raw_jobs = document.get("jobs")
+    candidate_job = raw_jobs.get("immutable-compliance") if isinstance(raw_jobs, dict) else None
+    install_command = _candidate_install_command(candidate_job)
     expected_job = {
         "runs-on": "ubuntu-latest",
         "permissions": {"contents": "read"},
-        "steps": _trusted_steps(),
+        "steps": _trusted_steps(install_command),
     }
     trusted_job = dict(expected_job)
-    raw_jobs = document.get("jobs")
-    candidate_job = raw_jobs.get("immutable-compliance") if isinstance(raw_jobs, dict) else None
     if isinstance(candidate_job, dict):
         candidate_job = dict(candidate_job)
         candidate_steps = candidate_job.get("steps")
@@ -558,7 +586,7 @@ def _pull_target_violations(document: dict, text: str, path: str) -> list[str]:
                 python_step["with"] = {"python-version": version_text}
                 candidate_steps[SETUP_PYTHON_STEP_INDEX] = python_step
                 candidate_job["steps"] = candidate_steps
-                trusted_steps = _trusted_steps()
+                trusted_steps = _trusted_steps(install_command)
                 trusted_steps[SETUP_PYTHON_STEP_INDEX] = dict(trusted_steps[SETUP_PYTHON_STEP_INDEX])
                 trusted_steps[SETUP_PYTHON_STEP_INDEX]["with"] = {"python-version": version_text}
                 trusted_job["steps"] = trusted_steps
