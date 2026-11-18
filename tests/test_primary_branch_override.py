@@ -39,15 +39,12 @@ def assert_invalid_overrides_deny(test_case: unittest.TestCase, branch: str) -> 
 class PrimaryBranchOverrideTest(unittest.TestCase):
     """The override moves the read-only state from main to the named branch."""
 
-    def read(self, fixture: BranchFixture):
-        return read_readme(fixture)
-
     def test_override_branch_is_read_only(self):
         fixture = BranchFixture(self, "develop")
         for content in (b"develop\n", b"develop\r\n", b"develop"):
             with self.subTest(content=content):
                 fixture.write_override(content)
-                self.assertEqual(decision(self.read(fixture)), "allow")
+                self.assertEqual(decision(read_readme(fixture)), "allow")
                 self.assertEqual(decision(fixture.shell("git status")), "allow")
                 denied = fixture.shell("touch notes.txt")
                 self.assertEqual(decision(denied), "deny")
@@ -56,14 +53,14 @@ class PrimaryBranchOverrideTest(unittest.TestCase):
     def test_main_is_strict_under_override(self):
         fixture = BranchFixture(self, "main")
         fixture.write_override(b"develop\n")
-        result = self.read(fixture)
+        result = read_readme(fixture)
         self.assertEqual(decision(result), "deny")
         self.assertIn("git switch -c", result.stderr)
         self.assertEqual(decision(fixture.shell("git switch -c feat/new-work")), "ask")
 
     def test_develop_is_strict_without_override(self):
         fixture = BranchFixture(self, "develop")
-        result = self.read(fixture)
+        result = read_readme(fixture)
         self.assertEqual(decision(result), "deny")
         self.assertIn("git branch -m", result.stderr)
 
