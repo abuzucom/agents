@@ -43,9 +43,13 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - `scripts/check_gate_pr_integrity.py` protects `scripts/release.py`.
   `shared-files.json` records the new digest.
 - `hooks/_gate_core.py` denies tag pushes in every shell gate. Covered
-  forms include `--tags`, `--follow-tags`, a `refs/tags/` refspec side,
-  and a refspec side shaped `v<digit>`. It also denies `git tag`
-  creation, signing, forcing, and deletion. Listing and verifying pass.
+  forms include `--tags`, `--follow-tags`, and a refspec side under
+  `refs/tags/` or `tags/`. A source naming an existing local tag denies
+  in any name shape. The gate reads loose refs and `packed-refs`. A
+  `v<digit>` source denies unless a local branch carries that name. An
+  unreadable ref store asks. It also denies `git tag` creation, signing,
+  forcing, and deletion and `git update-ref` under `refs/tags/`. Listing
+  and verifying pass.
   `shared-files.json` records the new digest.
 - `docs/agent-policy/github.md` states that agents never create, push,
   move, or delete Git tags and never create, edit, publish, or delete
@@ -63,7 +67,9 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `tests/test_release_assets.py`, `tests/test_release_draft_lookup.py`,
   `tests/test_release_hardening.py`, `tests/test_tag_push_gate.py`,
   `tests/test_release_bundle_signer.py`,
-  `tests/test_tag_read_long_options.py`, and
+  `tests/test_tag_read_long_options.py`,
+  `tests/test_tag_push_resolution.py`, `tests/test_tag_push_ref_store.py`,
+  and
   `tests/test_release_workflow_wiring.py`. The wiring test compares the
   release job permissions with `RELEASE_JOB_PERMISSIONS`.
 - `scripts/check_policy_size.py` fails when the assembled policy exceeds

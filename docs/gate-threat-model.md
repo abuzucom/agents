@@ -24,10 +24,14 @@ include the following actions:
   forced or empty refspec, `--amend`, `rebase`, `filter-branch`, `reset --hard`,
   `branch -D`, and `clean -fdx`.
 - The gates deny tag pushes across Bash, PowerShell, and CMD. Covered forms
-  include `--tags`, `--follow-tags`, a `refs/tags/` refspec side, and a refspec
-  side shaped `v<digit>`. The gates also deny `git tag` creation, signing,
-  forcing, and deletion. Listing and verifying pass. A tag name in another
-  shape pushes unseen.
+  include `--tags`, `--follow-tags`, and a refspec side under `refs/tags/` or
+  `tags/`. A source that names an existing local tag denies in any name shape.
+  The gates read loose refs and `packed-refs` for that check. A source shaped
+  `v<digit>` denies unless a local branch carries that name. A reftable store,
+  an unreadable or oversized `packed-refs`, and a name that leaves the refs
+  directory ask. The gates also deny `git tag` creation, signing, forcing, and
+  deletion and `git update-ref` under `refs/tags/`. Listing and verifying pass.
+  `git push --mirror` asks and pushes every tag after consent.
 - The gates classify privilege escalation, process termination, alias
   definition, shell profile writes, schedule destruction, and forge deletion.
 - The gates deny cloud, infrastructure-as-code, orchestration, direct SSH,
