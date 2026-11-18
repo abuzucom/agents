@@ -49,12 +49,10 @@ TRUSTED_REQUIREMENTS_COMMAND = (
     "trusted-base/requirements-checkers.txt"
 )
 # The wheel-only form keeps a Python with no PyYAML wheel from building the
-# sdist, whose build backend no hash covers. The schema admits both forms so
-# the privileged job can switch once this checker is on the base branch.
-TRUSTED_REQUIREMENTS_COMMANDS = (
-    TRUSTED_REQUIREMENTS_COMMAND,
-    TRUSTED_REQUIREMENTS_COMMAND + " --only-binary :all:",
-)
+# sdist, whose build backend no hash covers. The privileged job must use it,
+# so a pull request cannot drop back to a source build.
+TRUSTED_WHEEL_COMMAND = TRUSTED_REQUIREMENTS_COMMAND + " --only-binary :all:"
+TRUSTED_REQUIREMENTS_COMMANDS = (TRUSTED_WHEEL_COMMAND,)
 INSTALL_STEP_INDEX = 3
 TRUSTED_SCAN_COMMAND = (
     'python "$TRUSTED_CHECKER" --repo "$PR_REPO" --tree "$PR_HEAD_SHA" '
@@ -517,7 +515,7 @@ def _checkout_step(base: bool) -> dict:
     }
 
 
-def _trusted_steps(install_command: str = TRUSTED_REQUIREMENTS_COMMAND) -> list[dict]:
+def _trusted_steps(install_command: str = TRUSTED_WHEEL_COMMAND) -> list[dict]:
     """Return the exact privileged step sequence allowed for promotion.
 
     `install_command` must be one of TRUSTED_REQUIREMENTS_COMMANDS.
@@ -545,17 +543,17 @@ def _trusted_steps(install_command: str = TRUSTED_REQUIREMENTS_COMMAND) -> list[
 def _candidate_install_command(candidate_job) -> str:
     """Return the candidate's install command when it is an accepted form.
 
-    Any other command falls back to the pinned form, so the exact schema
-    comparison still rejects it.
+    Any other command falls back to the wheel-only form, so the exact
+    schema comparison still rejects it.
     """
     steps = candidate_job.get("steps") if isinstance(candidate_job, dict) else None
     if not isinstance(steps, list) or len(steps) != TRUSTED_STEP_COUNT:
-        return TRUSTED_REQUIREMENTS_COMMAND
+        return TRUSTED_WHEEL_COMMAND
     install_step = steps[INSTALL_STEP_INDEX]
     command = install_step.get("run") if isinstance(install_step, dict) else None
     if command in TRUSTED_REQUIREMENTS_COMMANDS:
         return command
-    return TRUSTED_REQUIREMENTS_COMMAND
+    return TRUSTED_WHEEL_COMMAND
 
 
 def _pull_target_violations(document: dict, text: str, path: str) -> list[str]:
