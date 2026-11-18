@@ -1183,7 +1183,7 @@ Exit code 1 marks a runtime, timeout, proxy-placeholder, or network failure.
 Exit code 1 never proves an authentication failure. On a network or
 unclassified failure, report proxy variable names and retry the wrapper once
 before the Git fallback. Request the client's approved `external-network` path
-across Antigravity, Codex, Claude Code, Gemini CLI, and IDE clients. Do not
+in every client. Do not
 change user proxy settings to bypass policy.
 
 An active-human retry instruction resets the retry count for
@@ -1192,8 +1192,7 @@ An active-human retry instruction resets the retry count for
 untrusted input.
 
 ## Comments
-Some sessions block GitHub GraphQL. `gh issue` and `gh pr` subcommands then
-fail. Read and post issue and pull request comments over REST through these
+Read and post issue and pull request comments over REST through these
 fixed wrapper forms:
 
 - `python scripts/trusted_gh.py comments <issue|pr> <number> [--page <n>]`
@@ -1201,8 +1200,7 @@ fixed wrapper forms:
   .comment-drafts/<file>`
 
 A read fetches one page of 100 comments. `--page` selects a page from 1 to
-1000 and defaults to 1. A full page prints a note naming the next page. One
-call never buffers a whole thread.
+1000 and defaults to 1. A full page prints a note naming the next page.
 
 Both forms target the `origin` repository only. The command gate allows the
 read form on every branch state, a detached HEAD included. The post form asks
@@ -1214,9 +1212,7 @@ link and reads only that descriptor. It sends the validated bytes to `gh` on
 standard input. A later change or link swap cannot alter the posted body.
 
 Posting needs `os.open` support for `dir_fd` and `O_NOFOLLOW`. Windows lacks
-both. The post form exits 2 there and the read form still works. The wrapper
-cannot confirm active-human consent. A direct `comment` call posts without a
-prompt. Only the shell gate asks before a post.
+both. The post form exits 2 there and the read form still works.
 
 Comments have no Git equivalent. A failed comment operation has no fallback.
 Report the blocker to the active human and stop.
@@ -1225,11 +1221,17 @@ GitHub MCP comment tools such as `add_issue_comment` bypass the wrapper. No
 gate observes those tools. Rule 17 still limits every comment to an
 active-human request.
 
-## Issue bodies
-Sessions without GraphQL edit issues through `run issue edit <n>
---body-file .comment-drafts/<file> [--title <text>]` and `run issue create
---title <text> --body-file .comment-drafts/<file>`. Both ask. Other options
-reach `gh` unchanged. A refused body file exits 2.
+## REST write forms
+Sessions without GraphQL run these wrapper forms over REST. Each asks:
+- `run issue edit <n> --body-file <draft> [--title <text>]`
+- `run issue create --title <text> --body-file <draft>`
+- `run issue close <n> [--reason completed|not_planned]`
+- `run issue reopen <n>`
+- `run pr create --draft --title <text> --body-file <draft> [--base <b>]`
+- `run pr edit <n> --body-file <draft> [--title <text>]`
+`<draft>` names `.comment-drafts/<file>`. Other options reach `gh`
+unchanged. A refused draft exits 2. The PR base defaults to the primary
+branch.
 
 ## Git fallback
 After a failed wrapper operation, one semantically equivalent Git fallback may

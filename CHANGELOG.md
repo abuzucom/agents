@@ -14,7 +14,7 @@ into the entry. Dates never decrease. Ask the active human when a date is in
 doubt.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.25.0] (2026-11-18)
+## [2.26.0] (2026-11-18)
 
 ### Added
 - `scripts/check_policy_size.py` fails when the assembled policy exceeds
@@ -26,6 +26,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - `--json` prints both sizes and limits. `--render-markdown <path>`
   validates such a report and prints the pull request comment body. The
   body shows bytes, limit, headroom, percent used, and the directive.
+  The renderer rejects a report whose limits differ from the checker
+  limits.
 - The report ranks up to 10 assembled policy files by size in
   descending order. Each row states the file share of the assembled
   total. A failure on the assembled limit prints the same ranking.
@@ -35,12 +37,29 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   requests touching `AGENTS.md`, a supporting policy file, or a
   generated copy. It runs on `workflow_run` from default-branch code. It
   reads head policy files through the contents API and runs no pull
-  request code. One marked comment receives every update.
+  request code. One marked comment receives every update. Runs for one
+  head branch queue in one concurrency group. Two runs cannot both
+  create the comment.
 - `scripts/sync.py` exposes `assemble_policy_bytes`. `policy_bytes`
   keeps its limit check and behavior.
 - `hooks/workflow-scripts.txt` allows the two new checker forms.
-- Add `tests/test_policy_size_combined.py` and
-  `tests/test_policy_size_report_wiring.py`.
+- Add `tests/test_policy_size_combined.py`,
+  `tests/test_policy_size_report_wiring.py`, and
+  `tests/test_policy_size_top_files.py`.
+- `scripts/trusted_gh.py` sends four more write shapes over REST. Sessions
+  that block GitHub GraphQL cannot run the matching `gh` commands.
+  - `run pr create --draft --title <text> --body-file <draft> [--base <b>]`
+    becomes a REST `POST` with `draft` set. The head is the current
+    branch. The base defaults to the branch in `hooks/primary-branch.txt`,
+    or `main`.
+  - `run pr edit <n> --body-file <draft> [--title <text>]` becomes a REST
+    `PATCH` on the pull request.
+  - `run issue close <n> [--reason completed|not_planned]` and
+    `run issue reopen <n>` become a REST `PATCH` of the issue state.
+  - Each shape runs after the existing gate checks and keeps the ask
+    verdict. Any other option sends the command to `gh` unchanged. A
+    refused draft, base, or primary branch file exits 2.
+- Add `tests/test_trusted_gh_rest_write_forms.py`.
 - `scripts/trusted_gh.py` sends `run issue edit <n> --body-file
   .comment-drafts/<file> [--title <text>]` as a REST `PATCH` and
   `run issue create --title <text> --body-file .comment-drafts/<file>` as
@@ -55,6 +74,11 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `tests/test_trusted_gh_api_read_gate.py`.
 
 ### Changed
+- `docs/agent-policy/github.md` lists all six REST write forms in one
+  section. Four shorter sentences free the bytes. The comment intro drops
+  the GraphQL reason, the network paragraph says "every client", and two
+  repeated sentences leave the comment section. The assembled policy
+  holds 65506 bytes.
 - `docs/pr-security-review.md` and one older `CHANGELOG.md` line pass the
   prose analyzer. `scripts/check_agent_prose_gate.py` scans both files on
   every agent-attributed pull request. The 8 earlier findings failed that
@@ -109,6 +133,13 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   or `%67raphql` no longer passes without a prompt. Add
   `tests/test_trusted_gh_api_read_paths.py` covering these paths and the
   option scan.
+- The REST `pr create` form applies one base rule to every base. An
+  explicit `--base master`, `--base HEAD`, or empty `--base` exits 2. Only
+  an absent `--base` takes the primary branch default.
+- The wrapper reads `hooks/primary-branch.txt` through one descriptor that
+  follows no link and never blocks on a FIFO. A path swap after the open
+  cannot change the bytes. Add `tests/test_trusted_gh_pr_base_validation.py`
+  covering these cases and a create command without `--body-file`.
 
 ## [2.23.3] (2026-11-17)
 
