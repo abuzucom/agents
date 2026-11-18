@@ -12,6 +12,7 @@ import json
 import os
 import sys
 from pathlib import Path
+from types import ModuleType
 
 
 MAX_POLICY_BYTES = 32 * 1024
@@ -56,7 +57,7 @@ AGENT_DIRECTIVE = (
 )
 
 
-def _load_sync():
+def _load_sync() -> ModuleType:
     """Load sync.py by fixed sibling path, never through sys.path."""
     path = Path(__file__).resolve().parent / "sync.py"
     if path.is_symlink() or not path.is_file():
@@ -99,7 +100,7 @@ def measure_assembled_files(root: Path) -> tuple[list[tuple[str, int]], int]:
     """
     sync = _load_sync()
     # sync.py compares absolute paths. A relative root such as "." fails.
-    parts = sync.assembled_policy_parts(Path(os.path.abspath(root)))
+    parts = sync.read_assembled_policy_parts(Path(os.path.abspath(root)))
     return [(name, len(content)) for name, content in parts], sync.MAX_POLICY_BYTES
 
 
@@ -112,7 +113,7 @@ def measure_assembled_bytes(root: Path) -> tuple[int, int]:
     return sum(size for _, size in sizes), limit
 
 
-def largest_first_key(item: tuple[str, int]) -> tuple[int, str]:
+def make_largest_first_key(item: tuple[str, int]) -> tuple[int, str]:
     """Return a sort key that orders (path, bytes) pairs largest first.
 
     Equal sizes fall back to the path in ascending order, so the ranking is
@@ -124,7 +125,7 @@ def largest_first_key(item: tuple[str, int]) -> tuple[int, str]:
 
 def rank_largest_files(sizes: list[tuple[str, int]]) -> list[dict]:
     """Return up to MAX_RANKED_FILES entries, largest first, ties by path."""
-    ordered = sorted(sizes, key=largest_first_key)
+    ordered = sorted(sizes, key=make_largest_first_key)
     return [{"path": name, "bytes": size}
             for name, size in ordered[:MAX_RANKED_FILES]]
 
@@ -170,7 +171,7 @@ def measure_policy(path: Path) -> dict:
     ], "files": rank_largest_files(sizes)}
 
 
-def _validated_count(value: object, minimum: int) -> int:
+def _validate_count(value: object, minimum: int) -> int:
     """Return value when it is a bounded integer, else raise ValueError."""
     if isinstance(value, bool) or not isinstance(value, int):
         raise ValueError("size fields must be integers")
@@ -198,15 +199,15 @@ def validate_report(report: object) -> list[tuple[str, int, int]]:
             raise ValueError("report target has unexpected fields")
         if target["name"] != expected_name:
             raise ValueError("report target name is not recognized")
-        size = _validated_count(target["bytes"], 0)
-        limit = _validated_count(target["limit"], 1)
+        size = _validate_count(target["bytes"], 0)
+        limit = _validate_count(target["limit"], 1)
         if limit != expected_limits[expected_name]:
             raise ValueError("report target limit differs from the checker limit")
         rows.append((expected_name, size, limit))
     return rows
 
 
-def _known_policy_files() -> frozenset:
+def _list_known_policy_files() -> frozenset:
     """Return every file name that the assembled policy can contain."""
     sync = _load_sync()
     return frozenset((sync.SOURCE,) + sync.ADOPTER_POLICY_FILES
@@ -218,17 +219,17 @@ def validate_files(report: dict) -> list[tuple[str, int]]:
     files = report.get("files", [])
     if not isinstance(files, list) or len(files) > MAX_RANKED_FILES:
         raise ValueError("file ranking must be a list of at most 10 entries")
-    known = _known_policy_files()
+    known = _list_known_policy_files()
     rows = []
     for entry in files:
         if not isinstance(entry, dict) or set(entry) != FILE_FIELDS:
             raise ValueError("file ranking entry has unexpected fields")
         if entry["path"] not in known:
             raise ValueError("file ranking names an unknown policy file")
-        rows.append((entry["path"], _validated_count(entry["bytes"], 0)))
+        rows.append((entry["path"], _validate_count(entry["bytes"], 0)))
     if len({path for path, _ in rows}) != len(rows):
         raise ValueError("file ranking repeats a policy file")
-    if rows != sorted(rows, key=largest_first_key):
+    if rows != sorted(rows, key=make_largest_first_key):
         raise ValueError("file ranking is not ordered largest first")
     return rows
 
@@ -360,6 +361,11 @@ def _check_limits(path: Path) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
+    """Run one checker mode and return its process exit code.
+
+    The default mode checks both size limits. --json prints the size report.
+    --render-markdown prints the pull request comment for a report file.
+    """
     parser = argparse.ArgumentParser()
     parser.add_argument("path", nargs="?", type=Path, default=Path("AGENTS.md"))
     mode = parser.add_mutually_exclusive_group()

@@ -23,7 +23,7 @@ SAMPLE_AGENTS_BYTES = 40000
 SAMPLE_ASSEMBLED_BYTES = 70000
 
 
-def _report(agents_limit: int, assembled_limit: int) -> dict:
+def _build_report(agents_limit: int, assembled_limit: int) -> dict:
     """Return an over-limit report carrying the given limits."""
     return {"schema": 1, "targets": [
         {"name": "AGENTS.md", "bytes": SAMPLE_AGENTS_BYTES,
@@ -40,6 +40,7 @@ class LimitPinningTests(unittest.TestCase):
         self.report_path = Path(self.tmp.name) / "report.json"
 
     def _render(self, report: dict) -> tuple:
+        """Write the report as JSON and return the renderer exit code and streams."""
         self.report_path.write_text(json.dumps(report), encoding="ascii")
         stdout = StringIO()
         stderr = StringIO()
@@ -50,13 +51,13 @@ class LimitPinningTests(unittest.TestCase):
 
     def test_canonical_limits_render_over_limit(self):
         exit_code, stdout, _ = self._render(
-            _report(AGENTS_LIMIT, sync.MAX_POLICY_BYTES))
+            _build_report(AGENTS_LIMIT, sync.MAX_POLICY_BYTES))
         self.assertEqual(exit_code, 0)
         self.assertIn("Over limit", stdout)
 
     def test_spoofed_limits_are_rejected(self):
-        for report in (_report(SPOOFED_LIMIT, sync.MAX_POLICY_BYTES),
-                       _report(AGENTS_LIMIT, SPOOFED_LIMIT)):
+        for report in (_build_report(SPOOFED_LIMIT, sync.MAX_POLICY_BYTES),
+                       _build_report(AGENTS_LIMIT, SPOOFED_LIMIT)):
             with self.subTest(report=report):
                 exit_code, stdout, stderr = self._render(report)
                 self.assertEqual(exit_code, 1)

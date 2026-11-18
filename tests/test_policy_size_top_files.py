@@ -46,7 +46,7 @@ def _run_main(argv: list) -> tuple:
 
 class AssembledPartsTests(unittest.TestCase):
     def test_parts_join_to_the_assembled_policy(self):
-        parts = sync.assembled_policy_parts(ROOT)
+        parts = sync.read_assembled_policy_parts(ROOT)
         self.assertEqual(parts[0][0], sync.SOURCE)
         self.assertEqual(
             b"".join(content for _, content in parts),
@@ -106,7 +106,8 @@ class RenderFilesTests(unittest.TestCase):
         self.addCleanup(self.tmp.cleanup)
         self.report_path = Path(self.tmp.name) / "report.json"
 
-    def _report(self, files: object) -> dict:
+    def _build_report(self, files: object) -> dict:
+        """Return a valid size report that carries the given file ranking."""
         return {"schema": 1, "targets": [
             {"name": "AGENTS.md", "bytes": 32602, "limit": AGENTS_LIMIT},
             {"name": "assembled policy", "bytes": 65532,
@@ -114,6 +115,7 @@ class RenderFilesTests(unittest.TestCase):
         ], "files": files}
 
     def _render(self, report: object) -> tuple:
+        """Write the report as JSON and return the renderer exit code and streams."""
         self.report_path.write_text(json.dumps(report), encoding="ascii")
         return _run_main(["--render-markdown", str(self.report_path)])
 
@@ -122,7 +124,7 @@ class RenderFilesTests(unittest.TestCase):
             {"path": "AGENTS.md", "bytes": 32602},
             {"path": "docs/agent-policy/enforcement.md", "bytes": 10095},
         ]
-        exit_code, stdout, _ = self._render(self._report(files))
+        exit_code, stdout, _ = self._render(self._build_report(files))
         self.assertEqual(exit_code, 0)
         self.assertIn("### Largest files in the assembled policy", stdout)
         self.assertIn("| 1 | `AGENTS.md` | 32,602 | 49.7% |", stdout)
@@ -145,7 +147,7 @@ class RenderFilesTests(unittest.TestCase):
         ]
         for files in bad_lists:
             with self.subTest(files=files):
-                exit_code, stdout, stderr = self._render(self._report(files))
+                exit_code, stdout, stderr = self._render(self._build_report(files))
                 self.assertEqual(exit_code, 1)
                 self.assertEqual(stdout, "")
                 self.assertIn("invalid size report", stderr)

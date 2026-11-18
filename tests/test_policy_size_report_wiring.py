@@ -19,7 +19,7 @@ def _load_workflow() -> dict:
     return yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))
 
 
-def _triggers(workflow: dict) -> dict:
+def _read_triggers(workflow: dict) -> dict:
     """Return the trigger map. PyYAML reads the bare `on` key as True."""
     return workflow.get("on", workflow.get(True))
 
@@ -27,7 +27,7 @@ def _triggers(workflow: dict) -> dict:
 class PolicySizeReportWiringTests(unittest.TestCase):
     def test_workflow_runs_from_default_branch_after_sync_check(self):
         workflow = _load_workflow()
-        triggers = _triggers(workflow)
+        triggers = _read_triggers(workflow)
         self.assertEqual(set(triggers), {"workflow_run"})
         self.assertEqual(triggers["workflow_run"]["workflows"], [UPSTREAM_WORKFLOW])
         self.assertEqual(triggers["workflow_run"]["types"], ["completed"])

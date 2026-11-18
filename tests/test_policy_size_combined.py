@@ -37,7 +37,7 @@ def _write_fixture(root: Path, agents_bytes: int, supporting_bytes: int) -> None
         (root / relative_name).write_bytes(content)
 
 
-def _combined_size(agents_bytes: int, supporting_bytes: int) -> int:
+def _compute_combined_size(agents_bytes: int, supporting_bytes: int) -> int:
     """Return the assembled size of a fixture built by _write_fixture."""
     return agents_bytes + supporting_bytes * len(sync.ADOPTER_POLICY_FILES)
 
@@ -70,14 +70,14 @@ class CombinedPolicySizeTests(unittest.TestCase):
         agents = COMBINED_LIMIT - supporting * len(sync.ADOPTER_POLICY_FILES)
         self.assertLessEqual(agents, AGENTS_LIMIT)
         _write_fixture(self.root, agents, supporting)
-        self.assertEqual(_combined_size(agents, supporting), COMBINED_LIMIT)
+        self.assertEqual(_compute_combined_size(agents, supporting), COMBINED_LIMIT)
         self.assertEqual(
             check_policy_size.find_combined_violations(self.root), [])
 
     def test_combined_over_limit_fails_with_overage(self):
         supporting = COMBINED_LIMIT // len(sync.ADOPTER_POLICY_FILES)
         _write_fixture(self.root, AGENTS_FIXTURE_BYTES, supporting)
-        total = _combined_size(AGENTS_FIXTURE_BYTES, supporting)
+        total = _compute_combined_size(AGENTS_FIXTURE_BYTES, supporting)
         violations = check_policy_size.find_combined_violations(self.root)
         self.assertEqual(len(violations), 1)
         self.assertIn(f"{total} bytes exceeds {COMBINED_LIMIT} bytes", violations[0])
@@ -114,7 +114,7 @@ class CombinedPolicySizeTests(unittest.TestCase):
         self.assertEqual(exit_code, 0)
         self.assertEqual(
             json.loads(stdout)["targets"][1]["bytes"],
-            _combined_size(AGENTS_FIXTURE_BYTES, SUPPORTING_FIXTURE_BYTES))
+            _compute_combined_size(AGENTS_FIXTURE_BYTES, SUPPORTING_FIXTURE_BYTES))
 
     def test_json_report_lists_both_targets(self):
         _write_fixture(self.root, AGENTS_FIXTURE_BYTES, SUPPORTING_FIXTURE_BYTES)
@@ -127,7 +127,7 @@ class CombinedPolicySizeTests(unittest.TestCase):
             {"name": "AGENTS.md", "bytes": AGENTS_FIXTURE_BYTES,
              "limit": AGENTS_LIMIT},
             {"name": "assembled policy",
-             "bytes": _combined_size(
+             "bytes": _compute_combined_size(
                  AGENTS_FIXTURE_BYTES, SUPPORTING_FIXTURE_BYTES),
              "limit": COMBINED_LIMIT},
         ])
@@ -148,7 +148,8 @@ class PolicySizeReportRenderTests(unittest.TestCase):
         self.addCleanup(self.tmp.cleanup)
         self.report_path = Path(self.tmp.name) / "report.json"
 
-    def _report(self, agents_bytes: int, combined_bytes: int) -> dict:
+    def _build_report(self, agents_bytes: int, combined_bytes: int) -> dict:
+        """Return a size report with the checker limits and the given sizes."""
         return {"schema": 1, "targets": [
             {"name": "AGENTS.md", "bytes": agents_bytes, "limit": AGENTS_LIMIT},
             {"name": "assembled policy", "bytes": combined_bytes,
@@ -156,11 +157,12 @@ class PolicySizeReportRenderTests(unittest.TestCase):
         ]}
 
     def _render(self, report: object) -> tuple:
+        """Write the report as JSON and return the renderer exit code and streams."""
         self.report_path.write_text(json.dumps(report), encoding="ascii")
         return _run_main(["--render-markdown", str(self.report_path)])
 
     def test_render_shows_sizes_headroom_and_directive(self):
-        exit_code, stdout, _ = self._render(self._report(32602, 65532))
+        exit_code, stdout, _ = self._render(self._build_report(32602, 65532))
         self.assertEqual(exit_code, 0)
         self.assertTrue(stdout.startswith("<!-- policy-size-report -->"))
         self.assertIn("| `AGENTS.md` | 32,602 | 32,768 | 166 | 99.5% |", stdout)
@@ -169,7 +171,7 @@ class PolicySizeReportRenderTests(unittest.TestCase):
         self.assertIn(DIRECTIVE_PHRASE, stdout)
 
     def test_render_marks_over_limit(self):
-        exit_code, stdout, _ = self._render(self._report(32602, 65600))
+        exit_code, stdout, _ = self._render(self._build_report(32602, 65600))
         self.assertEqual(exit_code, 0)
         self.assertIn("| Assembled policy | 65,600 | 65,536 | -64 | 100.1% |", stdout)
         self.assertIn("Over limit", stdout)
@@ -179,9 +181,9 @@ class PolicySizeReportRenderTests(unittest.TestCase):
         bad_reports = [
             [],
             {"schema": 2, "targets": []},
-            self._report(True, 1),
-            self._report(-1, 1),
-            self._report("1", 1),
+            self._build_report(True, 1),
+            self._build_report(-1, 1),
+            self._build_report("1", 1),
             {"schema": 1, "targets": [
                 {"name": "`injected`", "bytes": 1, "limit": 1},
                 {"name": "assembled policy", "bytes": 1, "limit": 1}]},
