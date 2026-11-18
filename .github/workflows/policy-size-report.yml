@@ -88,6 +88,8 @@ jobs:
               github.rest.pulls.listFiles,
               { ...context.repo, pull_number: pull.number, per_page: 100 },
             );
+            // A renamed file counts when its new or its old path is a policy
+            // file. A rename away from a policy path still gets a report.
             const touched = files.some((file) =>
               watched.has(file.filename) || watched.has(file.previous_filename));
             if (!touched) {
@@ -168,6 +170,8 @@ jobs:
               github.rest.issues.listComments,
               { ...context.repo, issue_number: issueNumber, per_page: 100 },
             );
+            // Only a marked comment from the Actions bot is this report. The
+            // step never edits a comment in which a person quotes the marker.
             const existing = comments.find((comment) =>
               comment.user?.login === 'github-actions[bot]' &&
               (comment.body || '').startsWith(marker));

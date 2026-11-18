@@ -112,9 +112,19 @@ def measure_assembled_bytes(root: Path) -> tuple[int, int]:
     return sum(size for _, size in sizes), limit
 
 
+def largest_first_key(item: tuple[str, int]) -> tuple[int, str]:
+    """Return a sort key that orders (path, bytes) pairs largest first.
+
+    Equal sizes fall back to the path in ascending order, so the ranking is
+    deterministic. The report builder and the report validator share it.
+    """
+    path, size = item
+    return -size, path
+
+
 def rank_largest_files(sizes: list[tuple[str, int]]) -> list[dict]:
     """Return up to MAX_RANKED_FILES entries, largest first, ties by path."""
-    ordered = sorted(sizes, key=lambda item: (-item[1], item[0]))
+    ordered = sorted(sizes, key=largest_first_key)
     return [{"path": name, "bytes": size}
             for name, size in ordered[:MAX_RANKED_FILES]]
 
@@ -218,7 +228,7 @@ def validate_files(report: dict) -> list[tuple[str, int]]:
         rows.append((entry["path"], _validated_count(entry["bytes"], 0)))
     if len({path for path, _ in rows}) != len(rows):
         raise ValueError("file ranking repeats a policy file")
-    if rows != sorted(rows, key=lambda item: (-item[1], item[0])):
+    if rows != sorted(rows, key=largest_first_key):
         raise ValueError("file ranking is not ordered largest first")
     return rows
 
