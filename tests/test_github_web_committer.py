@@ -4,10 +4,13 @@
 GitHub commits a web merge or squash as `GitHub <noreply@github.com>`, which
 its API resolves to the web-flow account. A squash keeps the merged commits'
 agent trailers, so the strict numbered-noreply rule applies to it. The
-committer exemption needs every web-flow marker plus GitHub's own signature.
-The author keeps the strict rule.
+committer exemption needs every web-flow marker plus a signature that
+verifies against GitHub's pinned web-flow key. The author keeps the strict
+rule.
 """
+import base64
 import copy
+import json
 import sys
 import unittest
 from pathlib import Path
@@ -22,6 +25,10 @@ FIXTURES = ROOT / "tests" / "fixtures" / "web_flow"
 # a throwaway key. Both are public signature data, never keys.
 GITHUB_SIGNATURE = (FIXTURES / "github_signature.asc").read_text(encoding="ascii")
 OTHER_SIGNATURE = (FIXTURES / "other_signature.asc").read_text(encoding="ascii")
+# The payload GitHub reports for the commit that GITHUB_SIGNATURE signs.
+GITHUB_PAYLOAD = json.loads((FIXTURES / "github_payload.json").read_text(encoding="ascii"))["payload"]
+GITHUB_KEY_ID = bytes.fromhex("B5690EEEBB952194")
+OTHER_KEY_ID = bytes.fromhex("405A1684C1B51779")
 AUTHOR_ID = 1234567
 AUTHOR_EMAIL = f"{AUTHOR_ID}+octocat@users.noreply.github.com"
 WEB_FLOW = {"login": "web-flow", "id": 19864447}
@@ -37,7 +44,7 @@ def web_commit() -> dict:
             "author": {"email": AUTHOR_EMAIL},
             "committer": {"email": "noreply@github.com"},
             "verification": {"verified": True, "reason": "valid",
-                             "signature": GITHUB_SIGNATURE},
+                             "signature": GITHUB_SIGNATURE, "payload": GITHUB_PAYLOAD},
         },
     }
 
@@ -74,6 +81,11 @@ class WebFlowCommitterTest(unittest.TestCase):
             "other signer": lambda doc: doc["commit"]["verification"].update(
                 signature=OTHER_SIGNATURE),
             "no signature": lambda doc: doc["commit"]["verification"].pop("signature"),
+            "forged issuer": lambda doc: doc["commit"]["verification"].update(
+                signature=forged_issuer_signature()),
+            "payload changed": lambda doc: doc["commit"]["verification"].update(
+                payload=GITHUB_PAYLOAD + " "),
+            "no payload": lambda doc: doc["commit"]["verification"].pop("payload"),
             "malformed signature": lambda doc: doc["commit"]["verification"].update(
                 signature="-----BEGIN PGP SIGNATURE-----\n\nnot base64!\n"),
         }
@@ -84,6 +96,15 @@ class WebFlowCommitterTest(unittest.TestCase):
                 self.assertTrue(committer_violation(document))
 
 
+def forged_issuer_signature() -> str:
+    """Return the throwaway-key signature relabeled with GitHub's key ID."""
+    lines = OTHER_SIGNATURE.strip().splitlines()
+    body = "".join(line for line in lines[1:] if line and not line.startswith(("=", "-----")))
+    packet = base64.b64decode(body).replace(OTHER_KEY_ID, GITHUB_KEY_ID)
+    encoded = base64.b64encode(packet).decode("ascii")
+    return "\n".join(["-----BEGIN PGP SIGNATURE-----", "", encoded, "-----END PGP SIGNATURE-----", ""])
+
+
 class SignatureIssuerTest(unittest.TestCase):
     """The issuer key ID comes from the signature's hashed subpackets."""
 
@@ -92,6 +113,9 @@ class SignatureIssuerTest(unittest.TestCase):
 
     def test_other_signature_issuer(self):
         self.assertEqual(attribution.signature_issuer(OTHER_SIGNATURE), "405A1684C1B51779")
+
+    def test_forged_issuer_reads_as_github(self):
+        self.assertEqual(attribution.signature_issuer(forged_issuer_signature()), "B5690EEEBB952194")
 
     def test_unreadable_signature_has_no_issuer(self):
         for value in ("", "plain text", None, "-----BEGIN PGP SIGNATURE-----\n\nAAAA\n"):

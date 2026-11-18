@@ -274,8 +274,8 @@ An authenticated `gh` sets no Git identity.
 Agent-generated commits must use the active operator's exact GitHub noreply
 address in the form `<id>+<login>@users.noreply.github.com`. Human-authored
 commits may use a verified public email. CI must resolve every author and
-committer email to the contributor who created the commit. A verified GitHub
-`web-flow` committer on a web merge or squash is the sole exception.
+committer email to the contributor who created the commit. A GitHub-signed
+`web-flow` committer is the sole exception.
 
 Any non-banned agent may use a name-only `Co-authored-by` label and must
 disclose the model with a name-only `Assisted-by: <model>` trailer. Never add an
