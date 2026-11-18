@@ -235,7 +235,15 @@ def _render_file_rows(files: list[tuple[str, int]], total: int) -> list[str]:
 
 def render_markdown(rows: list[tuple[str, int, int]],
                     files: list[tuple[str, int]] | None = None) -> str:
-    """Return the pull request comment body for validated rows."""
+    """Return the pull request comment body for validated rows.
+
+    validate_report rejects a limit below 1. This function checks again
+    because a caller can pass rows that skipped validation, and each limit
+    divides the byte count for the percent column.
+    """
+    for name, _size, limit in rows:
+        if limit <= 0:
+            raise ValueError(f"{name} limit must be positive, got {limit}")
     lines = [
         COMMENT_MARKER,
         "## Policy size report",

@@ -27,7 +27,9 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   validates such a report and prints the pull request comment body. The
   body shows bytes, limit, headroom, percent used, and the directive.
   The renderer rejects a report whose limits differ from the checker
-  limits.
+  limits. `render_markdown` also rejects a limit below 1 before the
+  percent division. A caller that skips validation gets a `ValueError`
+  instead of a `ZeroDivisionError`.
 - The report ranks up to 10 assembled policy files by size in
   descending order. Each row states the file share of the assembled
   total. A failure on the assembled limit prints the same ranking.
@@ -44,8 +46,10 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   keeps its limit check and behavior.
 - `hooks/workflow-scripts.txt` allows the two new checker forms.
 - Add `tests/test_policy_size_combined.py`,
-  `tests/test_policy_size_report_wiring.py`, and
-  `tests/test_policy_size_top_files.py`.
+  `tests/test_policy_size_report_wiring.py`,
+  `tests/test_policy_size_top_files.py`,
+  `tests/test_policy_size_report_hardening.py`, and
+  `tests/test_policy_size_render_divisor.py`.
 - `scripts/trusted_gh.py` sends four more write shapes over REST. Sessions
   that block GitHub GraphQL cannot run the matching `gh` commands.
   - `run pr create --draft --title <text> --body-file <draft> [--base <b>]`
