@@ -200,8 +200,10 @@ class BackfillFixture(unittest.TestCase):
         cls.write_shared_manifest()
         run_git(cls.template, "add", "--all")
         run_git(cls.template, "commit", "--quiet", "-m", "first")
-        cls.first_shared = json.loads(
-            (cls.template / "shared-files.json").read_text(encoding="utf-8"))
+        # The class keeps the manifest as immutable text. Each test parses its
+        # own dict, so no test can change what another test compares against.
+        cls.first_shared_text = (
+            cls.template / "shared-files.json").read_text(encoding="utf-8")
         write_changelog(cls.template, SECOND_VERSION)
         (cls.template / "AGENTS.md").write_text("# Policy two\n", encoding="utf-8")
         (cls.template / sync.SHARED_FILES[0]).write_text(
@@ -227,6 +229,7 @@ class BackfillFixture(unittest.TestCase):
         self.addCleanup(self.tmp.cleanup)
         self.root = Path(self.tmp.name) / "repo"
         shutil.copytree(self.template, self.root, symlinks=True)
+        self.first_shared = json.loads(self.first_shared_text)
 
 
 class BackfillIndexTest(BackfillFixture):

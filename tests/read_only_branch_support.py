@@ -30,8 +30,9 @@ COPIED_SCRIPTS = (
 )
 
 
-# One test process builds many fixtures. The copied scripts and the inherited
-# environment stay the same for the whole process, so each is read once.
+# Intentional process-wide cache. One test process builds many fixtures, and
+# the checked-out scripts do not change during a run. The cached value is an
+# immutable tuple of bytes, so no fixture can alter what another one copies.
 @functools.cache
 def copied_script_bytes() -> tuple[tuple[str, bytes], ...]:
     """Return each copied script name with its bytes from this checkout."""
@@ -39,11 +40,14 @@ def copied_script_bytes() -> tuple[tuple[str, bytes], ...]:
                  for name in COPIED_SCRIPTS)
 
 
-@functools.cache
-def inherited_environment() -> tuple[tuple[str, str], ...]:
-    """Return the process environment without Git and branch variables."""
-    return tuple((key, value) for key, value in os.environ.items()
-                 if not key.startswith("GIT_") and key != "GITHUB_HEAD_REF")
+def inherited_environment() -> dict[str, str]:
+    """Return a new copy of the process environment without Git and branch variables.
+
+    No cache. os.environ is mutable process state. A test can patch it before
+    it builds a fixture, and each fixture reads the environment at that time.
+    """
+    return {key: value for key, value in os.environ.items()
+            if not key.startswith("GIT_") and key != "GITHUB_HEAD_REF"}
 
 
 class RepositoryFixture:
@@ -66,7 +70,7 @@ class RepositoryFixture:
             (self.root / "scripts" / name).write_bytes(content)
         self.global_config = self.temp / "global.config"
         self.global_config.write_text("", encoding="utf-8")
-        self.environment = dict(inherited_environment())
+        self.environment = inherited_environment()
         self.environment.update({
             "CLAUDE_PROJECT_DIR": str(self.root),
             "GIT_CONFIG_NOSYSTEM": "1",

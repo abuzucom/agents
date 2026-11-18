@@ -62,14 +62,15 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
     classes over one shared Git history fixture.
 - Remove repeated setup work from the same tests. Every hook launch
   stays the same.
-  - `tests/read_only_branch_support.py` reads the copied scripts and
-    filters the inherited environment once per process. Each fixture
-    copies the cached results.
+  - `tests/read_only_branch_support.py` reads the copied scripts once
+    per process into an immutable cache marked intentional. Each fixture
+    reads `os.environ` at creation, because a test can patch it.
   - The invalid override checks and the override branch check reuse one
     fixture per branch. Each case rewrites the override file before the
     hook reads it.
   - Each backfill class builds its two-commit history once. Each test
-    copies that tree. The history took six child processes per test.
+    copies that tree and parses its own shared manifest dict. The
+    history took six child processes per test.
   - `tests/test_trusted_gh_api_read_gate.py` reads the wrapper script
     once per module.
 - Give each touched test class one responsibility.
