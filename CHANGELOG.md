@@ -50,6 +50,10 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   the GraphQL reason, the network paragraph says "every client", and two
   repeated sentences leave the comment section. The assembled policy
   holds 65506 bytes.
+- `docs/pr-security-review.md` and one older `CHANGELOG.md` line pass the
+  prose analyzer. `scripts/check_agent_prose_gate.py` scans both files on
+  every agent-attributed pull request. The 8 earlier findings failed that
+  gate for every such pull request. The wording keeps each fact.
 - Document the read-only API allow in `AGENTS.md` Rule 16 and its exact
   conditions in `README.md`. Document the REST issue forms in
   `docs/agent-policy/github.md` and `README.md`. The assembled policy stays
@@ -327,7 +331,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   local path, bare or quoted. Every workflow file counts, and a
   commented-out call does not.
   The Markdown CI column shows `local` for a repository without a remote
-  reference. The `reference` and `pinned` fields keep their meaning.
+  reference. The `reference` and `pinned` fields keep the same meaning.
 - Add `tests/test_report_source_repository.py` for the source repository
   row.
 

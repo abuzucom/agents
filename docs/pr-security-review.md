@@ -13,25 +13,27 @@ run head, and calls foucault's `security-review.yml`. The review loads
 the configured provider, posts a fenced report, and publishes a
 `security-review` check run.
 
-Both the reusable workflow and `audit_ref` are pinned to foucault commit
+The caller pins both the reusable workflow and `audit_ref` to foucault commit
 `11e55cd691e9a2be086a4fb9378f490d4121e11c`, release 3.7.13. Keeping one
 revision for both means the policy and its runner never diverge. Change the
 pin deliberately, and record the change in `CHANGELOG.md`.
 
 `ci/build_pr_case.py`, `ci/run_model_command.py`, `ci/call_model.py`, and
-`ci/model_providers.json` are copied from that same foucault revision and run
-from this repository's checkout. Foucault supplies only `AUDIT.md` at
+`ci/model_providers.json` come from that same foucault revision and run from
+this repository's checkout. Foucault supplies only `AUDIT.md` at
 runtime. `tests/test_review_adapter_portable.py` comes from the same revision
 and covers the copied scripts.
 
 `scripts/check_pr_review_response.py` is also copied from that revision. The
 reusable workflow's "Validate report structure" step runs it from the
-caller's checkout (not from the `.foucault` checkout that holds `AUDIT.md`),
-so it must live in this repository's own `scripts/` directory. Foucault's own
-`docs/pr-security-review.md` omits this file from its adopter checklist;
-flagged upstream rather than assumed away.
+caller's checkout (not from the `.foucault` checkout that holds `AUDIT.md`).
+The script therefore lives in this repository's own `scripts/` directory.
+Foucault's own `docs/pr-security-review.md` omits this file from its adopter
+checklist. This repository flagged the gap upstream instead of assuming it
+away.
 
-`fail_on_block: true`, so a `BLOCK` or `NEEDS-HUMAN` verdict fails the check.
+The caller sets `fail_on_block: true`. A `BLOCK` or `NEEDS-HUMAN` verdict
+therefore fails the check.
 
 A pull request from a fork receives an explicit skip result and no provider
 secret.
@@ -63,8 +65,8 @@ together. Provider endpoints stay allowlisted in the adapter.
 ## Adopter record filed upstream
 
 Foucault's `adopters/README.md` asks each adopter to add `adopters/<repo>.md`
-in `abuzucom/foucault` recording the pinned revision and whether the reusable
-workflow is wired. That record is merged as `adopters/agents.md` via
-`abuzucom/foucault#27`, stating: adopter `abuzucom/agents`, `AUDIT.md` pinned
-at `62851df1ef177593adbb9e06b223f5a6dce66fc0`, the reusable workflow wired at
-the same commit, and no customization of `AUDIT.md`.
+in `abuzucom/foucault` recording the pinned revision and the reusable workflow
+wiring. `abuzucom/foucault#27` merged that record as `adopters/agents.md`. The
+record names adopter `abuzucom/agents`, `AUDIT.md` pinned at
+`62851df1ef177593adbb9e06b223f5a6dce66fc0`, the reusable workflow wired at the
+same commit, and no customization of `AUDIT.md`.

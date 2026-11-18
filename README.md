@@ -1,4 +1,4 @@
-# AGENTS.md template
+# AGENTS
 
 Instruction conventions for ABUZUCOM projects. Copy this template into a
 repository. Adapt it to verified project facts.
