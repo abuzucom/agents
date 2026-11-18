@@ -85,7 +85,11 @@ API_METHOD_OPTIONS = frozenset(("-X", "--method"))
 API_READ_VALUE_OPTIONS = frozenset(("--jq", "-q"))
 API_READ_FLAGS = frozenset(("--paginate", "--slurp", "-i", "--include", "--silent"))
 API_GRAPHQL_PATH = "graphql"
-API_PATH_SCHEME = re.compile(r"\A[A-Za-z][A-Za-z0-9+.-]*:")
+# A read names plain REST path segments and an optional plain query. A
+# segment cannot be empty, "." or "..", and no character can percent-encode,
+# so no spelling of the path can reach the GraphQL endpoint.
+API_PATH_SEGMENT = re.compile(r"\A[A-Za-z0-9_-][A-Za-z0-9._-]*\Z")
+API_QUERY = re.compile(r"\A[A-Za-z0-9._~=&,+-]*\Z")
 SHELL_OPERATORS = (";", "&", "&&", "|", "||", "(", ")")
 OPERATOR_CHARACTERS = frozenset(bash_parser.PUNCTUATION_CHARS)
 CHAIN_OPERATOR = "&&"
@@ -520,6 +524,17 @@ def _api_read_path(arguments: tuple) -> str:
     return paths[0] if len(paths) == 1 else ""
 
 
+def _api_read_path_safe(path: str) -> bool:
+    """Return whether a REST path holds plain segments, a plain query, and no GraphQL target."""
+    route, _separator, query = path.partition("?")
+    segments = route.removeprefix("/").split("/")
+    if not all(API_PATH_SEGMENT.fullmatch(segment) for segment in segments):
+        return False
+    if segments[0].casefold() == API_GRAPHQL_PATH:
+        return False
+    return bool(API_QUERY.fullmatch(query))
+
+
 def _trusted_api_read_accepted(arguments: tuple, project_dir: str) -> bool:
     """Return whether a wrapper call is one read-only `run api` GET request.
 
@@ -532,8 +547,7 @@ def _trusted_api_read_accepted(arguments: tuple, project_dir: str) -> bool:
     if decision == DENY:
         return False
     path = _api_read_path(arguments[2:])
-    return (bool(path) and path.casefold() != API_GRAPHQL_PATH
-            and not API_PATH_SCHEME.match(path))
+    return bool(path) and _api_read_path_safe(path)
 
 
 def _python_verdict(tokens: list, project_dir: str) -> tuple:

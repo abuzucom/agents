@@ -131,8 +131,8 @@ without a prompt when every condition holds:
 - Every `-X` or `--method` value is GET.
 - No `-f`, `-F`, `--field`, `--raw-field`, `--input`, `-H`, `--header`,
   or `--hostname` option appears.
-- The path does not start with `-`, carries no scheme, and is not
-  `graphql`.
+- The path holds plain segments and an optional plain query. Its first
+  segment is not `graphql`.
 - Other options come from `--jq`, `-q`, `--paginate`, `--slurp`, `-i`,
   `--include`, and `--silent`.
 

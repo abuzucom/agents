@@ -14,7 +14,14 @@ into the entry. Dates never decrease. Ask the active human when a date is in
 doubt.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.24.0] (2026-11-18)
+## [2.24.1] (2026-11-18)
+
+### Fixed
+- The read-only `run api` allow admits only plain REST path segments and a
+  plain query. A path such as `graphql?query=x`, `graphql/`, `./graphql`,
+  or `%67raphql` no longer passes without a prompt. Add
+  `tests/test_trusted_gh_api_read_paths.py` covering these paths and the
+  option scan.
 
 ### Added
 - `scripts/trusted_gh.py` sends `run issue edit <n> --body-file
