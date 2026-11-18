@@ -62,7 +62,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Add `tests/test_release_check_tag.py`, `tests/test_release_notes.py`,
   `tests/test_release_assets.py`, `tests/test_release_draft_lookup.py`,
   `tests/test_release_hardening.py`, `tests/test_tag_push_gate.py`,
-  `tests/test_release_bundle_signer.py`, and
+  `tests/test_release_bundle_signer.py`,
+  `tests/test_tag_read_long_options.py`, and
   `tests/test_release_workflow_wiring.py`. The wiring test compares the
   release job permissions with `RELEASE_JOB_PERMISSIONS`.
 - `scripts/check_policy_size.py` fails when the assembled policy exceeds
