@@ -104,6 +104,13 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   or `%67raphql` no longer passes without a prompt. Add
   `tests/test_trusted_gh_api_read_paths.py` covering these paths and the
   option scan.
+- The REST `pr create` form applies one base rule to every base. An
+  explicit `--base master`, `--base HEAD`, or empty `--base` exits 2. Only
+  an absent `--base` takes the primary branch default.
+- The wrapper reads `hooks/primary-branch.txt` through one descriptor that
+  follows no link and never blocks on a FIFO. A path swap after the open
+  cannot change the bytes. Add `tests/test_trusted_gh_pr_base_validation.py`
+  covering these cases and a create command without `--body-file`.
 
 ## [2.23.3] (2026-11-17)
 

@@ -308,21 +308,41 @@ def primary_branch_name(root: Path) -> str:
     The file must be a regular non-link file holding one ASCII line that
     names a valid branch other than master or HEAD.
     """
-    path = Path(root) / PRIMARY_BRANCH_FILE
-    try:
-        details = path.lstat()
-    except FileNotFoundError:
+    content = _read_primary_branch_bytes(Path(root) / PRIMARY_BRANCH_FILE)
+    if content is None:
         return DEFAULT_PRIMARY_BRANCH
-    if not stat.S_ISREG(details.st_mode) or details.st_size > MAX_PRIMARY_BRANCH_BYTES:
-        raise ValueError(f"{PRIMARY_BRANCH_FILE.as_posix()} must be a small regular file")
-    content = path.read_bytes()
     lines = content.splitlines()
     name = lines[0].decode("ascii", errors="replace") if len(lines) == 1 else ""
-    if (not content.isascii() or name in REJECTED_PRIMARY_BRANCHES
-            or not is_valid_branch_name(name)):
+    if not content.isascii() or not is_allowed_base_branch(name):
         raise ValueError(f"{PRIMARY_BRANCH_FILE.as_posix()} must name one valid branch "
                          "other than master or HEAD")
     return name
+
+
+def is_allowed_base_branch(name: str) -> bool:
+    """Return whether a name can serve as a primary or pull request base branch."""
+    return name not in REJECTED_PRIMARY_BRANCHES and is_valid_branch_name(name)
+
+
+def _read_primary_branch_bytes(path: Path) -> bytes | None:
+    """Return the override bytes read through one descriptor, or None when absent.
+
+    The open never follows a link and never blocks on a FIFO. The descriptor
+    is checked and read directly, so a path swapped after the open cannot
+    change the bytes.
+    """
+    try:
+        descriptor = os.open(path, DRAFT_READ_FLAGS)
+    except FileNotFoundError:
+        return None
+    except OSError as error:
+        raise ValueError(f"{PRIMARY_BRANCH_FILE.as_posix()} cannot be opened as a regular "
+                         f"file ({type(error).__name__})") from error
+    with os.fdopen(descriptor, "rb") as handle:
+        details = os.fstat(handle.fileno())
+        if not stat.S_ISREG(details.st_mode) or details.st_size > MAX_PRIMARY_BRANCH_BYTES:
+            raise ValueError(f"{PRIMARY_BRANCH_FILE.as_posix()} must be a small regular file")
+        return handle.read(MAX_PRIMARY_BRANCH_BYTES + 1)
 
 
 def _has_repository_option(arguments: list[str]) -> bool:
@@ -808,14 +828,21 @@ def _pull_create_options(options: list[str]) -> dict | None:
 
 
 def _pull_base(repo_root, options: dict) -> str:
-    """Return the validated base branch, defaulting to the primary branch."""
-    try:
-        base = options.get(PR_BASE_OPTION) or primary_branch_name(
-            _find_git_entry(Path(repo_root)).parent)
-    except (OSError, ValueError) as error:
-        raise RestWriteError(str(error)) from error
-    if not is_valid_branch_name(base):
-        raise RestWriteError("pull request base must name one valid branch")
+    """Return the validated base branch, defaulting to the primary branch.
+
+    Only an absent `--base` takes the default. An explicit value, empty
+    included, passes the same rules as the primary branch.
+    """
+    if PR_BASE_OPTION in options:
+        base = options[PR_BASE_OPTION]
+    else:
+        try:
+            base = primary_branch_name(_find_git_entry(Path(repo_root)).parent)
+        except (OSError, ValueError) as error:
+            raise RestWriteError(str(error)) from error
+    if not is_allowed_base_branch(base):
+        raise RestWriteError("pull request base must name one valid branch "
+                             "other than master or HEAD")
     return base
 
 
