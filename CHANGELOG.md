@@ -14,7 +14,7 @@ into the entry. Dates never decrease. Ask the active human when a date is in
 doubt.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.24.1] (2026-11-18)
+## [2.24.2] (2026-11-18)
 
 ### Added
 - `scripts/trusted_gh.py` sends `run issue edit <n> --body-file
@@ -31,6 +31,10 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `tests/test_trusted_gh_api_read_gate.py`.
 
 ### Changed
+- `docs/pr-security-review.md` and one older `CHANGELOG.md` line pass the
+  prose analyzer. `scripts/check_agent_prose_gate.py` scans both files on
+  every agent-attributed pull request. The 8 earlier findings failed that
+  gate for every such pull request. The wording keeps each fact.
 - Document the read-only API allow in `AGENTS.md` Rule 16 and its exact
   conditions in `README.md`. Document the REST issue forms in
   `docs/agent-policy/github.md` and `README.md`. The assembled policy stays
@@ -308,7 +312,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   local path, bare or quoted. Every workflow file counts, and a
   commented-out call does not.
   The Markdown CI column shows `local` for a repository without a remote
-  reference. The `reference` and `pinned` fields keep their meaning.
+  reference. The `reference` and `pinned` fields keep the same meaning.
 - Add `tests/test_report_source_repository.py` for the source repository
   row.
 
