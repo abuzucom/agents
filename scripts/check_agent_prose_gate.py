@@ -72,6 +72,29 @@ ANTI_BYPASS_NOTICE = (
     "Co-authored-by trailer to evade this check"
 )
 
+# A pull request body has no trailer paragraph. The prose analyzers read a
+# required disclosure line as a sentence. "Assisted-by: Claude Opus 5.5"
+# matches the colon clause pattern because "Opus" ends in "s". Only the
+# disclosure key and its colon are blanked. The value stays in place, so the
+# analyzers still check every word after the key.
+BOLD_MARKER = "*"
+
+
+def _mask_disclosure_key(line: str) -> str:
+    """Replace a disclosure key prefix with spaces and keep the value."""
+    if not _extract_pr_disclosures(line):
+        return line
+    value = line[line.index(":") + 1:].lstrip(BOLD_MARKER)
+    return " " * (len(line) - len(value)) + value
+
+
+def mask_disclosure_lines(body: str) -> str:
+    """Blank each disclosure key and keep every value, line, and column.
+
+    Spaces keep the line and column numbers in every finding accurate.
+    """
+    return "\n".join(_mask_disclosure_key(line) for line in body.split("\n"))
+
 
 def is_agent_attributed(commits: list[dict], pr_body: str) -> bool:
     """Return whether any commit or the pull request description discloses an agent."""
@@ -101,7 +124,9 @@ def find_pr_findings(title: str, body: str, author: str, entries: list) -> list[
     findings.extend(
         find_prose_violations(mask_type_prefix(title), "pull_request.title", entries=entries)
     )
-    findings.extend(find_prose_violations(body, "pull_request.body", entries=entries))
+    findings.extend(find_prose_violations(
+        mask_disclosure_lines(body), "pull_request.body", entries=entries,
+    ))
     return findings
 
 
