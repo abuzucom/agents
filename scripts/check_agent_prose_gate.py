@@ -84,10 +84,8 @@ def _mask_disclosure_key(line: str) -> str:
     """Replace a disclosure key prefix with spaces and keep the value."""
     if not _extract_pr_disclosures(line):
         return line
-    key_end = line.index(":") + 1
-    while key_end < len(line) and line[key_end] == BOLD_MARKER:
-        key_end += 1
-    return " " * key_end + line[key_end:]
+    value = line[line.index(":") + 1:].lstrip(BOLD_MARKER)
+    return " " * (len(line) - len(value)) + value
 
 
 def mask_disclosure_lines(body: str) -> str:
