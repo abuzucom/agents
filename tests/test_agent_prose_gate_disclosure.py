@@ -83,6 +83,30 @@ class DisclosureExemptionTest(unittest.TestCase):
             for item in findings
         ))
 
+    def test_bold_disclosure_value_findings_keep_their_column(self):
+        for line in ("**Assisted-by:** Claude they wrote this summary",
+                     "- **Assisted-by:** Claude they wrote this summary"):
+            with self.subTest(line=line):
+                findings = find_body_findings(f"{line}\n")
+                column = line.index("they") + 1
+                self.assertTrue(any(
+                    f"pull_request.body:1:{column}:" in item
+                    and "personal pronoun" in item
+                    for item in findings
+                ), findings)
+
+    def test_masking_keeps_the_line_width_and_value_position(self):
+        checker = load_checker()
+        for line in ("**Assisted-by:** Claude Opus 5.5",
+                     "Assisted-by: Claude Opus 5.5",
+                     "- **Co-authored-by:** Claude"):
+            with self.subTest(line=line):
+                masked = checker.mask_disclosure_lines(line)
+                self.assertEqual(len(masked), len(line))
+                value_start = line.index("Claude")
+                self.assertEqual(masked[value_start:], line[value_start:])
+                self.assertEqual(masked[:value_start].strip(), "")
+
     def test_other_lines_keep_their_findings_and_line_numbers(self):
         body = f"{PLAIN_DISCLOSURE}\n\nThey wrote this summary.\n"
         findings = find_body_findings(body)
