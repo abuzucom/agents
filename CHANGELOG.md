@@ -14,7 +14,7 @@ into the entry. Dates never decrease. Ask the active human when a date is in
 doubt.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.23.5] (2026-11-18)
+## [2.23.7] (2026-11-18)
 
 ### Changed
 - `requirements-checkers.txt` pins PyYAML 6.0.3 by sha256 hash. The
@@ -35,6 +35,29 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `.pre-commit-config.yaml` also read `hooks/*.py`.
 - Add `tests/test_scan_and_hash_wiring.py` and
   `tests/test_trusted_install_forms.py` covering these changes.
+
+### Fixed
+- `check_commit_attribution.py` accepts a GitHub-signed `web-flow`
+  committer. The committer must be `noreply@github.com`, resolve to the
+  `web-flow` account and its fixed id, and carry GitHub's signature.
+  GitHub signs web merges, squashes, web edits, and Dependabot commits
+  with one key. The exemption covers only the committer. The author
+  keeps the strict numbered noreply rule. A web squash kept its agent
+  trailers and failed `pr-authorship` and `immutable-compliance` once it
+  entered another pull request's range.
+- Add `tests/test_github_web_committer.py` covering each required
+  marker.
+- AGENTS.md Rule 14 states the `web-flow` committer exception.
+- The `web-flow` exemption verifies the signature against GitHub's
+  pinned web-flow public key `B5690EEEBB952194`. A standard library
+  OpenPGP v4 RSA check hashes the payload GitHub reports. The issuer
+  key ID inside a signature is signer-supplied. The issuer check
+  alone proves nothing. GitHub must also report the verification
+  reason `valid`. A commit signed under any other key still fails.
+- Add `tests/test_signature_issuer_packets.py` covering each packet and
+  subpacket length form, the fingerprint issuer, and malformed input.
+- Add `tests/test_web_flow_signature_verification.py` covering a forged
+  issuer, altered signed fields, altered payloads, and malformed values.
 
 ## [2.23.3] (2026-11-17)
 
