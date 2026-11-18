@@ -36,6 +36,12 @@ MAX_RANKED_FILES = 10
 # Bounds keep a hostile report from producing absurd comment text.
 MAX_REPORT_FILE_BYTES = 4096
 MAX_REPORTED_BYTES = 16 * 1024 * 1024
+# A valid report nests three levels: the report object, a list, and an entry
+# object. json.loads recurses once per level, and its depth limit depends on
+# the interpreter. The renderer rejects deeper input before it parses.
+MAX_REPORT_NESTING_DEPTH = 3
+JSON_OPENERS = frozenset("[{")
+JSON_CLOSERS = frozenset("]}")
 PERCENT = 100
 COMMENT_MARKER = "<!-- policy-size-report -->"
 # Low headroom tempts an agent to cut policy text on its own. The directive
@@ -283,6 +289,35 @@ def _print_report_json(path: Path) -> int:
     return 0
 
 
+def check_report_nesting(text: str) -> None:
+    """Raise ValueError when JSON text nests deeper than a valid report.
+
+    One iterative pass tracks string state, so brackets inside strings and
+    escaped quotes do not count.
+    """
+    depth = 0
+    in_string = False
+    escaped = False
+    for character in text:
+        if in_string:
+            if escaped:
+                escaped = False
+            elif character == "\\":
+                escaped = True
+            elif character == '"':
+                in_string = False
+            continue
+        if character == '"':
+            in_string = True
+        elif character in JSON_OPENERS:
+            depth += 1
+            if depth > MAX_REPORT_NESTING_DEPTH:
+                raise ValueError(
+                    f"report nesting exceeds {MAX_REPORT_NESTING_DEPTH} levels")
+        elif character in JSON_CLOSERS:
+            depth -= 1
+
+
 def _print_rendered_report(report_path: Path) -> int:
     """Print the comment body for an untrusted report file."""
     try:
@@ -290,7 +325,9 @@ def _print_rendered_report(report_path: Path) -> int:
             data = handle.read(MAX_REPORT_FILE_BYTES + 1)
         if len(data) > MAX_REPORT_FILE_BYTES:
             raise ValueError("report file exceeds the size limit")
-        report = json.loads(data.decode("ascii"))
+        text = data.decode("ascii")
+        check_report_nesting(text)
+        report = json.loads(text)
         rows = validate_report(report)
         files = validate_files(report)
     except (ImportError, OSError, ValueError) as error:

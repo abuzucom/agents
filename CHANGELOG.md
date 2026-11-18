@@ -30,7 +30,9 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   limits. `render_markdown` also rejects a limit below 1 before the
   percent division. A caller that skips validation gets a `ValueError`
   instead of a `ZeroDivisionError`. The sync loader and the comment step
-  carry no checks that control flow cannot reach.
+  carry no checks that control flow cannot reach. The renderer rejects
+  report text that nests deeper than 3 levels before `json.loads`
+  recurses into it. One iterative pass skips brackets inside strings.
 - The report ranks up to 10 assembled policy files by size in
   descending order. Each row states the file share of the assembled
   total. A failure on the assembled limit prints the same ranking.
@@ -49,8 +51,9 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Add `tests/test_policy_size_combined.py`,
   `tests/test_policy_size_report_wiring.py`,
   `tests/test_policy_size_top_files.py`,
-  `tests/test_policy_size_report_hardening.py`, and
-  `tests/test_policy_size_render_divisor.py`.
+  `tests/test_policy_size_report_hardening.py`,
+  `tests/test_policy_size_render_divisor.py`, and
+  `tests/test_policy_size_report_nesting.py`.
 - `scripts/trusted_gh.py` sends four more write shapes over REST. Sessions
   that block GitHub GraphQL cannot run the matching `gh` commands.
   - `run pr create --draft --title <text> --body-file <draft> [--base <b>]`
