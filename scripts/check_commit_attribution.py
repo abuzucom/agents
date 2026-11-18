@@ -35,6 +35,11 @@ MAX_REPORTED_MODEL = 80
 MAX_COMMITS = 200
 MAX_MESSAGE_BYTES = 256 * 1024
 SHORT_SHA_LENGTH = 12
+# GitHub commits web merges and squashes as this account and signs every
+# one. The id is GitHub's fixed web-flow account id.
+GITHUB_WEB_COMMITTER_EMAIL = "noreply@github.com"
+GITHUB_WEB_COMMITTER_LOGIN = "web-flow"
+GITHUB_WEB_COMMITTER_ID = 19864447
 GIT_RANGE_TIMEOUT_SECONDS = 60
 GIT_COMMIT_TIMEOUT_SECONDS = 30
 GITHUB_API_TIMEOUT_SECONDS = 30
@@ -138,12 +143,32 @@ def _commit_api(repository: str, sha: str, repo_root: str) -> dict:
     return document
 
 
+def _is_github_web_commit(commit: dict, identity: dict) -> bool:
+    """Return whether GitHub itself committed and signed `commit`.
+
+    A web merge or squash names GitHub as committer and keeps the merged
+    commits' trailers. The author still carries the contributor identity.
+    Every marker must match, and GitHub's signature must verify, so a pushed
+    commit that only claims this committer still fails.
+    """
+    details = commit.get("commit", {})
+    raw = details.get("committer", {}).get("email", "")
+    verification = details.get("verification")
+    return (raw == GITHUB_WEB_COMMITTER_EMAIL
+            and identity.get("login") == GITHUB_WEB_COMMITTER_LOGIN
+            and identity.get("id") == GITHUB_WEB_COMMITTER_ID
+            and isinstance(verification, dict)
+            and verification.get("verified") is True)
+
+
 def _identity_violation(role: str, commit: dict, identity: dict | None,
                         require_noreply: bool = False) -> str | None:
     """Return a bounded identity violation for one commit field."""
     sha = commit["sha"][:SHORT_SHA_LENGTH]
     if not isinstance(identity, dict) or not identity.get("login"):
         return f"{sha}: GitHub could not resolve the {role} identity"
+    if role == "committer" and _is_github_web_commit(commit, identity):
+        return None
     raw = commit.get("commit", {}).get(role, {}).get("email", "")
     login = identity["login"]
     match = NOREPLY_PATTERN.fullmatch(raw)

@@ -14,7 +14,7 @@ into the entry. Dates never decrease. Ask the active human when a date is in
 doubt.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.23.5] (2026-11-18)
+## [2.23.6] (2026-11-18)
 
 ### Changed
 - `requirements-checkers.txt` pins PyYAML 6.0.3 by sha256 hash. The
@@ -35,6 +35,16 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `.pre-commit-config.yaml` also read `hooks/*.py`.
 - Add `tests/test_scan_and_hash_wiring.py` and
   `tests/test_trusted_install_forms.py` covering these changes.
+
+### Fixed
+- `check_commit_attribution.py` accepts GitHub as the committer of a web
+  merge or squash. The committer must be `noreply@github.com`, resolve to
+  the `web-flow` account and its fixed id, and carry GitHub's verified
+  signature. The author keeps the strict numbered noreply rule. A
+  squash kept its agent trailers and failed `pr-authorship` and
+  `immutable-compliance` once it entered another pull request's range.
+- Add `tests/test_github_web_committer.py` covering each required
+  marker.
 
 ## [2.23.3] (2026-11-17)
 
