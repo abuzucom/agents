@@ -14,7 +14,7 @@ into the entry. Dates never decrease. Ask the active human when a date is in
 doubt.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.26.0] (2026-11-18)
+## [2.26.1] (2026-11-18)
 
 ### Added
 - `scripts/check_policy_size.py` fails when the assembled policy exceeds
@@ -118,6 +118,16 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `tests/test_trusted_install_forms.py` covering these changes.
 
 ### Fixed
+- `scripts/check_agent_prose_gate.py` blanks the key and colon of each
+  disclosure line in the pull request body. The colon clause pattern
+  read `Assisted-by: Claude Opus 5.5` as a sentence because "Opus" ends
+  in "s". The required disclosure failed the gate it switches on. The
+  value stays in place. The analyzers still check every word after the
+  key. Spaces keep every finding line and column. The disclosure still
+  marks the pull request as agent work.
+- Add `tests/test_agent_prose_gate_disclosure.py`. The tests also pin
+  that `Claude-Session:` link lines raise no finding and mark no agent
+  attribution. The gate already accepted those lines.
 - `check_commit_attribution.py` accepts a GitHub-signed `web-flow`
   committer. The committer must be `noreply@github.com`, resolve to the
   `web-flow` account and its fixed id, and carry GitHub's signature.
