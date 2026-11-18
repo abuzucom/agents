@@ -45,6 +45,9 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `immutable-compliance` once it entered another pull request's range.
 - Add `tests/test_github_web_committer.py` covering each required
   marker.
+- AGENTS.md Rule 14 states the exception. A web merge or squash may name
+  GitHub as committer only with the `web-flow` account and a verified
+  GitHub signature. The author must still resolve to the contributor.
 
 ## [2.23.3] (2026-11-17)
 
