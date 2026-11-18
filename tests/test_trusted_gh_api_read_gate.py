@@ -18,6 +18,8 @@ TIMEOUT_SECONDS = 15
 SHA_HEX_LENGTH = 40
 FEATURE_BRANCH = "feat/example-change"
 SHELL_TOOL_NAMES = ("Bash", "PowerShell", "Cmd")
+# Every hook fixture copies the same wrapper. One read serves every test.
+TRUSTED_GH_BYTES = (REPO_ROOT / "scripts" / "trusted_gh.py").read_bytes()
 
 ALLOWED_READS = (
     "api user",
@@ -123,8 +125,12 @@ class ApiReadVerdictTest(unittest.TestCase):
         self.assertNotEqual(decision, "allow")
 
 
-class ApiReadHookTest(unittest.TestCase):
-    """The registered branch hook applies the allow to every shell tool and branch state."""
+class ApiReadHookCase(unittest.TestCase):
+    """Share the hook fixture across the shard classes.
+
+    Each class stays small because the hook coverage runner gives every test
+    class one shard with a fixed time limit, and every case launches the hook.
+    """
 
     def setUp(self):
         temporary = tempfile.TemporaryDirectory()
@@ -138,8 +144,7 @@ class ApiReadHookTest(unittest.TestCase):
             '[remote "origin"]\nurl = https://github.com/example-owner/example-repo.git\n',
             encoding="utf-8")
         (self.root / "scripts").mkdir()
-        (self.root / "scripts" / "trusted_gh.py").write_bytes(
-            (REPO_ROOT / "scripts" / "trusted_gh.py").read_bytes())
+        (self.root / "scripts" / "trusted_gh.py").write_bytes(TRUSTED_GH_BYTES)
         self.environment = {key: value for key, value in os.environ.items()
                             if not key.startswith("GIT_")}
         self.environment.pop("GITHUB_HEAD_REF", None)
@@ -169,6 +174,10 @@ class ApiReadHookTest(unittest.TestCase):
             return "allow"
         return json.loads(result.stdout)["hookSpecificOutput"]["permissionDecision"]
 
+
+class ApiReadHookTest(ApiReadHookCase):
+    """The registered branch hook applies the allow to every shell tool and branch state."""
+
     def test_get_passes_without_prompt_for_every_shell_tool_and_branch_state(self):
         for branch in (FEATURE_BRANCH, "main", "HEAD"):
             self.set_head(branch)
@@ -176,6 +185,10 @@ class ApiReadHookTest(unittest.TestCase):
                 with self.subTest(branch=branch, tool=tool_name):
                     result = self.run_hook(tool_name, WRAPPER + "api repos/OWNER/REPO/issues/5")
                     self.assertEqual(self.decision(result), "allow")
+
+
+class ApiNonGetHookTest(ApiReadHookCase):
+    """Wrapper calls other than a plain GET keep their verdict."""
 
     def test_non_get_wrapper_calls_keep_their_verdict_for_every_shell_tool(self):
         self.set_head(FEATURE_BRANCH)
@@ -195,6 +208,10 @@ class ApiReadHookTest(unittest.TestCase):
                 with self.subTest(arguments=arguments, tool=tool_name):
                     result = self.run_hook(tool_name, WRAPPER + arguments)
                     self.assertEqual(self.decision(result), expected)
+
+
+class ApiHeaderHookTest(ApiReadHookCase):
+    """Header, hostname, GraphQL, and full-URL requests never pass."""
 
     def test_header_and_graphql_requests_never_pass_without_prompt(self):
         self.set_head(FEATURE_BRANCH)

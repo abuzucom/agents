@@ -4,6 +4,7 @@ Each fixture owns an isolated repository, home directory, and temporary
 directory. The hook runs as a subprocess against those roots. The real
 home directory and the real checkout stay untouched.
 """
+import functools
 import json
 import os
 import subprocess
@@ -25,6 +26,22 @@ COPIED_SCRIPTS = (
 )
 
 
+# One test process builds many fixtures. The copied scripts and the inherited
+# environment stay the same for the whole process, so each is read once.
+@functools.cache
+def copied_script_bytes() -> tuple[tuple[str, bytes], ...]:
+    """Return each copied script name with its bytes from this checkout."""
+    return tuple((name, (REPO_ROOT / "scripts" / name).read_bytes())
+                 for name in COPIED_SCRIPTS)
+
+
+@functools.cache
+def inherited_environment() -> tuple[tuple[str, str], ...]:
+    """Return the process environment without Git and branch variables."""
+    return tuple((key, value) for key, value in os.environ.items()
+                 if not key.startswith("GIT_") and key != "GITHUB_HEAD_REF")
+
+
 class BranchFixture:
     """Build one repository fixture and send payloads to the installed hook."""
 
@@ -41,15 +58,11 @@ class BranchFixture:
         self.set_branch(branch)
         (self.root / "README.md").write_text("fixture\n", encoding="utf-8")
         (self.root / "scripts").mkdir()
-        for name in COPIED_SCRIPTS:
-            (self.root / "scripts" / name).write_bytes(
-                (REPO_ROOT / "scripts" / name).read_bytes())
+        for name, content in copied_script_bytes():
+            (self.root / "scripts" / name).write_bytes(content)
         self.global_config = self.temp / "global.config"
         self.global_config.write_text("", encoding="utf-8")
-        self.environment = {
-            key: value for key, value in os.environ.items()
-            if not key.startswith("GIT_") and key != "GITHUB_HEAD_REF"
-        }
+        self.environment = dict(inherited_environment())
         self.environment.update({
             "CLAUDE_PROJECT_DIR": str(self.root),
             "GIT_CONFIG_NOSYSTEM": "1",

@@ -8,6 +8,7 @@ belongs to the index logic and not to the repository contents.
 """
 import hashlib
 import json
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -49,6 +50,22 @@ def read_index(root: Path) -> dict:
     return json.loads((root / INDEX_NAME).read_text(encoding="utf-8"))
 
 
+def build_index_tree(root: Path) -> None:
+    """Write a synthetic source repository with an empty digest index."""
+    (root / "scripts").mkdir()
+    (root / "scripts" / "sync.py").write_text(
+        SYNC.read_text(encoding="utf-8"), encoding="utf-8")
+    (root / "AGENTS.md").write_text("# Policy\n", encoding="utf-8")
+    tracked = list(sync.ADOPTER_POLICY_FILES) + list(sync.SHARED_FILES)
+    for name in tracked:
+        path = root / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(f"# {name}\nbody = 1\n", encoding="utf-8")
+    write_changelog(root, FIRST_VERSION)
+    (root / INDEX_NAME).write_text(
+        json.dumps({"versions": {}}) + "\n", encoding="utf-8")
+
+
 class IndexFixture(unittest.TestCase):
     """A synthetic source repository with an empty digest index."""
 
@@ -56,18 +73,7 @@ class IndexFixture(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
         self.root = Path(self.tmp.name)
-        (self.root / "scripts").mkdir()
-        (self.root / "scripts" / "sync.py").write_text(
-            SYNC.read_text(encoding="utf-8"), encoding="utf-8")
-        (self.root / "AGENTS.md").write_text("# Policy\n", encoding="utf-8")
-        tracked = list(sync.ADOPTER_POLICY_FILES) + list(sync.SHARED_FILES)
-        for name in tracked:
-            path = self.root / name
-            path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text(f"# {name}\nbody = 1\n", encoding="utf-8")
-        write_changelog(self.root, FIRST_VERSION)
-        (self.root / INDEX_NAME).write_text(
-            json.dumps({"versions": {}}) + "\n", encoding="utf-8")
+        build_index_tree(self.root)
 
 
 class WriteIndexTest(IndexFixture):
@@ -174,24 +180,45 @@ def run_git(cwd: Path, *args) -> None:
                    capture_output=True, text=True, check=True)
 
 
-class BackfillIndexTest(IndexFixture):
-    """--backfill-digests adds an entry for every version in Git history."""
+class BackfillFixture(unittest.TestCase):
+    """A synthetic tree with two committed versions.
+
+    Building the history takes six child processes. Each class builds it once,
+    and each test copies the result. The backfill tests span two classes, so
+    each class runs in its own hook coverage shard within the time limit.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        template_directory = tempfile.TemporaryDirectory()
+        cls.addClassCleanup(template_directory.cleanup)
+        cls.template = Path(template_directory.name) / "repo"
+        cls.template.mkdir()
+        build_index_tree(cls.template)
+        run_git(cls.template, "init", "--quiet")
+        run_sync(cls.template, "--write-shared")
+        run_git(cls.template, "add", "--all")
+        run_git(cls.template, "commit", "--quiet", "-m", "first")
+        cls.first_shared = json.loads(
+            (cls.template / "shared-files.json").read_text(encoding="utf-8"))
+        write_changelog(cls.template, SECOND_VERSION)
+        (cls.template / "AGENTS.md").write_text("# Policy two\n", encoding="utf-8")
+        (cls.template / sync.SHARED_FILES[0]).write_text(
+            "# changed\nbody = 2\n", encoding="utf-8")
+        run_sync(cls.template, "--write-shared")
+        run_git(cls.template, "add", "--all")
+        run_git(cls.template, "commit", "--quiet", "-m", "second")
 
     def setUp(self):
-        super().setUp()
-        run_git(self.root, "init", "--quiet")
-        run_sync(self.root, "--write-shared")
-        run_git(self.root, "add", "--all")
-        run_git(self.root, "commit", "--quiet", "-m", "first")
-        self.first_shared = json.loads(
-            (self.root / "shared-files.json").read_text(encoding="utf-8"))
-        write_changelog(self.root, SECOND_VERSION)
-        (self.root / "AGENTS.md").write_text("# Policy two\n", encoding="utf-8")
-        (self.root / sync.SHARED_FILES[0]).write_text(
-            "# changed\nbody = 2\n", encoding="utf-8")
-        run_sync(self.root, "--write-shared")
-        run_git(self.root, "add", "--all")
-        run_git(self.root, "commit", "--quiet", "-m", "second")
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.root = Path(self.tmp.name) / "repo"
+        shutil.copytree(self.template, self.root, symlinks=True)
+
+
+class BackfillIndexTest(BackfillFixture):
+    """--backfill-digests adds an entry for every version in Git history."""
 
     def test_backfill_adds_every_committed_version(self):
         result = run_sync(self.root, "--backfill-digests")
@@ -217,6 +244,10 @@ class BackfillIndexTest(IndexFixture):
             versions[FIRST_VERSION]["shared"], self.first_shared["shared"])
         self.assertNotEqual(
             versions[SECOND_VERSION]["shared"], self.first_shared["shared"])
+
+
+class BackfillExistingIndexTest(BackfillFixture):
+    """--backfill-digests keeps existing entries and needs an index file."""
 
     def test_backfill_keeps_an_existing_entry(self):
         marker = {"policy": {"AGENTS.md": "0" * SHA256_HEX_LENGTH}, "shared": {}}

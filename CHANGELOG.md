@@ -14,7 +14,7 @@ into the entry. Dates never decrease. Ask the active human when a date is in
 doubt.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.25.0] (2026-11-18)
+## [2.25.1] (2026-11-18)
 
 ### Added
 - `scripts/trusted_gh.py` sends four more write shapes over REST. Sessions
@@ -45,6 +45,33 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `tests/test_trusted_gh_api_read_gate.py`.
 
 ### Changed
+- Split the slowest hook test classes into smaller classes. The hook
+  coverage runner gives each class one shard and a 30-second limit. A
+  slow macOS runner pushed `PrimaryBranchOverrideTest` past that limit.
+  Each new class covers part of the same input list. Every case and
+  assertion stays the same.
+  - `tests/test_primary_branch_override.py` runs the invalid override
+    cases for `develop` and `main` in separate classes.
+  - `tests/test_primary_branch_read_only.py` halves the allowed and
+    denied shell command lists for each read-only state. CMD allow and
+    deny forms and the allowed and denied tool checks run in separate
+    classes.
+  - `tests/test_trusted_gh_api_read_gate.py` runs each hook method in its
+    own class over one shared fixture.
+  - `tests/test_sync_digest_index.py` runs the six backfill tests in two
+    classes over one shared Git history fixture.
+- Remove repeated setup work from the same tests. Every hook launch
+  stays the same.
+  - `tests/read_only_branch_support.py` reads the copied scripts and
+    filters the inherited environment once per process. Each fixture
+    copies the cached results.
+  - The invalid override checks and the override branch check reuse one
+    fixture per branch. Each case rewrites the override file before the
+    hook reads it.
+  - Each backfill class builds its two-commit history once. Each test
+    copies that tree. The history took six child processes per test.
+  - `tests/test_trusted_gh_api_read_gate.py` reads the wrapper script
+    once per module.
 - `docs/agent-policy/github.md` lists all six REST write forms in one
   section. Four shorter sentences free the bytes. The comment intro drops
   the GraphQL reason, the network paragraph says "every client", and two
