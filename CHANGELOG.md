@@ -14,7 +14,7 @@ into the entry. Dates never decrease. Ask the active human when a date is in
 doubt.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.23.6] (2026-11-18)
+## [2.23.7] (2026-11-18)
 
 ### Changed
 - `requirements-checkers.txt` pins PyYAML 6.0.3 by sha256 hash. The
@@ -46,6 +46,10 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Add `tests/test_github_web_committer.py` covering each required
   marker.
 - AGENTS.md Rule 14 states the `web-flow` committer exception.
+- The `web-flow` exemption also requires the signature issuer to be
+  GitHub's web-flow key `B5690EEEBB952194`. The checker reads the
+  issuer from the signature's hashed subpackets with the standard
+  library. A commit verified under any other key still fails.
 
 ## [2.23.3] (2026-11-17)
 

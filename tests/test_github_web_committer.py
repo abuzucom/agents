@@ -17,6 +17,11 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 import check_commit_attribution as attribution
 
+FIXTURES = ROOT / "tests" / "fixtures" / "web_flow"
+# A real web-flow signature from this repository's history, and one made by
+# a throwaway key. Both are public signature data, never keys.
+GITHUB_SIGNATURE = (FIXTURES / "github_signature.asc").read_text(encoding="ascii")
+OTHER_SIGNATURE = (FIXTURES / "other_signature.asc").read_text(encoding="ascii")
 AUTHOR_ID = 1234567
 AUTHOR_EMAIL = f"{AUTHOR_ID}+octocat@users.noreply.github.com"
 WEB_FLOW = {"login": "web-flow", "id": 19864447}
@@ -31,7 +36,8 @@ def web_commit() -> dict:
         "commit": {
             "author": {"email": AUTHOR_EMAIL},
             "committer": {"email": "noreply@github.com"},
-            "verification": {"verified": True, "reason": "valid"},
+            "verification": {"verified": True, "reason": "valid",
+                             "signature": GITHUB_SIGNATURE},
         },
     }
 
@@ -62,12 +68,32 @@ class WebFlowCommitterTest(unittest.TestCase):
             "account id": lambda doc: doc["committer"].update(id=42),
             "unverified": lambda doc: doc["commit"]["verification"].update(verified=False),
             "no verification": lambda doc: doc["commit"].pop("verification"),
+            "other signer": lambda doc: doc["commit"]["verification"].update(
+                signature=OTHER_SIGNATURE),
+            "no signature": lambda doc: doc["commit"]["verification"].pop("signature"),
+            "malformed signature": lambda doc: doc["commit"]["verification"].update(
+                signature="-----BEGIN PGP SIGNATURE-----\n\nnot base64!\n"),
         }
         for name, mutate in mutations.items():
             with self.subTest(marker=name):
                 document = copy.deepcopy(web_commit())
                 mutate(document)
                 self.assertTrue(committer_violation(document))
+
+
+class SignatureIssuerTest(unittest.TestCase):
+    """The issuer key ID comes from the signature's hashed subpackets."""
+
+    def test_github_signature_issuer(self):
+        self.assertEqual(attribution.signature_issuer(GITHUB_SIGNATURE), "B5690EEEBB952194")
+
+    def test_other_signature_issuer(self):
+        self.assertEqual(attribution.signature_issuer(OTHER_SIGNATURE), "405A1684C1B51779")
+
+    def test_unreadable_signature_has_no_issuer(self):
+        for value in ("", "plain text", None, "-----BEGIN PGP SIGNATURE-----\n\nAAAA\n"):
+            with self.subTest(value=value):
+                self.assertEqual(attribution.signature_issuer(value), "")
 
 
 if __name__ == "__main__":

@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Enforce verified commit identities and approved co-author trailers."""
 import argparse
+import base64
+import binascii
 import json
 import os
 import re
@@ -40,6 +42,25 @@ SHORT_SHA_LENGTH = 12
 GITHUB_WEB_COMMITTER_EMAIL = "noreply@github.com"
 GITHUB_WEB_COMMITTER_LOGIN = "web-flow"
 GITHUB_WEB_COMMITTER_ID = 19864447
+# GitHub signs web-flow commits with this key. It signed every GitHub-made
+# commit in this repository's history.
+GITHUB_WEB_SIGNING_KEYS = frozenset({"B5690EEEBB952194"})
+ARMOR_HEADER = "-----BEGIN PGP SIGNATURE-----"
+MAX_SIGNATURE_CHARACTERS = 16384
+SIGNATURE_PACKET_TAG = 2
+SIGNATURE_VERSION = 4
+ISSUER_KEY_ID_SUBPACKET = 16
+ISSUER_FINGERPRINT_SUBPACKET = 33
+KEY_ID_BYTES = 8
+V4_FINGERPRINT_SUBPACKET_BYTES = 21
+NEW_FORMAT_FLAG = 0x40
+PACKET_FLAG = 0x80
+ONE_BYTE_LENGTH_LIMIT = 192
+TWO_BYTE_LENGTH_LIMIT = 224
+SUBPACKET_TWO_BYTE_LIMIT = 255
+FOUR_BYTE_LENGTH_MARKER = 255
+OLD_FORMAT_LENGTH_BYTES = {0: 1, 1: 2, 2: 4}
+HASHED_AREA_OFFSET = 4
 GIT_RANGE_TIMEOUT_SECONDS = 60
 GIT_COMMIT_TIMEOUT_SECONDS = 30
 GITHUB_API_TIMEOUT_SECONDS = 30
@@ -143,13 +164,103 @@ def _commit_api(repository: str, sha: str, repo_root: str) -> dict:
     return document
 
 
+def _dearmor(armored) -> bytes:
+    """Return the binary body of one ASCII-armored PGP signature, or b""."""
+    if not isinstance(armored, str) or len(armored) > MAX_SIGNATURE_CHARACTERS:
+        return b""
+    lines = armored.strip().splitlines()
+    if not lines or lines[0].strip() != ARMOR_HEADER:
+        return b""
+    body = []
+    for line in lines[1:]:
+        stripped = line.strip()
+        if stripped.startswith(("-----END", "=")):
+            break
+        if stripped and ":" not in stripped:
+            body.append(stripped)
+    try:
+        return base64.b64decode("".join(body), validate=True)
+    except (binascii.Error, ValueError):
+        return b""
+
+
+def _packet_length(data: bytes) -> tuple:
+    """Return (tag, body start, body length) for the first packet, or (0, 0, 0)."""
+    if len(data) < 2 or not data[0] & PACKET_FLAG:
+        return 0, 0, 0
+    if data[0] & NEW_FORMAT_FLAG:
+        first = data[1]
+        if first < ONE_BYTE_LENGTH_LIMIT:
+            return data[0] & 0x3F, 2, first
+        if first < TWO_BYTE_LENGTH_LIMIT and len(data) > 2:
+            return data[0] & 0x3F, 3, ((first - ONE_BYTE_LENGTH_LIMIT) << 8) + data[2] + ONE_BYTE_LENGTH_LIMIT
+        if first == FOUR_BYTE_LENGTH_MARKER and len(data) >= 6:
+            return data[0] & 0x3F, 6, int.from_bytes(data[2:6], "big")
+        return 0, 0, 0
+    size = OLD_FORMAT_LENGTH_BYTES.get(data[0] & 3)
+    if size is None or len(data) < 1 + size:
+        return 0, 0, 0
+    return (data[0] >> 2) & 0x0F, 1 + size, int.from_bytes(data[1:1 + size], "big")
+
+
+def _hashed_area(data: bytes) -> bytes:
+    """Return the hashed subpacket area of a v4 signature packet, or b""."""
+    tag, start, length = _packet_length(data)
+    body = data[start:start + length]
+    if tag != SIGNATURE_PACKET_TAG or len(body) != length or len(body) < HASHED_AREA_OFFSET + 2:
+        return b""
+    if body[0] != SIGNATURE_VERSION:
+        return b""
+    hashed_length = int.from_bytes(body[HASHED_AREA_OFFSET:HASHED_AREA_OFFSET + 2], "big")
+    area = body[HASHED_AREA_OFFSET + 2:HASHED_AREA_OFFSET + 2 + hashed_length]
+    return area if len(area) == hashed_length else b""
+
+
+def _subpackets(area: bytes) -> list:
+    """Return (type, data) pairs from one subpacket area, stopping at bad data."""
+    found = []
+    index = 0
+    while index < len(area):
+        first = area[index]
+        if first < ONE_BYTE_LENGTH_LIMIT:
+            header, length = 1, first
+        elif first < SUBPACKET_TWO_BYTE_LIMIT and index + 1 < len(area):
+            header = 2
+            length = ((first - ONE_BYTE_LENGTH_LIMIT) << 8) + area[index + 1] + ONE_BYTE_LENGTH_LIMIT
+        elif first == FOUR_BYTE_LENGTH_MARKER and index + 4 < len(area):
+            header, length = 5, int.from_bytes(area[index + 1:index + 5], "big")
+        else:
+            return found
+        start = index + header
+        if length < 1 or start + length > len(area):
+            return found
+        found.append((area[start] & 0x7F, area[start + 1:start + length]))
+        index = start + length
+    return found
+
+
+def signature_issuer(armored) -> str:
+    """Return the issuer key ID from a signature's hashed subpackets, or "".
+
+    Only the hashed area counts, because the signature covers it.
+    """
+    for kind, data in _subpackets(_hashed_area(_dearmor(armored))):
+        if kind == ISSUER_KEY_ID_SUBPACKET and len(data) == KEY_ID_BYTES:
+            return data.hex().upper()
+        if (kind == ISSUER_FINGERPRINT_SUBPACKET
+                and len(data) == V4_FINGERPRINT_SUBPACKET_BYTES):
+            return data[-KEY_ID_BYTES:].hex().upper()
+    return ""
+
+
 def _is_github_web_commit(commit: dict, identity: dict) -> bool:
     """Return whether GitHub itself committed and signed `commit`.
 
     A web merge or squash names GitHub as committer and keeps the merged
     commits' trailers. The author still carries the contributor identity.
-    Every marker must match, and GitHub's signature must verify, so a pushed
-    commit that only claims this committer still fails.
+    Every marker must match. GitHub must report the signature verified, and
+    its issuer must be GitHub's web-flow key. A commit signed with any other
+    key still fails, even when GitHub verifies it.
     """
     details = commit.get("commit", {})
     raw = details.get("committer", {}).get("email", "")
@@ -158,7 +269,8 @@ def _is_github_web_commit(commit: dict, identity: dict) -> bool:
             and identity.get("login") == GITHUB_WEB_COMMITTER_LOGIN
             and identity.get("id") == GITHUB_WEB_COMMITTER_ID
             and isinstance(verification, dict)
-            and verification.get("verified") is True)
+            and verification.get("verified") is True
+            and signature_issuer(verification.get("signature")) in GITHUB_WEB_SIGNING_KEYS)
 
 
 def _identity_violation(role: str, commit: dict, identity: dict | None,
