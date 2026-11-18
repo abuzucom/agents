@@ -2019,7 +2019,7 @@
     },
     "2.23.6": {
       "policy": {
-        "AGENTS.md": "e9c4b23fca0afa8bd12276b50c3cadaf3a5cd27652daa9e99661cd7f0d99cc77",
+        "AGENTS.md": "f90a2be1fa09b23632b4530ea82dd5a90ee3d602b6bbcfb01663dc06a7d02c73",
         "docs/agent-policy/adoption.md": "67396d5600297eca94882142500fbd580d6d0bfcf63cb9efbd078477d7c08b93",
         "docs/agent-policy/clients.md": "38cd7fe671ab04003967828bd304885842374b95ed4abd65cd2afe54b8c67bf8",
         "docs/agent-policy/enforcement.md": "1b696ace9362ed92fc696ab72203f44964671a94e98172829f5c3ed997b4792a",
