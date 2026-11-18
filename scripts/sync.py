@@ -106,11 +106,36 @@ GIT_TIMEOUT_SECONDS = 60
 
 def policy_bytes(root: Path) -> bytes:
     """Return canonical policy plus available supporting documents."""
+    assembled = assemble_policy_bytes(root)
+    if len(assembled) > MAX_POLICY_BYTES:
+        raise ValueError("AGENTS.md exceeds the policy size limit")
+    return assembled
+
+
+def assemble_policy_bytes(root: Path) -> bytes:
+    """Return the assembled policy without the combined size limit.
+
+    scripts/check_policy_size.py reports the assembled size. The report
+    needs the total even when that total exceeds the limit.
+    """
+    return b"".join(content for _, content in read_assembled_policy_parts(root))
+
+
+def _ensure_final_newline(content: bytes) -> bytes:
+    """Return content ending in exactly the newline assembly appends."""
+    return content + (b"\n" if not content.endswith(b"\n") else b"")
+
+
+def read_assembled_policy_parts(root: Path) -> list[tuple[str, bytes]]:
+    """Return each assembled policy file name with its assembled bytes.
+
+    The parts join to the assembled policy. scripts/check_policy_size.py
+    ranks the parts by size.
+    """
     source, _ = _inspect_source(root)
     if source.stat().st_size > MAX_POLICY_BYTES:
         raise ValueError("AGENTS.md exceeds the policy size limit")
-    raw = source.read_bytes()
-    parts = []
+    parts = [(SOURCE, _ensure_final_newline(source.read_bytes()))]
     root_resolved = root.resolve()
     for relative_name in ADOPTER_POLICY_FILES + SOURCE_ONLY_POLICY_FILES:
         path = _lexical_path(root, relative_name)
@@ -127,11 +152,8 @@ def policy_bytes(root: Path) -> bytes:
             raise ValueError("supporting policy escapes the repository")
         content = path.read_bytes()
         content.decode("ascii")
-        parts.append(content + (b"\n" if not content.endswith(b"\n") else b""))
-    assembled = raw + (b"\n" if not raw.endswith(b"\n") else b"") + b"".join(parts)
-    if len(assembled) > MAX_POLICY_BYTES:
-        raise ValueError("AGENTS.md exceeds the policy size limit")
-    return assembled
+        parts.append((relative_name, _ensure_final_newline(content)))
+    return parts
 
 
 def adoptable_content(content: str) -> str:
