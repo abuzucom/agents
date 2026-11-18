@@ -125,10 +125,10 @@ def format_largest_files(root: Path) -> list[str]:
         sizes, _ = measure_assembled_files(root)
     except (ImportError, OSError, ValueError):
         return []
-    lines = ["Largest files in the assembled policy:"]
-    for rank, entry in enumerate(rank_largest_files(sizes), start=1):
-        lines.append(f"  {rank}. {entry['bytes']} bytes  {entry['path']}")
-    return lines
+    return ["Largest files in the assembled policy:"] + [
+        f"  {rank}. {entry['bytes']} bytes  {entry['path']}"
+        for rank, entry in enumerate(rank_largest_files(sizes), start=1)
+    ]
 
 
 def find_combined_violations(root: Path) -> list[str]:
@@ -265,12 +265,8 @@ def render_markdown(rows: list[tuple[str, int, int]],
         )
         if size > limit:
             over_limit.append(TARGET_LABELS[name])
-    lines.append("")
-    if over_limit:
-        lines.append(f"**Status:** Over limit: {', '.join(over_limit)}.")
-    else:
-        lines.append("**Status:** Within limits.")
-    lines.append("")
+    status = f"Over limit: {', '.join(over_limit)}." if over_limit else "Within limits."
+    lines.extend(["", f"**Status:** {status}", ""])
     if files:
         assembled_total = rows[1][1]
         lines.extend(_render_file_rows(files, assembled_total))
