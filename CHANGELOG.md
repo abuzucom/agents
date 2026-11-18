@@ -38,7 +38,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - The release job runs in the `release` environment. The repository owner
   configures that environment with a required reviewer.
 - The release notes and README verify provenance with
-  `--signer-workflow abuzucom/agents/.github/workflows/release.yml`.
+  `--signer-workflow abuzucom/agents/.github/workflows/release.yml`. The
+  rerun check of a reused draft bundle applies the same flag.
 - `scripts/check_gate_pr_integrity.py` protects `scripts/release.py`.
   `shared-files.json` records the new digest.
 - `hooks/_gate_core.py` denies tag pushes in every shell gate. Covered
@@ -60,7 +61,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   channels, one-at-a-time merging, and the adopter pin rule.
 - Add `tests/test_release_check_tag.py`, `tests/test_release_notes.py`,
   `tests/test_release_assets.py`, `tests/test_release_draft_lookup.py`,
-  `tests/test_release_hardening.py`, `tests/test_tag_push_gate.py`, and
+  `tests/test_release_hardening.py`, `tests/test_tag_push_gate.py`,
+  `tests/test_release_bundle_signer.py`, and
   `tests/test_release_workflow_wiring.py`. The wiring test compares the
   release job permissions with `RELEASE_JOB_PERMISSIONS`.
 - `scripts/check_policy_size.py` fails when the assembled policy exceeds
