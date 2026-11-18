@@ -37,7 +37,8 @@ class BuildAssetsTest(unittest.TestCase):
 
     def test_policy_asset_matches_the_adoptable_policy(self):
         expected = sync.adoptable_content(sync.policy_bytes(ROOT).decode("ascii"))
-        self.assertEqual(self.policy.read_text(encoding="ascii"), expected)
+        # Bytes keep a Windows checkout's CRLF endings intact on both sides.
+        self.assertEqual(self.policy.read_bytes(), expected.encode("ascii"))
 
     def test_archive_holds_the_shared_gate_files_and_manifest(self):
         with tarfile.open(self.archive, "r:gz") as archive:
