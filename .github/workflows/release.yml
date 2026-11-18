@@ -134,7 +134,10 @@ jobs:
       - name: Write checksums and release notes
         run: |
           version="${GITHUB_REF_NAME#v}"
-          since="$(gh release list --repo "$GITHUB_REPOSITORY" --exclude-drafts --exclude-pre-releases --limit 1 --json tagName --jq '.[0].tagName // ""')"
+          # GitHub lists releases by creation time. The helper picks the
+          # highest stable version instead.
+          stable_tags="$(gh release list --repo "$GITHUB_REPOSITORY" --exclude-drafts --exclude-pre-releases --limit 1000 --json tagName --jq '.[].tagName')"
+          since="$(printf '%s\n' "$stable_tags" | python scripts/release.py latest-stable)"
           python scripts/release.py checksums "$RUNNER_TEMP/release-assets"
           if [ -n "$since" ]; then
             python scripts/release.py notes "$version" "$RUNNER_TEMP/release-notes.md" --since "$since"

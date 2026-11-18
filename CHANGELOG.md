@@ -32,7 +32,9 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   archive of the shared gate files, and the version digest entry. Two
   builds of one commit produce identical bytes. `notes` collects every
   changelog section newer than the latest published stable release. An
-  adoption block follows the sections.
+  adoption block follows the sections. `latest-stable` picks that floor
+  as the highest published `vX.Y.Z` tag. GitHub creation order no longer
+  decides it.
 - `hooks/workflow-scripts.txt` allows `release.py check-tag` and routes
   `build` and `notes` to consent.
 - The release job runs in the `release` environment. The repository owner
@@ -69,7 +71,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `tests/test_release_bundle_signer.py`,
   `tests/test_tag_read_long_options.py`,
   `tests/test_tag_push_resolution.py`, `tests/test_tag_push_ref_store.py`,
-  and
+  `tests/test_release_latest_stable.py`, and
   `tests/test_release_workflow_wiring.py`. The wiring test compares the
   release job permissions with `RELEASE_JOB_PERMISSIONS`.
 - `scripts/check_policy_size.py` fails when the assembled policy exceeds

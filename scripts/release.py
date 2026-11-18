@@ -42,6 +42,9 @@ DIGEST_INDEX_FILE = "policy-digests.json"
 SOURCE_REPOSITORY = "abuzucom/agents"
 CHECK_FAILED = 1
 JSON_INDENT = 2
+# A bound on the tag list read from standard input. Tens of thousands of
+# release tags fit well below it.
+MAX_TAG_LIST_CHARACTERS = 1024 * 1024
 ARCHIVE_EXECUTABLE_MODE = 0o755
 ARCHIVE_FILE_MODE = 0o644
 # Release files carry a zero timestamp and owner. Two builds of one commit
@@ -106,6 +109,27 @@ def parse_version(text: str) -> tuple[int, int, int]:
 def strip_tag_prefix(text: str) -> str:
     """Return a version from either a vX.Y.Z tag or a plain X.Y.Z version."""
     return text.removeprefix(TAG_PREFIX)
+
+
+def _parse_stable_tag(tag: str):
+    """Return the version parts of a vX.Y.Z tag, or None for another name."""
+    if not tag.startswith(TAG_PREFIX):
+        return None
+    try:
+        return parse_version(strip_tag_prefix(tag))
+    except ValueError:
+        return None
+
+
+def select_latest_stable(tags: list[str]) -> str:
+    """Return the vX.Y.Z tag with the highest version, or an empty string.
+
+    GitHub lists releases by creation time. A stable release published
+    after a newer one would otherwise become the notes floor.
+    """
+    parsed = [(_parse_stable_tag(tag), tag) for tag in tags]
+    versions = [(parts, tag) for parts, tag in parsed if parts is not None]
+    return max(versions)[1] if versions else ""
 
 
 def asset_names(version: str) -> tuple[str, str, str]:
@@ -344,6 +368,19 @@ def _run_notes(arguments: argparse.Namespace, root: Path) -> int:
     return 0
 
 
+def _run_latest_stable(arguments: argparse.Namespace, root: Path) -> int:
+    """Print the highest vX.Y.Z tag named on standard input, if any."""
+    text = sys.stdin.read(MAX_TAG_LIST_CHARACTERS + 1)
+    if len(text) > MAX_TAG_LIST_CHARACTERS:
+        print("release: the tag list exceeds the size limit. Check the release list.",
+              file=sys.stderr)
+        return CHECK_FAILED
+    latest = select_latest_stable([line.strip() for line in text.splitlines()])
+    if latest:
+        print(latest)
+    return 0
+
+
 def _build_parser() -> argparse.ArgumentParser:
     """Return the argument parser with one subparser per subcommand."""
     parser = argparse.ArgumentParser(description="Release helpers for release.yml.")
@@ -364,6 +401,8 @@ def _build_parser() -> argparse.ArgumentParser:
     notes.add_argument("version")
     notes.add_argument("output", type=Path)
     notes.add_argument("--since", help="The previous stable tag or version.")
+    commands.add_parser("latest-stable",
+                        help="Print the highest vX.Y.Z tag read from standard input.")
     return parser
 
 
@@ -373,6 +412,7 @@ HANDLERS = {
     "check-assets": _run_check_assets,
     "checksums": _run_checksums,
     "notes": _run_notes,
+    "latest-stable": _run_latest_stable,
 }
 
 

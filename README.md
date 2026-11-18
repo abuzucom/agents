@@ -612,7 +612,7 @@ version for normal use.
    `gh attestation verify <file> --repo abuzucom/agents --signer-workflow abuzucom/agents/.github/workflows/release.yml`.
    The `--signer-workflow` flag rejects a signature from any other workflow.
 6. The job fills a draft release. The notes hold every changelog section
-   newer than the latest published stable release. An adoption block and the
+   newer than the highest published stable version. An adoption block and the
    GitHub list of merged pull requests follow.
 7. The repository owner reviews the draft. The owner selects pre-release or
    stable at publication. Only the repository owner publishes a release.
