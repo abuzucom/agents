@@ -16,8 +16,10 @@ on:
     workflows: ["Convention Sync Check"]
     types: [completed]
 
+# Runs for one head branch queue behind each other. Two runs for one pull
+# request cannot both find no comment and both create one.
 concurrency:
-  group: policy-size-report-${{ github.repository }}-${{ github.event.workflow_run.head_sha }}
+  group: policy-size-report-${{ github.event.workflow_run.head_repository.full_name }}-${{ github.event.workflow_run.head_branch }}
   cancel-in-progress: false
 
 permissions:

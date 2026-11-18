@@ -171,6 +171,12 @@ def validate_report(report: object) -> list[tuple[str, int, int]]:
     targets = report.get("targets")
     if not isinstance(targets, list) or len(targets) != len(REPORT_TARGET_NAMES):
         raise ValueError("report must list exactly the known targets")
+    # A report cannot raise a limit. An inflated limit would show an
+    # over-limit policy as within limits.
+    expected_limits = {
+        AGENTS_TARGET: MAX_POLICY_BYTES,
+        ASSEMBLED_TARGET: _load_sync().MAX_POLICY_BYTES,
+    }
     rows = []
     for expected_name, target in zip(REPORT_TARGET_NAMES, targets):
         if not isinstance(target, dict) or set(target) != REPORT_FIELDS:
@@ -179,6 +185,8 @@ def validate_report(report: object) -> list[tuple[str, int, int]]:
             raise ValueError("report target name is not recognized")
         size = _validated_count(target["bytes"], 0)
         limit = _validated_count(target["limit"], 1)
+        if limit != expected_limits[expected_name]:
+            raise ValueError("report target limit differs from the checker limit")
         rows.append((expected_name, size, limit))
     return rows
 
