@@ -14,9 +14,31 @@ into the entry. Dates never decrease. Ask the active human when a date is in
 doubt.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.26.2] (2026-11-18)
+## [2.27.0] (2026-11-18)
 
 ### Added
+- `.github/workflows/release.yml` builds a draft release from a pushed
+  `vX.Y.Z` tag. The `check-tag` job requires the tag to equal the top
+  changelog version and a `policy-digests.json` entry. It runs
+  `scripts/sync.py --check` and requires the commit on `main`. The
+  `release` job alone holds write permissions. It attests the release files
+  and `SHA256SUMS.txt` with `actions/attest` v4.2.2. A rerun reuses the
+  draft and stops on a SHA-256 mismatch. The repository owner publishes
+  each draft and selects pre-release or stable at that moment.
+- `scripts/release.py` provides `check-tag`, `build`, `check-assets`,
+  `checksums`, and `notes`. `build` writes the adoptable policy, a stable
+  archive of the shared gate files, and the version digest entry. Two
+  builds of one commit produce identical bytes. `notes` collects every
+  changelog section newer than the latest published stable release. An
+  adoption block follows the sections.
+- `hooks/workflow-scripts.txt` allows `release.py check-tag` and routes
+  `build` and `notes` to consent.
+- README documents the release steps, the development and stable
+  channels, one-at-a-time merging, and the adopter pin rule.
+- Add `tests/test_release_check_tag.py`, `tests/test_release_notes.py`,
+  `tests/test_release_assets.py`, and
+  `tests/test_release_workflow_wiring.py`. The wiring test compares the
+  release job permissions with `RELEASE_JOB_PERMISSIONS`.
 - `scripts/check_policy_size.py` fails when the assembled policy exceeds
   the `scripts/sync.py` limit of 65536 bytes. The failure names the
   overage. The existing `AGENTS.md` check keeps its 32768-byte limit.
