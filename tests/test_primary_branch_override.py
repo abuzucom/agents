@@ -3,6 +3,7 @@
 Each class stays small because the hook coverage runner gives every test class
 one shard with a fixed time limit, and every case launches the hook.
 """
+import subprocess
 import unittest
 
 from tests.read_only_branch_support import BranchFixture, decision
@@ -14,7 +15,7 @@ INVALID_OVERRIDES = (
 SUBTEST_LABEL_LENGTH = 20
 
 
-def read_readme(fixture: BranchFixture):
+def read_readme(fixture: BranchFixture) -> subprocess.CompletedProcess:
     """Send one Read call for the fixture README to the hook."""
     return fixture.run("Read", {"file_path": str(fixture.root / "README.md")})
 

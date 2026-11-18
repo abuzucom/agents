@@ -59,6 +59,7 @@ class ReadOnlyCase(unittest.TestCase):
         return BranchFixture(self, branch)
 
     def assert_shell_allowed(self, branch: str, commands: tuple) -> None:
+        """Assert that each inspection command passes the hook on one read-only state."""
         # A split list half can shrink to nothing. An empty loop passes unseen.
         self.assertTrue(commands, "command list half is empty")
         fixture = self.fixture(branch)
@@ -68,6 +69,7 @@ class ReadOnlyCase(unittest.TestCase):
                 self.assertEqual(decision(result), "allow", result.stderr)
 
     def assert_writes_denied(self, branch: str, commands: tuple) -> None:
+        """Assert that each write command fails the hook with the read-only message."""
         self.assertTrue(commands, "command list half is empty")
         fixture = self.fixture(branch)
         for command in commands:

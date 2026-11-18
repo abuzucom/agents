@@ -34,13 +34,13 @@ COPIED_SCRIPTS = (
 # the checked-out scripts do not change during a run. The cached value is an
 # immutable tuple of bytes, so no fixture can alter what another one copies.
 @functools.cache
-def copied_script_bytes() -> tuple[tuple[str, bytes], ...]:
+def read_copied_scripts() -> tuple[tuple[str, bytes], ...]:
     """Return each copied script name with its bytes from this checkout."""
     return tuple((name, (REPO_ROOT / "scripts" / name).read_bytes())
                  for name in COPIED_SCRIPTS)
 
 
-def inherited_environment() -> dict[str, str]:
+def build_inherited_environment() -> dict[str, str]:
     """Return a new copy of the process environment without Git and branch variables.
 
     No cache. os.environ is mutable process state. A test can patch it before
@@ -66,11 +66,11 @@ class RepositoryFixture:
         self.set_branch(branch)
         (self.root / "README.md").write_text("fixture\n", encoding="utf-8")
         (self.root / "scripts").mkdir()
-        for name, content in copied_script_bytes():
+        for name, content in read_copied_scripts():
             (self.root / "scripts" / name).write_bytes(content)
         self.global_config = self.temp / "global.config"
         self.global_config.write_text("", encoding="utf-8")
-        self.environment = inherited_environment()
+        self.environment = build_inherited_environment()
         self.environment.update({
             "CLAUDE_PROJECT_DIR": str(self.root),
             "GIT_CONFIG_NOSYSTEM": "1",
