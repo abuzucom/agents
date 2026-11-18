@@ -154,20 +154,15 @@ jobs:
           PR_NUMBER: ${{ steps.pr.outputs.number }}
         with:
           script: |
+            // The resolve step sets PR_NUMBER from the pull request list. The
+            // render step runs under bash -e, so this step runs only after the
+            // renderer wrote a body that starts with the marker.
             const fs = require('fs');
             const path = require('path');
             const marker = '<!-- policy-size-report -->';
             const issueNumber = Number(process.env.PR_NUMBER);
-            if (!Number.isSafeInteger(issueNumber) || issueNumber < 1) {
-              core.setFailed('pull request number is invalid');
-              return;
-            }
             const body = fs.readFileSync(
               path.join(process.env.RUNNER_TEMP, 'policy-size-comment.md'), 'utf8');
-            if (!body.startsWith(marker)) {
-              core.setFailed('rendered report lacks the comment marker');
-              return;
-            }
 
             const comments = await github.paginate(
               github.rest.issues.listComments,

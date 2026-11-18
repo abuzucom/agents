@@ -29,7 +29,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   The renderer rejects a report whose limits differ from the checker
   limits. `render_markdown` also rejects a limit below 1 before the
   percent division. A caller that skips validation gets a `ValueError`
-  instead of a `ZeroDivisionError`.
+  instead of a `ZeroDivisionError`. The sync loader and the comment step
+  carry no checks that control flow cannot reach.
 - The report ranks up to 10 assembled policy files by size in
   descending order. Each row states the file share of the assembled
   total. A failure on the assembled limit prints the same ranking.

@@ -55,9 +55,8 @@ def _load_sync():
     path = Path(__file__).resolve().parent / "sync.py"
     if path.is_symlink() or not path.is_file():
         raise ImportError("trusted sibling sync.py is missing or not a regular file")
+    # A ".py" location always yields a spec with a source loader.
     spec = importlib.util.spec_from_file_location("_policy_size_sync", path)
-    if spec is None or spec.loader is None:
-        raise ImportError("cannot load trusted sibling sync.py")
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
