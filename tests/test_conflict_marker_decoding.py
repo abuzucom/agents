@@ -34,14 +34,14 @@ class DecodeContentTest(unittest.TestCase):
                          (CONFLICT, None))
 
     def test_declared_codec_decodes_with_replacement(self):
-        self.assertEqual(checker.decode_content("café".encode("latin-1"), "latin-1"),
-                         ("café", None))
+        self.assertEqual(checker.decode_content("caf\xe9".encode("latin-1"), "latin-1"),
+                         ("caf\xe9", None))
 
     def test_invalid_utf8_with_nul_is_binary(self):
         self.assertEqual(checker.decode_content(b"\xff\x00\xfe"), (None, None))
 
     def test_invalid_utf8_without_nul_reads_as_latin1(self):
-        self.assertEqual(checker.decode_content(b"\xffabc"), ("ÿabc", None))
+        self.assertEqual(checker.decode_content(b"\xffabc"), ("\xffabc", None))
 
     def test_utf8_bom_is_stripped(self):
         self.assertEqual(checker.decode_content(b"\xef\xbb\xbf" + CONFLICT.encode()),

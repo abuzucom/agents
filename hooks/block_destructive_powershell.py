@@ -80,8 +80,8 @@ REDIRECTIONS = frozenset({">", ">>", "2>", "2>>", "*>", "*>>", "3>", "4>",
 # Start-Process hands its target a plain argument list rather than a command
 # string, so the payload has to be read as arguments to that program.
 ARGUMENT_LIST_FLAGS = frozenset(
-    [f"-{'argumentlist'[:n]}" for n in range(1, 13)] + ["-args"])
-FILE_PATH_FLAGS = frozenset(f"-{'filepath'[:n]}" for n in range(2, 9))
+    [f"-{'argumentlist'[:n]}" for n in range(1, len("argumentlist") + 1)] + ["-args"])
+FILE_PATH_FLAGS = frozenset(f"-{'filepath'[:n]}" for n in range(2, len("filepath") + 1))
 SCRIPT_BLOCK_DELIMITERS = "{}"
 MAX_WRAPPER_DEPTH = core.MAX_COMMAND_DEPTH
 
@@ -142,7 +142,7 @@ def _argument_list_verdict(program: str, rest: list, depth: int) -> tuple:
     return _interpreter_verdict(program, nested, depth + 1)
 
 
-def _payload_verdict(flag: str, rest: list, depth: int) -> tuple:
+def _payload_verdict(rest: list) -> tuple:
     """Return the verdict for a command string handed to an interpreter."""
     if not rest:
         return "deny", "a shell command-string flag has no payload"
@@ -169,7 +169,7 @@ def _interpreter_verdict(program: str, args: list, depth: int = 0) -> tuple:
         if lowered in ARGUMENT_LIST_FLAGS:
             return _argument_list_verdict(program, args[index + 1:], depth)
         if core.is_shell_payload_flag(token):
-            return _payload_verdict(lowered, args[index + 1:], depth)
+            return _payload_verdict(args[index + 1:])
     return "", ""
 
 
@@ -236,8 +236,9 @@ def _environment_reference_name(value: str) -> str:
 def _named_program_verdict(program: str, args: list, depth: int) -> tuple:
     """Return the verdict for a cmdlet read by name, or None.
 
-    None means the name is not one of the three the gate reads whole, so
-    the caller runs it past every other check instead.
+    The gate reads five kinds whole: prohibited programs, curl transfers,
+    interpreters, delete programs, and git. None means the name is none of
+    them, so the caller runs it past every other check instead.
     """
     prohibited = core.prohibited_command_verdict(program, args)
     if prohibited[0]:

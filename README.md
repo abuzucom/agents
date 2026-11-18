@@ -292,8 +292,9 @@ An unlicensed target remains unlicensed unless that approval changes its status.
    nesting, function size, line length, empty catches, conditional assignment,
    and injection. Copy applicable portable checkers from the
    [checker reference](#checker-reference). Copy `requirements-checkers.txt`
-   with YAML-based Rule 11 or Rule 12 checkers. Keep custom CI compact and pin
-   dependencies. Propose all configuration, dependencies, and CI first.
+   with YAML-based Rule 11 or Rule 12 checkers. The file pins PyYAML by
+   sha256 hash. Recopy it when the version changes. Keep custom CI
+   compact and pin dependencies. Propose all configuration, dependencies, and CI first.
 6. Prune inapplicable rules and related checks with user approval. Rule 13
    applies to enforcement claims that remain. This repository's
    `immutable-conflict-check.yml`, `sync-check.yml`,
@@ -924,7 +925,8 @@ comments after filling verified repository values.
 - Edit `AGENTS.md`. Run `make sync` and `make check`.
 - Run authorized `make lint` and `make test` before opening a draft pull
   request.
-- Keep checker dependencies pinned in `requirements-checkers.txt`.
+- Keep checker dependencies hash-pinned in `requirements-checkers.txt`.
+  Regenerate every hash from PyPI when a version changes.
 - Keep `.claude/settings.json` aligned with tested hook registrations.
 - Record adopter differences under [`DRIFT.md`](DRIFT.md).
 - Add context only when context prevents a concrete failure. Remove obsolete

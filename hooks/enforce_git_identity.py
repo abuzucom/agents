@@ -33,7 +33,6 @@ Known gap: `git merge`, `git revert`, `git cherry-pick`, `git rebase`, and
 This repository-controlled hook is a defense-in-depth workflow prompt, not an
 authorization boundary. A repository writer can alter it or its registration.
 """
-import json
 import os
 import subprocess
 import sys
@@ -44,6 +43,8 @@ POLICY_DENIAL_EXIT_CODE = 2
 
 try:
     import _gate_core as core
+    # core.blocked_command parses with this module. Importing it here makes
+    # a missing parser deny at startup instead of mid-check.
     import _bash_parser as bash_parser
 except ImportError as error:  # pragma: no cover (exercised by the adoption test)
     print(f"the shared hook parser or core could not be imported ({error})"
@@ -57,17 +58,6 @@ PUSH_LABEL = "git push"
 # Below the 30-second hook registration, so the hook names a slow checker
 # instead of the client killing it. Leaves room for the account lookup.
 CHECKER_TIMEOUT_SECONDS = 20
-
-
-def _read_payload() -> dict:
-    """Return the hook's stdin JSON, or an empty dict when it carries none.
-
-    A SessionStart invocation arrives with empty stdin, and this hook
-    informs rather than blocks, so an unreadable payload is an empty dict
-    rather than a refusal.
-    """
-    payload = core.read_payload(empty_is_session_start=True)
-    return payload if payload is not None else {}
 
 
 def run_checker(project_dir: str, extra_args: list, invocation: dict = None):
@@ -171,10 +161,8 @@ def build_warning(violation: str, advisory: str) -> str:
     return "\n".join(instructions)
 
 
-def blocked_command(command: str, project_dir: str = "") -> list:
-    """Return every effective or ambiguous Git write context in `command`."""
-    return bash_parser.git_write_operation(
-        command, core.git_write_context, project_dir)
+# The shared parser entry point, kept under this name for callers and tests.
+blocked_command = core.blocked_command
 
 
 def _session_warning(project_dir: str) -> str:
@@ -194,15 +182,7 @@ def _handle_session_start(project_dir: str) -> int:
     warning = _session_warning(project_dir)
     if not warning:
         return 0
-    output = {
-        "hookSpecificOutput": {
-            "hookEventName": "SessionStart",
-            "additionalContext": warning,
-        },
-        "systemMessage": warning,
-    }
-    print(json.dumps(output))
-    return 0
+    return core.emit_context("SessionStart", warning)
 
 
 def _blocks_invocation(project_dir: str, invocation: dict) -> bool:
@@ -252,7 +232,9 @@ def _handle_pre_tool_use(payload: dict, project_dir: str) -> int:
 
 
 def main() -> int:
-    payload = _read_payload()
+    # SessionStart arrives with empty stdin. This hook informs rather than
+    # blocks there, so an unreadable payload counts as an empty one.
+    payload = core.read_payload(empty_is_session_start=True) or {}
     project_dir = core.project_dir(payload)
     event = payload.get("hook_event_name", "SessionStart")
     if event == "PreToolUse":

@@ -86,16 +86,16 @@ class StillFlaggedTest(unittest.TestCase):
         self.assertEqual(len(found), 1)
 
     def test_an_em_dash_character_fails(self):
-        found = violations("The build failed — the cache was stale.\n")
+        found = violations("The build failed \u2014 the cache was stale.\n")
         self.assertTrue(any("em/en dash" in line for line in found))
 
     def test_non_ascii_prose_fails(self):
-        found = violations("Initialize the café palette.\n")
+        found = violations("Initialize the caf\xe9 palette.\n")
         self.assertEqual(len(found), 1)
         self.assertIn("non-ASCII", found[0])
 
     def test_non_ascii_inside_code_passes(self):
-        self.assertEqual(violations("Print `café` to the log.\n"), [])
+        self.assertEqual(violations("Print `caf\xe9` to the log.\n"), [])
 
     def test_a_fenced_block_is_skipped(self):
         text = "Prose.\n```\nThe build failed - the cache was stale.\n```\nMore.\n"

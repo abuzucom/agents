@@ -77,7 +77,9 @@ except ImportError as error:  # pragma: no cover (exercised by the adoption test
 
 GATED_TOOLS = frozenset({"Edit", "Write", "MultiEdit", "NotebookEdit"})
 PATH_KEYS = ("file_path", "notebook_path")
-PROTECTED_PARTS = ("hooks", ".claude", ".git", ".agents", ".codex", ".gemini")
+# Matches _gate_core.PROTECTED_PATH_PARTS, so a file-tool write and a shell
+# write to the same path meet the same gate.
+PROTECTED_PARTS = ("hooks", ".claude", ".git", ".agents", ".codex", ".gemini", "scripts")
 POLICY_REASON = "rewrites agent policy text that later sessions load as instructions"
 OUTSIDE_ROOT_REASON = ("creates a file outside the project root, which the "
                        "gate cannot vouch for")
@@ -134,10 +136,7 @@ def is_protected_path(target: str, project_dir: str) -> bool:
     stripped = _relative_name(target, project_dir)
     if stripped is None:
         return False
-    head = stripped.split("/", 1)[0]
-    if head in PROTECTED_PARTS:
-        return True
-    return stripped == "scripts/banned_models.txt"
+    return stripped.split("/", 1)[0] in PROTECTED_PARTS
 
 
 def is_policy_path(target: str, project_dir: str) -> bool:
@@ -179,20 +178,35 @@ def reaches_a_test_inode(target: str, project_dir: str) -> bool | None:
 
     for current, dirnames, filenames in os.walk(
             os.path.realpath(project_dir), onerror=record_walk_error):
-        dirnames[:] = [d for d in dirnames if d not in SKIP_WALK_DIRS]
-        for name in filenames:
-            seen += 1
-            if seen > MAX_INODE_WALK:
-                return None
-            candidate = os.path.join(current, name)
-            if not is_test_path(os.path.relpath(candidate, project_dir)):
-                continue
-            try:
-                if _same_file(target_stat, os.stat(candidate)):
-                    return True
-            except OSError:
-                return None
+        dirnames[:] = [directory_name for directory_name in dirnames
+                       if directory_name not in SKIP_WALK_DIRS]
+        found, seen = _test_inode_in(target_stat, current, filenames, project_dir, seen)
+        if found is not False:
+            return found
     return None if traversal_failed[0] else False
+
+
+def _test_inode_in(target_stat: os.stat_result, current: str, filenames: list,
+                   project_dir: str, seen: int) -> tuple:
+    """Return (found, files seen) for one directory of the test-inode walk.
+
+    `found` is True on a match, None when the walk must stop incomplete,
+    and False to keep walking.
+    """
+    for name in filenames:
+        seen += 1
+        if seen > MAX_INODE_WALK:
+            return None, seen
+        candidate = os.path.join(current, name)
+        if not is_test_path(os.path.relpath(candidate, project_dir)):
+            continue
+        try:
+            candidate_stat = os.stat(candidate)
+        except OSError:
+            return None, seen
+        if _same_file(target_stat, candidate_stat):
+            return True, seen
+    return False, seen
 
 
 def given_path(tool_input: dict):
@@ -313,20 +327,7 @@ def build_reason(target: str, reason: str) -> str:
 
 def emit(decision: str, reason: str) -> int:
     """Print the hook's decision and return the exit code it needs."""
-    message = f"gated by hooks/{GATE}: {reason}"
-    if decision == "deny":
-        message = core.with_denial_response(message)
-    print(json.dumps({
-        "hookSpecificOutput": {
-            "hookEventName": "PreToolUse",
-            "permissionDecision": decision,
-            "permissionDecisionReason": message,
-        }
-    }))
-    if decision == "deny":
-        print(message, file=sys.stderr)
-        return POLICY_DENIAL_EXIT_CODE
-    return 0
+    return core.emit(GATE, decision, reason, prefix="gated by")
 
 
 def emit_context(event: str, context: str) -> int:
@@ -339,12 +340,8 @@ def emit_context(event: str, context: str) -> int:
 
 def _decide(payload: dict, target: str, reason: str) -> int:
     """Emit the decision, turning an ask nobody can answer into a deny."""
-    message = build_reason(target, reason)
-    mode = core.require_str(payload.get("permission_mode"))
-    if mode in core.INTERACTIVE_MODES:
-        return emit("ask", message)
-    return emit("deny", f"{message} No interactive session is available to "
-                        f"consent (permission_mode {core.mode_label(payload)}).")
+    return core.decide(GATE, payload, "ask", build_reason(target, reason),
+                       prefix="gated by")
 
 
 def _write_reason(payload: dict, raw: str, target: str,

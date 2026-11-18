@@ -24,11 +24,11 @@ class BranchValidationBypassTest(unittest.TestCase):
 
     def test_invocation_alias_rejects_prohibited_target(self):
         command = 'git -c alias.x="push origin claude/x" x'
-        self.assertTrue(hook.command_names_prohibited_branch(command))
+        self.assertIn("prohibited", hook.command_execution_violation(command, "", "Bash")[1])
 
     def test_unrelated_incomplete_text_is_not_a_literal_branch_match(self):
         command = 'printf "claude/x'
-        self.assertFalse(hook.command_names_prohibited_branch(command))
+        self.assertNotIn("prohibited", hook.command_execution_violation(command, "", "Bash")[1])
 
     def test_unrelated_incomplete_text_is_not_a_git_write(self):
         self.assertEqual(hook.blocked_command('printf "unfinished'), [])
@@ -40,7 +40,7 @@ class BranchValidationBypassTest(unittest.TestCase):
 
     def test_metadata_read_is_not_a_metadata_write(self):
         command = 'printf "%s" ".git/HEAD claude/x"'
-        self.assertFalse(hook.command_names_prohibited_metadata(command))
+        self.assertNotIn("prohibited", hook.command_execution_violation(command, "", "Bash")[1])
 
     def test_document_content_is_not_a_metadata_destination(self):
         payload = {

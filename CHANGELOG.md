@@ -35,8 +35,26 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   conditions in `README.md`. Document the REST issue forms in
   `docs/agent-policy/github.md` and `README.md`. The assembled policy stays
   under its 65536-byte limit.
+- `requirements-checkers.txt` pins PyYAML 6.0.3 by sha256 hash. The
+  hashes cover every file PyPI publishes for that version.
+- The five jobs that install a checker requirements file run on Python
+  3.14 and pass `--only-binary :all:`. PyYAML 6.0.3 has no
+  wheel for a newer Python. A source build there would run a build
+  backend that no hash covers. The three `sync-check.yml` installs also
+  pass `--require-hashes`. The reusable `agents-compliance.yml` relies on
+  pip's automatic hash mode. An adopter's unhashed file still installs.
+- The privileged `immutable-conflict-check.yml` job installs the trusted
+  requirements file from wheels only on Python 3.14.
+  `scripts/check_compliance_tree.py` accepts only that install command. A
+  pull request cannot drop the job back to a source build.
+- `.pre-commit-config.yaml` keeps exact PyYAML version pins, because
+  pre-commit cannot check hashes.
+- The weak-hash and secrets scans in `agents-compliance.yml` and
+  `.pre-commit-config.yaml` also read `hooks/*.py`.
+- Add `tests/test_scan_and_hash_wiring.py` and
+  `tests/test_trusted_install_forms.py` covering these changes.
 
-## [2.23.2] (2026-11-17)
+## [2.23.3] (2026-11-17)
 
 ### Added
 - Add `.github/workflows/quality-review-pr.yml`. The workflow runs the
@@ -74,6 +92,27 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   branches and activity types.
 - Add `tests/test_agents_md_compliance_trigger.py` covering both trigger
   shapes.
+- Five test files spell non-ASCII string characters as escapes.
+  Each string value stays identical, and every test source file is now
+  ASCII.
+- `hooks/_gate_core.py` holds the helpers the hooks shared by copy:
+  - `emit` and `decide` take a message prefix
+  - `emit_context`, `blocked_command`, and `write_content`
+  - `powershell_write_groups`, with a `keep_empty` flag
+  - one alias step, `expand_git_alias`
+  - one GitHub host predicate, `is_github_hostname`
+  - `MAX_COMMAND_CHARACTERS` for both parsers
+
+  The consent, branch, identity, and infrastructure hooks drop the
+  copies.
+- `enforce_branch_name.py` picks every recovery command through
+  `recovery_command`. Four helpers that only tests called are gone. The
+  14 assertions on those helpers now call `command_execution_violation` or
+  `git_branch_context`, and one depth assertion now checks
+  `resolve_branch_alias`.
+- Comments and docstrings in the core and the shell gates now match the
+  code. The PowerShell flag tables derive each range from the flag
+  name. Unused parameters leave three shell-gate helpers.
 
 ### Fixed
 - `scripts/check_merge_safety.py` passes the checked-out branch name to the
@@ -106,6 +145,18 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   checker stops after 20 seconds. PreToolUse denies with the timeout
   named, and SessionStart reports it as an advisory.
 - `require_consent.reaches_a_test_inode` declares its `None` result.
+- `require_consent.py` asks before a file-tool write anywhere under
+  `scripts/`, matching the shell gate.
+- The CMD gate treats `busybox` as an interpreter hop.
+- The branch alias resolver matches alias names without regard to case,
+  as git does.
+- The GitHub host predicate strips a port and a trailing dot everywhere.
+  `scripts/check_external_pr_refs.py` keeps a matching copy.
+- An attached PowerShell `-Path:Value` keeps its case before path
+  resolution. A symlinked path then resolves on case-sensitive
+  filesystems.
+- Deny reasons for partitioning, formatting, wiping, and raw-write tools
+  name the real action. The root mode-change reason drops "recursive".
 
 ## [2.21.1] (2026-11-16)
 

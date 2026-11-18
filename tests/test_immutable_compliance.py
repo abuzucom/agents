@@ -520,7 +520,7 @@ class ImmutableWorkflowTest(unittest.TestCase):
                     or '"$TRUSTED_CHECKER"' in command
                     or command == (
                         "python -m pip install --requirement "
-                        "trusted-base/requirements-checkers.txt"
+                        "trusted-base/requirements-checkers.txt --only-binary :all:"
                     ),
                     command,
                 )
