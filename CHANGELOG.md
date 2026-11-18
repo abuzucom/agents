@@ -14,9 +14,49 @@ into the entry. Dates never decrease. Ask the active human when a date is in
 doubt.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.25.0] (2026-11-18)
+## [2.26.0] (2026-11-18)
 
 ### Added
+- `scripts/check_policy_size.py` fails when the assembled policy exceeds
+  the `scripts/sync.py` limit of 65536 bytes. The failure names the
+  overage. The existing `AGENTS.md` check keeps its 32768-byte limit.
+  Every failure prints an agent directive. The directive forbids an
+  independent agent decision to trim, reword, move, or remove policy
+  text. It requires an itemized proposal and active-human approval.
+- `--json` prints both sizes and limits. `--render-markdown <path>`
+  validates such a report and prints the pull request comment body. The
+  body shows bytes, limit, headroom, percent used, and the directive.
+  The renderer rejects a report whose limits differ from the checker
+  limits. `render_markdown` also rejects a limit below 1 before the
+  percent division. A caller that skips validation gets a `ValueError`
+  instead of a `ZeroDivisionError`. The sync loader and the comment step
+  carry no checks that control flow cannot reach. The renderer rejects
+  report text that nests deeper than 3 levels before `json.loads`
+  recurses into it. One iterative pass skips brackets inside strings.
+- The report ranks up to 10 assembled policy files by size in
+  descending order. Each row states the file share of the assembled
+  total. A failure on the assembled limit prints the same ranking.
+  `scripts/sync.py` exposes `read_assembled_policy_parts` for the
+  per-file sizes.
+- `.github/workflows/policy-size-report.yml` posts that comment on pull
+  requests touching `AGENTS.md`, a supporting policy file, or a
+  generated copy. It runs on `workflow_run` from default-branch code. It
+  reads head policy files through the contents API and runs no pull
+  request code. One marked comment receives every update. A read-only
+  `measure` job fetches, measures, and renders. A separate `comment` job
+  holds the only write permission and runs no checkout and no code over
+  pull request data. Runs for one
+  head branch queue in one concurrency group. Two runs cannot both
+  create the comment.
+- `scripts/sync.py` exposes `assemble_policy_bytes`. `policy_bytes`
+  keeps its limit check and behavior.
+- `hooks/workflow-scripts.txt` allows the two new checker forms.
+- Add `tests/test_policy_size_combined.py`,
+  `tests/test_policy_size_report_wiring.py`,
+  `tests/test_policy_size_top_files.py`,
+  `tests/test_policy_size_report_hardening.py`,
+  `tests/test_policy_size_render_divisor.py`, and
+  `tests/test_policy_size_report_nesting.py`.
 - `scripts/trusted_gh.py` sends four more write shapes over REST. Sessions
   that block GitHub GraphQL cannot run the matching `gh` commands.
   - `run pr create --draft --title <text> --body-file <draft> [--base <b>]`
