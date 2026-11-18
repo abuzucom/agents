@@ -35,9 +35,9 @@ def _build_report(agents_limit: int, assembled_limit: int) -> dict:
 
 class LimitPinningTests(unittest.TestCase):
     def setUp(self):
-        self.tmp = tempfile.TemporaryDirectory()
-        self.addCleanup(self.tmp.cleanup)
-        self.report_path = Path(self.tmp.name) / "report.json"
+        self.temporary_directory = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temporary_directory.cleanup)
+        self.report_path = Path(self.temporary_directory.name) / "report.json"
 
     def _render(self, report: dict) -> tuple:
         """Write the report as JSON and return the renderer exit code and streams."""

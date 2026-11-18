@@ -53,9 +53,9 @@ def _run_main(argv: list) -> tuple:
 
 class CombinedPolicySizeTests(unittest.TestCase):
     def setUp(self):
-        self.tmp = tempfile.TemporaryDirectory()
-        self.addCleanup(self.tmp.cleanup)
-        self.root = Path(self.tmp.name)
+        self.temporary_directory = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temporary_directory.cleanup)
+        self.root = Path(self.temporary_directory.name)
 
     def test_combined_size_matches_sync_assembly(self):
         report = check_policy_size.measure_policy(ROOT / "AGENTS.md")
@@ -144,9 +144,9 @@ class CombinedPolicySizeTests(unittest.TestCase):
 
 class PolicySizeReportRenderTests(unittest.TestCase):
     def setUp(self):
-        self.tmp = tempfile.TemporaryDirectory()
-        self.addCleanup(self.tmp.cleanup)
-        self.report_path = Path(self.tmp.name) / "report.json"
+        self.temporary_directory = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temporary_directory.cleanup)
+        self.report_path = Path(self.temporary_directory.name) / "report.json"
 
     def _build_report(self, agents_bytes: int, combined_bytes: int) -> dict:
         """Return a size report with the checker limits and the given sizes."""

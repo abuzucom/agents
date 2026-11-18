@@ -71,9 +71,9 @@ class AssembledPartsTests(unittest.TestCase):
 
 class ReportFilesTests(unittest.TestCase):
     def setUp(self):
-        self.tmp = tempfile.TemporaryDirectory()
-        self.addCleanup(self.tmp.cleanup)
-        self.root = Path(self.tmp.name)
+        self.temporary_directory = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temporary_directory.cleanup)
+        self.root = Path(self.temporary_directory.name)
 
     def test_json_report_lists_files_largest_first(self):
         _write_fixture(self.root, SUPPORTING_FIXTURE_SIZES)
@@ -102,9 +102,9 @@ class ReportFilesTests(unittest.TestCase):
 
 class RenderFilesTests(unittest.TestCase):
     def setUp(self):
-        self.tmp = tempfile.TemporaryDirectory()
-        self.addCleanup(self.tmp.cleanup)
-        self.report_path = Path(self.tmp.name) / "report.json"
+        self.temporary_directory = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temporary_directory.cleanup)
+        self.report_path = Path(self.temporary_directory.name) / "report.json"
 
     def _build_report(self, files: object) -> dict:
         """Return a valid size report that carries the given file ranking."""
