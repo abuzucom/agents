@@ -26,6 +26,7 @@ valid fix; see docs/agent-policy/enforcement.md. Fix the flagged prose.
 import argparse
 import json
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -72,6 +73,36 @@ ANTI_BYPASS_NOTICE = (
     "Co-authored-by trailer to evade this check"
 )
 
+# A pull request body has no trailer paragraph. The prose analyzers read a
+# required disclosure line as a sentence. "Assisted-by: Claude Opus 5.5"
+# matches the colon clause pattern because "Opus" ends in "s". Only a
+# name-only value is exempt. A sentence break ends the name, so prose placed
+# after a disclosure name stays checked.
+DISCLOSURE_NAME_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9 .()+_-]{0,79}")
+SENTENCE_BREAK_PATTERN = re.compile(r"[.!?](?:\s|$)")
+
+
+def _is_name_only_disclosure(line: str) -> bool:
+    """Return whether one body line is a disclosure naming only a model or tool."""
+    disclosures = _extract_pr_disclosures(line)
+    if len(disclosures) != 1:
+        return False
+    name = disclosures[0]
+    if not DISCLOSURE_NAME_PATTERN.fullmatch(name):
+        return False
+    return SENTENCE_BREAK_PATTERN.search(name) is None
+
+
+def mask_disclosure_lines(body: str) -> str:
+    """Blank name-only disclosure lines and keep every other line in place.
+
+    Blank lines keep the line numbers in the remaining findings accurate.
+    """
+    lines = body.split("\n")
+    return "\n".join(
+        "" if _is_name_only_disclosure(line) else line for line in lines
+    )
+
 
 def is_agent_attributed(commits: list[dict], pr_body: str) -> bool:
     """Return whether any commit or the pull request description discloses an agent."""
@@ -101,7 +132,9 @@ def find_pr_findings(title: str, body: str, author: str, entries: list) -> list[
     findings.extend(
         find_prose_violations(mask_type_prefix(title), "pull_request.title", entries=entries)
     )
-    findings.extend(find_prose_violations(body, "pull_request.body", entries=entries))
+    findings.extend(find_prose_violations(
+        mask_disclosure_lines(body), "pull_request.body", entries=entries,
+    ))
     return findings
 
 
