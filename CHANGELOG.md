@@ -14,6 +14,28 @@ into the entry. Dates never decrease. Ask the active human when a date is in
 doubt.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.24.0] (2026-11-18)
+
+### Added
+- `scripts/trusted_gh.py` sends `run issue edit <n> --body-file
+  .comment-drafts/<file> [--title <text>]` as a REST `PATCH` and
+  `run issue create --title <text> --body-file .comment-drafts/<file>` as
+  a REST `POST`. Sessions that block GitHub GraphQL can write issue bodies.
+  Both forms run after the existing gate checks and keep the ask verdict.
+  Any other option sends the command to `gh` unchanged. A body file that
+  breaks the draft rules exits 2 with no GitHub call.
+- `hooks/_command_execution_gate.py` allows a wrapper `run api` GET request
+  without a prompt. The request names one REST path and carries no body,
+  header, or hostname option. Every other wrapper call keeps its verdict.
+- Add `tests/test_trusted_gh_issue_writes.py` and
+  `tests/test_trusted_gh_api_read_gate.py`.
+
+### Changed
+- Document the read-only API allow in `AGENTS.md` Rule 16 and its exact
+  conditions in `README.md`. Document the REST issue forms in
+  `docs/agent-policy/github.md` and `README.md`. The assembled policy stays
+  under its 65536-byte limit.
+
 ## [2.23.2] (2026-11-17)
 
 ### Added

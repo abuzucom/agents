@@ -335,6 +335,10 @@ denylist includes documented GitHub CLI aliases. It unconditionally denies
 archive`, including descendants. Consent cannot override these denials. Route
 other hosted state changes to active-human consent.
 
+The command gate allows a wrapper `run api` GET request without a prompt.
+The request names one REST path and carries no request body. Every other
+wrapper call keeps its consent or denial verdict.
+
 A failed wrapper operation permits one semantically equivalent Git fallback
 after active-human confirmation with the documented marker. Request the
 client's approved `external-network` path when sandbox isolation blocks network

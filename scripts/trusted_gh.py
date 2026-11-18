@@ -124,6 +124,14 @@ COMMENT_PAGE_SIZE = 100
 COMMENT_PAGE_NUMBER = re.compile(r"\A[1-9][0-9]{0,3}\Z")
 MAX_COMMENT_PAGE = 1000
 COMMENT_PAGE_ARGUMENT_COUNT = 2
+# `gh issue edit` and `gh issue create` call GraphQL, which some sessions
+# block. Two exact body-file shapes run over REST instead. Any other option
+# leaves the command for gh unchanged.
+ISSUE_TITLE_OPTION = "--title"
+ISSUE_REST_OPTIONS = frozenset((COMMENT_BODY_OPTION, ISSUE_TITLE_OPTION))
+ISSUE_STDIN_BODY = "-"
+ISSUE_EDIT_PREFIX_LENGTH = 3
+ISSUE_CREATE_PREFIX_LENGTH = 2
 GRAPHQL_UNAVAILABLE = "GraphQL is not available"
 GRAPHQL_ERROR_MESSAGE = (
     "error: this session blocks GitHub GraphQL; read comments with "
@@ -666,6 +674,80 @@ def next_page_note(page: int, output: str) -> str:
             f"{COMMENT_PAGE_OPTION} {page + 1}")
 
 
+class IssueBodyError(ValueError):
+    """A mapped issue command named a body file that the draft rules refuse."""
+
+
+def _issue_rest_options(options: list[str]) -> dict | None:
+    """Return option values when every token is one approved option pair, else None."""
+    values = {}
+    for index in range(0, len(options), 2):
+        name = options[index]
+        if name not in ISSUE_REST_OPTIONS or name in values or index + 1 >= len(options):
+            return None
+        values[name] = options[index + 1]
+    if values.get(COMMENT_BODY_OPTION, ISSUE_STDIN_BODY) == ISSUE_STDIN_BODY:
+        return None
+    return values
+
+
+def _issue_rest_shape(arguments: list[str]) -> tuple[str, str, dict] | None:
+    """Return the method, issue path suffix, and options of an approved issue shape."""
+    if arguments[:2] == ["issue", "edit"] and len(arguments) > ISSUE_EDIT_PREFIX_LENGTH:
+        number = arguments[2]
+        options = _issue_rest_options(arguments[ISSUE_EDIT_PREFIX_LENGTH:])
+        if options is None or not THREAD_NUMBER.fullmatch(number):
+            return None
+        return "PATCH", f"/{int(number)}", options
+    if arguments[:2] == ["issue", "create"]:
+        options = _issue_rest_options(arguments[ISSUE_CREATE_PREFIX_LENGTH:])
+        if options is None or ISSUE_TITLE_OPTION not in options:
+            return None
+        return "POST", "", options
+    return None
+
+
+def issue_rest_request(repo_root, arguments: list[str]) -> tuple[list[str], str] | None:
+    """Return REST CLI arguments and a JSON body for an approved issue shape, else None.
+
+    Callers run this only after the gate checks pass on the original
+    arguments. A refused body file raises IssueBodyError so the call fails
+    closed instead of falling back to the blocked GraphQL path.
+    """
+    shape = _issue_rest_shape(list(arguments))
+    if shape is None:
+        return None
+    method, suffix, options = shape
+    try:
+        _path, body = read_comment_draft(Path(repo_root), options[COMMENT_BODY_OPTION])
+    except ValueError as error:
+        raise IssueBodyError(str(error)) from error
+    payload = {"body": body}
+    if ISSUE_TITLE_OPTION in options:
+        payload["title"] = options[ISSUE_TITLE_OPTION]
+    endpoint = f"repos/{repository_target(Path(repo_root))}/issues{suffix}"
+    return ["api", "-X", method, endpoint, "--input", "-"], json.dumps(payload)
+
+
+def issue_url(output: str) -> str | None:
+    """Return the html_url of a REST issue response, or None when absent."""
+    try:
+        issue = json.loads(output)
+    except ValueError:
+        return None
+    url = issue.get("html_url") if isinstance(issue, dict) else None
+    return url if isinstance(url, str) else None
+
+
+def _relay_issue_result(result) -> int:
+    """Print the issue URL of a successful REST write, else relay the raw result."""
+    url = issue_url(result.stdout) if result.returncode == 0 else None
+    if url is None:
+        return _relay_result(result)
+    _safe_write(sys.stdout, strip_terminal_controls(url[:MAX_REPORTED_PATH]) + "\n")
+    return 0
+
+
 def _run_comment_command(repo_root, operation: str, arguments: list[str]) -> int:
     """Run one fixed comment read or post through the authenticated CLI."""
     try:
@@ -714,6 +796,7 @@ def _execute(repo_root, arguments: list[str], gate_core=None, input_text=None,
     `input_text` reaches gh on stdin. `output_note` maps successful stdout
     to an optional stderr note.
     """
+    rest_request = None
     try:
         effective_arguments = arguments
         if gate_core is not None:
@@ -723,6 +806,9 @@ def _execute(repo_root, arguments: list[str], gate_core=None, input_text=None,
                 print(f"error: GitHub command denied by policy: {gate_core.sanitize(reason)}",
                       file=sys.stderr)
                 return POLICY_DENIAL_EXIT_CODE
+            rest_request = issue_rest_request(repo_root, arguments)
+        if rest_request is not None:
+            effective_arguments, input_text = rest_request
         verify_account(repo_root)
         if input_text is None:
             result = run_gh(repo_root, effective_arguments)
@@ -731,6 +817,9 @@ def _execute(repo_root, arguments: list[str], gate_core=None, input_text=None,
     except subprocess.TimeoutExpired:
         print(TIMEOUT_ERROR_MESSAGE, file=sys.stderr)
         return 1
+    except IssueBodyError as error:
+        print(f"error: {_bounded_path(error)}", file=sys.stderr)
+        return USAGE_ERROR_EXIT_CODE
     except ValueError:
         print("error: GitHub CLI input or repository metadata is invalid; inspect and retry",
               file=sys.stderr)
@@ -758,6 +847,8 @@ def _execute(repo_root, arguments: list[str], gate_core=None, input_text=None,
     if result.returncode != 0 and GRAPHQL_UNAVAILABLE in result.stderr[:ERROR_SCAN_LIMIT]:
         print(GRAPHQL_ERROR_MESSAGE, file=sys.stderr)
         return 1
+    if rest_request is not None:
+        return _relay_issue_result(result)
     return _relay_result(result, output_note)
 
 

@@ -77,6 +77,15 @@ COMMENT_PAGE_OPTION = "--page"
 COMMENT_PAGE_NUMBER = re.compile(r"[1-9][0-9]{0,3}")
 MAX_COMMENT_PAGE = 1000
 COMMENT_PAGE_ARGUMENT_COUNT = 2
+# Read-only wrapper `run api` requests. gh api sends GET unless a method,
+# field, or input option changes it. A read therefore accepts only GET
+# method values, output options, and exactly one REST path.
+API_READ_METHOD = "GET"
+API_METHOD_OPTIONS = frozenset(("-X", "--method"))
+API_READ_VALUE_OPTIONS = frozenset(("--jq", "-q"))
+API_READ_FLAGS = frozenset(("--paginate", "--slurp", "-i", "--include", "--silent"))
+API_GRAPHQL_PATH = "graphql"
+API_PATH_SCHEME = re.compile(r"\A[A-Za-z][A-Za-z0-9+.-]*:")
 SHELL_OPERATORS = (";", "&", "&&", "|", "||", "(", ")")
 OPERATOR_CHARACTERS = frozenset(bash_parser.PUNCTUATION_CHARS)
 CHAIN_OPERATOR = "&&"
@@ -490,6 +499,43 @@ def _trusted_comment_verdict(arguments: tuple) -> tuple:
     return ASK, "Posting a GitHub comment requires active-human consent.", False
 
 
+def _api_read_path(arguments: tuple) -> str:
+    """Return the single REST path of a read-only `api` request, or ""."""
+    paths = []
+    index = 0
+    while index < len(arguments):
+        token = arguments[index]
+        if token in API_METHOD_OPTIONS or token in API_READ_VALUE_OPTIONS:
+            if index + 1 >= len(arguments):
+                return ""
+            if token in API_METHOD_OPTIONS and arguments[index + 1] != API_READ_METHOD:
+                return ""
+            index += 2
+            continue
+        if token.startswith("-") and token not in API_READ_FLAGS:
+            return ""
+        if token not in API_READ_FLAGS:
+            paths.append(token)
+        index += 1
+    return paths[0] if len(paths) == 1 else ""
+
+
+def _trusted_api_read_accepted(arguments: tuple, project_dir: str) -> bool:
+    """Return whether a wrapper call is one read-only `run api` GET request.
+
+    Body, header, and hostname options fall outside the read allowlist, so
+    any such option leaves the call at its existing verdict.
+    """
+    if arguments[:2] != ("run", "api"):
+        return False
+    decision, _reason = core.forge_verdict("gh", list(arguments[1:]), project_dir)
+    if decision == DENY:
+        return False
+    path = _api_read_path(arguments[2:])
+    return (bool(path) and path.casefold() != API_GRAPHQL_PATH
+            and not API_PATH_SCHEME.match(path))
+
+
 def _python_verdict(tokens: list, project_dir: str) -> tuple:
     """Return (decision, reason, read-only) for one Python interpreter invocation."""
     if tokens[1:MODULE_LAUNCH_END] == ["-m", "unittest"]:
@@ -504,6 +550,8 @@ def _python_verdict(tokens: list, project_dir: str) -> tuple:
         return "", "", False
     if script == TRUSTED_GH_SCRIPT and arguments[:1] in (("comments",), ("comment",)):
         return _trusted_comment_verdict(arguments)
+    if script == TRUSTED_GH_SCRIPT and _trusted_api_read_accepted(arguments, project_dir):
+        return ALLOW, "", True
     if script in (TRUSTED_GH_SCRIPT, TRUSTED_GIT_SCRIPT):
         accepted = _trusted_wrapper_accepted(script, arguments, project_dir)
         return (ASK if accepted else ""), "", False

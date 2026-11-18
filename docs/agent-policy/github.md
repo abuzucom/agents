@@ -85,6 +85,12 @@ GitHub MCP comment tools such as `add_issue_comment` bypass the wrapper. No
 gate observes those tools. Rule 17 still limits every comment to an
 active-human request.
 
+## Issue bodies
+Sessions without GraphQL edit issues through `run issue edit <n>
+--body-file .comment-drafts/<file> [--title <text>]` and `run issue create
+--title <text> --body-file .comment-drafts/<file>`. Both ask. Other options
+reach `gh` unchanged. A refused body file exits 2.
+
 ## Git fallback
 After a failed wrapper operation, one semantically equivalent Git fallback may
 run after active-human confirmation. Mark it with
