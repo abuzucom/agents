@@ -217,8 +217,9 @@ The attestation leaves these facts unproven:
   signatures.
 - The owner chose the right channel at publication.
 
-Three repository settings carry the remaining controls. A tag ruleset limits
-`v*` tag creation, moves, and deletion to the owner. The `release` environment
+Three repository settings carry the remaining controls. A tag ruleset on
+every tag limits tag creation, moves, and deletion to the owner. The ruleset
+also rejects the tags a consented `git push --mirror` would carry. The `release` environment
 requires owner approval before the release job receives its write token.
 Immutable releases lock a published release. Repository files cannot enforce
 or verify these settings.

@@ -57,6 +57,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   move, or delete Git tags and never create, edit, publish, or delete
   releases. `docs/agent-policy/adoption.md` drops four handoff sentences
   that `AGENTS.md` states verbatim.
+- README states that tags exist only for releases in `vX.Y.Z` form. The
+  owner tag ruleset covers every tag.
 - `SECURITY.md` covers this repository. It supports the latest stable
   release only and states the release integrity check.
   `SECURITY.md.example` tells adopters to verify an adopted release.

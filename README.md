@@ -627,8 +627,9 @@ its way to `main`.
 
 The repository owner configures three repository settings:
 
-- A tag ruleset limits creation, moves, and deletion of `v*` tags to the
-  owner.
+- A tag ruleset on every tag (`*`) limits creation, moves, and deletion to
+  the owner. Tags exist only for releases. Every tag takes the `vX.Y.Z`
+  form.
 - The `release` environment names the owner as a required reviewer. The
   release job receives its write token only after that approval.
 - Immutable releases lock a published release.
