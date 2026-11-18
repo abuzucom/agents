@@ -14,9 +14,27 @@ into the entry. Dates never decrease. Ask the active human when a date is in
 doubt.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.23.7] (2026-11-18)
+## [2.24.1] (2026-11-18)
+
+### Added
+- `scripts/trusted_gh.py` sends `run issue edit <n> --body-file
+  .comment-drafts/<file> [--title <text>]` as a REST `PATCH` and
+  `run issue create --title <text> --body-file .comment-drafts/<file>` as
+  a REST `POST`. Sessions that block GitHub GraphQL can write issue bodies.
+  Both forms run after the existing gate checks and keep the ask verdict.
+  Any other option sends the command to `gh` unchanged. A body file that
+  breaks the draft rules exits 2 with no GitHub call.
+- `hooks/_command_execution_gate.py` allows a wrapper `run api` GET request
+  without a prompt. The request names one REST path and carries no body,
+  header, or hostname option. Every other wrapper call keeps its verdict.
+- Add `tests/test_trusted_gh_issue_writes.py` and
+  `tests/test_trusted_gh_api_read_gate.py`.
 
 ### Changed
+- Document the read-only API allow in `AGENTS.md` Rule 16 and its exact
+  conditions in `README.md`. Document the REST issue forms in
+  `docs/agent-policy/github.md` and `README.md`. The assembled policy stays
+  under its 65536-byte limit.
 - `requirements-checkers.txt` pins PyYAML 6.0.3 by sha256 hash. The
   hashes cover every file PyPI publishes for that version.
 - The five jobs that install a checker requirements file run on Python
@@ -58,6 +76,11 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   subpacket length form, the fingerprint issuer, and malformed input.
 - Add `tests/test_web_flow_signature_verification.py` covering a forged
   issuer, altered signed fields, altered payloads, and malformed values.
+- The read-only `run api` allow admits only plain REST path segments and a
+  plain query. A path such as `graphql?query=x`, `graphql/`, `./graphql`,
+  or `%67raphql` no longer passes without a prompt. Add
+  `tests/test_trusted_gh_api_read_paths.py` covering these paths and the
+  option scan.
 
 ## [2.23.3] (2026-11-17)
 

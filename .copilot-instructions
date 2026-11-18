@@ -336,6 +336,10 @@ denylist includes documented GitHub CLI aliases. It unconditionally denies
 archive`, including descendants. Consent cannot override these denials. Route
 other hosted state changes to active-human consent.
 
+The command gate allows a wrapper `run api` GET request with one REST
+path and no body without a prompt. Other wrapper calls keep the earlier
+verdict.
+
 A failed wrapper operation permits one semantically equivalent Git fallback
 after active-human confirmation with the documented marker. Request the
 client's approved `external-network` path when sandbox isolation blocks network
@@ -1220,6 +1224,12 @@ Report the blocker to the active human and stop.
 GitHub MCP comment tools such as `add_issue_comment` bypass the wrapper. No
 gate observes those tools. Rule 17 still limits every comment to an
 active-human request.
+
+## Issue bodies
+Sessions without GraphQL edit issues through `run issue edit <n>
+--body-file .comment-drafts/<file> [--title <text>]` and `run issue create
+--title <text> --body-file .comment-drafts/<file>`. Both ask. Other options
+reach `gh` unchanged. A refused body file exits 2.
 
 ## Git fallback
 After a failed wrapper operation, one semantically equivalent Git fallback may

@@ -122,6 +122,23 @@ Shell gates deny direct `gh`, Git, and HTTP substitutes. High-risk hosted
 mutations deny. Confirmable changes ask. Local Git and ordinary fetch, pull,
 and push transport remain available.
 
+The wrapper sends two issue body forms over REST.
+`docs/agent-policy/github.md` lists both forms.
+
+The command gate allows `python scripts/trusted_gh.py run api <path>`
+without a prompt when every condition holds:
+
+- Every `-X` or `--method` value is GET.
+- No `-f`, `-F`, `--field`, `--raw-field`, `--input`, `-H`, `--header`,
+  or `--hostname` option appears.
+- The path holds plain segments and an optional plain query. Its first
+  segment is not `graphql`.
+- Other options come from `--jq`, `-q`, `--paginate`, `--slurp`, `-i`,
+  `--include`, and `--silent`.
+
+The allow holds on every branch state. Every other wrapper call keeps its
+ask or deny verdict.
+
 Hosted resource edits must use the wrapper. The managed Codex sandbox can set
 `127.0.0.1:9` as a loopback proxy placeholder. Failure at that endpoint does
 not prove GitHub CLI failure. The GitHub CLI and Git wrappers clear only that
