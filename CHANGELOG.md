@@ -51,6 +51,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   issuer from the signature's hashed subpackets with the standard
   library. A commit verified under any other key still fails.
   GitHub must also report the verification reason `valid`.
+- Add `tests/test_signature_issuer_packets.py` covering each packet and
+  subpacket length form, the fingerprint issuer, and malformed input.
 
 ## [2.23.3] (2026-11-17)
 
