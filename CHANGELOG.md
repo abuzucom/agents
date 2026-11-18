@@ -14,7 +14,7 @@ into the entry. Dates never decrease. Ask the active human when a date is in
 doubt.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.26.1] (2026-11-18)
+## [2.26.2] (2026-11-18)
 
 ### Added
 - `scripts/check_policy_size.py` fails when the assembled policy exceeds
@@ -85,6 +85,62 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `tests/test_trusted_gh_api_read_gate.py`.
 
 ### Changed
+- Split the slowest hook test classes into smaller classes. The hook
+  coverage runner gives each class one shard and a 30-second limit. A
+  slow macOS runner pushed `PrimaryBranchOverrideTest` past that limit.
+  Each new class covers part of the same input list. Every case and
+  assertion stays the same.
+  - `tests/test_primary_branch_override.py` runs the invalid override
+    cases for `develop` and `main` in separate classes.
+  - `tests/test_primary_branch_read_only.py` halves the allowed and
+    denied shell command lists for each read-only state. CMD allow and
+    deny forms and the allowed and denied tool checks run in separate
+    classes.
+  - `tests/test_trusted_gh_api_read_gate.py` runs each hook method in its
+    own class over one shared fixture.
+  - `tests/test_sync_digest_index.py` runs the six backfill tests in two
+    classes over one shared Git history fixture.
+- Remove repeated setup work from the same tests. Every hook launch
+  stays the same.
+  - `tests/read_only_branch_support.py` reads the copied scripts once
+    per process into an immutable cache marked intentional. Each fixture
+    reads `os.environ` at creation, because a test can patch it.
+  - The invalid override checks and the override branch check reuse one
+    fixture per branch. Each case rewrites the override file before the
+    hook reads it.
+  - Each backfill class builds its two-commit history once. Each test
+    copies that tree and parses its own shared manifest dict. The
+    history took six child processes per test.
+  - `tests/test_trusted_gh_api_read_gate.py` reads the wrapper script
+    once per module.
+- Give each touched test class one responsibility.
+  - `tests/read_only_branch_support.py` splits `BranchFixture` into
+    `RepositoryFixture` and `HookRunner`. `BranchFixture` composes both
+    and keeps every attribute and method name.
+  - `tests/test_primary_branch_read_only.py` gives malformed calls,
+    existing branch switches, active rebases, and lifecycle events one
+    class each.
+  - `tests/test_primary_branch_override.py` moves the directory override
+    and lifecycle blocking checks into `UnusableOverrideFileTest`.
+  - `tests/test_trusted_gh_api_read_gate.py` replaces the
+    `ApiReadHookCase` base class with `ApiRepositoryFixture`,
+    `ApiHookRunner`, and `read_hook_decision`. `ApiHookFixture` composes
+    all three. Each hook test class inherits only `unittest.TestCase` and
+    builds one `ApiHookFixture` in setUp.
+  - `tests/test_sync_digest_index.py` replaces the backfill base class
+    with `BackfillHistory`. Each backfill test class builds one in
+    setUpClass and copies it for each test.
+- Check each precondition in the same tests before the first use of its
+  value.
+  - `decision` in `tests/read_only_branch_support.py` checks the hook
+    exit code before it reads stdout. Gemini and Antigravity verdicts
+    exit 0. Other clients exit 0 or 2. A crashed hook with empty stdout
+    read as allow before this check.
+  - The backfill fixture checks each `sync.py --write-shared` exit code
+    before it reads `shared-files.json`.
+  - The read-only shell helpers fail on an empty command list half. An
+    empty half ran no case and passed.
+  - `HookRunner.run` builds only the payload for the selected client.
 - `docs/agent-policy/github.md` lists all six REST write forms in one
   section. Four shorter sentences free the bytes. The comment intro drops
   the GraphQL reason, the network paragraph says "every client", and two

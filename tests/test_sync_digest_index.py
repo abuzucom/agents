@@ -8,6 +8,7 @@ belongs to the index logic and not to the repository contents.
 """
 import hashlib
 import json
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -49,25 +50,30 @@ def read_index(root: Path) -> dict:
     return json.loads((root / INDEX_NAME).read_text(encoding="utf-8"))
 
 
+def build_index_tree(root: Path) -> None:
+    """Write a synthetic source repository with an empty digest index."""
+    (root / "scripts").mkdir()
+    (root / "scripts" / "sync.py").write_text(
+        SYNC.read_text(encoding="utf-8"), encoding="utf-8")
+    (root / "AGENTS.md").write_text("# Policy\n", encoding="utf-8")
+    tracked = list(sync.ADOPTER_POLICY_FILES) + list(sync.SHARED_FILES)
+    for name in tracked:
+        path = root / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(f"# {name}\nbody = 1\n", encoding="utf-8")
+    write_changelog(root, FIRST_VERSION)
+    (root / INDEX_NAME).write_text(
+        json.dumps({"versions": {}}) + "\n", encoding="utf-8")
+
+
 class IndexFixture(unittest.TestCase):
     """A synthetic source repository with an empty digest index."""
 
     def setUp(self):
-        self.tmp = tempfile.TemporaryDirectory()
-        self.addCleanup(self.tmp.cleanup)
-        self.root = Path(self.tmp.name)
-        (self.root / "scripts").mkdir()
-        (self.root / "scripts" / "sync.py").write_text(
-            SYNC.read_text(encoding="utf-8"), encoding="utf-8")
-        (self.root / "AGENTS.md").write_text("# Policy\n", encoding="utf-8")
-        tracked = list(sync.ADOPTER_POLICY_FILES) + list(sync.SHARED_FILES)
-        for name in tracked:
-            path = self.root / name
-            path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text(f"# {name}\nbody = 1\n", encoding="utf-8")
-        write_changelog(self.root, FIRST_VERSION)
-        (self.root / INDEX_NAME).write_text(
-            json.dumps({"versions": {}}) + "\n", encoding="utf-8")
+        self.temporary_directory = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temporary_directory.cleanup)
+        self.root = Path(self.temporary_directory.name)
+        build_index_tree(self.root)
 
 
 class WriteIndexTest(IndexFixture):
@@ -174,24 +180,67 @@ def run_git(cwd: Path, *args) -> None:
                    capture_output=True, text=True, check=True)
 
 
-class BackfillIndexTest(IndexFixture):
+class BackfillHistory:
+    """A synthetic tree with two committed versions, built once per test class.
+
+    Building the history takes six child processes. Each test class builds one
+    in setUpClass and copies it for each test with copy_into. The test classes
+    inherit only unittest.TestCase. The backfill tests span two classes, so
+    each class runs in its own hook coverage shard within the time limit.
+    """
+
+    def __init__(self, register_cleanup):
+        template_directory = tempfile.TemporaryDirectory()
+        register_cleanup(template_directory.cleanup)
+        self.template = Path(template_directory.name) / "repo"
+        self.template.mkdir()
+        build_index_tree(self.template)
+        run_git(self.template, "init", "--quiet")
+        self.write_shared_manifest()
+        run_git(self.template, "add", "--all")
+        run_git(self.template, "commit", "--quiet", "-m", "first")
+        # The history keeps the manifest as immutable text. Each test parses its
+        # own dict, so no test can change what another test compares against.
+        self.first_shared_text = (
+            self.template / "shared-files.json").read_text(encoding="utf-8")
+        write_changelog(self.template, SECOND_VERSION)
+        (self.template / "AGENTS.md").write_text("# Policy two\n", encoding="utf-8")
+        (self.template / sync.SHARED_FILES[0]).write_text(
+            "# changed\nbody = 2\n", encoding="utf-8")
+        self.write_shared_manifest()
+        run_git(self.template, "add", "--all")
+        run_git(self.template, "commit", "--quiet", "-m", "second")
+
+    def write_shared_manifest(self) -> None:
+        """Run sync.py --write-shared and stop the class on failure.
+
+        The fixture reads shared-files.json right after this call. A failed
+        sync leaves that file missing or stale.
+        """
+        result = run_sync(self.template, "--write-shared")
+        if result.returncode != 0:
+            raise RuntimeError(
+                f"sync.py --write-shared failed in the fixture: {result.stderr}")
+
+    def copy_into(self, test_case: unittest.TestCase) -> tuple[Path, dict]:
+        """Copy the history for one test and return its root and manifest dict."""
+        temporary_directory = tempfile.TemporaryDirectory()
+        test_case.addCleanup(temporary_directory.cleanup)
+        root = Path(temporary_directory.name) / "repo"
+        shutil.copytree(self.template, root, symlinks=True)
+        return root, json.loads(self.first_shared_text)
+
+
+class BackfillIndexTest(unittest.TestCase):
     """--backfill-digests adds an entry for every version in Git history."""
 
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.history = BackfillHistory(cls.addClassCleanup)
+
     def setUp(self):
-        super().setUp()
-        run_git(self.root, "init", "--quiet")
-        run_sync(self.root, "--write-shared")
-        run_git(self.root, "add", "--all")
-        run_git(self.root, "commit", "--quiet", "-m", "first")
-        self.first_shared = json.loads(
-            (self.root / "shared-files.json").read_text(encoding="utf-8"))
-        write_changelog(self.root, SECOND_VERSION)
-        (self.root / "AGENTS.md").write_text("# Policy two\n", encoding="utf-8")
-        (self.root / sync.SHARED_FILES[0]).write_text(
-            "# changed\nbody = 2\n", encoding="utf-8")
-        run_sync(self.root, "--write-shared")
-        run_git(self.root, "add", "--all")
-        run_git(self.root, "commit", "--quiet", "-m", "second")
+        self.root, self.first_shared = self.history.copy_into(self)
 
     def test_backfill_adds_every_committed_version(self):
         result = run_sync(self.root, "--backfill-digests")
@@ -217,6 +266,18 @@ class BackfillIndexTest(IndexFixture):
             versions[FIRST_VERSION]["shared"], self.first_shared["shared"])
         self.assertNotEqual(
             versions[SECOND_VERSION]["shared"], self.first_shared["shared"])
+
+
+class BackfillExistingIndexTest(unittest.TestCase):
+    """--backfill-digests keeps existing entries and needs an index file."""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.history = BackfillHistory(cls.addClassCleanup)
+
+    def setUp(self):
+        self.root, _first_shared = self.history.copy_into(self)
 
     def test_backfill_keeps_an_existing_entry(self):
         marker = {"policy": {"AGENTS.md": "0" * SHA256_HEX_LENGTH}, "shared": {}}
