@@ -14,9 +14,23 @@ into the entry. Dates never decrease. Ask the active human when a date is in
 doubt.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.24.1] (2026-11-18)
+## [2.25.0] (2026-11-18)
 
 ### Added
+- `scripts/trusted_gh.py` sends four more write shapes over REST. Sessions
+  that block GitHub GraphQL cannot run the matching `gh` commands.
+  - `run pr create --draft --title <text> --body-file <draft> [--base <b>]`
+    becomes a REST `POST` with `draft` set. The head is the current
+    branch. The base defaults to the branch in `hooks/primary-branch.txt`,
+    or `main`.
+  - `run pr edit <n> --body-file <draft> [--title <text>]` becomes a REST
+    `PATCH` on the pull request.
+  - `run issue close <n> [--reason completed|not_planned]` and
+    `run issue reopen <n>` become a REST `PATCH` of the issue state.
+  - Each shape runs after the existing gate checks and keeps the ask
+    verdict. Any other option sends the command to `gh` unchanged. A
+    refused draft, base, or primary branch file exits 2.
+- Add `tests/test_trusted_gh_rest_write_forms.py`.
 - `scripts/trusted_gh.py` sends `run issue edit <n> --body-file
   .comment-drafts/<file> [--title <text>]` as a REST `PATCH` and
   `run issue create --title <text> --body-file .comment-drafts/<file>` as
@@ -31,6 +45,11 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `tests/test_trusted_gh_api_read_gate.py`.
 
 ### Changed
+- `docs/agent-policy/github.md` lists all six REST write forms in one
+  section. Four shorter sentences free the bytes. The comment intro drops
+  the GraphQL reason, the network paragraph says "every client", and two
+  repeated sentences leave the comment section. The assembled policy
+  holds 65506 bytes.
 - Document the read-only API allow in `AGENTS.md` Rule 16 and its exact
   conditions in `README.md`. Document the REST issue forms in
   `docs/agent-policy/github.md` and `README.md`. The assembled policy stays

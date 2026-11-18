@@ -132,6 +132,20 @@ ISSUE_REST_OPTIONS = frozenset((COMMENT_BODY_OPTION, ISSUE_TITLE_OPTION))
 ISSUE_STDIN_BODY = "-"
 ISSUE_EDIT_PREFIX_LENGTH = 3
 ISSUE_CREATE_PREFIX_LENGTH = 2
+# `gh pr create`, `gh pr edit`, `gh issue close`, and `gh issue reopen` also
+# call GraphQL. Their exact shapes below run over REST. Rule 5 allows only
+# draft pull requests, so the create shape requires `--draft`.
+PR_DRAFT_FLAG = "--draft"
+PR_BASE_OPTION = "--base"
+PR_CREATE_OPTIONS = frozenset((COMMENT_BODY_OPTION, ISSUE_TITLE_OPTION, PR_BASE_OPTION))
+ISSUE_CLOSE_REASON_OPTION = "--reason"
+ISSUE_CLOSE_REASONS = frozenset(("completed", "not_planned"))
+ISSUE_STATE_PREFIX_LENGTH = 3
+# The branch gate reads the same override file with the same rules.
+PRIMARY_BRANCH_FILE = Path("hooks") / "primary-branch.txt"
+DEFAULT_PRIMARY_BRANCH = "main"
+REJECTED_PRIMARY_BRANCHES = frozenset(("master", "HEAD"))
+MAX_PRIMARY_BRANCH_BYTES = 256
 GRAPHQL_UNAVAILABLE = "GraphQL is not available"
 GRAPHQL_ERROR_MESSAGE = (
     "error: this session blocks GitHub GraphQL; read comments with "
@@ -277,11 +291,38 @@ def repository_branch(repo_root: Path) -> str:
     if not content.startswith(marker):
         raise ValueError("repository has no named branch; check out a branch first")
     branch = content.removeprefix(marker)
-    components = branch.split("/")
-    if (not BRANCH_NAME.fullmatch(branch) or any(component in ("", ".", "..")
-                                                for component in components)):
+    if not is_valid_branch_name(branch):
         raise ValueError("repository has an invalid current branch")
     return branch
+
+
+def is_valid_branch_name(name: str) -> bool:
+    """Return whether a branch name has safe characters and no empty or dot component."""
+    return bool(BRANCH_NAME.fullmatch(name)) and not any(
+        component in ("", ".", "..") for component in name.split("/"))
+
+
+def primary_branch_name(root: Path) -> str:
+    """Return the branch in hooks/primary-branch.txt below root, or main.
+
+    The file must be a regular non-link file holding one ASCII line that
+    names a valid branch other than master or HEAD.
+    """
+    path = Path(root) / PRIMARY_BRANCH_FILE
+    try:
+        details = path.lstat()
+    except FileNotFoundError:
+        return DEFAULT_PRIMARY_BRANCH
+    if not stat.S_ISREG(details.st_mode) or details.st_size > MAX_PRIMARY_BRANCH_BYTES:
+        raise ValueError(f"{PRIMARY_BRANCH_FILE.as_posix()} must be a small regular file")
+    content = path.read_bytes()
+    lines = content.splitlines()
+    name = lines[0].decode("ascii", errors="replace") if len(lines) == 1 else ""
+    if (not content.isascii() or name in REJECTED_PRIMARY_BRANCHES
+            or not is_valid_branch_name(name)):
+        raise ValueError(f"{PRIMARY_BRANCH_FILE.as_posix()} must name one valid branch "
+                         "other than master or HEAD")
+    return name
 
 
 def _has_repository_option(arguments: list[str]) -> bool:
@@ -674,7 +715,11 @@ def next_page_note(page: int, output: str) -> str:
             f"{COMMENT_PAGE_OPTION} {page + 1}")
 
 
-class IssueBodyError(ValueError):
+class RestWriteError(ValueError):
+    """A mapped REST write named a value that the wrapper refuses."""
+
+
+class IssueBodyError(RestWriteError):
     """A mapped issue command named a body file that the draft rules refuse."""
 
 
@@ -718,15 +763,116 @@ def issue_rest_request(repo_root, arguments: list[str]) -> tuple[list[str], str]
     if shape is None:
         return None
     method, suffix, options = shape
-    try:
-        _path, body = read_comment_draft(Path(repo_root), options[COMMENT_BODY_OPTION])
-    except ValueError as error:
-        raise IssueBodyError(str(error)) from error
-    payload = {"body": body}
+    payload = {"body": _read_rest_body(repo_root, options[COMMENT_BODY_OPTION])}
     if ISSUE_TITLE_OPTION in options:
         payload["title"] = options[ISSUE_TITLE_OPTION]
-    endpoint = f"repos/{repository_target(Path(repo_root))}/issues{suffix}"
+    return _rest_call(repo_root, method, f"issues{suffix}", payload)
+
+
+def _read_rest_body(repo_root, raw: str) -> str:
+    """Return a validated draft body, or raise IssueBodyError so the call fails closed."""
+    try:
+        _path, body = read_comment_draft(Path(repo_root), raw)
+    except ValueError as error:
+        raise IssueBodyError(str(error)) from error
+    return body
+
+
+def _rest_call(repo_root, method: str, path: str, payload: dict) -> tuple[list[str], str]:
+    """Return REST CLI arguments for one origin repository path and its JSON body."""
+    endpoint = f"repos/{repository_target(Path(repo_root))}/{path}"
     return ["api", "-X", method, endpoint, "--input", "-"], json.dumps(payload)
+
+
+def _pull_create_options(options: list[str]) -> dict | None:
+    """Return values for `--draft --title T --body-file F [--base B]` in any order, else None."""
+    values = {}
+    index = 0
+    while index < len(options):
+        name = options[index]
+        if name in values:
+            return None
+        if name == PR_DRAFT_FLAG:
+            values[name] = True
+            index += 1
+            continue
+        if name not in PR_CREATE_OPTIONS or index + 1 >= len(options):
+            return None
+        values[name] = options[index + 1]
+        index += 2
+    if PR_DRAFT_FLAG not in values or ISSUE_TITLE_OPTION not in values:
+        return None
+    if values.get(COMMENT_BODY_OPTION, ISSUE_STDIN_BODY) == ISSUE_STDIN_BODY:
+        return None
+    return values
+
+
+def _pull_base(repo_root, options: dict) -> str:
+    """Return the validated base branch, defaulting to the primary branch."""
+    try:
+        base = options.get(PR_BASE_OPTION) or primary_branch_name(
+            _find_git_entry(Path(repo_root)).parent)
+    except (OSError, ValueError) as error:
+        raise RestWriteError(str(error)) from error
+    if not is_valid_branch_name(base):
+        raise RestWriteError("pull request base must name one valid branch")
+    return base
+
+
+def pull_rest_request(repo_root, arguments: list[str]) -> tuple[list[str], str] | None:
+    """Return REST CLI arguments and a JSON body for a draft create or a body edit, else None."""
+    if arguments[:2] == ["pr", "create"]:
+        options = _pull_create_options(arguments[ISSUE_CREATE_PREFIX_LENGTH:])
+        if options is None:
+            return None
+        payload = {"title": options[ISSUE_TITLE_OPTION],
+                   "body": _read_rest_body(repo_root, options[COMMENT_BODY_OPTION]),
+                   "head": repository_branch(Path(repo_root)),
+                   "base": _pull_base(repo_root, options), "draft": True}
+        return _rest_call(repo_root, "POST", "pulls", payload)
+    if arguments[:2] != ["pr", "edit"] or len(arguments) <= ISSUE_EDIT_PREFIX_LENGTH:
+        return None
+    options = _issue_rest_options(arguments[ISSUE_EDIT_PREFIX_LENGTH:])
+    if options is None or not THREAD_NUMBER.fullmatch(arguments[2]):
+        return None
+    payload = {"body": _read_rest_body(repo_root, options[COMMENT_BODY_OPTION])}
+    if ISSUE_TITLE_OPTION in options:
+        payload["title"] = options[ISSUE_TITLE_OPTION]
+    return _rest_call(repo_root, "PATCH", f"pulls/{int(arguments[2])}", payload)
+
+
+def issue_state_request(repo_root, arguments: list[str]) -> tuple[list[str], str] | None:
+    """Return REST CLI arguments and a JSON body for `issue close` or `issue reopen`, else None."""
+    if arguments[:2] not in (["issue", "close"], ["issue", "reopen"]):
+        return None
+    if len(arguments) < ISSUE_STATE_PREFIX_LENGTH or not THREAD_NUMBER.fullmatch(arguments[2]):
+        return None
+    extra = arguments[ISSUE_STATE_PREFIX_LENGTH:]
+    if arguments[1] == "reopen":
+        payload = {"state": "open"} if not extra else None
+    elif not extra:
+        payload = {"state": "closed"}
+    elif (len(extra) == 2 and extra[0] == ISSUE_CLOSE_REASON_OPTION
+          and extra[1] in ISSUE_CLOSE_REASONS):
+        payload = {"state": "closed", "state_reason": extra[1]}
+    else:
+        payload = None
+    if payload is None:
+        return None
+    return _rest_call(repo_root, "PATCH", f"issues/{int(arguments[2])}", payload)
+
+
+def rest_write_request(repo_root, arguments: list[str]) -> tuple[list[str], str] | None:
+    """Return the REST request for any approved write shape, else None.
+
+    Callers run this only after the gate checks pass on the original
+    arguments. A refused input raises RestWriteError so the call fails closed.
+    """
+    for build_request in (issue_rest_request, pull_rest_request, issue_state_request):
+        request = build_request(repo_root, list(arguments))
+        if request is not None:
+            return request
+    return None
 
 
 def issue_url(output: str) -> str | None:
@@ -806,7 +952,7 @@ def _execute(repo_root, arguments: list[str], gate_core=None, input_text=None,
                 print(f"error: GitHub command denied by policy: {gate_core.sanitize(reason)}",
                       file=sys.stderr)
                 return POLICY_DENIAL_EXIT_CODE
-            rest_request = issue_rest_request(repo_root, arguments)
+            rest_request = rest_write_request(repo_root, arguments)
         if rest_request is not None:
             effective_arguments, input_text = rest_request
         verify_account(repo_root)
@@ -817,7 +963,7 @@ def _execute(repo_root, arguments: list[str], gate_core=None, input_text=None,
     except subprocess.TimeoutExpired:
         print(TIMEOUT_ERROR_MESSAGE, file=sys.stderr)
         return 1
-    except IssueBodyError as error:
+    except RestWriteError as error:
         print(f"error: {_bounded_path(error)}", file=sys.stderr)
         return USAGE_ERROR_EXIT_CODE
     except ValueError:
