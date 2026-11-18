@@ -72,6 +72,30 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
     copies that tree. The history took six child processes per test.
   - `tests/test_trusted_gh_api_read_gate.py` reads the wrapper script
     once per module.
+- Give each touched test class one responsibility.
+  - `tests/read_only_branch_support.py` splits `BranchFixture` into
+    `RepositoryFixture` and `HookRunner`. `BranchFixture` composes both
+    and keeps every attribute and method name.
+  - `tests/test_primary_branch_read_only.py` gives malformed calls,
+    existing branch switches, active rebases, and lifecycle events one
+    class each.
+  - `tests/test_primary_branch_override.py` moves the directory override
+    and lifecycle blocking checks into `UnusableOverrideFileTest`.
+  - `tests/test_trusted_gh_api_read_gate.py` splits `ApiReadHookCase`
+    into `ApiRepositoryFixture`, `ApiHookRunner`, and
+    `read_hook_decision`. `ApiReadHookCase` composes all three and keeps
+    its method names.
+- Check each precondition in the same tests before the first use of its
+  value.
+  - `decision` in `tests/read_only_branch_support.py` checks the hook
+    exit code before it reads stdout. Gemini and Antigravity verdicts
+    exit 0. Other clients exit 0 or 2. A crashed hook with empty stdout
+    read as allow before this check.
+  - The backfill fixture checks each `sync.py --write-shared` exit code
+    before it reads `shared-files.json`.
+  - The read-only shell helpers fail on an empty command list half. An
+    empty half ran no case and passed.
+  - `HookRunner.run` builds only the payload for the selected client.
 - `docs/agent-policy/github.md` lists all six REST write forms in one
   section. Four shorter sentences free the bytes. The comment intro drops
   the GraphQL reason, the network paragraph says "every client", and two

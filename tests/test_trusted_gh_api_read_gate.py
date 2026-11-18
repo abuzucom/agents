@@ -125,16 +125,12 @@ class ApiReadVerdictTest(unittest.TestCase):
         self.assertNotEqual(decision, "allow")
 
 
-class ApiReadHookCase(unittest.TestCase):
-    """Share the hook fixture across the shard classes.
+class ApiRepositoryFixture:
+    """Build one repository with an origin remote and the wrapper script."""
 
-    Each class stays small because the hook coverage runner gives every test
-    class one shard with a fixed time limit, and every case launches the hook.
-    """
-
-    def setUp(self):
+    def __init__(self, test_case: unittest.TestCase):
         temporary = tempfile.TemporaryDirectory()
-        self.addCleanup(temporary.cleanup)
+        test_case.addCleanup(temporary.cleanup)
         self.root = Path(temporary.name).resolve()
         git_dir = self.root / ".git"
         (git_dir / "objects").mkdir(parents=True)
@@ -155,6 +151,14 @@ class ApiReadHookCase(unittest.TestCase):
         head = "0" * SHA_HEX_LENGTH if branch == "HEAD" else f"ref: refs/heads/{branch}"
         (self.root / ".git" / "HEAD").write_text(head + "\n", encoding="utf-8")
 
+
+class ApiHookRunner:
+    """Send shell tool payloads to the installed hook for one repository."""
+
+    def __init__(self, root: Path, environment: dict):
+        self.root = root
+        self.environment = environment
+
     def run_hook(self, tool_name: str, command: str) -> subprocess.CompletedProcess:
         """Send one shell tool payload to the hook without executing the command."""
         payload = {"hook_event_name": "PreToolUse", "permission_mode": "default",
@@ -165,14 +169,43 @@ class ApiReadHookCase(unittest.TestCase):
             input=json.dumps(payload), env=self.environment, capture_output=True,
             text=True, timeout=TIMEOUT_SECONDS, check=False)
 
+
+def read_hook_decision(test_case: unittest.TestCase,
+                       result: subprocess.CompletedProcess) -> str:
+    """Return allow, ask, or deny from one hook result.
+
+    A launch failure other than a blocking exit fails the calling test.
+    """
+    if result.returncode == BLOCKING_EXIT_CODE:
+        return "deny"
+    test_case.assertEqual(result.returncode, 0, result.stderr)
+    if not result.stdout.strip():
+        return "allow"
+    return json.loads(result.stdout)["hookSpecificOutput"]["permissionDecision"]
+
+
+class ApiReadHookCase(unittest.TestCase):
+    """Compose the repository fixture, hook runner, and decision reader.
+
+    Each class stays small because the hook coverage runner gives every test
+    class one shard with a fixed time limit, and every case launches the hook.
+    """
+
+    def setUp(self):
+        self.repository = ApiRepositoryFixture(self)
+        self.runner = ApiHookRunner(self.repository.root, self.repository.environment)
+
+    def set_head(self, branch: str) -> None:
+        """Point HEAD at one branch, or detach it for `HEAD`."""
+        self.repository.set_head(branch)
+
+    def run_hook(self, tool_name: str, command: str) -> subprocess.CompletedProcess:
+        """Send one shell tool payload to the hook without executing the command."""
+        return self.runner.run_hook(tool_name, command)
+
     def decision(self, result: subprocess.CompletedProcess) -> str:
         """Return allow, ask, or deny from one hook result."""
-        if result.returncode == BLOCKING_EXIT_CODE:
-            return "deny"
-        self.assertEqual(result.returncode, 0, result.stderr)
-        if not result.stdout.strip():
-            return "allow"
-        return json.loads(result.stdout)["hookSpecificOutput"]["permissionDecision"]
+        return read_hook_decision(self, result)
 
 
 class ApiReadHookTest(ApiReadHookCase):

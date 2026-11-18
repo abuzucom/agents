@@ -1,8 +1,9 @@
 """Shared fixture for read-only primary branch and master hook tests.
 
-Each fixture owns an isolated repository, home directory, and temporary
-directory. The hook runs as a subprocess against those roots. The real
-home directory and the real checkout stay untouched.
+RepositoryFixture owns an isolated repository, home directory, and
+temporary directory. HookRunner launches the hook as a subprocess against
+those roots. BranchFixture combines the two. The real home directory and
+the real checkout stay untouched.
 """
 import functools
 import json
@@ -16,6 +17,9 @@ from tests.test_enforce_branch_name import HOOK_PATH, REPO_ROOT
 
 DETACHED_HEAD = "HEAD"
 BLOCKING_EXIT_CODE = 2
+JSON_VERDICT_CLIENTS = ("gemini", "antigravity")
+JSON_VERDICT_EXIT_CODES = (0,)
+NATIVE_VERDICT_EXIT_CODES = (0, BLOCKING_EXIT_CODE)
 HOOK_TIMEOUT_SECONDS = 30
 # Each fixture owns a repository root, a home directory, and a temporary directory.
 ISOLATED_DIRECTORY_COUNT = 3
@@ -42,8 +46,8 @@ def inherited_environment() -> tuple[tuple[str, str], ...]:
                  if not key.startswith("GIT_") and key != "GITHUB_HEAD_REF")
 
 
-class BranchFixture:
-    """Build one repository fixture and send payloads to the installed hook."""
+class RepositoryFixture:
+    """Build one isolated repository, home directory, and temporary directory."""
 
     def __init__(self, test_case, branch: str):
         directories = [tempfile.TemporaryDirectory() for _ in range(ISOLATED_DIRECTORY_COUNT)]
@@ -91,15 +95,28 @@ class BranchFixture:
         hooks.mkdir(exist_ok=True)
         (hooks / "primary-branch.txt").write_bytes(content)
 
+
+class HookRunner:
+    """Send payloads to the installed hook for one repository root.
+
+    The runner keeps the caller's environment dict. A test that edits the
+    dict changes the environment of every later hook launch.
+    """
+
+    def __init__(self, root: Path, environment: dict):
+        self.root = root
+        self.environment = environment
+
     def run(self, tool_name: str, tool_input: dict, client: str = "claude",
             event: str = "PreToolUse", mode: str = "default") -> subprocess.CompletedProcess:
         """Send one tool call through the hook for the selected client."""
+        if client == "antigravity":
+            return self.run_payload({"workspacePaths": [str(self.root)],
+                                     "toolCall": {"name": tool_name, "args": tool_input}},
+                                    client)
         payload = {"hook_event_name": event, "permission_mode": mode,
                    "tool_name": tool_name, "tool_input": tool_input,
                    "cwd": str(self.root)}
-        if client == "antigravity":
-            payload = {"workspacePaths": [str(self.root)],
-                       "toolCall": {"name": tool_name, "args": tool_input}}
         return self.run_payload(payload, client)
 
     def run_payload(self, payload: dict, client: str = "claude") -> subprocess.CompletedProcess:
@@ -120,9 +137,65 @@ class BranchFixture:
         return self.run_payload({"hook_event_name": event, "cwd": str(self.root)})
 
 
+class BranchFixture:
+    """Compose one repository fixture with a hook runner for that repository.
+
+    The attribute and method names stay the same for every test that uses them.
+    """
+
+    def __init__(self, test_case, branch: str):
+        self.repository = RepositoryFixture(test_case, branch)
+        self.hook = HookRunner(self.repository.root, self.repository.environment)
+        self.root = self.repository.root
+        self.home = self.repository.home
+        self.temp = self.repository.temp
+        self.admin = self.repository.admin
+        self.global_config = self.repository.global_config
+        self.environment = self.repository.environment
+
+    def set_branch(self, branch: str) -> None:
+        """Point HEAD at a named branch or detach it."""
+        self.repository.set_branch(branch)
+
+    def add_local_branch(self, branch: str) -> None:
+        """Create one loose local branch reference."""
+        self.repository.add_local_branch(branch)
+
+    def write_override(self, content: bytes) -> None:
+        """Write hooks/primary-branch.txt with exact bytes."""
+        self.repository.write_override(content)
+
+    def run(self, tool_name: str, tool_input: dict, client: str = "claude",
+            event: str = "PreToolUse", mode: str = "default") -> subprocess.CompletedProcess:
+        """Send one tool call through the hook for the selected client."""
+        return self.hook.run(tool_name, tool_input, client, event, mode)
+
+    def run_payload(self, payload: dict, client: str = "claude") -> subprocess.CompletedProcess:
+        """Send one raw payload through the hook."""
+        return self.hook.run_payload(payload, client)
+
+    def shell(self, command: str, tool_name: str = "Bash", client: str = "claude"):
+        """Send one shell command through the hook."""
+        return self.hook.shell(command, tool_name, client)
+
+    def lifecycle(self, event: str) -> subprocess.CompletedProcess:
+        """Send one lifecycle event through the hook."""
+        return self.hook.lifecycle(event)
+
+
 def decision(result: subprocess.CompletedProcess, client: str = "claude") -> str:
-    """Return allow, ask, or deny from one hook result."""
-    if client in ("gemini", "antigravity"):
+    """Return allow, ask, or deny from one hook result.
+
+    Gemini and Antigravity verdicts always exit 0 with the verdict on stdout.
+    Other clients exit 0, or exit 2 to deny. Any other exit code is a hook
+    failure. An empty stdout from a failed hook must not read as allow.
+    """
+    expected_codes = JSON_VERDICT_EXIT_CODES if client in JSON_VERDICT_CLIENTS \
+        else NATIVE_VERDICT_EXIT_CODES
+    if result.returncode not in expected_codes:
+        raise AssertionError(
+            f"hook exited {result.returncode} for {client}: {result.stderr}")
+    if client in JSON_VERDICT_CLIENTS:
         if not result.stdout.strip():
             return "allow"
         return json.loads(result.stdout)["decision"]

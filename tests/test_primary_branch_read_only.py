@@ -59,6 +59,8 @@ class ReadOnlyCase(unittest.TestCase):
         return BranchFixture(self, branch)
 
     def assert_shell_allowed(self, branch: str, commands: tuple) -> None:
+        # A split list half can shrink to nothing. An empty loop passes unseen.
+        self.assertTrue(commands, "command list half is empty")
         fixture = self.fixture(branch)
         for command in commands:
             with self.subTest(branch=branch, command=command):
@@ -66,6 +68,7 @@ class ReadOnlyCase(unittest.TestCase):
                 self.assertEqual(decision(result), "allow", result.stderr)
 
     def assert_writes_denied(self, branch: str, commands: tuple) -> None:
+        self.assertTrue(commands, "command list half is empty")
         fixture = self.fixture(branch)
         for command in commands:
             with self.subTest(branch=branch, command=command):
@@ -87,7 +90,7 @@ class ReadOnlyAllowedToolTest(ReadOnlyCase):
 
 
 class ReadOnlyToolTest(ReadOnlyCase):
-    """Other tools and malformed calls fail."""
+    """Tools outside the read and planning set fail."""
 
     def test_other_tools_are_denied(self):
         for branch in READ_ONLY_STATES:
@@ -97,6 +100,10 @@ class ReadOnlyToolTest(ReadOnlyCase):
                     result = fixture.run(tool, {"url": "https://example.com"})
                     self.assertEqual(decision(result), "deny")
                     self.assertIn("permits read-only inspection", result.stderr)
+
+
+class ReadOnlyMalformedCallTest(ReadOnlyCase):
+    """Tool calls without a name or with a malformed input fail."""
 
     def test_malformed_tool_calls_are_denied(self):
         fixture = self.fixture("main")
@@ -137,7 +144,7 @@ class ReadOnlyShellDetachedRestTest(ReadOnlyCase):
 
 
 class ReadOnlyConsentTest(ReadOnlyCase):
-    """Workflows and branch creation ask. Existing branch switches pass."""
+    """Workflows and branch creation ask, and fail without an interactive session."""
 
     def test_workflows_and_branch_creation_request_consent(self):
         for branch in READ_ONLY_STATES:
@@ -151,6 +158,10 @@ class ReadOnlyConsentTest(ReadOnlyCase):
         fixture = self.fixture("main")
         result = fixture.run("Bash", {"command": "git switch -c feat/new-work"}, mode="dontAsk")
         self.assertEqual(decision(result), "deny")
+
+
+class ReadOnlyBranchSwitchTest(ReadOnlyCase):
+    """Switches to existing loose or packed branches pass. Other switches fail."""
 
     def test_existing_branch_switch_is_allowed(self):
         fixture = self.fixture("main")
@@ -252,7 +263,7 @@ class ReadOnlyCmdDenyTest(ReadOnlyCase):
 
 
 class ReadOnlyClientTest(ReadOnlyCase):
-    """Other clients, active rebases, and lifecycle events."""
+    """Gemini and Antigravity read tools pass and their write commands fail."""
 
     def test_gemini_and_antigravity_read_tools(self):
         fixture = self.fixture("main")
@@ -270,6 +281,10 @@ class ReadOnlyClientTest(ReadOnlyCase):
         result = fixture.shell("touch x", tool_name="run_command", client="antigravity")
         self.assertEqual(decision(result, "antigravity"), "deny")
 
+
+class ReadOnlyRebaseTest(ReadOnlyCase):
+    """An active rebase keeps strict recovery on a detached HEAD."""
+
     def test_active_rebase_keeps_strict_recovery(self):
         fixture = self.fixture(DETACHED_HEAD)
         (fixture.admin / "rebase-merge").mkdir()
@@ -279,6 +294,10 @@ class ReadOnlyClientTest(ReadOnlyCase):
                 result = fixture.run(tool, tool_input)
                 self.assertEqual(decision(result), "deny")
                 self.assertIn("rebase", result.stderr)
+
+
+class ReadOnlyLifecycleTest(ReadOnlyCase):
+    """Lifecycle events show only the read-only note."""
 
     def test_lifecycle_events_show_only_a_note(self):
         for branch, label in (("main", "`main`"), (DETACHED_HEAD, "detached HEAD")):

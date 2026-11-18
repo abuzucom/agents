@@ -67,10 +67,14 @@ class PrimaryBranchOverrideTest(unittest.TestCase):
         self.assertEqual(decision(result), "deny")
         self.assertIn("git branch -m", result.stderr)
 
+
+class UnusableOverrideFileTest(unittest.TestCase):
+    """An override path that is a directory or names master fails closed."""
+
     def test_directory_override_fails_closed(self):
         fixture = BranchFixture(self, "main")
         (fixture.root / "hooks" / "primary-branch.txt").mkdir(parents=True)
-        result = self.read(fixture)
+        result = read_readme(fixture)
         self.assertEqual(decision(result), "deny")
         self.assertIn("hooks/primary-branch.txt", result.stderr)
 

@@ -197,7 +197,7 @@ class BackfillFixture(unittest.TestCase):
         cls.template.mkdir()
         build_index_tree(cls.template)
         run_git(cls.template, "init", "--quiet")
-        run_sync(cls.template, "--write-shared")
+        cls.write_shared_manifest()
         run_git(cls.template, "add", "--all")
         run_git(cls.template, "commit", "--quiet", "-m", "first")
         cls.first_shared = json.loads(
@@ -206,9 +206,21 @@ class BackfillFixture(unittest.TestCase):
         (cls.template / "AGENTS.md").write_text("# Policy two\n", encoding="utf-8")
         (cls.template / sync.SHARED_FILES[0]).write_text(
             "# changed\nbody = 2\n", encoding="utf-8")
-        run_sync(cls.template, "--write-shared")
+        cls.write_shared_manifest()
         run_git(cls.template, "add", "--all")
         run_git(cls.template, "commit", "--quiet", "-m", "second")
+
+    @classmethod
+    def write_shared_manifest(cls) -> None:
+        """Run sync.py --write-shared and stop the class on failure.
+
+        The fixture reads shared-files.json right after this call. A failed
+        sync leaves that file missing or stale.
+        """
+        result = run_sync(cls.template, "--write-shared")
+        if result.returncode != 0:
+            raise RuntimeError(
+                f"sync.py --write-shared failed in the fixture: {result.stderr}")
 
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
