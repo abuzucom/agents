@@ -210,7 +210,8 @@ Fork pull requests receive a skipped check and no provider secret.
 `policy-size-report.yml` triggers after `Convention Sync Check` completes
 for a pull request that touches `AGENTS.md`, a supporting policy file, or a
 generated copy. It posts one comment with the byte count, limit, headroom,
-and percent used for `AGENTS.md` and the assembled policy. The comment
+and percent used for `AGENTS.md` and the assembled policy. It ranks up to
+10 assembled policy files by size, largest first. The comment
 carries a directive that forbids agents from trimming policy text without
 active-human approval. The job reads head files through the contents API
 and runs only default-branch code. `Convention Sync Check` fails the pull

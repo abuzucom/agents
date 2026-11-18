@@ -26,6 +26,11 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - `--json` prints both sizes and limits. `--render-markdown <path>`
   validates such a report and prints the pull request comment body. The
   body shows bytes, limit, headroom, percent used, and the directive.
+- The report ranks up to 10 assembled policy files by size in
+  descending order. Each row states the file share of the assembled
+  total. A failure on the assembled limit prints the same ranking.
+  `scripts/sync.py` exposes `assembled_policy_parts` for the per-file
+  sizes.
 - `.github/workflows/policy-size-report.yml` posts that comment on pull
   requests touching `AGENTS.md`, a supporting policy file, or a
   generated copy. It runs on `workflow_run` from default-branch code. It

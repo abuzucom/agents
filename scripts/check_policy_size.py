@@ -31,6 +31,8 @@ ASSEMBLED_TARGET = "assembled policy"
 TARGET_LABELS = {AGENTS_TARGET: "`AGENTS.md`", ASSEMBLED_TARGET: "Assembled policy"}
 REPORT_TARGET_NAMES = (AGENTS_TARGET, ASSEMBLED_TARGET)
 REPORT_FIELDS = frozenset(("name", "bytes", "limit"))
+FILE_FIELDS = frozenset(("path", "bytes"))
+MAX_RANKED_FILES = 10
 # Bounds keep a hostile report from producing absurd comment text.
 MAX_REPORT_FILE_BYTES = 4096
 MAX_REPORTED_BYTES = 16 * 1024 * 1024
@@ -85,15 +87,43 @@ def find_violations(path: Path) -> list[str]:
     return violations
 
 
+def measure_assembled_files(root: Path) -> tuple[list[tuple[str, int]], int]:
+    """Return (name, bytes) for each assembled policy file and the limit.
+
+    Raises OSError or ValueError when the policy cannot be assembled.
+    """
+    sync = _load_sync()
+    # sync.py compares absolute paths. A relative root such as "." fails.
+    parts = sync.assembled_policy_parts(Path(os.path.abspath(root)))
+    return [(name, len(content)) for name, content in parts], sync.MAX_POLICY_BYTES
+
+
 def measure_assembled_bytes(root: Path) -> tuple[int, int]:
     """Return the assembled policy size and its limit for root.
 
     Raises OSError or ValueError when the policy cannot be assembled.
     """
-    sync = _load_sync()
-    # sync.py compares absolute paths, so a relative root such as "." fails.
-    assembled = sync.assemble_policy_bytes(Path(os.path.abspath(root)))
-    return len(assembled), sync.MAX_POLICY_BYTES
+    sizes, limit = measure_assembled_files(root)
+    return sum(size for _, size in sizes), limit
+
+
+def rank_largest_files(sizes: list[tuple[str, int]]) -> list[dict]:
+    """Return up to MAX_RANKED_FILES entries, largest first, ties by path."""
+    ordered = sorted(sizes, key=lambda item: (-item[1], item[0]))
+    return [{"path": name, "bytes": size}
+            for name, size in ordered[:MAX_RANKED_FILES]]
+
+
+def format_largest_files(root: Path) -> list[str]:
+    """Return plain-text lines ranking the assembled policy files."""
+    try:
+        sizes, _ = measure_assembled_files(root)
+    except (ImportError, OSError, ValueError):
+        return []
+    lines = ["Largest files in the assembled policy:"]
+    for rank, entry in enumerate(rank_largest_files(sizes), start=1):
+        lines.append(f"  {rank}. {entry['bytes']} bytes  {entry['path']}")
+    return lines
 
 
 def find_combined_violations(root: Path) -> list[str]:
@@ -116,12 +146,13 @@ def measure_policy(path: Path) -> dict:
     Raises OSError, ImportError, or ValueError when a size is unavailable.
     """
     agents_size = path.stat().st_size
-    assembled_size, assembled_limit = measure_assembled_bytes(path.parent)
+    sizes, assembled_limit = measure_assembled_files(path.parent)
+    assembled_size = sum(size for _, size in sizes)
     return {"schema": REPORT_SCHEMA, "targets": [
         {"name": AGENTS_TARGET, "bytes": agents_size, "limit": MAX_POLICY_BYTES},
         {"name": ASSEMBLED_TARGET, "bytes": assembled_size,
          "limit": assembled_limit},
-    ]}
+    ], "files": rank_largest_files(sizes)}
 
 
 def _validated_count(value: object, minimum: int) -> int:
@@ -152,7 +183,50 @@ def validate_report(report: object) -> list[tuple[str, int, int]]:
     return rows
 
 
-def render_markdown(rows: list[tuple[str, int, int]]) -> str:
+def _known_policy_files() -> frozenset:
+    """Return every file name that the assembled policy can contain."""
+    sync = _load_sync()
+    return frozenset((sync.SOURCE,) + sync.ADOPTER_POLICY_FILES
+                     + sync.SOURCE_ONLY_POLICY_FILES)
+
+
+def validate_files(report: dict) -> list[tuple[str, int]]:
+    """Return (path, bytes) rows from the optional untrusted file ranking."""
+    files = report.get("files", [])
+    if not isinstance(files, list) or len(files) > MAX_RANKED_FILES:
+        raise ValueError("file ranking must be a list of at most 10 entries")
+    known = _known_policy_files()
+    rows = []
+    for entry in files:
+        if not isinstance(entry, dict) or set(entry) != FILE_FIELDS:
+            raise ValueError("file ranking entry has unexpected fields")
+        if entry["path"] not in known:
+            raise ValueError("file ranking names an unknown policy file")
+        rows.append((entry["path"], _validated_count(entry["bytes"], 0)))
+    if len({path for path, _ in rows}) != len(rows):
+        raise ValueError("file ranking repeats a policy file")
+    if rows != sorted(rows, key=lambda item: (-item[1], item[0])):
+        raise ValueError("file ranking is not ordered largest first")
+    return rows
+
+
+def _render_file_rows(files: list[tuple[str, int]], total: int) -> list[str]:
+    """Return the Markdown table ranking the assembled policy files."""
+    lines = [
+        "### Largest files in the assembled policy",
+        "",
+        "| Rank | File | Bytes | Share |",
+        "|---:|---|---:|---:|",
+    ]
+    for rank, (path, size) in enumerate(files, start=1):
+        share = size * PERCENT / total if total else 0.0
+        lines.append(f"| {rank} | `{path}` | {size:,} | {share:.1f}% |")
+    lines.append("")
+    return lines
+
+
+def render_markdown(rows: list[tuple[str, int, int]],
+                    files: list[tuple[str, int]] | None = None) -> str:
     """Return the pull request comment body for validated rows."""
     lines = [
         COMMENT_MARKER,
@@ -175,7 +249,11 @@ def render_markdown(rows: list[tuple[str, int, int]]) -> str:
         lines.append(f"**Status:** Over limit: {', '.join(over_limit)}.")
     else:
         lines.append("**Status:** Within limits.")
-    lines.extend(["", "```text", AGENT_DIRECTIVE, "```", ""])
+    lines.append("")
+    if files:
+        assembled_total = rows[1][1]
+        lines.extend(_render_file_rows(files, assembled_total))
+    lines.extend(["```text", AGENT_DIRECTIVE, "```", ""])
     return "\n".join(lines)
 
 
@@ -197,21 +275,28 @@ def _print_rendered_report(report_path: Path) -> int:
             data = handle.read(MAX_REPORT_FILE_BYTES + 1)
         if len(data) > MAX_REPORT_FILE_BYTES:
             raise ValueError("report file exceeds the size limit")
-        rows = validate_report(json.loads(data.decode("ascii")))
-    except (OSError, ValueError) as error:
+        report = json.loads(data.decode("ascii"))
+        rows = validate_report(report)
+        files = validate_files(report)
+    except (ImportError, OSError, ValueError) as error:
         print(f"error: invalid size report: {error}", file=sys.stderr)
         return 1
-    print(render_markdown(rows), end="")
+    print(render_markdown(rows, files), end="")
     return 0
 
 
 def _check_limits(path: Path) -> int:
     """Print every violation and the agent directive on failure."""
-    violations = find_violations(path) + find_combined_violations(path.parent)
+    combined_violations = find_combined_violations(path.parent)
+    violations = find_violations(path) + combined_violations
     for violation in violations:
         print(violation, file=sys.stderr)
     if not violations:
         return 0
+    over_limit = any(" exceeds " in item for item in combined_violations)
+    if over_limit:
+        for line in format_largest_files(path.parent):
+            print(line, file=sys.stderr)
     print(AGENT_DIRECTIVE, file=sys.stderr)
     return 1
 
