@@ -166,8 +166,6 @@ def _safe_search_path(repo: Path) -> str:
 def _safe_execution_directory(repo: Path, executable: str) -> Path:
     """Return an existing process directory outside the candidate repo."""
     for candidate in (Path(tempfile.gettempdir()), Path(executable).parent):
-        if not str(candidate):
-            continue
         try:
             resolved = candidate.resolve(strict=True)
         except OSError:
@@ -340,7 +338,11 @@ def _validate_tree_path(raw_path: bytes) -> str:
 
 
 def _parse_tree_entries(raw_output: bytes) -> list[tuple[str, str, str]]:
-    """Parse complete ls-tree records into supported tracked blobs."""
+    """Parse complete ls-tree records into supported tracked blobs.
+
+    check_conflict_markers keeps its own copy so each file stays standalone.
+    tests/test_tree_parser_parity.py pins both copies to one record grammar.
+    """
     if raw_output and not raw_output.endswith(b"\x00"):
         raise RuntimeError("truncated git ls-tree output")
     records = raw_output[:-1].split(b"\x00") if raw_output else []

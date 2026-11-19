@@ -14,9 +14,29 @@ into the entry. Dates never decrease. Ask the active human when a date is in
 doubt.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.27.1] (2026-11-19)
+## [2.27.2] (2026-11-19)
 
 ### Fixed
+- `hooks/reinject_agents_policy.py` and `scripts/sync.py` name the
+  assembled policy when the assembled bundle exceeds the size limit.
+  Both errors named `AGENTS.md` before. The `AGENTS.md`-only check in
+  `scripts/sync.py` keeps its wording. Add
+  `tests/test_assembled_size_message.py`.
+- Nine hooks drop the `# pragma: no cover` markers. The repository
+  coverage tracer ignores the marker. The adoption test comments stay.
+- `scripts/check_compliance_tree.py` drops a guard on
+  `not str(candidate)` that never held.
+- `scripts/check_compliance_tree.py` and `scripts/check_conflict_markers.py`
+  keep separate `_parse_tree_entries` copies so each file stays
+  standalone. `tests/test_tree_parser_parity.py` pins both copies to one
+  record grammar and to the documented symlink and submodule
+  differences.
+- Makefile `PROSE_FILES` lists `docs/pr-security-review.md`. CI already
+  checks that file.
+- Every workflow pins `python-version` to `'3.14'`. Four steps floated on
+  `'3.x'`.
+- Each `actions/checkout` pin carries `# v4.4.0`. Each
+  `actions/setup-python` pin carries `# v5.6.0`.
 - The release upload step rechecks the draft state before each write. A
   draft the owner publishes during the job stops the job before any
   upload or notes change.

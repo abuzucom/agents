@@ -108,7 +108,7 @@ def policy_bytes(root: Path) -> bytes:
     """Return canonical policy plus available supporting documents."""
     assembled = assemble_policy_bytes(root)
     if len(assembled) > MAX_POLICY_BYTES:
-        raise ValueError("AGENTS.md exceeds the policy size limit")
+        raise ValueError("assembled policy exceeds the policy size limit")
     return assembled
 
 

@@ -945,7 +945,11 @@ def _validate_tree_path(raw_path: bytes) -> str:
 
 
 def _parse_tree_entries(raw: bytes) -> list[tuple[str, str]]:
-    """Parse complete ls-tree output into regular blob paths and IDs."""
+    """Parse complete ls-tree output into regular blob paths and IDs.
+
+    check_compliance_tree keeps its own copy so each file stays standalone.
+    tests/test_tree_parser_parity.py pins both copies to one record grammar.
+    """
     if raw and not raw.endswith(b"\x00"):
         raise RuntimeError("truncated git ls-tree output")
     entries: list[tuple[str, str]] = []

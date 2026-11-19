@@ -10,7 +10,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 try:
     import _gate_core as core
-except ImportError as error:  # pragma: no cover
+except ImportError as error:
     print(f"shared gate core import failed ({error})", file=sys.stderr)
     sys.exit(2)
 
@@ -18,7 +18,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."
 
 try:
     import check_anti_delegation as checker
-except ImportError:  # pragma: no cover
+except ImportError:
     checker = None
 
 GATE = "enforce_anti_delegation.py"
