@@ -32,7 +32,7 @@ Adopter commit `5256b4b` mirrors template commit `fd9da22`.
 
 - `DRIFT.md` and `adopters/`. Both belong to this repository.
 - The template `README.md`, `CHANGELOG.md`, `Makefile`, `LICENSE`, and
-  `docs/gate-threat-model.md` as verbatim copies.
+  `docs/gate-threat-model.md` as exact copies.
 - The AgentLint step in `sync-check.yml`. The step adds an unapproved
   third-party action.
 

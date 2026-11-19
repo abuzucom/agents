@@ -124,8 +124,8 @@ COMMENT_PAGE_SIZE = 100
 COMMENT_PAGE_NUMBER = re.compile(r"\A[1-9][0-9]{0,3}\Z")
 MAX_COMMENT_PAGE = 1000
 COMMENT_PAGE_ARGUMENT_COUNT = 2
-# `gh issue edit` and `gh issue create` call GraphQL, which some sessions
-# block. Two exact body-file shapes run over REST instead. Any other option
+# `gh issue edit` and `gh issue create` call GraphQL. Some sessions block
+# GraphQL. Two exact body-file shapes run over REST instead. Any other option
 # leaves the command for gh unchanged.
 ISSUE_TITLE_OPTION = "--title"
 ISSUE_REST_OPTIONS = frozenset((COMMENT_BODY_OPTION, ISSUE_TITLE_OPTION))

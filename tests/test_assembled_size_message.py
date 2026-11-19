@@ -20,7 +20,7 @@ def load_module(path: Path, name: str):
 
 
 def write_overflowing_policy(root: Path, files: tuple, limit: int) -> None:
-    """Write files each under the limit whose assembly exceeds it."""
+    """Write files each under the limit with an assembly that exceeds it."""
     part_bytes = limit // 2 + 1
     (root / "AGENTS.md").write_bytes(b"a" * (part_bytes - 1) + b"\n")
     for relative_name in files:

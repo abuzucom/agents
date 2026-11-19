@@ -187,7 +187,7 @@ The protected inventory covers:
 
 Claude Code's consent hook reads paths. New test files do not prompt. Existing
 test edits prompt. A final `ExistingTest = None` assignment can disable a
-textual implementation. The Bash gate also protects existing tests reached by
+check on raw text. The Bash gate also protects existing tests reached by
 redirects, `tee`, `sed -i`, `cp`, or `mv`.
 
 Adopt the consent hook with `hooks/require_consent.py`, `hooks/_gate_core.py`,

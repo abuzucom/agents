@@ -2,7 +2,7 @@
 
 ## Non-negotiable
 
-1. Parameterize every query and invocation that uses untrusted input.
+1. Parameterize every query and command that uses untrusted input.
 2. Get explicit authorization before destructive acts. Restate each act.
    Record its authorization.
 3. Never weaken, skip, or delete a test to make code pass.
@@ -354,7 +354,7 @@ without mechanical coverage.
 
 ### 17. Require consent before outbound acts on external repositories
 
-An external repository is one whose owner differs from the current repository
+An external repository has an owner that differs from the current repository
 owner. Compare owners case-insensitively.
 
 Never create a GitHub cross-reference to an external repository. Put every
@@ -475,7 +475,7 @@ build the plan remains allowed.
 
 Never restate authorizations, exceptions, or mode state from compaction text
 as current. Re-verify label, check, and review claims from hosted state,
-including the actor and time. Carry forward human prohibitions verbatim.
+including the actor and time. Carry forward human prohibitions word for word.
 
 ## Workflow
 
@@ -1081,7 +1081,7 @@ The protected inventory covers:
 
 Claude Code's consent hook reads paths. New test files do not prompt. Existing
 test edits prompt. A final `ExistingTest = None` assignment can disable a
-textual implementation. The Bash gate also protects existing tests reached by
+check on raw text. The Bash gate also protects existing tests reached by
 redirects, `tee`, `sed -i`, `cp`, or `mv`.
 
 Adopt the consent hook with `hooks/require_consent.py`, `hooks/_gate_core.py`,

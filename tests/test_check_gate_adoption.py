@@ -137,7 +137,7 @@ class PartialAdoptionTest(unittest.TestCase):
         self.assertIn("holds list at the top level", output)
 
     def test_null_hooks_property_reports_every_registration(self):
-        """A null hooks branch reports findings rather than raising."""
+        """A null hooks branch reports findings and returns normally."""
         self._copy_full_tree()
         path = self.root / LIVE_SETTINGS
         path.write_text(json.dumps({"hooks": None}), encoding="utf-8")

@@ -28,7 +28,7 @@ OWNER_REPOSITORY_SEGMENT_COUNT = 2
 GITHUB_DOMAINS = frozenset({"github.com", "githubusercontent.com"})
 
 # A remote URL splits into host and path. The host is validated in code
-# rather than in the pattern, which keeps the pattern free of the nested
+# instead of in the pattern. That keeps the pattern free of the nested
 # quantifier a subdomain alternation would need.
 REMOTE_PARTS = re.compile(
     r"^(?:[A-Za-z][\w+.-]*://)?(?:[^/@]*@)?([^/:]+)(?::\d+)?[:/](.+)$"

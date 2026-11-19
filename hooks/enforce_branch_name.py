@@ -311,7 +311,7 @@ def _metadata_path(path: str, project_dir: str = "", roots: tuple = ()) -> bool:
 
 
 def _metadata_copy_ancestor(program: str, path: str, project_dir: str, roots: tuple) -> bool:
-    """Reject directory merges whose contents could reach Git administration paths."""
+    """Reject directory merges with contents that could reach Git administration paths."""
     if program not in ("cp", "mv", "copy", "move", "copy-item", "move-item"):
         return False
     destination = os.path.realpath(os.path.join(project_dir, path)).replace("\\", "/").casefold()
@@ -596,8 +596,8 @@ def _powershell_array_arguments(tokens: list) -> list:
 def _powershell_array_targets(program: str, groups: list) -> list:
     """Return every named and positional destination in comma-joined arrays.
 
-    An empty value stays as an empty target, which the metadata checks
-    treat as unresolvable.
+    An empty value stays as an empty target. The metadata checks treat it
+    as unresolvable.
     """
     targets, operands = core.powershell_write_groups(program, groups, keep_empty=True)
     if operands:
@@ -1117,7 +1117,7 @@ def _lifecycle_message(branch_name: str, project_dir: str) -> tuple:
         return state, MASTER_BRANCH_MESSAGE
     # The tool gate allows only rebase commands during a rebase, so the
     # lifecycle message must not name branch recovery then. An unreadable
-    # gitdir keeps the branch lookup failure message, which names the cause.
+    # gitdir keeps the branch lookup failure message. That message states the cause.
     try:
         rebase_active = rebase_is_active(project_dir)
     except OSError:
@@ -1265,8 +1265,8 @@ def main() -> int:
 
 
 def _run(args: argparse.Namespace) -> int:
-    # SessionStart arrives with empty stdin. This hook informs rather than
-    # blocks there, so an unreadable payload counts as an empty one.
+    # SessionStart arrives with empty stdin. This hook informs and does not
+    # block there, so an unreadable payload counts as an empty one.
     payload = core.read_payload(empty_is_session_start=True) or {}
     if args.client == "antigravity":
         workspaces = payload.get("workspacePaths", [])

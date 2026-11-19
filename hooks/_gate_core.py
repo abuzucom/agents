@@ -1,22 +1,25 @@
 #!/usr/bin/env python3
 """Shared decision logic for the shell gates.
 
-Not part of AGENTS.md, which stays tool-agnostic and is synced to non-Claude
-tools verbatim. This module holds everything the Bash, PowerShell, and CMD gates
+Not part of AGENTS.md. AGENTS.md stays independent of any one tool.
+Synchronization copies it unchanged to non-Claude tools. This module holds everything the Bash, PowerShell, and CMD gates
 decide identically, so the gates cannot drift: payload reading and field-type
 validation, the deny and ask emission, the ask-to-deny downgrade for an
 unattended session, root-target detection, and the whole git classification.
 
-Each gate keeps only what its shell spells differently: how a command
-tokenizes, where one statement ends, which wrappers and redirections lead a
-    command, and how a delete's flags are written. All gates call this module
-    for shared decisions.
+Each gate keeps only what its shell spells differently:
+- how a command splits into tokens
+- where one statement ends
+- the wrappers and redirections that lead a command
+- how a delete's flags are written
+
+All gates call this module for shared decisions.
 
 A hook run as `python3 .../hooks/<gate>.py` gets `hooks/` as `sys.path[0]`,
 so `import _gate_core` resolves with no packaging. A gate that cannot import
-this module must fail closed rather than crash, because Claude Code treats a
-non-zero exit other than 2 as a non-blocking error, which waves the command
-through.
+this module must fail closed instead of crashing. Claude Code treats a
+non-zero exit other than 2 as a non-blocking error. That error lets the
+command proceed.
 """
 import base64
 import binascii
@@ -89,8 +92,8 @@ REPOSITORY_SEGMENT_COUNT = 2
 HOSTED_REPOSITORY_SEGMENT_COUNT = 3
 # The gh arguments follow the wrapper script path and the "run" word.
 TRUSTED_GH_ARGUMENT_OFFSET = 2
-# Directories whose removal takes the machine with them. These deny rather
-# than ask: putting "delete /etc?" in front of a person is not consent, it
+# Directories that take the machine with them on removal. These deny instead
+# of asking: putting "delete /etc?" in front of a person is not consent, it
 # is an invitation to a mistake nobody can undo.
 SYSTEM_ROOTS = frozenset({
     "/", "/bin", "/boot", "/dev", "/etc", "/home", "/lib", "/lib32",
@@ -236,7 +239,7 @@ def _push_operand_reason(token: str) -> str:
     """Return why a git push refspec needs consent, or an empty string.
 
     A refspec deletes or rewrites without carrying any flag: `+HEAD:main`
-    forces, and `:main` pushes an empty source, which deletes the remote ref.
+    forces. `:main` pushes an empty source that deletes the remote ref.
     """
     if token.startswith("+"):
         return "git push with a forced refspec: this rewrites pushed history"
@@ -276,7 +279,7 @@ REFTABLE_DIRECTORY = "reftable"
 MAX_PACKED_REFS_BYTES = 4 * 1024 * 1024
 UNRESOLVED_REF_REASON = ("git push names a ref the gate cannot resolve "
                          "safely, so it cannot rule out a tag push")
-# git push options whose value can arrive as the next token.
+# git push options with a value that can arrive as the next token.
 PUSH_VALUE_OPTIONS = ("--push-option", "--receive-pack", "--exec", "--repo")
 
 
@@ -393,8 +396,8 @@ def push_verdict(args: list, cwd: str = "", global_args: list = None,
                  environment: list = None) -> tuple:
     """Return (decision, reason) for a git push argument list.
 
-    A tag push denies before any other check. A forced tag push therefore
-    denies rather than asks. `global_args` carries the git options before
+    The gate checks a tag push first and denies it. A forced tag push therefore
+    denies instead of asking. `global_args` carries the git options before
     the subcommand, so -C and --git-dir locate the ref store.
     """
     if any(token.startswith("-") and _push_flag_sends_tag(token.split("=", 1)[0])
@@ -409,9 +412,9 @@ def push_verdict(args: list, cwd: str = "", global_args: list = None,
     for token in args:
         name = token.split("=", 1)[0]
         if long_option_matches(name, "--force") or (is_short_group(token) and "f" in token):
-            # Asked rather than refused, at the user's direction. A refusal
+            # Asked and not refused, at the user's direction. A refusal
             # offers no way to consent, and the pushed-history rule is about
-            # consent rather than impossibility.
+            # consent instead of impossibility.
             return "ask", ("git push --force rewrites published history, so "
                            "anyone who has fetched this branch keeps commits "
                            "that no longer exist upstream")
@@ -460,7 +463,7 @@ def _git_alias_verdict(subcommand: str, rest: list, cwd: str,
     """Return (decision, reason) for a subcommand git does not define.
 
     `alias_chain` holds the aliases already expanded. git refuses to run a
-    cyclic alias, so a cycle or an over-deep chain denies rather than asks.
+    cyclic alias, so a cycle or an over-deep chain denies instead of asking.
     """
     expansion, problem = expand_git_alias(
         subcommand, parse_git_config(cwd), alias_chain)
@@ -537,7 +540,7 @@ TAG_READ_MODE_SHORT_FLAGS = frozenset("lvn")
 # git treats each commit filter as implying --list.
 TAG_READ_MODE_LONG_OPTIONS = ("--list", "--verify", "--contains", "--no-contains",
                               "--points-at", "--merged", "--no-merged")
-# Read filters whose value can arrive as the next token.
+# Read filters with a value that can arrive as the next token.
 TAG_VALUE_OPTIONS = ("--contains", "--no-contains", "--points-at", "--merged",
                      "--no-merged", "--sort", "--format")
 
@@ -557,7 +560,7 @@ def _is_tag_read_mode_flag(token: str) -> bool:
 
 
 def _takes_separate_value(token: str) -> bool:
-    """Return True for a git tag read filter whose value is the next token."""
+    """Return True for a git tag read filter that takes the next token as its value."""
     return "=" not in token and any(
         long_option_matches(token, option) for option in TAG_VALUE_OPTIONS)
 
@@ -604,8 +607,8 @@ def _git_flag_verdict(subcommand: str, rest: list) -> tuple:
     return "", ""
 
 
-# Subcommands whose whole argument list decides the verdict, rather than
-# one flag. push stays out: it runs before the alias check below.
+# Subcommands where the whole argument list decides the verdict. One flag
+# alone does not decide it. push stays out: it runs before the alias check below.
 GIT_SUBCOMMAND_READERS = {
     "branch": _git_branch_verdict,
     "clean": _git_clean_verdict,
@@ -642,10 +645,10 @@ def git_verdict(args: list, cwd: str = "", environment: list = None,
 
 
 def unparseable_verdict(command: str, keywords: tuple) -> tuple:
-    """Fail closed when a command naming one of `keywords` will not tokenize.
+    """Fail closed when a command naming one of `keywords` will not split into tokens.
 
-    A command the gate cannot parse but which names a drive root or a
-    system directory denies rather than asks. `rm -rf C:\\` ends in an
+    An unparseable command that names a drive root or a
+    system directory denies instead of asking. `rm -rf C:\\` ends in an
     unterminated escape, and no reading of it is one to put to a person.
     """
     if not any(keyword in command for keyword in keywords):
@@ -666,8 +669,8 @@ def unparseable_verdict(command: str, keywords: tuple) -> tuple:
 def read_payload(empty_is_session_start: bool = False):
     """Return the stdin payload, or None when it cannot be parsed.
 
-    `empty_is_session_start` yields an empty dict for empty stdin, which
-    is how a SessionStart invocation arrives. Without it that hook would
+    `empty_is_session_start` yields an empty dict for empty stdin. A
+    SessionStart event arrives that way. Without it that hook would
     deny every session start. A gate that answers "fine" to input it
     could not read is worse than no gate, so anything else that will not
     parse is still None.
@@ -752,7 +755,7 @@ def emit_context(event: str, text: str) -> int:
 def blocked_command(command: str, project_dir: str = "") -> list:
     """Return every effective or ambiguous Git write context in `command`.
 
-    The parser loads here rather than at module level. Scripts load this
+    The parser loads here and not at module level. Scripts load this
     core by path without the hooks directory on sys.path, and every hook
     that calls this function has already imported the parser.
     """
@@ -786,7 +789,7 @@ def mode_label(payload: dict) -> str:
 
     INTERACTIVE_MODES is a fixed list, so an interactive mode Claude Code
     adds later denies here. Naming the value is what separates that from a
-    genuinely unattended session, which otherwise read identically.
+    genuinely unattended session. The two otherwise read identically.
     """
     mode = require_str(payload.get("permission_mode"))
     return sanitize(mode) if mode is not None else "absent"
@@ -849,7 +852,7 @@ CMD_TREE_DELETE_FLAGS = {
 }
 WINDOWS_COMMAND_SUFFIXES = (".exe", ".com", ".bat", ".cmd", ".ps1")
 # The shells reach each other through interpreters, so each gate has to
-# read a delete spelled the other way. The readings live here rather than in
+# read a delete spelled the other way. This module holds the readings instead of
 # a gate, so neither can learn a spelling the other does not.
 POSIX_DELETE_PROGRAMS = frozenset({"rm"})
 POWERSHELL_DELETE_PROGRAMS = frozenset({"remove-item", "ri", "remove-itemproperty"})
@@ -894,7 +897,7 @@ def any_delete_verdict(program: str, args: list) -> tuple:
 
     rd, rmdir, del, and erase name both a Remove-Item alias and a CMD verb,
     and the three shells spell recursion differently (-r against -Recurse
-    against /s). Take whichever reading is strongest rather than guessing
+    against /s). Take whichever reading is strongest instead of guessing
     which shell the caller meant, because guessing wrong clears the act.
     """
     return strongest(posix_delete_verdict(args),
@@ -1241,7 +1244,7 @@ def infrastructure_scan_status(root: str, include: str = "") -> str:
 
     The result is SCAN_CLEAR, SCAN_PROTECTED, SCAN_LIMIT, or
     SCAN_UNREADABLE. Only SCAN_CLEAR proves the tree holds no protected
-    file. The cache lasts one hook invocation: each hook main calls
+    file. The cache lasts one hook run: each hook main calls
     reset_invocation_caches() first.
     """
     # A missing path or a single file holds no tree to walk. Callers check
@@ -1551,7 +1554,7 @@ def _powershell_cli_policy(name: str, args: list) -> tuple:
 
 
 def _powershell_path_policy(name: str, args: list, redirects: list) -> tuple:
-    """Classify file operations from path properties rather than basenames."""
+    """Classify file operations from path properties instead of basenames."""
     if name not in POWERSHELL_FILE_WRITERS:
         return "", ""
     targets = _known_write_targets(name, args, redirects)
@@ -1737,7 +1740,7 @@ TEST_NAME_SUFFIXES = (
     ".spec.mjs", ".spec.ts", ".spec.tsx", ".test.cjs", ".test.js",
     ".test.jsx", ".test.mjs", ".test.ts", ".test.tsx",
 )
-# Commands whose named operand is a file they overwrite in place.
+# Commands that overwrite the named operand file in place.
 WRITE_PROGRAMS = {
     "tee": 0, "sed": -1, "cp": -1, "mv": -1,
     "set-content": 0, "sc": 0, "add-content": 0, "ac": 0,
@@ -1856,7 +1859,7 @@ def powershell_write_groups(name: str, groups: list, keep_empty: bool = False) -
 
     `groups` holds comma-joined argument arrays, one list per argument. A
     scalar caller passes one-element groups. `keep_empty` keeps an empty
-    value as an empty target, which the branch gate treats as unresolvable.
+    value as an empty target. The branch gate treats it as unresolvable.
     The shell gates drop empty values.
     """
     targets = []
@@ -1940,7 +1943,7 @@ MAX_REPO_DISCOVERY_DEPTH = 100
 DOT_GIT_PRESENT = "present"
 DOT_GIT_ABSENT = "absent"
 DOT_GIT_UNREADABLE = "unreadable"
-# Keys whose value names a program git runs during an ordinary read.
+# Keys with a value naming a program git runs during an ordinary read.
 EXEC_CAPABLE_KEYS = frozenset({
     "core.fsmonitor", "core.pager", "core.editor", "core.sshcommand",
     "core.hookspath", "core.alternaterefscommand", "core.askpass",
@@ -1983,7 +1986,7 @@ def _parse_git_config_path(path: str):
 
     The file is read, never queried through `git config`: running git to
     decide whether running git is safe is the bug this exists to close.
-    Format is git's own, which configparser does not implement.
+    Format is git's own. configparser does not implement it.
     """
     raw = _read_config_path(path)
     if raw is None:
@@ -2037,7 +2040,7 @@ def _exec_capable_key(entries: dict) -> str:
             return name
         parts = name.split(".")
         # A subsection may hold dots (filter.a.b.clean), so read the
-        # section and the final key rather than a fixed part count.
+        # section and the final key instead of a fixed part count.
         if (len(parts) >= GIT_CONFIG_SUBSECTION_PARTS
                 and parts[-1] in EXEC_CAPABLE_SUBSECTIONS.get(parts[0], ())
                 and value.lower() not in ("", "false", "0")):
@@ -2144,7 +2147,7 @@ def _apply_git_global_argument(args: list, index: int, state: dict) -> tuple:
 
 
 def _git_global_state(args: list, cwd: str, environment: dict = None) -> tuple:
-    """Return invocation settings and repository location, or an error."""
+    """Return per-run settings and repository location, or an error."""
     environment = environment or {}
     state = {
         "settings": [],
@@ -2357,7 +2360,7 @@ def is_relevant_git_environment(name: str) -> bool:
 
 
 def _git_environment(assignments: list) -> dict:
-    """Return effective relevant environment values for one invocation."""
+    """Return effective relevant environment values for one command."""
     environment = {
         name: value for name, value in os.environ.items()
         if is_relevant_git_environment(name)
@@ -2368,7 +2371,7 @@ def _git_environment(assignments: list) -> dict:
 
 def _effective_git_entries(state: dict, environment: dict,
                            assigned_names: set = None) -> tuple:
-    """Return merged config entries and ordered invocation settings."""
+    """Return merged config entries and ordered per-run settings."""
     entries, reason = _read_invocation_configs(
         state, environment, assigned_names)
     if entries is None:
@@ -2475,7 +2478,7 @@ def _ambiguous_git_context(state: dict, environment: dict,
 
 
 def _fallback_git_state(cwd: str) -> dict:
-    """Return minimal state for a Git write whose globals were malformed."""
+    """Return minimal state for a Git write with malformed globals."""
     return {
         "cwd": os.path.realpath(cwd or "."), "git_dir": "",
         "common_dir": "", "work_tree": "", "repository_override": True,
@@ -2531,7 +2534,7 @@ def git_write_context(args: list, cwd: str, assignments: list) -> dict:
 
 
 def git_checker_environment(context: dict) -> dict:
-    """Return a constrained child environment matching a Git invocation."""
+    """Return a constrained child environment matching a Git command."""
     environment = dict(os.environ)
     for name, value in context.get("assignments", []):
         if is_relevant_git_environment(name):
@@ -2784,7 +2787,7 @@ DEVICE_WRITERS = frozenset({"mkfs", "diskpart", "format", "cipher", "fdisk",
                             "parted", "sgdisk", "wipefs", "blkdiscard",
                             "shred", "sdelete", "wipe", "dd", "hdparm",
                             "badblocks", "nvme"})
-# Programs whose every invocation denies, except cipher. Most exist only to
+# Programs that deny on every run, except cipher. Most exist only to
 # partition, format, or wipe. dd and hdparm can also run on ordinary files,
 # but their device forms are too easy to miss, so every call denies too.
 # cipher stays listed so an unparseable cipher command fails closed, while
@@ -2810,7 +2813,7 @@ INPUT_EXECUTORS = frozenset({"bash", "sh", "zsh", "dash", "ksh", "busybox",
                              "invoke-expression", "pwsh", "powershell"})
 DEVICE_PATH_MARKERS = ("/dev/", "\\\\.\\physicaldrive", "\\\\.\\",
                        "/dev/disk")
-# Commands whose target set is decided at run time rather than written out.
+# Commands with a target set decided at run time and not written out.
 LOGGING_DISABLERS = {
     "aws": ("stop-logging", "delete-trail", "delete-log-group"),
     "az": ("diagnostic-settings",),
@@ -2834,14 +2837,14 @@ UNBOUNDED_OPERATIONS = {
 # Dry-run flags per program. -n means dry run to git clean only: to sed and
 # perl it suppresses printing, and to xargs it limits arguments per call.
 DRY_RUN_FLAGS = {"git": ("-n", "--dry-run")}
-# Short options whose value follows in the same token. In -ei or -Mi the
+# Short options with a value that follows in the same token. In -ei or -Mi the
 # trailing i is part of that value, not the in-place flag.
 IN_PLACE_VALUE_OPTIONS = {"sed": "efl", "perl": "eEMmIxdDCF"}
 GLOB_CHARACTERS = "*?["
 
 
 def _mentions_device(args: list) -> bool:
-    """Return True if any operand names a raw device rather than a file."""
+    """Return True if any operand names a raw device instead of a file."""
     for token in args:
         lowered = token.lower()
         value = lowered.partition("=")[-1] if "=" in lowered else lowered
@@ -2879,7 +2882,7 @@ def device_write_verdict(program: str, args: list) -> tuple:
     if base not in DEVICE_WRITERS:
         return "", ""
     name = base
-    # Any invocation of these counts. cipher denies below only for /w:.
+    # Any run of these counts. cipher denies below only for /w:.
     if name in DESTRUCTIVE_ACTIONS:
         return "deny", (f"{name} {DESTRUCTIVE_ACTIONS[name]}, which can "
                         "destroy every file on the target at once")
@@ -2892,7 +2895,7 @@ def device_write_verdict(program: str, args: list) -> tuple:
 
 
 def _is_shallow_glob(token: str) -> bool:
-    """Return True for a glob whose parent is a root, such as /* or ~/*."""
+    """Return True for a glob with a root parent, such as /* or ~/*."""
     if not any(character in token for character in GLOB_CHARACTERS):
         return False
     parent = token.rstrip("*?[]/")
@@ -2967,8 +2970,8 @@ def logging_verdict(program: str, args: list) -> tuple:
     """Return (decision, reason) for disabling logging or purging a disk.
 
     Destroying the record of an act belongs to the same campaign as the
-    act. These are read as commands rather than counted as events, which
-    is all a per-call gate can do.
+    act. These are read as commands and not counted as events. A per-call
+    gate can do no more.
     """
     name = os.path.basename(program).lower().removesuffix(".exe")
     markers = LOGGING_DISABLERS.get(name)
@@ -3002,9 +3005,9 @@ def volume_verdict(recursive: bool, operands: list) -> tuple:
 def gated_keywords() -> tuple:
     """Return every program name this core classifies.
 
-    Derived rather than written out. A hardcoded list is a second place to
+    Derived and not written out. A hardcoded list is a second place to
     remember, and the one that decides whether an unparseable command
-    fails closed: cipher /w:C:\\ does not tokenize, and a list that had
+    fails closed: cipher /w:C:\\ does not split into tokens, and a list that had
     not learned "cipher" waved it through.
     """
     names = {"rm", "git"}
@@ -3036,7 +3039,7 @@ def remote_execution_verdict(segments: list) -> tuple:
     the producer of that stream decides what runs. `curl | bash` hands the
     choice to a remote host; `history | sh` hands it to whatever the shell
     happens to remember. Neither is a decision anyone can give consent to
-    in advance, so both are prohibited rather than asked about.
+    in advance, so both are prohibited without a prompt.
     """
     previous = ""
     for segment in segments:
@@ -3052,8 +3055,8 @@ def remote_execution_verdict(segments: list) -> tuple:
     return "", ""
 
 
-# Operators that start the next command after the previous one ends rather
-# than feeding it that command's output. PowerShell's & is its call
+# Operators that start the next command after the previous one ends. These
+# operators pass no output from one command to the next. PowerShell's & is its call
 # operator, so each shell supplies its own set.
 BASH_LIST_OPERATORS = frozenset({"&&", "||", ";", "&"})
 POWERSHELL_LIST_OPERATORS = frozenset({"&&", "||", ";"})
@@ -3334,7 +3337,7 @@ def _git_config_positionals(args: list) -> list:
 def alias_verdict(program: str, args: list) -> tuple:
     """Return (decision, reason) for defining a command alias.
 
-    An alias makes one name run another command, which defeats reading a
+    An alias makes one name run another command. That defeats reading a
     command to know what it does. Listing aliases is not defining one.
     """
     name = os.path.basename(program).lower().removesuffix(".exe")
@@ -3647,8 +3650,8 @@ def _repository_target_owner(token: str) -> str:
 
     gh accepts `OWNER/REPO`, `HOST/OWNER/REPO`, and a full URL, so a scheme,
     any user information, and a leading GitHub host are stripped before the
-    owner segment is read. An unrecognized shape returns an empty string, which the
-    caller treats as unreadable rather than as clearance.
+    owner segment is read. An unrecognized shape returns an empty string. The
+    caller treats it as unreadable and not as clearance.
     """
     if not token or token.startswith("-") or is_ambiguous(token):
         return ""
@@ -3668,7 +3671,7 @@ def _repository_target_owner(token: str) -> str:
 
 
 def reset_invocation_caches() -> None:
-    """Clear the lookups cached for one hook invocation.
+    """Clear the lookups cached for one hook run.
 
     Each hook main calls this first. A process that serves several
     requests, such as the test worker, then never reuses an origin owner
@@ -3684,7 +3687,7 @@ def _origin_owner(cwd: str) -> str:
 
     The URL is parsed with string operations because this module carries no
     regular expressions: a gate must not depend on backtracking behavior.
-    The cache lasts one hook invocation (see reset_invocation_caches).
+    The cache lasts one hook run (see reset_invocation_caches).
     """
     entries = parse_git_config(cwd)
     if not entries:
@@ -3754,7 +3757,7 @@ def _external_target_verdict(args: list, command: list, noun: str,
             index += 1
     if not repo_owner:
         # An unreadable origin cannot clear any target, implicit ones
-        # included, so the gate asks rather than waving the command through.
+        # included, so the gate asks instead of waving the command through.
         target = sanitize(owner) if owner else "an implicit repository"
         return "ask", (f"{sanitize(noun)} {sanitize(action)} targets "
                        f"{target}, and this repository names no "
@@ -3778,7 +3781,7 @@ def _has_label_option(command: list) -> bool:
 
 
 def github_cli_verdict(args: list, *, repo_owner: str = "") -> tuple:
-    """Return the safety verdict for one GitHub CLI invocation."""
+    """Return the safety verdict for one GitHub CLI command."""
     command = _github_command_args(args)
     if not command:
         return "", ""

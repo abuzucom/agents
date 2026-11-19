@@ -1,5 +1,5 @@
 # Hash-pinned checker dependencies. pip checks every download against
-# these sha256 digests, which cover every PyYAML 6.0.3 file on PyPI.
+# these sha256 digests. They cover every PyYAML 6.0.3 file on PyPI.
 # Regenerate them from https://pypi.org/pypi/PyYAML/<version>/json when
 # the version changes.
 PyYAML==6.0.3 \

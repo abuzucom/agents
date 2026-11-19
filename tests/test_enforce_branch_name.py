@@ -787,7 +787,7 @@ class SettingsWiringTest(unittest.TestCase):
 
     @staticmethod
     def _commands(settings: dict, event: str) -> list:
-        """Return every hook invocation registered for `event`, command and args."""
+        """Return every hook command registered for `event`, with its args."""
         return [
             " ".join([entry.get("command", "")] + list(entry.get("args", [])))
             for matcher in settings.get("hooks", {}).get(event, [])
@@ -865,7 +865,7 @@ class SettingsWiringTest(unittest.TestCase):
 
         Claude Code spawns the exec form directly, with no shell, so
         `command` must name a real executable on PATH. A startup failure
-        exits non-zero but not 2, which Claude Code treats as a
+        exits non-zero but not 2. Claude Code treats that exit as a
         non-blocking error, and the gate waves the call through.
 
         Asserting on the configured string is the point. Running the

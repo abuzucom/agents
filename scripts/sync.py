@@ -7,7 +7,7 @@ other repositories adopting these gates, against SHARED_MANIFEST.
 --write-shared rewrites that manifest from what is on disk.
 
 sync.py covers the AGENTS.md family by copying. It cannot copy the gate
-files, which live in repositories it cannot see, so it compares hashes
+files. Those files live in repositories it cannot see, so it compares hashes
 against a manifest committed in each of them instead. A file that differs
 is either a fix one repository has and the other does not, or drift that
 belongs in the drift record. Both need somebody to look.
@@ -207,7 +207,7 @@ def _lexical_path(root: Path, name: str) -> Path:
 
 
 def _require_resolved_within(root: Path, path: Path) -> None:
-    """Reject paths whose existing components resolve outside root."""
+    """Reject paths with existing components that resolve outside root."""
     resolved_root = root.resolve(strict=True)
     resolved_path = path.resolve(strict=False)
     if not _is_within(resolved_root, resolved_path):
@@ -386,7 +386,7 @@ def content_digest(path: Path) -> str:
     """Return the file's SHA-256 with line endings normalized.
 
     Normalizing is what keeps a Windows checkout from reporting every
-    shared file as drift. SHA-256 rather than a faster hash because this
+    shared file as drift. SHA-256 instead of a faster hash because this
     is an integrity comparison, not a cache key (Rule 7).
     """
     return text_digest(path.read_text(encoding="utf-8"))

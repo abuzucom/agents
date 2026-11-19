@@ -7,7 +7,7 @@ name: quality-review-pr
 #
 # The workflow_run trigger keeps this caller on default branch code. A pull
 # request cannot edit the reviewer. The caller subscribes to the Convention
-# Sync Check workflow, which runs the test suite, and the Immutable Compliance
+# Sync Check workflow (the test suite runner) and the Immutable Compliance
 # workflow. The review starts only when both runs succeeded for the same head
 # revision. Either workflow can finish first, so the caller reads both results
 # and starts the review on the later pass.

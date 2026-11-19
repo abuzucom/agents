@@ -249,7 +249,7 @@ def emit_gemini(payload: dict, policy: str, digest: str) -> int:
 
 
 def emit_antigravity(payload: dict, policy: str, digest: str) -> int:
-    """Emit context only for Antigravity invocation events."""
+    """Emit context only for Antigravity PreInvocation events."""
     event = payload.get("hook_event_name")
     if event in ("PreToolUse", "BeforeTool"):
         print(json.dumps({}))

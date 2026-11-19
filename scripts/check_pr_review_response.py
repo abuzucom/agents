@@ -56,8 +56,8 @@ def _last_verdict(response: str) -> tuple[str, str]:
     newline-delimited line that starts with VERDICT: at column zero.
     Validating any other line lets a response pass with one verdict while
     the gate acts on another. Splitting on newline alone matches grep:
-    splitlines() also breaks on carriage returns and form feeds, which grep
-    keeps inside one line.
+    splitlines() also breaks on carriage returns and form feeds. grep keeps
+    those characters inside one line.
     """
     lines = response.split("\n")
     if not any(line.strip() for line in lines):

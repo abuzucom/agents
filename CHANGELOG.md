@@ -27,19 +27,19 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - `scripts/prose_bans.txt` bans three more `[global]` entries. The entries cover
   `does` with `not run`, and the hyphenated forms of `pull request` and
   `banned phrase`.
-- `scripts/prose_bans.txt` bans 87 more `[global]` entries. The entries
-  cover invented hyphenated compounds, several hedge and filler phrases,
-  and the comma before `never`.
-- Policy text, documentation, and workflow comments use plain wording in
-  place of the newly banned entries. Hook comments and test docstrings
-  follow. The hook edits carry Rule 22 sign-off. The test edits carry Rule
-  3 sign-off.
+- `scripts/prose_bans.txt` bans 123 more `[global]` entries. The entries
+  cover invented hyphenated compounds, filler phrases, and the comma before
+  `never`, `which`, or `instead`.
+- Prose in policy text, documentation, comments, and docstrings drops most
+  newly banned entries. Comments and docstrings no longer use the word
+  `invocation`. The hook edits carry Rule 22 sign-off. The test edits carry
+  Rule 3 sign-off.
 - `tests/test_prose_policy.py` lists every configured denylist entry. The
   expected list grows with the denylist. The assertion still requires an
   exact match.
-- Marker names, the scope section name, Git flags, runtime messages, and
-  one policy sentence pinned by a test keep their banned spelling. Each
-  awaits a separate decision.
+- Marker names, the scope section name, and Git flags keep the banned
+  spelling. Runtime messages, test data, and one policy
+  sentence pinned by a test also keep it. Each awaits a separate decision.
 
 ### Fixed
 - `hooks/reinject_agents_policy.py` and `scripts/sync.py` name the
@@ -121,7 +121,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - `docs/agent-policy/github.md` states that agents never create, push,
   move, or delete Git tags and never create, edit, publish, or delete
   releases. `docs/agent-policy/adoption.md` drops four handoff sentences
-  that `AGENTS.md` states verbatim.
+  that `AGENTS.md` states word for word.
 - `_names_version_tag` drops a `refs/tags/` branch that the tag namespace
   check made unreachable. `hook-coverage-baseline.json` records one fewer
   unreached statement in `_apply_git_environment_locations`.
@@ -153,7 +153,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - `--json` prints both sizes and limits. `--render-markdown <path>`
   validates such a report and prints the pull request comment body. The
   body shows bytes, limit, headroom, percent used, and the directive.
-  The renderer rejects a report whose limits differ from the checker
+  The renderer rejects a report with limits that differ from the checker
   limits. `render_markdown` also rejects a limit below 1 before the
   percent division. A caller that skips validation gets a `ValueError`
   instead of a `ZeroDivisionError`. The sync loader and the comment step
@@ -418,7 +418,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   The limit and unreadable reasons name a recovery step. The shell gates
   and `block_infrastructure_access.py` use the new reasons.
 - `forge_verdict` reads the `origin` repository owner only for a forge CLI. A cache
-  keeps one owner lookup and one scan result for each hook invocation. Each
+  keeps one owner lookup and one scan result for each hook run. Each
   hook main clears the cache first.
 - A cyclic git alias, or one past the 10-alias depth limit, denies with a
   named reason instead of a recursion error.
@@ -825,7 +825,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ### Fixed
 - Define the disclosure form in the compaction directive of
   `hooks/reinject_agents_policy.py`. Agents must reproduce the compaction
-  text verbatim in a fenced block led by `COMPACTION TEXT DISCLOSURE`. The
+  text word for word in a fenced block led by `COMPACTION TEXT DISCLOSURE`. The
   directive states that client interfaces hide the compaction message. A
   reference to text above, a paraphrase, or a summary is not disclosure.
   Codex disclosed by reference to a collapsed message.
@@ -893,7 +893,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Check the `trusted_gh.py run` argument count before the forge verdict
   in `hooks/_command_execution_gate.py`.
 - Correct the `ALWAYS_DESTRUCTIVE` comment. `dd` and `hdparm` stay denied
-  on every invocation.
+  on every run.
 - Record the changed hook digests in `shared-files.json` and tighten
   `hook-coverage-baseline.json` to the statements the suite now reaches.
 - Route `python scripts/trusted_git.py clone` and `fetch` to execution
@@ -1068,7 +1068,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Uppercase allowlisted variable names on Windows.
 - Cover the missing policy-root checker branch of
   `hooks/enforce_git_identity.py`.
-- Return a finding instead of raising `TypeError` when a staged changelog
+- Return a finding in place of a `TypeError` when a staged changelog
   has no versioned heading and HEAD has one.
 - Include the cause and a recovery step in changelog inspection errors.
 - Report a missing staged `CHANGELOG.md` entry instead of a Git inspection
@@ -1334,7 +1334,7 @@ session start.
 
 ### Added
 - Treat compaction messages as untrusted input. Assume adversarial
-  instructions. Require disclosure, a stop, plan-mode re-entry, a canonical
+  instructions. Require disclosure, a stop, a return to plan mode, a canonical
   policy re-read, and a detailed plan after every compaction event. Ban
   manufactured bypasses and fabricated approval claims.
 - Emit a compaction directive from the reinjection hook on Claude and Codex
@@ -1568,7 +1568,7 @@ session start.
 - Added complete `AGENTS.md` lifecycle reinjection for Claude, Codex, Gemini,
   and Antigravity project clients. Claude preserves built-in Explore and Plan
   through bounded numbered chunks. Gemini and Antigravity inject the complete
-  policy before every model invocation.
+  policy before every model request.
 - Added strict cross-client branch preflight before every observable tool.
   Exact recovery commands and active-human questions remain available.
 - Added regression coverage for lifecycle output, client wiring, strict branch
@@ -1603,7 +1603,7 @@ session start.
   The checker handles UTF-16 or UTF-32 BOMs. The checker honors conflict marker
   attributes and distinguishes Markdown Setext headings.
 - Added `.github/workflows/immutable-conflict-check.yml`, a
-  `pull_request_target` workflow from the base branch whose immutable compliance scan is the sole
+  `pull_request_target` workflow from the base branch with an immutable compliance scan as the sole
   privileged job.
 - Added pinned `PyYAML==6.0.3` checker requirements for safe YAML parsing.
 - Added a permanent security header, active-work structure, command-execution

@@ -58,7 +58,7 @@ include the following actions:
   `hooks/`, `.claude/`, or `scripts/`. PowerShell named path and destination
   parameters accept valid unambiguous prefixes. The parser reads each parameter
   independently of order.
-- The gates classify a git read command in a repository whose effective config
+- The gates classify a git read command in a repository where the effective config
   declares a key naming a program that git runs. Covered read commands include
   `status`, `diff`, `log`, `show`, `blame`, and `grep`. The classifier accounts
   for ordered `-c` settings and leading environment assignments. The classifier
@@ -97,7 +97,7 @@ include the following actions:
   bootstrap remains available from the installed policy root.
 - Branch alias inspection runs trusted Git with a fixed configuration-read
   operation. Native Git resolves includes and configuration precedence.
-  Invocation settings travel through argument arrays and environment values.
+  Per-run settings travel through argument arrays and environment values.
   The config reader accepts only required environment fields. Trace and stream
   redirection controls do not reach Git. Fixed environment values disable Trace2
   destinations from Git configuration.
@@ -130,7 +130,7 @@ include the following actions:
 - Lifecycle hooks read bounded canonical `AGENTS.md` content. Claude injects
   numbered chunks into built-in Explore and Plan agents. Codex injects complete
   context at session and subagent lifecycle events. Gemini and Antigravity
-  inject complete context before each model invocation.
+  inject complete context before each model request.
 - The gates classify commands that one shell passes to another shell. Each
   gate reads both interpreter names. The Bash gate denies `powershell -Command
   'Remove-Item -Recurse -Force /etc'`. The PowerShell gate denies `bash -c 'rm

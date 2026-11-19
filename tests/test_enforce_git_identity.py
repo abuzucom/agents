@@ -3,15 +3,15 @@
 
 Runs the hook and the checker as subprocesses against synthetic Claude Code
 payloads and a throwaway git repository, the same paths the harness and an
-adopting repo use, rather than asserting on mocks.
+adopting repo use. No assertion targets a mock.
 
 Identity state is controlled three ways, none of which touches the real
 repository: a tempfile git repo supplies the local config, GIT_CONFIG_GLOBAL
 and GIT_CONFIG_SYSTEM point at a path that does not exist so the developer's
 own identity cannot leak in, and every GIT_AUTHOR, GIT_COMMITTER, and EMAIL
 variable is stripped from the child environment. Masking with a nonexistent
-path rather than /dev/null keeps this working on Windows, which these
-scripts support.
+path instead of /dev/null keeps this working on Windows. These scripts
+support Windows.
 
 Every address here is a placeholder. example.com is reserved by RFC 2606,
 and octocat is GitHub's own placeholder login. A test file is committed and

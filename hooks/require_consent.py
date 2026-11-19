@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Route writes to existing test files through a per-act human decision.
 
-Not part of AGENTS.md, which stays tool-agnostic and is synced to non-Claude
-tools verbatim. This is a Claude-Code-specific hook under hooks/, wired via
+Not part of AGENTS.md. AGENTS.md stays independent of any one tool.
+Synchronization copies it unchanged to non-Claude tools. This is a Claude-Code-specific hook under hooks/, wired via
 `.claude/settings.json` (live in this repo) or
 hooks/claude-code-settings.example.json (for adopting repos). One file serves
 two registrations, dispatched on `hook_event_name` and `tool_name`.
@@ -17,11 +17,11 @@ Creating a test file that does not exist yet is the only exemption, and it is
 the one the mandated test-first workflow needs. Every edit to a file that
 already exists asks, in any language.
 
-An earlier form cleared an end-of-file append as additive. Textual checks
+An earlier form cleared an end-of-file append as additive. Checks on raw text
 cannot carry that claim: appending `ExistingTest.__unittest_skip__ = True`,
 or rebinding the class to `None`, leaves every assertion above it present and
 inert. Enumerating those spellings is a denylist over text an attacker
-chooses, so the carve-out is gone rather than patched. The cost is real: an
+chooses, so the exemption is gone and not patched. The cost is real: an
 iteration on an existing test now prompts.
 
 `SessionStart` states which gates are live.
@@ -29,7 +29,7 @@ iteration on an existing test now prompts.
 An `ask` needs a human to answer it. When `permission_mode` reports an
 unattended session, or a mode this hook does not recognize, the ask becomes a
 deny: absence of a human is absence of consent. The unrecognized value is
-named in the reason, so a mode Claude Code adds later is visible rather than
+named in the reason, so a mode Claude Code adds later is visible instead of
 silently denied.
 
 Paths are resolved before anything is decided about them. A path is only as
@@ -112,7 +112,7 @@ must say it requires the user's sign-off. Do not label it Recommended. State
 the rule-governed cost, not only the engineering trade-off: the user cannot
 make a call you did not put in front of them.
 
-This arrives now rather than when a question is asked, because by the time a
+This arrives now instead of when a question is asked, because by the time a
 question reaches a hook its options are already written."""
 
 
@@ -241,7 +241,7 @@ def names_a_test(raw: str, target: str, project_dir: str) -> bool:
 def escapes_root(target: str, project_dir: str) -> bool:
     """Return True if `target` sits outside the project root.
 
-    commonpath rather than a string prefix: Windows short names and \\\\?\\
+    commonpath instead of a string prefix: Windows short names and \\\\?\\
     prefixes make two spellings of one directory compare unequal.
     """
     root = os.path.realpath(project_dir)

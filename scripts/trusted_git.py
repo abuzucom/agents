@@ -289,7 +289,7 @@ def _existing_config_count(environment: dict) -> int:
 
 def _append_config_overrides(environment: dict, overrides) -> None:
     """Append fixed config pairs after any forwarded GIT_CONFIG_* pairs."""
-    # GIT_CONFIG_KEY_n carries a key verbatim. `-c key=value` splits at the
+    # GIT_CONFIG_KEY_n carries a key unchanged. `-c key=value` splits at the
     # first "=", so it cannot express a subsection that contains one.
     if len(overrides) > MAX_CONFIG_OVERRIDES:
         raise ValueError("too many config overrides")

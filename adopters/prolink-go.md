@@ -40,7 +40,7 @@ Adopter commit `83d3713` mirrors template commit `d5e040e`.
   Twelve of the scanner tests covering it still run.
 - `DRIFT.md` and `adopters/`. Both belong to this repository.
 - The template `README.md`, `CHANGELOG.md`, `Makefile`, `LICENSE`, and
-  `docs/gate-threat-model.md` as verbatim copies.
+  `docs/gate-threat-model.md` as exact copies.
 
 ## Current drift
 

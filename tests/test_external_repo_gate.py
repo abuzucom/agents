@@ -245,7 +245,7 @@ class CrossOwnerVerdictTest(unittest.TestCase):
             "")
 
     def test_unreadable_explicit_target_asks(self):
-        # An explicit --repo the gate cannot parse is not clearance.
+        # An unparseable explicit --repo is not clearance.
         for target in ("https://attacker-github.com/owner/name",
                        "not-a-repository",
                        "owner/name/extra"):
@@ -282,7 +282,7 @@ class ForgeVerdictTest(unittest.TestCase):
     """forge_verdict resolves the repository owner from the working directory."""
 
     def verdict(self, args: list, url: str) -> str:
-        """Return the decision for one gh invocation in a crafted repository."""
+        """Return the decision for one gh command in a crafted repository."""
         with RetryingTemporaryDirectory() as tmp_dir:
             repo = repo_with_remote(tmp_dir, url)
             return _gate_core.forge_verdict("gh", args, repo)[0]

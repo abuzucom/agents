@@ -443,7 +443,7 @@ An unlicensed target remains unlicensed unless that approval changes its status.
 `scripts/check_local_paths.py` backs the Rule 8 ban on real local
 identifiers. Two checks share one pass per line:
 
-- Check 2 flags user-profile paths whose user segment is not a placeholder or
+- Check 2 flags user-profile paths with a user segment that is not a placeholder or
   an approved `.local-path-allowlist` pair. It runs everywhere, including CI.
 - Check 1 flags the local account name, home directory, and computer name. It
   reads OS APIs at run time and runs only on a developer machine.
@@ -655,7 +655,7 @@ edit. Use `make check` or `python scripts/sync.py --check` for drift.
 | Cursor | `AGENTS.md`, `.cursorrules` | Native with synchronized fallback |
 | Claude Code | `CLAUDE.md` | Synchronized copy plus lifecycle validation |
 | Gemini CLI | `GEMINI.md` | Synchronized copy plus per-model reinjection |
-| Antigravity | `AGENTS.md` | Ephemeral per-invocation reinjection |
+| Antigravity | `AGENTS.md` | Ephemeral reinjection on each request |
 | Cline and Roo Code | `.clinerules` | Synchronized copy |
 | Windsurf | `.windsurfrules` | Synchronized copy |
 | Aider and local OpenHands | `CONVENTIONS.md` | Load with `--read CONVENTIONS.md` |
@@ -685,12 +685,12 @@ paths require Codex to start from the repository root. Codex project hooks
 require trust. Hosted tools do not pass through `PreToolUse`.
 
 Claude and Codex compaction events prepend a directive. The directive orders
-compaction-text disclosure, a stop, plan-mode re-entry, and replanning from
+compaction-text disclosure, a stop, a return to plan mode, and replanning from
 current repository state.
 
 Gemini receives complete policy context at `SessionStart` and before every
 model request. Antigravity receives complete policy context as an ephemeral
-message before every model invocation. The Antigravity reinjection hook emits
+message before every model request. The Antigravity reinjection hook emits
 `injectSteps` only for `PreInvocation`. A `PreToolUse` call emits `{}` because
 the runtime schema does not accept `injectSteps` there. Both clients permit
 project hook disablement. Client documentation does not promise hook
@@ -806,7 +806,7 @@ The exact branch-reader bootstrap remains available from that root.
 
 Alias inspection uses trusted Git with a fixed configuration-read command.
 The read includes global configuration, includes, environment settings, and
-invocation overrides. The gate never executes the inspected alias. Configuration
+per-command overrides. The gate never executes the inspected alias. Configuration
 output stops at 256 KiB. Configuration reads have a five-second timeout. Alias
 expansion stops after ten steps. The subprocess receives a constrained environment.
 Tracing and stream redirection remain disabled during inspection. Explicit
@@ -829,7 +829,7 @@ These forms also run without a prompt:
   optional `-s`, `-t`, `-p`, `-v`, and `-q`
 - `ruff check` without `--fix`, `ruff format --check`, and either command with
   `--diff`, including the `python -m ruff` spelling
-- a literal `rg` search whose operands stay inside the repository
+- a literal `rg` search with operands inside the repository
 
 `ruff format` and `ruff check --fix` rewrite files and request consent. Other
 `rg` searches, listed Makefile targets, `scripts/run_tests.py`, synchronization,
@@ -970,7 +970,7 @@ consent under Rule 14 and the branch history rules.
 
 The reader emits stable JSON. The reader bounds output and renders control
 characters as printable ASCII. Remote output redacts URL user information.
-Status output reports dirty flags without paths. The reader invokes Git through
+Status output reports dirty flags without paths. The reader runs Git through
 `scripts/trusted_git.py`. Run the complete preflight with:
 
 ```console

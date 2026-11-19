@@ -16,7 +16,7 @@ import unittest
 from pathlib import Path
 
 # scripts/ is never on the path, so the file lists come from the module
-# that defines them rather than a restated copy.
+# that defines them instead of a restated copy.
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 import sync
 
@@ -39,7 +39,7 @@ def run_sync(cwd: Path, *args) -> subprocess.CompletedProcess:
 
 
 def write_changelog(root: Path, version: str) -> None:
-    """Write a changelog whose newest release heading names `version`."""
+    """Write a changelog with a newest release heading that names `version`."""
     (root / "CHANGELOG.md").write_text(
         f"# Changelog\n\n## [{version}] (2026-01-01)\n\n### Added\n- Item.\n",
         encoding="utf-8")

@@ -14,9 +14,9 @@ permissions:
 
 jobs:
   tests-windows:
-    # The gates run as the launcher named in .claude/settings.json, which
-    # only this job can prove resolves on Windows. A hook that fails to
-    # start exits non-zero but not 2, which Claude Code treats as a
+    # The gates run as the launcher named in .claude/settings.json. Only
+    # this job can prove the launcher resolves on Windows. A hook that fails
+    # to start exits non-zero but not 2. Claude Code treats that exit as a
     # non-blocking error, so every gate would fail open there in silence.
     runs-on: windows-latest
     steps:

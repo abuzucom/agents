@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Warn about British spellings in the given files.
 
-Path-generic (unlike lint_style.py, which is hardcoded to AGENTS.md in this
+Works on any path (unlike lint_style.py, hardcoded to AGENTS.md in this
 repo): copy this file with scripts/prose_policy.py and
 scripts/handoff_policy.py into any repo and point it at that repo's own
 source globs and CI. Always exits 0, even when it finds violations; this

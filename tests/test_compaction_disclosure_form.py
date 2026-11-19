@@ -40,7 +40,7 @@ def run_compact_session(client: str) -> str:
 
 
 class CompactionDisclosureFormTest(unittest.TestCase):
-    """Compaction context defines a verbatim, marker-led disclosure."""
+    """Compaction context defines a word-for-word disclosure led by a marker."""
 
     def assert_disclosure_form(self, context: str) -> None:
         """Check the marker and disclosure wording in one context."""

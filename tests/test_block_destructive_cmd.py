@@ -76,7 +76,7 @@ class CommandBoundaryTest(unittest.TestCase):
 
 
 class CommandPolicyTest(unittest.TestCase):
-    """CMD operations use behavior rather than operand literals."""
+    """CMD operations use behavior instead of operand literals."""
 
     def test_storage_destruction_is_operand_independent(self):
         for command_text in (

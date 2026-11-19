@@ -166,8 +166,8 @@ class BaselineFileTest(unittest.TestCase):
 
     Skipped when there is no baseline yet. Generating the first one runs
     this suite, so a suite that requires the file makes it impossible to
-    produce, which is what a second installation of this gate found. CI
-    still fails on a missing baseline, through the gate rather than here.
+    produce. A second installation of this gate found that. CI
+    still fails on a missing baseline through the gate. This suite does not.
     """
 
     def setUp(self):

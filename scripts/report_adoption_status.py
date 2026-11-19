@@ -230,7 +230,7 @@ class RepositoryFiles:
 
 def match_policy_version(files: RepositoryFiles, versions: dict,
                          ordered: list) -> str | None:
-    """Return the newest version whose AGENTS.md digest the repository holds."""
+    """Return the newest version with an AGENTS.md digest in the repository."""
     digest = files.read_digest(sync.SOURCE)
     for version in ordered:
         if versions[version].get("policy", {}).get(sync.SOURCE) == digest:

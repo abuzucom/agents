@@ -1024,7 +1024,7 @@ class WindowsPathHandlingTest(unittest.TestCase):
 
 
 class SparseCheckoutTest(unittest.TestCase):
-    """Scan skip-worktree content from its authoritative source."""
+    """Scan content kept out of the worktree from its authoritative source."""
 
     def test_skip_worktree_entry_does_not_fail_the_check(self):
         with RetryingTemporaryDirectory() as tmp:
