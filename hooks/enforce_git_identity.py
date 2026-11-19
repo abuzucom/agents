@@ -46,7 +46,7 @@ try:
     # core.blocked_command parses with this module. Importing it here makes
     # a missing parser deny at startup instead of mid-check.
     import _bash_parser as bash_parser
-except ImportError as error:  # pragma: no cover (exercised by the adoption test)
+except ImportError as error:  # The adoption test exercises this import failure.
     print(f"the shared hook parser or core could not be imported ({error})"
           ". Stop. Report this denial to the active human. Do not retry "
           "a variant or propose a gate change.",
