@@ -1482,8 +1482,8 @@ session start.
 - Required commits that agents generate to use the active operator's noreply
   address.
 - Rejected fabricated noreply IDs and unapproved co-author trailers.
-- Limited attribution for permitted agents to labels with a name and no
-  email.
+- Limited attribution for agents absent from the banned list to labels with
+  a name and no email.
 
 ### Added
 - Added a workflow action pin checker and a pre-setup hook launcher probe.

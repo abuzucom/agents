@@ -277,7 +277,7 @@ commits may use a verified public email. CI must resolve every author and
 committer email to the contributor who created the commit. A GitHub-signed
 `web-flow` committer is the sole exception.
 
-Any permitted agent may use a `Co-authored-by` label without an email. It must
+Any agent absent from the banned list may use a `Co-authored-by` label without an email. It must
 disclose the model with an `Assisted-by: <model>` trailer without an email. Never add an
 email to an agent label or model disclosure. Never hallucinate models. Every
 human `Co-authored-by` trailer requires an exact approved name and email mapping.

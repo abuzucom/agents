@@ -564,7 +564,7 @@ banned tools. Exclude banned tools from `scripts/sync.py`.
 disclosures, and optional pull request author against the denylist and wildcards
 in `scripts/banned_models.txt`. `scripts/check_commit_attribution.py` validates
 contributor identity through GitHub metadata and permits labels with a name and no email for
-permitted agents. Model disclosures must use an `Assisted-by: <model>`
+agents absent from the banned list. Model disclosures must use an `Assisted-by: <model>`
 trailer without an email and without model hallucination.
 The checker rejects fabricated noreply IDs on commits an agent generates. It
 also rejects unapproved co-author trailers that carry an email. Commits a
