@@ -3,10 +3,10 @@
 
 The gates run as subprocesses, so ordinary in-process coverage sees
 almost none of their decision code and reports the opposite of the truth.
-This runs the suite with tools/hook-trace on PYTHONPATH, which traces
+This runs the suite with tools/hook-trace on PYTHONPATH to trace
 every interpreter, and compares what went unrun against a committed baseline.
 
-The baseline is per function rather than per line, so an edit above a
+The baseline is per function instead of per line, so an edit above a
 function does not churn it. A function gaining unreached statements fails
 the check, and so does a baseline that has gone stale: a gate nobody can
 fail is the failure mode this whole check exists to avoid.
@@ -33,9 +33,9 @@ from threading import Lock
 BASELINE = "hook-coverage-baseline.json"
 TARGET = "hooks"
 # Not tools/coverage: a "coverage/" line is one of the commonest
-# .gitignore entries, and it silently excluded this file from an
-# adopting repository, which leaves the gate reporting every statement
-# as unreached.
+# .gitignore entries, and it excluded this file without warning from an
+# adopting repository. The gate would then report every statement as
+# unreached.
 TRACER_DIR = os.path.join("tools", "hook-trace")
 DEFAULT_WORKERS = 4
 TEST_SHARD_TIMEOUT_SECONDS = 30
@@ -113,7 +113,7 @@ class ActiveProcessRegistry:
 
 
 def is_docstring(node, parent) -> bool:
-    """Return True if `node` is `parent`'s docstring rather than code.
+    """Return True if `node` is `parent`'s docstring and not code.
 
     A docstring compiles into __doc__ instead of executing, so it never
     appears in a trace count. Counting one as unreached measures the
@@ -571,7 +571,7 @@ def write_baseline(root: str, counts: dict) -> int:
     """Record `counts` as the baseline and return an exit code.
 
     Refuses to run as root. Permission-dependent branches do not fire for
-    root, which reads a mode 000 file happily, so a baseline written here
+    root. Root reads a mode 000 file without error. A baseline written here
     records fewer unreached statements than CI finds and fails the check
     it was written to satisfy. Two OSError branches in require_consent.py
     behave exactly this way.

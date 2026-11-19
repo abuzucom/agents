@@ -6,9 +6,9 @@ payloads. Every payload enters the real hook entrypoint without mocks.
 
 Two outcomes carry different weight. A `deny` is a command the hook refuses
 outright; it exits 2 so the block holds even where stdout JSON is ignored.
-An `ask` routes the decision to the human through the permission prompt,
-which is the only consent AGENTS.md recognizes for Rule 2 and for rewriting
-pushed history.
+An `ask` routes the decision to the human through the permission prompt.
+AGENTS.md recognizes no other consent for Rule 2 or for rewriting pushed
+history.
 """
 import importlib.util
 import json
@@ -86,7 +86,7 @@ class ForcePushTest(unittest.TestCase):
     """Rewriting published history is the user's call, not a refusal.
 
     A deny offers no way to consent, and the pushed-history rule is about
-    requiring consent rather than making the act impossible.
+    requiring consent instead of making the act impossible.
     """
 
     ASKED = (
@@ -140,7 +140,7 @@ class AskTest(unittest.TestCase):
                 self.assertEqual(decision, "ask")
 
     def test_scratch_directory_is_not_exempt(self):
-        """Rule 2 carries no 'it is my own directory' carve-out."""
+        """Rule 2 carries no 'it is my own directory' exemption."""
         _, decision = run_hook("rm -rf /tmp/my-own-scratch-dir")
         self.assertEqual(decision, "ask")
 
@@ -173,7 +173,7 @@ class EvasionTest(unittest.TestCase):
     """Valid command forms that must not slip past the gate.
 
     Every case here was ALLOWED by the original regex matcher. A gate that
-    reads the raw command string matches spelling rather than meaning, so
+    reads the raw command string matches spelling instead of meaning, so
     any equivalent spelling walks through it.
     """
 
@@ -971,7 +971,7 @@ class DiskWipeTest(unittest.TestCase):
 
 
 class MassOperationTest(unittest.TestCase):
-    """One command whose target set is unbounded is a mass operation."""
+    """One command with an unbounded target set is a mass operation."""
 
     ASK = (
         "find . -name '*.py' -delete",
@@ -1140,7 +1140,7 @@ class WindowsPathModuleTest(unittest.TestCase):
     ntpath.normpath("/etc") returns "\\etc", so a check anchored on a
     leading slash rejects every POSIX system root on the platform a
     Windows agent runs on. Substituting the module tests the logic here
-    rather than waiting for the windows-latest job to say so.
+    instead of waiting for the windows-latest job to say so.
     """
 
     ROOTS = ("/", "/etc", "/usr/.", "/etc//", "/home/..", "/Applications",

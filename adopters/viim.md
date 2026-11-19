@@ -11,7 +11,7 @@ commit `25dfa23`.
 ## Taken
 
 `abuzucom/viim` took the template's full 20-step adoption in one pull
-request. `viim` is a small, docs-only, brand-identity repository (its own
+request. `viim` is a small documentation repository for brand identity (its own
 `AGENTS.md` predates this adoption and is not replaced), so "taken" here
 means the supporting tooling, not the template's own `AGENTS.md` content.
 
@@ -40,33 +40,33 @@ means the supporting tooling, not the template's own `AGENTS.md` content.
 ## Declined
 
 - `viim`'s own `AGENTS.md`, `README.md`, `CLAUDE.md` and the other seven
-  synced tool copies, `Makefile`, and `LICENSE` as verbatim copies. `viim`
+  synced tool copies, `Makefile`, and `LICENSE` as exact copies. `viim`
   is a sibling brand-identity repository, not an engineering-policy fork of
   `agents`; its own canonical `AGENTS.md` stays in place and is not
   replaced by this repository's.
 - `DRIFT.md` and `adopters/`. Both belong to this repository.
 - `.github/PULL_REQUEST_TEMPLATE.md` and `.github/ISSUE_TEMPLATE.md`. Not
   part of `agents/README.md`'s 20 numbered adoption steps; not added.
-- `docs/gate-threat-model.md` as a verbatim copy.
+- `docs/gate-threat-model.md` as an exact copy.
 
 ## Current drift
 
 - `scripts/sync.py` keeps `viim`'s own simple `AGENTS.md`-only copy
-  behavior rather than this repository's `policy_bytes()`, which
+  behavior instead of this repository's `policy_bytes()`. That function
   concatenates the approved `docs/agent-policy/*.md` files and
   `docs/project-orientation.md` onto the canonical file before comparing or
-  copying. The source repository's optional source-only orientation is
+  copying. The source repository's optional source orientation is
   excluded from adoptable output. `viim`'s `AGENTS.md` carries no
-  `<!-- repository-only:start/end -->` orientation markers, so
+  local policy orientation markers in either spelling, so
   `--print-adoptable` there just prints `AGENTS.md` as-is. `--check-shared`
-  and `--write-shared` were adopted verbatim in mechanism, scoped to
+  and `--write-shared` were adopted unchanged in mechanism, scoped to
   `viim`'s own `SHARED_FILES` list.
 - `.claude/settings.json` was not written by the adopting agent. Claude
   Code's own auto-mode safety classifier refused every attempt (citing
   "Self-Modification"), including through the Write tool, because that file
   activates hook gating over the agent's own future tool calls in that
-  repository. `.codex/`, `.gemini/`, and `.agents/` configs, which do not
-  affect that agent's own gating, were written successfully. An active
+  repository. `.codex/`, `.gemini/`, and `.agents/` configs were
+  written successfully. Those configs do not affect that agent's own gating. An active
   human needs to add `.claude/settings.json` directly (content identical to
   this repository's own, with `${CLAUDE_PROJECT_DIR}` paths) before Claude
   Code's hooks are live in `viim`.
@@ -96,4 +96,4 @@ explicitly a human directs it to. Both steps need either a human applying
 them directly, or a human granting the session a Bash permission broad
 enough to cover writes under `hooks/` and `.claude/` before the session
 starts. The next adopter should also create `docs/project-orientation.md` and
-keep source-only orientation out of the adoptable policy.
+keep the source orientation out of the adoptable policy.

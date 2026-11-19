@@ -95,8 +95,8 @@ class ApiReadVerdictTest(unittest.TestCase):
                 self.assertIn(wrapper_decision(arguments), ("ask", "deny", ""))
 
     # The workflow gate leaves a forge-denied wrapper call unrecognized. The
-    # branch hook then denies it through command_execution_violation, which
-    # ApiReadHookTest checks end to end.
+    # branch hook then denies it through command_execution_violation.
+    # ApiReadHookTest checks that path end to end.
     def test_mutating_methods_stay_unrecognized(self):
         for method in ("POST", "PATCH", "PUT", "DELETE"):
             with self.subTest(method=method):

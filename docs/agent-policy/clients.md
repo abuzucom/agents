@@ -12,7 +12,7 @@ Gemini uses `SessionStart` and `BeforeModel`. Gemini project hooks require
 fingerprint trust and permit disablement.
 
 Antigravity uses an ephemeral `PreInvocation` message. Its `PreToolUse`
-payload must remain schema-safe. Do not emit unsupported `injectSteps` fields
+payload must match its schema. Do not emit unsupported `injectSteps` fields
 from `PreToolUse`.
 
 Default sandboxes isolate outbound network access. Request the client's

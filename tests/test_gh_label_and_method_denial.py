@@ -82,7 +82,7 @@ class ApiMethodDenialTest(unittest.TestCase):
 
 
 class UnreadableOriginTest(unittest.TestCase):
-    """An outward-facing command asks when the origin owner cannot be read."""
+    """An outward-facing command asks when the `origin` repository owner cannot be read."""
 
     def test_implicit_target_asks_without_origin_owner(self):
         for args in (["pr", "create", "--draft"], ["pr", "comment", "5", "--body", "x"],

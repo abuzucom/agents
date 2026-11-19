@@ -2,7 +2,7 @@
 
 The branch hook imports this module for every shell command it inspects.
 Denials and consent prompts from this module name this file, so a blocked
-program points at the command allowlist rather than at branch naming.
+program points at the command allowlist and not at branch naming.
 """
 import functools
 import json
@@ -165,7 +165,7 @@ NPM_RUN_TOKEN_COUNT = 3
 # npm joins test arguments into a shell string, so only inert characters pass.
 TEST_PATH_PATTERN = re.compile(r"[A-Za-z0-9._@+/-]+")
 # One alternation per match keeps the scan linear. A lone quote marks an
-# unterminated string, which stops the scan before any retry at later quotes.
+# unterminated string. That match stops the scan before any retry at later quotes.
 JSON_TOKEN_PATTERN = re.compile(r'"(?:[^"\\]|\\.)*"|[\[\]{}]|"')
 NPM_READ_FLAGS = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0)
 UNTRUSTED_SCRIPTS_LABEL = "npm runs these package.json scripts (untrusted repository data)"
@@ -358,7 +358,7 @@ def _unittest_modules_accepted(arguments: list) -> bool:
 
 
 def _unittest_discover_accepted(arguments: list, project_dir: str) -> bool:
-    """Accept discovery options whose directories stay inside the repository."""
+    """Accept discovery options that name directories inside the repository."""
     index = 0
     while index < len(arguments):
         option = arguments[index]
@@ -428,7 +428,7 @@ def _pytest_arguments_accepted(arguments: list) -> bool:
 
 
 def _pytest_verdict(arguments: list, project_dir: str, launcher: str) -> tuple:
-    """Return (decision, reason, read-only) for one accepted pytest invocation."""
+    """Return (decision, reason, read-only) for one accepted pytest command."""
     if not _pytest_arguments_accepted(arguments):
         return "", "", False
     error = _program_lookup_error(PYTEST_PROGRAM, PYTEST_SHADOW_NAMES, launcher, project_dir)
@@ -438,7 +438,7 @@ def _pytest_verdict(arguments: list, project_dir: str, launcher: str) -> tuple:
 
 
 def _ruff_writes(subcommand: str, flags: list) -> bool:
-    """Return whether one accepted Ruff invocation rewrites files."""
+    """Return whether one accepted Ruff command rewrites files."""
     if "--diff" in flags:
         return False
     if subcommand == "check":
@@ -551,7 +551,7 @@ def _trusted_api_read_accepted(arguments: tuple, project_dir: str) -> bool:
 
 
 def _python_verdict(tokens: list, project_dir: str) -> tuple:
-    """Return (decision, reason, read-only) for one Python interpreter invocation."""
+    """Return (decision, reason, read-only) for one Python interpreter command."""
     if tokens[1:MODULE_LAUNCH_END] == ["-m", "unittest"]:
         accepted = _unittest_accepted(tokens[MODULE_LAUNCH_END:], project_dir)
         return (ALLOW if accepted else ""), "", accepted
@@ -578,12 +578,12 @@ def _python_verdict(tokens: list, project_dir: str) -> tuple:
 
 
 def _python_workflow(tokens: list, project_dir: str) -> bool:
-    """Recognize bounded repository scripts, unittest, and Ruff module invocations."""
+    """Recognize bounded repository scripts, unittest, and Ruff module commands."""
     return _python_verdict(tokens, project_dir)[0] in (ALLOW, ASK)
 
 
 def _literal_part(tokens: list) -> bool:
-    """Return whether tokens form one invocation without operators or expansion."""
+    """Return whether tokens form one command without operators or expansion."""
     if not 1 < len(tokens) <= MAX_WORKFLOW_ARGUMENTS:
         return False
     return not any(
@@ -612,7 +612,7 @@ def _command_parts(command: str) -> list:
 
 
 def _literal_tokens(command: str) -> list:
-    """Return the tokens of one literal invocation without wrappers or redirection."""
+    """Return the tokens of one literal command without wrappers or redirection."""
     parts = _command_parts(command)
     return parts[0] if len(parts) == 1 else []
 
@@ -755,7 +755,7 @@ def _npm_lookup_error(project_dir: str) -> str:
 
 
 def _workflow_consent_text(program: str, project_dir: str) -> str:
-    """Name a repository-resolved program, which repository writers control."""
+    """Name a program resolved from the repository. Repository writers control it."""
     relative = _repository_program_path(program, project_dir)
     if not relative:
         return WORKFLOW_CONSENT
@@ -892,7 +892,7 @@ def _search_verdict(tokens: list) -> tuple:
 
 
 def _program_verdict(tokens: list, project_dir: str) -> tuple:
-    """Return (decision, reason, read-only) for one literal invocation by program."""
+    """Return (decision, reason, read-only) for one literal command by program."""
     program = tokens[0]
     if program == "npm":
         decision, reason = _npm_decision(tokens, project_dir)
@@ -923,7 +923,7 @@ def _part_verdict(tokens: list, project_dir: str) -> tuple:
 
 
 def _workflow_verdict(command: str, project_dir: str) -> tuple:
-    """Return (decision, reason, read-only) for one invocation or an && chain."""
+    """Return (decision, reason, read-only) for one command or an && chain."""
     parts = _command_parts(command)
     verdicts = [_part_verdict(part, project_dir) for part in parts]
     decisions = [verdict[0] for verdict in verdicts]

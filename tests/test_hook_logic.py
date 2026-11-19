@@ -2,8 +2,8 @@
 """Regression tests for hook checks that never fired or contradicted each other.
 
 Each case runs the real hook entrypoint as a subprocess against a synthetic
-payload, except the guard-order case, which counts calls into the shared
-core from the command execution gate.
+payload, except the guard-order case. That case counts calls into the
+shared core from the command execution gate.
 """
 import importlib.util
 import json
@@ -63,7 +63,7 @@ def cmd(command: str) -> str:
 
 
 class NeverFiringCheckTest(unittest.TestCase):
-    """Checks whose markers never matched now ask."""
+    """Checks with markers that matched nothing now ask."""
 
     def test_auditctl_delete_all_rules_asks(self) -> None:
         self.assertEqual(bash("auditctl -D"), "ask")

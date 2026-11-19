@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Check tracked files for unresolved git merge conflict markers.
 
-A portable, path-generic checker: copy this file into any repo and run
+A portable checker for any path: copy this file into any repo and run
 it in CI, pre-commit hooks, or Makefile targets. Scans files for unresolved
 git merge conflict blocks and orphan markers across standard and configured
 marker sizes. Inspects Git index modes to ignore symlinks and submodules,
@@ -42,7 +42,7 @@ MAX_FILE_SIZE = 50 * 1024 * 1024  # 50 MB
 MAX_LINE_LENGTH = 65536  # 64 KB
 MAX_VIOLATIONS = 100
 # git check-attr reads paths from stdin; chunk them so one
-# invocation stays a reasonable size on a large repository.
+# command stays a reasonable size on a large repository.
 CHECK_ATTR_CHUNK = 500
 # check_compliance_tree keeps its own _sanitize copy capped at 500, so each
 # file stays standalone. tests/test_tree_checker_parity.py pins the shared
@@ -444,7 +444,7 @@ def _safe_read(
     that narrowed, not closed.
 
     Returns (data, error_message). data is None on skip or error.
-    error_message is None when the file is silently skipped.
+    error_message is None when the scan skips the file without a message.
     """
     flags = os.O_RDONLY
     nofollow = hasattr(os, "O_NOFOLLOW")
@@ -452,7 +452,7 @@ def _safe_read(
         flags |= os.O_NOFOLLOW
     else:
         # Without O_NOFOLLOW the check and the open are separate calls, so
-        # this narrows the window rather than closing it.
+        # a race between them stays possible but shorter.
         if _probe_is_symlink(path):
             return None, None
 
@@ -628,7 +628,7 @@ def get_tracked_regular_files(
     """Return all git-tracked regular files.
 
     Excludes symlinks (120000) and submodules (160000). Callers decide
-    whether a skip-worktree entry comes from disk or its index blob.
+    whether an entry kept out of the worktree comes from disk or its index blob.
     """
     if repo_root is None:
         repo_root = _get_repo_root()
@@ -637,9 +637,9 @@ def get_tracked_regular_files(
 
 
 def _skip_worktree_paths(repo_root: str) -> set:
-    """Return index paths marked skip-worktree, which have no local file.
+    """Return index paths that Git keeps out of the worktree. Those paths have no local file.
 
-    A sparse checkout omits them deliberately, so reporting them as
+    A sparse checkout omits them by design, so reporting them as
     missing fails a valid working tree.
     """
     skipped = set()
@@ -647,9 +647,10 @@ def _skip_worktree_paths(repo_root: str) -> set:
         if not part:
             continue
         entry = part.decode("utf-8", errors="replace")
-        # git ls-files -v tags skip-worktree entries "S", then one space,
-        # then the path. A lowercase tag is assume-unchanged, which still
-        # has a working-tree file and stays in scope.
+        # git ls-files -v tags entries kept out of the worktree "S". One
+        # space and the path follow. A lowercase tag marks an entry Git
+        # assumes unchanged. Such a path still has a working-tree file and
+        # stays in scope.
         if len(entry) > len(SKIP_WORKTREE_PREFIX) and entry.startswith(SKIP_WORKTREE_PREFIX):
             skipped.add(entry[len(SKIP_WORKTREE_PREFIX):])
     return skipped
@@ -705,9 +706,9 @@ def _supports_no_lazy_fetch(repo_root: str) -> bool:
 
     The option arrived in Git 2.45. Ubuntu 24.04 LTS ships 2.43, where every
     object read failed with "unknown option" and the checker reported one
-    error per tracked file rather than one message about git.
+    error per tracked file instead of one message about git.
 
-    Probe rather than parse `git --version`: a distribution backport carries
+    Probe `git --version` instead of parsing it: a distribution backport carries
     the option without carrying the version number.
     """
     probe = subprocess.run(
@@ -861,7 +862,7 @@ def _check_staged(repo_root: str) -> list[str]:
 
 
 def _check_all(repo_root: str) -> list[str]:
-    """Check present worktree files and absent skip-worktree index blobs."""
+    """Check present worktree files and index blobs kept out of the worktree."""
     violations, readable = _partition_index_entries(
         _get_index_entries(repo_root))
     skipped = _skip_worktree_paths(repo_root)
@@ -1007,7 +1008,7 @@ def _parse_tree_attributes(
 
 
 def _isolated_git_env(repo_root: str, config_root: str) -> dict:
-    """Build an environment whose attributes come only from source objects."""
+    """Build an environment with attributes from source objects only."""
     raw_objects = _run_immutable_git(
         repo_root, ["rev-parse", "--git-path", "objects"])
     try:

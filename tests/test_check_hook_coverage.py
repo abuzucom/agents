@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Cover the hook-coverage gate's comparison and statement accounting.
 
-Deliberately does not run the gate end to end: it launches the whole
+Does not run the gate end to end: it launches the whole
 suite under a tracer, and a suite that runs itself does not terminate.
 CI runs it directly, as its own step.
 
@@ -166,8 +166,8 @@ class BaselineFileTest(unittest.TestCase):
 
     Skipped when there is no baseline yet. Generating the first one runs
     this suite, so a suite that requires the file makes it impossible to
-    produce, which is what a second installation of this gate found. CI
-    still fails on a missing baseline, through the gate rather than here.
+    produce. A second installation of this gate found that. CI
+    still fails on a missing baseline through the gate. This suite does not.
     """
 
     def setUp(self):

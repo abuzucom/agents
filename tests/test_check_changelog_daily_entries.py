@@ -84,7 +84,7 @@ def _run_git(repository: Path, *arguments: str) -> str:
 
 
 def _init_repository(repository: Path) -> str:
-    """Create a repository whose first commit holds the base changelog."""
+    """Create a repository with the base changelog in its first commit."""
     _run_git(repository, "init", "-q", "-b", "main")
     _run_git(repository, "config", "user.name", "Test User")
     _run_git(repository, "config", "user.email", "test@example.com")

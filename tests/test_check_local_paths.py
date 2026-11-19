@@ -70,7 +70,7 @@ def profile_forms(name: str) -> list[str]:
 
 
 class ProfilePathTest(unittest.TestCase):
-    """Check 2 flags profile paths whose user segment is a real-looking name."""
+    """Check 2 flags profile paths with a user segment that looks like a real name."""
 
     def test_incident_shaped_link_is_caught(self):
         name = generated_name()

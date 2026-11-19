@@ -1,19 +1,19 @@
 #!/usr/bin/env python3
 """Gate destructive PowerShell commands via a PreToolUse hook.
 
-Not part of AGENTS.md, which stays tool-agnostic and is synced to non-Claude
-tools verbatim. This is a Claude-Code-specific hook under hooks/, wired via
+Not part of AGENTS.md. AGENTS.md stays independent of any one tool.
+Synchronization copies it unchanged to non-Claude tools. This is a Claude-Code-specific hook under hooks/, wired via
 `.claude/settings.json` (live in this repo) or
 hooks/claude-code-settings.example.json (for adopting repos). It reads the
 PreToolUse JSON payload from stdin and checks only PowerShell tool calls.
 
-Every decision comes from hooks/_gate_core.py, which
-hooks/block_destructive_bash.py also imports. Only the parsing is
+Every decision comes from hooks/_gate_core.py.
+hooks/block_destructive_bash.py also imports that module. Only the parsing is
 shell-specific: statement boundaries, the call operator and the cmdlets that
 run another command, PowerShell's redirection forms, and `Remove-Item` with
 its aliases and prefix-abbreviated parameters. A verdict reached here is the
 verdict the Bash gate reaches for the equivalent command, by construction
-rather than by promise, and tests/test_gate_parity.py asserts it.
+instead of by promise, and tests/test_gate_parity.py asserts it.
 
 Verified against synthetic payloads only. It has not been exercised against a
 live PowerShell tool call.
@@ -77,7 +77,7 @@ WRAPPERS = frozenset({"&", "start-process", "invoke-expression", "iex",
 INTERPRETERS = core.SHELL_INTERPRETERS
 REDIRECTIONS = frozenset({">", ">>", "2>", "2>>", "*>", "*>>", "3>", "4>",
                           "5>", "6>"})
-# Start-Process hands its target a plain argument list rather than a command
+# Start-Process hands its target a plain argument list instead of a command
 # string, so the payload has to be read as arguments to that program.
 ARGUMENT_LIST_FLAGS = frozenset(
     [f"-{'argumentlist'[:n]}" for n in range(1, len("argumentlist") + 1)] + ["-args"])
@@ -152,8 +152,8 @@ def _payload_verdict(rest: list) -> tuple:
 def _interpreter_verdict(program: str, args: list, depth: int = 0) -> tuple:
     """Return (decision, reason) for an interpreter handed a command.
 
-    `depth` bounds the re-entry below, which follows one interpreter into
-    the arguments another handed it. A hostile command can nest launches
+    `depth` bounds the nested scan below. The nested scan follows one interpreter
+    into the arguments another handed it. A hostile command can nest launches
     without limit; the gate reads a fixed number and then denies.
     """
     if depth >= MAX_WRAPPER_DEPTH:

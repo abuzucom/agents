@@ -5,9 +5,9 @@ Run hosted GitHub operations through:
 
 The wrapper resolves `gh` outside the repository and verifies the authenticated
 account through a fixed account request. Direct `gh` lookup remains denied
-because shell lookup can select a repository-controlled executable.
+because shell lookup can select an executable inside the repository.
 
-Repository-bound commands receive a validated `--repo OWNER/REPOSITORY` target.
+Commands bound to a repository receive a validated `--repo OWNER/REPOSITORY` target.
 The wrapper resolves `origin` from the local checkout or worktree metadata.
 The wrapper fails closed when that context is missing or unsafe. The wrapper
 keeps `gh` execution in an external safe directory.
@@ -28,11 +28,11 @@ Git receives only an allowlisted environment.
 
 PR creation, issue creation, comments, reviews, reactions, forks,
 stars, watches, releases, and hosted state changes require active-human
-consent when the operation is outward-facing or state-changing.
+consent when the operation is outbound or mutating.
 
 Repository, release, run, secret, variable, and hosted-resource deletions are
 denied. Administrative merges, visibility changes, authentication changes,
-token output, GraphQL mutations, and state-changing API methods require the
+token output, GraphQL mutations, and mutating API methods require the
 applicable denial or consent path.
 
 Agents never create, push, move, or delete Git tags. Agents never create,
@@ -128,8 +128,8 @@ creation, comments, reviews, reactions, forks, stars, watches, and mentions of
 external accounts.
 
 `scripts/check_external_pr_refs.py` and the pre-push hook block external
-autolinks. The GitHub gate routes outward-facing commands to consent. Unreadable
-origin ownership asks rather than passing. Other client APIs may not observe
+autolinks. The GitHub gate routes outbound commands to consent. Unreadable
+origin ownership asks and does not pass. Other client APIs may not observe
 every hosted surface.
 
 ## Labels
@@ -142,7 +142,7 @@ Rule 23 covers these surfaces:
 - REST and GraphQL label writes
 
 The GitHub gate denies the `gh` label options, `gh label`, and `gh api`
-state-changing requests. No gate denies MCP label fields. The rule binds every
+mutating requests. No gate denies MCP label fields. The rule binds every
 client without that coverage.
 
 The wrapper refuses deny verdicts. It runs ask verdicts without confirming

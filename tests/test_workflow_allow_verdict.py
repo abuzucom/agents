@@ -115,7 +115,7 @@ WRITING_COMMANDS = (
 
 
 class AllowVerdictModuleTest(unittest.TestCase):
-    """Classify single invocations through the gate module."""
+    """Classify single commands through the gate module."""
 
     @classmethod
     def setUpClass(cls) -> None:

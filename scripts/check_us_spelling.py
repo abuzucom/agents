@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Warn about British spellings in the given files.
 
-Path-generic (unlike lint_style.py, which is hardcoded to AGENTS.md in this
+Works on any path (unlike lint_style.py, hardcoded to AGENTS.md in this
 repo): copy this file with scripts/prose_policy.py and
 scripts/handoff_policy.py into any repo and point it at that repo's own
 source globs and CI. Always exits 0, even when it finds violations; this
@@ -24,7 +24,7 @@ except ModuleNotFoundError:
 # miscellaneous, plus contested pairs the user chose to enforce
 # (theatre/theater, catalogue/catalog, dialogue/dialog, analogue/analog)
 #
-# Deliberately excluded as ambiguous or dual-valid in American English:
+# Excluded as ambiguous, or valid in both spellings in American English:
 # glamour, burnt, learnt, disc, grey/gray, judgement/judgment,
 # acknowledgement/acknowledgment, moustache/mustache, and the whole class
 # of unstressed-final-syllable "-el"/"-ol" verb forms (cancelled/canceled,

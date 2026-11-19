@@ -94,7 +94,7 @@ class HashPinTest(unittest.TestCase):
                             self.assertTrue(" ".join(run.split()).endswith("--only-binary :all:"))
 
     def test_checker_installs_use_wheels_on_a_pinned_python(self):
-        """No install may build an sdist, whose build backend skips hash checks."""
+        """No install may build an sdist. The sdist build backend skips hash checks."""
         installs = 0
         for workflow in sorted(WORKFLOWS.glob("*.yml")):
             lines = read_text(workflow).splitlines()

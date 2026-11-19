@@ -3,17 +3,17 @@
 
 An incomplete candidate cannot activate. Missing registrations, shared modules,
 or cited checkers leave the verified gate set unchanged. Every gate then
-behaves as designed for an absent dependency: an unregistered gate never runs,
-and a gate whose shared module is absent denies and exits 2.
+behaves as designed for an absent dependency: an unregistered gate stays inactive,
+and a gate with an absent shared module denies and exits 2.
 
 This checker names the absent artifact instead. It verifies three properties:
 required files exist, every sibling module a gate imports exists, and every
 required hook stays registered under its required events and matchers.
 
 The registration table repeats `HOOK_MATCHERS` in
-`tests/test_enforce_branch_name.py` deliberately. That table lives inside a
+`tests/test_enforce_branch_name.py` on purpose. That table lives inside a
 test file, so trimming the table together with the settings entry passes the
-suite, and editing it routes through a Rule 3 consent prompt rather than
+suite, and editing it routes through a Rule 3 consent prompt instead of
 failing a check. A copy outside `tests/` fails CI when a registration
 disappears. The consent prompt covers a write made through a gated tool. This
 checker covers an incomplete copy and a removal that reaches the branch by
@@ -175,7 +175,7 @@ def check_hook_imports(root: Path) -> list[str]:
 
 
 def _invocations(entry: object) -> str:
-    """Return one registered hook invocation as a single string."""
+    """Return one registered hook command as a single string."""
     if not isinstance(entry, dict):
         return ""
     arguments = entry.get("args")
@@ -189,7 +189,7 @@ def _event_groups(document: dict, event: str) -> list:
     """Return the matcher groups registered under one event.
 
     Hand-edited configuration reaches this checker, so a null or
-    mistyped branch reports a finding rather than raising.
+    mistyped branch reports a finding and returns normally.
     """
     hooks = document.get("hooks")
     if not isinstance(hooks, dict):

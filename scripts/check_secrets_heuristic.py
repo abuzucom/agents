@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Heuristically flag likely-committed secrets (Rule 8).
 
-A portable, path-generic checker: copy this file into any repo and point
+A portable checker for any path: copy this file into any repo and point
 it at that repo's own source globs and CI. Matches well-anchored,
 structured secret-token prefixes (AWS, GitHub, Slack, Google, private keys)
 and blocks .env files except the exact basename .env.example. This is a

@@ -2,8 +2,8 @@
 """Cover the size bound on infrastructure manifest inspection.
 
 The infrastructure gate reads a bounded prefix of a YAML or JSON file to
-decide whether it holds a Kubernetes manifest. A file above the bound is
-never read. These tests reach that branch with a synthetic file, so hook
+decide whether it holds a Kubernetes manifest. The gate skips any file above
+the bound. These tests reach that branch with a synthetic file, so hook
 coverage does not depend on any large file in the repository.
 """
 import sys

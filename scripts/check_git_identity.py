@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Enforce a configured, allowed git identity on commits.
 
-A portable, path-generic checker: copy this file into any repo and use it
+A portable checker for any path: copy this file into any repo and use it
 as a pre-commit hook, a `pull_request` CI step, or a Claude Code hook
 through hooks/enforce_git_identity.py. Three modes:
 
@@ -15,12 +15,12 @@ its automatic-identity warning, and commits anyway. This mode fails first,
 before the guess reaches a commit object.
 
 Limitation: the commit modes cannot recover that signal, because a commit
-object records no mark saying its author field was built rather than
+object records no mark saying its author field was built and not
 configured. They apply the allowlist only.
 
-The default allowlist accepts GitHub noreply addresses, which link a commit
+The default allowlist accepts GitHub noreply addresses. They link a commit
 to its account and publish no private address. The committer may also be
-`noreply@github.com`, which is what GitHub itself sets on squash merges.
+`noreply@github.com`. GitHub itself sets that address on squash merges.
 Override with --allow for a repo that commits under another convention.
 
 Blocking: exits 1 on any violation, 2 on a usage error.

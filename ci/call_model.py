@@ -68,7 +68,7 @@ ENDPOINTS_BY_PROTOCOL = {
 # and 9 of the loaded policy. Ten consecutive review runs before this
 # constant failed the response validator on first-person openers, so the
 # policy wording alone did not hold. The suffix repeats the binding parts
-# verbatim in the trusted system channel.
+# unchanged in the trusted system channel.
 REPORT_FORMAT_SUFFIX = (
     "\n\nReport format contract:\n"
     "- Open the report body with the **Mode:** line. Never open the report "
@@ -341,7 +341,7 @@ def _retry_delay_seconds(retry_after: str | None) -> float:
 
     Honors a provider Retry-After header when present. Retry-After can also
     carry an HTTP date; float() rejects that form and falls back to the
-    jittered default rather than parsing a date string.
+    jittered default instead of parsing a date string.
     """
     if retry_after is not None:
         try:

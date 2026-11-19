@@ -16,7 +16,7 @@ the configured provider, posts a fenced report, and publishes a
 The caller pins both the reusable workflow and `audit_ref` to foucault commit
 `11e55cd691e9a2be086a4fb9378f490d4121e11c`, release 3.7.13. Keeping one
 revision for both means the policy and its runner never diverge. Change the
-pin deliberately, and record the change in `CHANGELOG.md`.
+pin only on purpose. Record the change in `CHANGELOG.md`.
 
 `ci/build_pr_case.py`, `ci/run_model_command.py`, `ci/call_model.py`, and
 `ci/model_providers.json` come from that same foucault revision and run from
@@ -38,7 +38,7 @@ therefore fails the check.
 A pull request from a fork receives an explicit skip result and no provider
 secret.
 
-The `workflow_run` trigger keeps the caller on default-branch code. The
+The `workflow_run` trigger keeps the caller on default branch code. The
 review does not appear on a pull request's own checks list until GitHub
 finishes the `Immutable Compliance` run for that head and the caller starts.
 Find the `security-review-pr` run under the default branch in the Actions
@@ -49,7 +49,7 @@ passed both reviews on its way to `main`.
 
 ## Required repository secret
 
-The review does not run until an active human adds the provider API key as a
+The review stays idle until an active human adds the provider API key as a
 repository secret. No agent sets it, and no agent commits it.
 
 The active provider profile in `ci/model_providers.json` is Ollama with

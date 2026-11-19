@@ -12,7 +12,7 @@ from tests.test_enforce_branch_name import REPO_ROOT
 PROJECT_DIR = str(REPO_ROOT)
 EXECUTABLE_FILE_MODE = 0o755
 
-# The gate parses only invocations with an argument, so a bare `pytest` stays
+# The gate parses only commands with an argument, so a bare `pytest` stays
 # unmatched. `pytest .` runs the same collection.
 ACCEPTED_COMMANDS = (
     "pytest .",

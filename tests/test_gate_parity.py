@@ -3,12 +3,12 @@
 
 Parity is a promise unless something checks it. This session watched
 scripts/check_commit_message.py diverge between two repositories until a
-merge commit exposed it, so the shared corpus is a test rather than a
+merge commit exposed it, so the shared corpus is a test and not a
 convention: a fix landing in one gate and not the other fails here.
 
 Each row pairs a command with its equivalent in the other shell. Where a
-form exists in only one shell, the pair repeats the same string, which
-still asserts that both gates read it identically.
+form exists in only one shell, the pair repeats the same string. The
+pair still asserts that both gates read it identically.
 """
 import importlib.util
 import json
@@ -442,8 +442,8 @@ class GitHubCliSafetyParityTest(unittest.TestCase):
         (WRAPPER + "auth status", ""),
         ("gh repo view OWNER/REPO", "deny"),
         # Rule 17. These owners never match a real origin owner, so the
-        # verdict holds whether or not the gate reads one, which keeps the
-        # row independent of the checkout running it.
+        # verdict holds whether or not the gate reads one. The row stays
+        # independent of the checkout running it.
         (WRAPPER + "pr comment 16 --repo outside-owner-x9/repo", "ask"),
         (WRAPPER + "pr create --repo outside-owner-x9/repo", "ask"),
         (WRAPPER + "pr review 16 --repo outside-owner-x9/repo", "ask"),

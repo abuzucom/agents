@@ -146,7 +146,7 @@ def _replace_file(source: Path, target: Path) -> None:
 
 
 def _ordered_paths(paths: list[str]) -> list[str]:
-    """Copy hook registrations last so one invocation completes the transaction."""
+    """Copy hook registrations last so one run completes the transaction."""
     transaction_paths = {relative for relative, _event, _matcher in adoption.TRANSACTION_CONFIGS.values()}
     ordinary = sorted(path for path in paths if path not in transaction_paths)
     registrations = sorted(path for path in paths if path in transaction_paths)

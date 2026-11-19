@@ -3,7 +3,7 @@
 
 The source repository holds docs/agent-policy/source-orientation.md and
 calls its compliance workflow through a local path. Its synchronized copies
-include the source-only orientation. The report must rate those copies and
+include the source orientation. The report must rate those copies and
 that workflow call the way scripts/sync.py and the source layout define
 them, not as adopter drift.
 """
@@ -35,7 +35,7 @@ WORKFLOW_PATH = ".github/workflows/checks.yml"
 
 
 def build_source_files() -> dict:
-    """Return a source repository layout with source-only orientation."""
+    """Return a source repository layout with source orientation."""
     files = build_current_files()
     files[SOURCE_ORIENTATION] = "# Source orientation\n"
     assembled = "".join(
@@ -59,13 +59,13 @@ class SourceRepositoryTest(ReportFixture):
         self.rows = self.read_rows()
 
     def test_source_copies_count_the_source_only_orientation(self) -> None:
-        """Copies assembled with source-only orientation are in sync."""
+        """Copies assembled with source orientation are in sync."""
         copies = self.rows[SOURCE_REPOSITORY]["copies"]
         self.assertEqual(copies["in_sync"], copies["total"])
 
     def test_adopter_copies_stay_in_sync_without_source_orientation(
             self) -> None:
-        """An adopter without the source-only file keeps its count."""
+        """An adopter without the source orientation file keeps its count."""
         copies = self.rows["current"]["copies"]
         self.assertEqual(copies["in_sync"], copies["total"])
 

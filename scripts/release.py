@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Build and check the files of a tagged release.
 
-The owner pushes a vX.Y.Z tag on a main commit. .github/workflows/release.yml
-then runs these subcommands from the repository root:
+The repository owner pushes a vX.Y.Z tag on a main commit.
+.github/workflows/release.yml then runs these subcommands from the repository
+root:
 
     python scripts/release.py check-tag v2.27.0
     python scripts/release.py build 2.27.0 <asset-folder>
@@ -18,8 +19,8 @@ rerun of the release job therefore matches the files already on the draft.
 check-assets fails unless a folder holds exactly the release files.
 checksums writes SHA256SUMS.txt in the sha256sum format.
 notes writes every changelog section newer than the previous stable release,
-then a fixed adoption block. The owner chooses pre-release or stable when
-publishing the draft. The notes therefore never name a channel.
+then a fixed adoption block. The repository owner chooses pre-release or
+stable when publishing the draft. The notes therefore never name a channel.
 """
 import argparse
 import gzip

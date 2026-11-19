@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 """Gate destructive and history-rewriting Bash commands via a PreToolUse hook.
 
-Not part of AGENTS.md, which stays tool-agnostic and is synced to non-Claude
-tools verbatim. This is a Claude-Code-specific hook under hooks/, wired via
+Not part of AGENTS.md. AGENTS.md stays independent of any one tool.
+Synchronization copies it unchanged to non-Claude tools. This is a Claude-Code-specific hook under hooks/, wired via
 `.claude/settings.json` (live in this repo) or
 hooks/claude-code-settings.example.json (for adopting repos). It reads the
 PreToolUse JSON payload from stdin and checks only Bash tool calls.
 
 The command is tokenized and normalized before any decision. Matching the raw
-string matches spelling rather than meaning, and every destructive command has
+string matches spelling instead of meaning, and every destructive command has
 many spellings: `rm -Rf` for `rm -rf`, `git -C dir push --force` for
 `git push --force`, `--force-with-lease=main:<oid>` for `--force-with-lease`,
 `git push origin +HEAD:main` for a forced push with no flag at all. A gate
@@ -31,8 +31,8 @@ no scope qualifier, so a scratch directory the session created itself is
 gated like any other target, and a lease does not make a history rewrite
 consented to.
 
-Ambiguity fails closed. A command that will not tokenize, or a `git` whose
-subcommand is hidden behind a variable, is gated rather than waved through:
+Ambiguity fails closed. A command that will not split into tokens, or a `git` with a
+subcommand hidden behind a variable, receives a gate verdict:
 the gate cannot clear what it cannot read.
 
 An `ask` needs a human to answer it. When `permission_mode` reports an
@@ -78,8 +78,8 @@ except ImportError as error:
 _CWD = [""]
 GATE = "block_destructive_bash.py"
 GATED_KEYWORDS = core.gated_keywords()
-# A shell handed a command string is a wrapper whose payload is another
-# command. Reading only the program name sees "bash" and stops there.
+# A shell handed a command string is a wrapper with another command as its
+# payload. Reading only the program name sees "bash" and stops there.
 # Both shells are here, not only this one. A gate that knows only its own
 # interpreters leaves `powershell -Command 'Remove-Item -Recurse -Force /etc'`
 # as a hole, and on Windows that line runs.
@@ -92,7 +92,7 @@ def _is_plausible_program(token: str) -> bool:
 
     A leading flag, a bare file descriptor, or a stray operator means the
     prefix strip did not reach the real program, so the caller fails closed
-    rather than reporting that nothing gated was found.
+    instead of reporting that nothing gated was found.
     """
     if not token or token.startswith("-") or token.isdigit():
         return False
@@ -140,10 +140,10 @@ def _interpreter_verdict(program: str, args: list) -> tuple:
     """Return (decision, reason) for a shell handed a command string.
 
     Only the payload after -c, /c, or /k is another command, and a payload
-    denies. A shell invoked without one runs a script or a REPL, which this
-    gate cannot read, so it asks. Only `--version` passes.
+    denies. A shell invoked without one runs a script or a REPL. This gate
+    cannot read either one, so it asks. Only `--version` passes.
     A shell name among the arguments (busybox sh -c) hands the rest to that
-    shell. The scan follows it in place rather than recursing, so a long
+    shell. The scan follows it in place instead of recursing, so a long
     run of names cannot exhaust the stack and crash the gate open.
     """
     verdict = _powershell_interpreter_verdict(program, args)
@@ -184,11 +184,11 @@ def _eval_verdict(args: list, depth: int) -> tuple:
 
 
 def _xargs_verdict(original: list, executable: list) -> tuple:
-    """Return the xargs verdict for a segment whose prefix runs xargs.
+    """Return the xargs verdict for a segment with a prefix that runs xargs.
 
     The parser strips xargs as a wrapper, so `xargs rm` reaches the delete
     check as a bare `rm` with no operands. The operands arrive on standard
-    input at run time, which only the xargs view of the segment shows.
+    input at run time. Only the xargs view of the segment shows that input.
     """
     prefix = original[:len(original) - len(executable)]
     if not any(os.path.basename(token).lower() == "xargs" for token in prefix):

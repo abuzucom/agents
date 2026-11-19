@@ -6,7 +6,7 @@ added; see AGENTS.md Rule 9). Targets Latin-script languages only
 (Spanish, French, German, Portuguese, Italian): Chinese, Japanese, and
 Korean script is already non-ASCII and caught by check_ascii.py instead.
 
-Path-generic: copy this file with scripts/prose_policy.py and
+Works on any path: copy this file with scripts/prose_policy.py and
 scripts/handoff_policy.py into any repo and point it at that repo's own
 source globs and CI. Always exits 0, even when it finds violations; this
 check is advisory, not blocking.

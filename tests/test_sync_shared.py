@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """Cover the shared-file manifest that watches the gates across repos.
 
-sync.py copies the AGENTS.md family. It cannot copy the gate files, which
-live in repositories it cannot see, so --check-shared compares hashes
+sync.py copies the AGENTS.md family. It cannot copy the gate files. Those
+files live in repositories it cannot see, so --check-shared compares hashes
 against a manifest committed in each. These tests build a synthetic tree
-rather than touching the real one, so a failure here is the checker's and
+instead of touching the real one, so a failure here is the checker's and
 not the repository's.
 """
 import json
@@ -16,7 +16,7 @@ import unittest
 from pathlib import Path
 
 # scripts/ is never on the path, however the suite is launched, so SHARED_FILES
-# has to be read from the module that defines it rather than restated here.
+# has to be read from the module that defines it. This file holds no copy.
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 import sync
 

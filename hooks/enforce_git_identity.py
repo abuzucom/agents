@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Enforce a configured git identity through Claude Code hooks.
 
-Not part of AGENTS.md, which stays tool-agnostic and is synced to non-Claude
-tools verbatim. This is a Claude-Code-specific hook under hooks/, wired via
+Not part of AGENTS.md. AGENTS.md stays independent of any one tool.
+Synchronization copies it unchanged to non-Claude tools. This is a Claude-Code-specific hook under hooks/, wired via
 `.claude/settings.json` (live in this repo) or
 hooks/claude-code-settings.example.json (for adopting repos). One file serves
 two hook events, dispatched on `hook_event_name` in the stdin payload:
@@ -15,7 +15,7 @@ from a SessionStart hook, so injected context is the only lever it has.
 `PreToolUse` on the `Bash` matcher is the blocking half: it exits 2 on a
 `git commit` while the identity is unset or disallowed, and on a `git push`
 while either the working-tree config or any commit that push would publish
-fails the same check. It never runs `--advise`, which makes a network call.
+fails the same check. It skips `--advise` because that mode makes a network call.
 
 The two events cover a failure no instruction fixes: with `user.email` unset,
 git builds an identity from the account name and hostname, prints its
@@ -28,7 +28,7 @@ tool call: this hook reads config state before the shell runs, so a chained
 
 Known gap: `git merge`, `git revert`, `git cherry-pick`, `git rebase`, and
 `git am` also write commits and are not matched. Matching them would block
-`git merge --ff-only` and most rebases, which create no commit.
+`git merge --ff-only` and most rebases. Those commands create no commit.
 
 This repository-controlled hook is a defense-in-depth workflow prompt, not an
 authorization boundary. A repository writer can alter it or its registration.
@@ -109,7 +109,7 @@ def find_violation(project_dir: str, extra_args: list,
 
 
 def check_args(label: str) -> list:
-    """Return the checker invocations that gate `label`."""
+    """Return the checker commands that gate `label`."""
     if label == PUSH_LABEL:
         return [[], ["--unpushed"]]
     return [[]]
@@ -118,8 +118,8 @@ def check_args(label: str) -> list:
 def build_warning(violation: str, advisory: str) -> str:
     """Return the session-context text for a bad or unset git identity.
 
-    The checker's output carries commit author and committer fields,
-    which whoever wrote the commit chose. Splicing that into a block of
+    The checker's output carries commit author and committer fields. The
+    commit's writer chose those fields. Splicing that into a block of
     imperative instructions lets an attacker write instructions into the
     context this hook exists to make the model obey. Keep the two apart:
     fixed text above, every untrusted value escaped inside one labeled
@@ -232,8 +232,8 @@ def _handle_pre_tool_use(payload: dict, project_dir: str) -> int:
 
 
 def main() -> int:
-    # SessionStart arrives with empty stdin. This hook informs rather than
-    # blocks there, so an unreadable payload counts as an empty one.
+    # SessionStart arrives with empty stdin. This hook informs and does not
+    # block there, so an unreadable payload counts as an empty one.
     payload = core.read_payload(empty_is_session_start=True) or {}
     project_dir = core.project_dir(payload)
     event = payload.get("hook_event_name", "SessionStart")

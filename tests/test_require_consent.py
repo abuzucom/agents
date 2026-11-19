@@ -2,7 +2,7 @@
 """Tests for hooks/require_consent.py and its wiring.
 
 Runs the hook as a subprocess against synthetic Claude Code payloads, the
-same path the harness uses, rather than asserting on mocks. Test files are
+same path the harness uses. No assertion targets a mock. Test files are
 created on disk, because the hook distinguishes a new test file from an edit
 to an existing one by looking at the filesystem.
 
@@ -145,8 +145,8 @@ class AllowTest(TestFileFixture):
     def test_appending_a_test_asks(self):
         """Appending to a file that exists is still an edit to it.
 
-        The carve-out this replaces cleared an append textually, which
-        cannot tell a new test from a statement that neutralizes every
+        The exemption this replaces cleared an append from raw text. A check
+        on raw text cannot tell a new test from a statement that neutralizes every
         test above it. Creating a new file stays unprompted, so the
         test-first workflow keeps its exemption where it is verifiable.
         """
@@ -296,10 +296,10 @@ class GateTest(TestFileFixture):
 class PreservedTextEvasionTest(TestFileFixture):
     """Keeping the old text somewhere in the new text is not keeping the test.
 
-    Every case here passed the original substring check, which asked only
-    whether the old text still appeared anywhere in the new text. An
+    Every case here passed the original substring check. That check tested
+    only whether the old text still appeared anywhere in the new text. An
     assertion that is commented out, wrapped in a string, or moved into a
-    branch that never runs is still present as text and no longer runs.
+    branch that is unreachable is still present as text and no longer runs.
     """
 
     ASSERTION = "  assert.equal(viz.diagnostics().trackState, 'none');"
@@ -373,8 +373,8 @@ class FailClosedTest(TestFileFixture):
 class PathAliasTest(unittest.TestCase):
     """A path is only as trustworthy as what it resolves to.
 
-    Classifying the string the caller supplied, rather than the file it
-    reaches, lets a symlink with an innocuous name carry an edit straight
+    Classifying the string the caller supplied in place of the file it
+    reaches lets a symlink with a harmless name carry an edit straight
     into a test file.
     """
 
@@ -413,7 +413,7 @@ class PathAliasTest(unittest.TestCase):
         self.assertEqual(self._edit(str(alias)), "ask")
 
     def test_test_file_outside_the_root_is_gated_without_any_link(self):
-        """The gate speaks for one tree and is asked about anything outside it."""
+        """The gate covers one tree and prompts for anything outside it."""
         outside = tempfile.TemporaryDirectory()
         self.addCleanup(outside.cleanup)
         target = Path(os.path.realpath(outside.name)) / "tests"
@@ -447,8 +447,8 @@ class OccurrenceCountTest(unittest.TestCase):
     The hook ignored `replace_all`, so it validated one replacement at the
     end of the file while the tool rewrote every occurrence. The same hole
     exists without the flag: when the old text appears twice, a plain Edit
-    replaces the first, which is mid-file, while `content.endswith(old)`
-    still reported an append.
+    replaces the first occurrence in the middle of the file. Yet
+    `content.endswith(old)` still reported an append.
     """
 
     def setUp(self):
@@ -473,11 +473,11 @@ class OccurrenceCountTest(unittest.TestCase):
         self.assertEqual(self._edit("});\n", self.APPEND, replace_all=True), "ask")
 
     def test_repeated_old_text_gates_without_replace_all(self):
-        """A plain Edit replaces the first occurrence, which is not the end."""
+        """A plain Edit replaces the first occurrence. That occurrence is not the end."""
         self.assertEqual(self._edit("});\n", self.APPEND), "ask")
 
     def test_single_occurrence_at_the_end_now_gates(self):
-        """The append carve-out is gone: an existing test file always asks."""
+        """The append exemption is gone: an existing test file always asks."""
         tail = "  assert.ok(2);\n});\n"
         self.assertEqual(
             self._edit(tail, tail + "\ntest('c', function () {});\n"), "ask")
@@ -584,7 +584,7 @@ class HardLinkTest(unittest.TestCase):
 
 
 class PathFieldTypeTest(unittest.TestCase):
-    """A path that is not a string must deny rather than crash."""
+    """A path that is not a string must deny instead of crashing."""
 
     def test_non_string_path_denies(self):
         for value in (NON_STRING_PATH, ["tests/test_x.js"], {"path": "x"}):
@@ -660,7 +660,7 @@ class FailClosedInputTest(unittest.TestCase):
         self.assertEqual(decision_of(parsed), "deny")
 
     def test_empty_stdin_is_still_a_session_start(self):
-        """No payload at all is the SessionStart invocation, not a failure."""
+        """No payload at all is the SessionStart event, not a failure."""
         result = subprocess.run(
             [sys.executable, str(HOOK_PATH)],
             input="",
@@ -728,8 +728,8 @@ class UnreadableFileTest(unittest.TestCase):
 class QuestionChecklistTest(unittest.TestCase):
     """The checklist arrives at SessionStart, before any question is written.
 
-    It used to be injected on PreToolUse for AskUserQuestion, which is too
-    late to help: by the time a tool call reaches a hook, the model has
+    It used to be injected on PreToolUse for AskUserQuestion. That event
+    fires after the options exist: by the time a tool call reaches a hook, the model has
     already written the question and its option labels, and additionalContext
     cannot rewrite them. Guidance that arrives after the decision it is meant
     to shape is decoration.
@@ -801,7 +801,7 @@ class SettingsWiringTest(unittest.TestCase):
         self._assert_registered(EXAMPLE_SETTINGS)
 
     def test_entries_use_the_exec_form(self):
-        """Shell form splits a project path containing spaces and the hook never runs."""
+        """Shell form splits a project path containing spaces and the hook fails to launch."""
         for path in (LIVE_SETTINGS, EXAMPLE_SETTINGS):
             settings = json.loads(path.read_text(encoding="utf-8"))
             for event in ("SessionStart", "PreToolUse"):

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Bind gate-change approval to the current pull-request head."""
+"""Bind gate-change approval to the current pull request head."""
 import json
 import sys
 import tempfile
@@ -161,7 +161,7 @@ class ProtectedPathCoverageTest(unittest.TestCase):
 
 
 class WorkflowWiringTest(unittest.TestCase):
-    """The workflow reads the timeline and never runs pull-request checker code."""
+    """The workflow reads the timeline and leaves pull request checker code unexecuted."""
 
     def setUp(self) -> None:
         self.text = WORKFLOW.read_text(encoding="utf-8")

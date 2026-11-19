@@ -49,7 +49,7 @@ TRUSTED_REQUIREMENTS_COMMAND = (
     "trusted-base/requirements-checkers.txt"
 )
 # The wheel-only form keeps a Python with no PyYAML wheel from building the
-# sdist, whose build backend no hash covers. The privileged job must use it,
+# sdist. No hash covers the sdist build backend. The privileged job must use it,
 # so a pull request cannot drop back to a source build.
 TRUSTED_WHEEL_COMMAND = TRUSTED_REQUIREMENTS_COMMAND + " --only-binary :all:"
 TRUSTED_REQUIREMENTS_COMMANDS = (TRUSTED_WHEEL_COMMAND,)
@@ -147,8 +147,8 @@ def _is_within(path: Path, parent: Path) -> bool:
 def _safe_search_path(repo: Path) -> str:
     """Return PATH without relative entries or directories in the candidate repo.
 
-    A relative entry resolves against the process working directory, which a
-    caller can point into the candidate repo.
+    A relative entry resolves against the process working directory. A
+    caller can point that directory into the candidate repo.
     """
     safe_entries = []
     for raw_entry in os.environ.get("PATH", "").split(os.pathsep):
@@ -211,8 +211,8 @@ def _git_environment(safe_path: str) -> dict[str, str]:
     """Return a noninteractive Git environment with unsafe features disabled.
 
     This stays a denylist. The immutable compliance workflow passes the
-    candidate objects through GIT_ALTERNATE_OBJECT_DIRECTORIES, which the
-    trusted_git allowlist would drop.
+    candidate objects through GIT_ALTERNATE_OBJECT_DIRECTORIES. The
+    trusted_git allowlist would drop that variable.
     """
     environment = os.environ.copy()
     for name in (
@@ -434,7 +434,7 @@ def _zero_ratio(content: bytes, offset: int, width: int) -> float:
 
 
 def _decode_bomless_unicode(content: bytes) -> str | None:
-    """Decode UTF-16/32 text whose byte-position NUL pattern identifies it."""
+    """Decode UTF-16/32 text identified by its byte-position NUL pattern."""
     candidates = []
     if len(content) % UTF32_UNIT_BYTES == 0 and len(content) >= UTF32_UNIT_BYTES:
         ratios = [_zero_ratio(content, offset, UTF32_UNIT_BYTES) for offset in range(UTF32_UNIT_BYTES)]

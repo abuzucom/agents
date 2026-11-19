@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """A GitHub-signed web-flow committer passes strict attribution; nothing else does.
 
-GitHub commits a web merge or squash as `GitHub <noreply@github.com>`, which
-its API resolves to the web-flow account. A squash keeps the merged commits'
+GitHub commits a web merge or squash as `GitHub <noreply@github.com>`. Its
+API resolves that identity to the web-flow account. A squash keeps the merged commits'
 agent trailers, so the strict numbered-noreply rule applies to it. The
 committer exemption needs every web-flow marker plus a signature that
 verifies against GitHub's pinned web-flow key. The author keeps the strict

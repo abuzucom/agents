@@ -73,9 +73,9 @@ Antigravity recovery accepts `view_file`, `list_dir`, `find_by_name`, and
 configured launcher. `scripts/check_hook_coverage.py` requires test reachability.
 
 `gate-integrity.yml` uses read-only `pull_request` execution and checks out the
-exact base and head revisions. Pull-request code never runs. Without a base
+exact base and head revisions. The job executes no pull request code. Without a base
 checker, the job requires the label.
-It runs base-branch `scripts/check_gate_pr_integrity.py` against the pull-request
+It runs base-branch `scripts/check_gate_pr_integrity.py` against the pull request
 diff. Protected gate changes require the `gate-change-approved` label from a
 person after the latest push. Case variants of protected paths also count.
 Configure GitHub branch protection to require this job. Repository files cannot
@@ -85,7 +85,7 @@ The gates refuse destructive commands, unsafe infrastructure access, direct
 GitHub CLI lookup, unsafe GitHub HTTP substitutes, credential-manager access,
 browser token recovery, and incomplete policy loading.
 
-The gates route consent-required acts to the active human. Unattended sessions
+The gates route acts that need consent to the active human. Unattended sessions
 refuse those acts.
 
 Shell gates allow repeated `scripts/trusted_gh.py` calls and route
@@ -130,10 +130,10 @@ and pull request authors against blanket vendor denylists, specific models,
 and wildcard patterns. The checker cannot identify hidden agent use under a
 human identity. Platform controls apply separately.
 
-## Agent-attributed prose gate
+## Agent prose gate
 `scripts/check_us_spelling.py`, `scripts/check_english_only.py`,
 `scripts/check_hedging.py`, and `scripts/check_pull_request_message.py`
-stay advisory for human-authored prose. `scripts/check_agent_prose_gate.py`
+stay advisory for human prose. `scripts/check_agent_prose_gate.py`
 fails on the same findings for commits or pull requests that disclose
 agent authorship through the Rule 14 `Assisted-by`/`Co-authored-by`
 trailer (`check_commit_attribution.py::has_agent_label`) or a matching
@@ -146,7 +146,7 @@ repository hook runs this gate. Run it locally or from an external harness.
 In `scripts/prose_bans.txt`, each nonempty policy line defines one exact word
 or phrase. Section headers define scope. Add entries without changing checker
 logic. The denylist source receives the sole self-scan exemption. The
-handoff-exempt section skips matches only for `plan/HANDOFF.md.example`.
+handoff exemption section skips matches only for `plan/HANDOFF.md.example`.
 
 `scripts/check_hedging.py` prose findings always return exit code 0. Unreadable
 policy data and unsafe metadata return exit code 1. Pattern checks provide
@@ -187,7 +187,7 @@ The protected inventory covers:
 
 Claude Code's consent hook reads paths. New test files do not prompt. Existing
 test edits prompt. A final `ExistingTest = None` assignment can disable a
-textual implementation. The Bash gate also protects existing tests reached by
+check on raw text. The Bash gate also protects existing tests reached by
 redirects, `tee`, `sed -i`, `cp`, or `mv`.
 
 Adopt the consent hook with `hooks/require_consent.py`, `hooks/_gate_core.py`,

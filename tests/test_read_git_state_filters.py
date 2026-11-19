@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Tests that the status query never runs repository-configured programs."""
+"""Tests that the status query skips repository-configured programs."""
 import subprocess
 import sys
 import tempfile
@@ -24,7 +24,7 @@ def _git(repository: Path, *arguments: str) -> None:
 
 def _build_filtered_repository(root: Path, attributes_path: str,
                                driver: str) -> tuple[Path, Path]:
-    """Return a repository whose dirty tracked file maps to a marker filter."""
+    """Return a repository with a dirty tracked file mapped to a marker filter."""
     repository = root / "repository"
     repository.mkdir()
     marker = root / "filter-ran"

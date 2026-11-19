@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Cover the pull-request-only triggers of the compliance and sync workflows."""
+"""Cover the triggers limited to pull requests in the compliance and sync workflows."""
 import unittest
 from pathlib import Path
 

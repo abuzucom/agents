@@ -32,7 +32,7 @@ Adopter commit `5256b4b` mirrors template commit `fd9da22`.
 
 - `DRIFT.md` and `adopters/`. Both belong to this repository.
 - The template `README.md`, `CHANGELOG.md`, `Makefile`, `LICENSE`, and
-  `docs/gate-threat-model.md` as verbatim copies.
+  `docs/gate-threat-model.md` as exact copies.
 - The AgentLint step in `sync-check.yml`. The step adds an unapproved
   third-party action.
 
@@ -47,8 +47,8 @@ Adopter commit `5256b4b` mirrors template commit `fd9da22`.
   template hooks.
 - The `Makefile`, the `sync-check.yml` prose lists, and `TARGET_FILES` in
   `scripts/check_agent_prose_gate.py` name the adopter's prose.
-- `hook-coverage-baseline.json` is the template file, copied rather than
-  regenerated.
+- `hook-coverage-baseline.json` is the template file, copied without
+  regeneration.
 
 The adoption edited no test. Every template test passed on the adopter's
 GitHub-hosted Windows, macOS, and Linux hook coverage jobs.
