@@ -14,7 +14,7 @@ into the entry. Dates never decrease. Ask the active human when a date is in
 doubt.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.28.3] (2026-11-19)
+## [2.28.4] (2026-11-19)
 
 ### Added
 - `scripts/sync.py` reads `<!-- local policy:start -->`,
@@ -66,6 +66,11 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   remaining item awaits a separate decision.
 
 ### Fixed
+- `scripts/prose_policy.py` blanks the `Co-authored-by:`, `Assisted-by:`,
+  `Session:`, and `<name>-Session:` trailer keys at a line start before
+  prose analysis. The keys match in any letter case. The trailer value
+  stays checked. Rule 14 trailers no longer raise a colon clause-join
+  warning. `tests/test_prose_trailer_keys.py` pins the allowance.
 - `tests/test_worker_timeout_defaults.py` joins its worker process before
   the temporary directory cleanup. The child process wrote bytecode into
   that directory during removal. macOS then reported a nonempty directory.
