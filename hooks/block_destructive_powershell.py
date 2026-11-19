@@ -45,7 +45,7 @@ DRIVE_ENVIRONMENT_PREFIX = "env:"
 
 try:
     import _gate_core as core
-except ImportError as error:  # pragma: no cover
+except ImportError as error:
     # The adoption test exercises this import failure.
     # Fail closed. Claude Code treats any non-zero exit other than 2 as a
     # non-blocking error, so an unhandled ImportError would wave the command

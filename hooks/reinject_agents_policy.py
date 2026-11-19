@@ -139,7 +139,7 @@ def load_policy(root: Path) -> tuple[str, str]:
     )
     assembled = raw + (b"\n" if not raw.endswith(b"\n") else b"") + supporting_bytes
     if len(assembled) > MAX_POLICY_BYTES:
-        raise ValueError("AGENTS.md exceeds the policy size limit")
+        raise ValueError("assembled policy exceeds the policy size limit")
     text = assembled.decode("utf-8").replace("\r\n", "\n")
     text.encode("ascii")
     return text, hashlib.sha256(assembled).hexdigest()

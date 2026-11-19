@@ -59,7 +59,7 @@ POLICY_DENIAL_EXIT_CODE = 2
 
 try:
     import _gate_core as core
-except ImportError as error:  # pragma: no cover (exercised by the adoption test)
+except ImportError as error:  # The adoption test exercises this import failure.
     # Fail closed. Claude Code treats any non-zero exit other than 2 as a
     # non-blocking error, so an unhandled ImportError would wave the write
     # through in exactly the repos that installed this gate.

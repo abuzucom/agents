@@ -22,7 +22,7 @@ try:
     import _bash_parser as bash_parser
     import _cmd_parser as cmd_parser
     import _command_execution_gate as command_gate
-except ImportError as error:  # pragma: no cover (exercised by the adoption test)
+except ImportError as error:  # The adoption test exercises this import failure.
     print(f"shared hook parser, core, or command gate import failed ({error}). "
           "Restore the missing file. Stop. Report this denial to the active "
           "human. Do not retry a variant or propose a gate change.",

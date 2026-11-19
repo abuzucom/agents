@@ -58,7 +58,7 @@ try:
     import _gate_core as core
     import _bash_parser as bash_parser
     import _platform_policy as platform_policy
-except ImportError as error:  # pragma: no cover
+except ImportError as error:
     # The adoption test exercises this import failure.
     # Fail closed. Claude Code treats any non-zero exit other than 2 as a
     # non-blocking error, so an unhandled ImportError would wave the command
