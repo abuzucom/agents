@@ -12,7 +12,7 @@ template for adopting repositories.
 | Untagged `main` commits | No |
 | Older stable releases | No |
 
-A published non-pre-release GitHub release marks a stable version. A
+A published GitHub release without the pre-release flag marks a stable version. A
 pre-release or an untagged `main` commit marks a development build. Fixes land
 on `main` under a new version. No fix reaches an older stable release.
 

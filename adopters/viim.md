@@ -11,7 +11,7 @@ commit `25dfa23`.
 ## Taken
 
 `abuzucom/viim` took the template's full 20-step adoption in one pull
-request. `viim` is a small, docs-only, brand-identity repository (its own
+request. `viim` is a small documentation repository for brand identity (its own
 `AGENTS.md` predates this adoption and is not replaced), so "taken" here
 means the supporting tooling, not the template's own `AGENTS.md` content.
 
@@ -52,10 +52,10 @@ means the supporting tooling, not the template's own `AGENTS.md` content.
 ## Current drift
 
 - `scripts/sync.py` keeps `viim`'s own simple `AGENTS.md`-only copy
-  behavior rather than this repository's `policy_bytes()`, which
+  behavior instead of this repository's `policy_bytes()`, which
   concatenates the approved `docs/agent-policy/*.md` files and
   `docs/project-orientation.md` onto the canonical file before comparing or
-  copying. The source repository's optional source-only orientation is
+  copying. The source repository's optional source orientation is
   excluded from adoptable output. `viim`'s `AGENTS.md` carries no
   `<!-- repository-only:start/end -->` orientation markers, so
   `--print-adoptable` there just prints `AGENTS.md` as-is. `--check-shared`
@@ -96,4 +96,4 @@ explicitly a human directs it to. Both steps need either a human applying
 them directly, or a human granting the session a Bash permission broad
 enough to cover writes under `hooks/` and `.claude/` before the session
 starts. The next adopter should also create `docs/project-orientation.md` and
-keep source-only orientation out of the adoptable policy.
+keep the source orientation out of the adoptable policy.

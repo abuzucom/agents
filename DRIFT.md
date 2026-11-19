@@ -45,7 +45,7 @@ locations.
 ## The shared-file manifest
 
 `SHARED_FILES` in `scripts/sync.py` lists files that must retain the same
-line-ending-normalized content. The list includes `hooks/_gate_core.py`, both
+content after line ending normalization. The list includes `hooks/_gate_core.py`, both
 shell gates, `hooks/require_consent.py`, `tests/gate_corpus.py`, and both shell
 gate suites.
 

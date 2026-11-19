@@ -47,8 +47,8 @@ Adopter commit `5256b4b` mirrors template commit `fd9da22`.
   template hooks.
 - The `Makefile`, the `sync-check.yml` prose lists, and `TARGET_FILES` in
   `scripts/check_agent_prose_gate.py` name the adopter's prose.
-- `hook-coverage-baseline.json` is the template file, copied rather than
-  regenerated.
+- `hook-coverage-baseline.json` is the template file, copied without
+  regeneration.
 
 The adoption edited no test. Every template test passed on the adopter's
 GitHub-hosted Windows, macOS, and Linux hook coverage jobs.

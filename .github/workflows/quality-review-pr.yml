@@ -5,7 +5,7 @@ name: quality-review-pr
 # policy and its own adapter from the pinned euler commit, so this repository
 # supplies no adapter files.
 #
-# The workflow_run trigger keeps this caller on default-branch code. A pull
+# The workflow_run trigger keeps this caller on default branch code. A pull
 # request cannot edit the reviewer. The caller subscribes to the Convention
 # Sync Check workflow, which runs the test suite, and the Immutable Compliance
 # workflow. The review starts only when both runs succeeded for the same head

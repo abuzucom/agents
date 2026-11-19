@@ -38,7 +38,7 @@ therefore fails the check.
 A pull request from a fork receives an explicit skip result and no provider
 secret.
 
-The `workflow_run` trigger keeps the caller on default-branch code. The
+The `workflow_run` trigger keeps the caller on default branch code. The
 review does not appear on a pull request's own checks list until GitHub
 finishes the `Immutable Compliance` run for that head and the caller starts.
 Find the `security-review-pr` run under the default branch in the Actions
@@ -49,7 +49,7 @@ passed both reviews on its way to `main`.
 
 ## Required repository secret
 
-The review does not run until an active human adds the provider API key as a
+The review stays idle until an active human adds the provider API key as a
 repository secret. No agent sets it, and no agent commits it.
 
 The active provider profile in `ci/model_providers.json` is Ollama with

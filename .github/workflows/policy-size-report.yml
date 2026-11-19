@@ -5,9 +5,9 @@ name: Policy Size Report
 # scripts/check_policy_size.py and fails the pull request on a size breach.
 # This workflow only reports.
 #
-# The workflow_run trigger keeps both jobs on default-branch code. The measure
+# The workflow_run trigger keeps both jobs on default branch code. The measure
 # job reads the pull request head policy files as data through the contents
-# API. It never checks out or runs pull request code. The default-branch
+# API. It never checks out or runs pull request code. The default branch
 # checker measures the files and renders the comment from validated numbers.
 # One comment per pull request carries the marker and receives each update.
 #

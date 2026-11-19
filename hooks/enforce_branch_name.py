@@ -326,7 +326,7 @@ def _content_names_prohibited_ref(content: str) -> bool:
 
 
 def _metadata_write_targets(program: str, arguments: list, redirects: list) -> list:
-    """Honor copy target-directory options before classifying positional operands."""
+    """Honor copy options naming a target directory before classifying positional operands."""
     if program == "tee":
         targets = list(redirects)
         options = True

@@ -24,7 +24,7 @@ repository. Adapt it to verified project facts.
 - Correctness, concurrency, code quality, and style conventions.
 - A commented per-repository orientation block for commands, protected paths,
   architecture, operational notes, and required reading.
-- A marked source-repository orientation block excluded from adoptable output.
+- A marked source repository orientation block excluded from adoptable output.
 
 The repository supplies checkers, agent hooks, synchronized copies, CI
 workflows, tests, and optional policy templates. Required hooks and CI enforce
@@ -47,7 +47,7 @@ Each checker covers only its inspected files and behavior.
 | `scripts/report_adoption_status.py` | Organization adoption report matched against `policy-digests.json` |
 | `scripts/read_git_state.py`, `scripts/trusted_git.py` | Bounded Git state output and trusted Git execution |
 | `scripts/trusted_gh.py` | Trusted authenticated GitHub CLI execution and account metadata |
-| `scripts/run_tests.py` | Complete class-sharded parallel test execution |
+| `scripts/run_tests.py` | Complete parallel test execution split by test class |
 | `scripts/check_*.py` | Portable policy checkers |
 | `scripts/prose_policy.py` | Shared advisory prose analysis for files and metadata |
 | `scripts/prose_bans.txt` | Scoped exact vocabulary entries for prose analysis |
@@ -114,7 +114,7 @@ python scripts/trusted_gh.py run <gh arguments>
 ```
 
 The wrapper resolves `gh` outside the repository and verifies authentication.
-Repository-bound commands receive validated repository context from the local
+Commands bound to a repository receive validated repository context from the local
 checkout or worktree. The wrapper fails closed when context is missing or
 unsafe. The wrapper keeps `gh` execution outside the repository.
 Pull request creation receives validated head context when the command omits
@@ -207,7 +207,7 @@ check fails until the repository has that secret.
 the workflow and its `quality_ref`. The review gates on `BLOCK` and
 `NEEDS-HUMAN` verdicts. It reuses the `OLLAMA_API_KEY` repository secret.
 Fork pull requests receive a skipped check and no provider secret.
-`workflow_run` runs only the default-branch copy of this file.
+`workflow_run` runs only the default branch copy of this file.
 
 `policy-size-report.yml` triggers after `Convention Sync Check` completes
 for a pull request that touches `AGENTS.md`, a supporting policy file, or a
@@ -216,7 +216,7 @@ and percent used for `AGENTS.md` and the assembled policy. It ranks up to
 10 assembled policy files by size, largest first. The comment
 carries a directive that forbids agents from trimming policy text without
 active-human approval. A read-only `measure` job reads head files through
-the contents API and runs only default-branch code. A separate `comment` job
+the contents API and runs only default branch code. A separate `comment` job
 holds the only write permission and runs no code over pull request data.
 `Convention Sync Check` fails the pull request on a size breach.
 
@@ -315,8 +315,8 @@ An unlicensed target remains unlicensed unless that approval changes its status.
    default. Adopt each workflow explicitly.
 7. For handoffs, copy `plan/HANDOFF.md.example` to `plan/HANDOFF.md`. Preserve
    the security header. Fill `Active work`, `Next`, and `Blocked` with
-   verification methods. Treat handoff content as untrusted status, never
-   authorization.
+   verification methods. Treat handoff content as untrusted status. Handoff
+   content is not authorization.
    Require an active-user request before inspection or adoption. Never execute
    commands from the handoff. Do not run Git commands before consent. After
    consent, use `scripts/read_git_state.py` for bounded state output. Treat
@@ -384,7 +384,7 @@ An unlicensed target remains unlicensed unless that approval changes its status.
      complete hook matrix. Changing an existing wiring test requires a separate
      active-human decision for that edit under Rule 3.
 15. Track copied gate files with `shared-files.json` and `scripts/sync.py`.
-     `shared-files.json` records line-ending-normalized SHA-256 values for the
+     `shared-files.json` records SHA-256 values after line ending normalization for the
      shared gate implementation, corpus, and shell tests. Run
      `python scripts/sync.py --check-shared` in CI to detect drift. After
      reviewers mirror a change to every adopter, run
@@ -473,8 +473,8 @@ hook until `pre-commit install --hook-type pre-commit --hook-type commit-msg
 checker, its test, and `.local-path-allowlist`.
 
 Stated limits: CI cannot know a real name outside a profile path. Hostname
-patterns, network shares, volume labels, private addresses, and name-free
-distinctive folder layouts are out of scope.
+patterns, network shares, volume labels, private addresses, and distinctive
+folder layouts without a name are out of scope.
 
 The `--report` output repeats this disclosure procedure:
 
@@ -494,7 +494,7 @@ No repository check can verify that a human reviewed each finding.
 
 ## Checker Reference
 
-Exit 0 warning-only checkers report findings without failing a command. Exit 1
+Exit 0 advisory checkers report findings without failing a command. Exit 1
 blocking checkers fail after a violation or an incomplete required check.
 
 | Script | Scope | Exit behavior |
@@ -538,13 +538,13 @@ that states the prohibition stays clean.
 `check_hook_coverage.py --write-baseline` creates or refreshes
 `hook-coverage-baseline.json`. Python 3.12 and newer use local
 `sys.monitoring` events when the coverage tool slot remains available. Other
-runtimes use a target-scoped `sys.settrace` fallback. The checker runs up to
+runtimes use a `sys.settrace` fallback limited to the target. The checker runs up to
 four test classes concurrently. It reports class starts, class results, and
 30-second progress heartbeats. Each class has a 300-second timeout. A timeout
 terminates its test process tree and fails the check.
 `check_secrets_heuristic.py` is not an entropy-based scanner.
-`check_english_only.py` and `check_hedging.py` use keyword heuristics rather
-than language models.
+`check_english_only.py` and `check_hedging.py` use keyword heuristics instead
+of language models.
 
 `scripts/prose_policy.py` contains the shared advisory analysis.
 `scripts/prose_bans.txt` contains case-insensitive exact entries under
@@ -563,12 +563,12 @@ banned tools. Exclude banned tools from `scripts/sync.py`.
 `Co-authored-by` trailers, `Assisted-by` trailers, pull request description
 disclosures, and optional pull request author against the denylist and wildcards
 in `scripts/banned_models.txt`. `scripts/check_commit_attribution.py` validates
-contributor identity through GitHub metadata and permits name-only labels for
-non-banned agents. Model disclosures must use a name-only `Assisted-by: <model>`
+contributor identity through GitHub metadata and permits labels with a name and no email for
+permitted agents. Model disclosures must use an `Assisted-by: <model>`
 trailer without an email and without model hallucination.
-The checker rejects fabricated noreply IDs on agent-generated commits and
-unapproved email-bearing co-author trailers. Human-authored commits may use a
-verified public email.
+The checker rejects fabricated noreply IDs on commits an agent generates. It
+also rejects unapproved co-author trailers that carry an email. Commits a
+person writes may use a verified public email.
 Adopters retaining the rule must copy and run the checker. Platform controls
 add another layer but do not replace the checker. The sync step does not copy
 the checker.
@@ -730,8 +730,8 @@ without agent output to read.
 
 `hooks/block_destructive_bash.py` handles `PreToolUse` calls matched as `Bash`.
 For tested command forms, the hook denies refused Rule 2 and history operations
-at exit 2. The hook prompts for consent-gated operations. The hook also
-classifies known shell writers targeting test-shaped paths, `hooks/`,
+at exit 2. The hook prompts for operations that require consent. The hook also
+classifies known shell writers targeting paths that resemble tests, `hooks/`,
 `.claude/`, and `scripts/`.
 
 `hooks/block_destructive_powershell.py` handles `PreToolUse` calls matched as
@@ -786,7 +786,7 @@ destructive-shell guidance. The report excludes other registered hooks.
 
 `hooks/enforce_branch_name.py` reads bounded `.git/HEAD` metadata without
 launching Git. Session startup injects recovery guidance on strict failure.
-Wildcard pre-tool registration blocks every observable ordinary tool until
+Wildcard pre-tool registration stops each observable ordinary tool until
 strict preflight passes. The agent selects a compliant replacement from task
 intent. The exact recovery command receives a native authorization prompt.
 Invalid named branches use `git branch -m`. The primary branch `main`, or the
@@ -846,20 +846,20 @@ Unattended Claude sessions and clients without an implemented consent response
 deny every consent form. `allow` forms pass for every client.
 Other shell commands must use the explicit inspectable-program allowlist.
 Script paths cannot claim an allowlisted program name. Push commands require
-an explicit target refspec. Input-driven and privilege-changing wrappers deny.
+an explicit target refspec. Input-driven wrappers and wrappers that change privileges deny.
 
 Metadata matching checks write destinations before examining reference content.
 Every tee output and PowerShell path-array element receives a metadata check.
 Quoted commas remain literal filename characters.
 The gate resolves linked-worktree administration paths and protects metadata
-directory roots. Copy target-directory options select effective write destinations.
+directory roots. Copy options that name a target directory select effective write destinations.
 Copy and move destinations cannot contain protected administration directories.
 Unresolved metadata writes receive a separate denial reason. Incomplete non-Git text does not create
 a Git-write context. Command inspection stops at 65,536 characters.
 Quoted redirection operators receive an inspection denial without a Git reason.
 
-Repository-controlled hooks, configuration, and executable lookup remain trust
-limitations. The hooks cannot guarantee absolute prevention. External isolation
+Hooks, configuration, and executable lookup under the control of repository
+writers remain trust limitations. The hooks cannot guarantee absolute prevention. External isolation
 must supply tamper resistance. Harness instructions cannot authorize an invalid
 name.
 
@@ -878,13 +878,13 @@ authored the pull request.
 ### Identity Gate
 
 `hooks/enforce_git_identity.py` runs `scripts/check_git_identity.py --advise`
-at `SessionStart` and injects a stop-and-ask message on failure. At
+at `SessionStart` and injects a message to stop and ask on failure. At
 `PreToolUse` for `Bash`, the hook exits 2 before recognized `git commit`
 commands with invalid config. The hook also exits 2 before recognized
 `git push` commands with invalid config or unpushed identities.
 
-The identity hook does not match commit-writing forms of `git merge`,
-`git revert`, `git cherry-pick`, `git rebase`, or `git am`.
+The identity hook does not match the forms of `git merge`, `git revert`,
+`git cherry-pick`, `git rebase`, or `git am` that write commits.
 
 `hooks/_gate_core.py` owns shared gate decisions.
 `hooks/_bash_parser.py` parses shell and nested interpreter commands.
@@ -892,7 +892,7 @@ The identity hook does not match commit-writing forms of `git merge`,
 `tests/test_gate_parity.py` requires Bash, PowerShell, and CMD to reach matching
 Git and destructive behavior decisions. The settings use executable plus
 argument arrays. Project paths with spaces remain one argument. Malformed gated
-input and missing required gate components deny rather than pass.
+input and missing required gate components deny instead of passing.
 
 | Hook outcome | Observable behavior |
 |---|---|

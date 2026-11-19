@@ -56,10 +56,10 @@ its declines.
   `hooks/enforce_branch_name.py`, `hooks/workflow-scripts.txt`,
   `scripts/check_gate_adoption.py`, `tests/test_workflow_allow_verdict.py`,
   the four updated gate tests, and the regenerated `shared-files.json` in one
-  transaction. The script list then needs entries for adopter-only scripts
+  transaction. The script list then needs entries for scripts unique to the adopter
   such as `scripts/check_protected_files.py`.
 
-## Adopter-only files
+## Files unique to the adopter
 
 - `scripts/check_protected_files.py`. The template declined adoption.
 - `scripts/jira_sync.py`

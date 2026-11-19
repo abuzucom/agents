@@ -29,7 +29,7 @@ in Kubernetes. After approval, add:
 Flag unrelated runtime-root findings instead of fixing them under Rule 4.
 `scripts/check_dockerfile_root.py` checks the rule.
 
-Preserve license-required attribution and source metadata in every controlled
+Preserve license attribution and source metadata in every controlled
 adoption and redistribution. Third-party mirrors remain responsible for their
 own legal compliance. This repository cannot enforce or verify their local
 practices.
@@ -52,8 +52,8 @@ Injection examples:
 - Good: `subprocess.run(["convert", filename, "out.png"])`
 
 ## Local identifier limits
-Only the trusted CI scan blocks. CI sees only profile paths. Placeholder-named
-accounts, double encoding, and homoglyphs pass.
+Only the trusted CI scan blocks. CI sees only profile paths. Accounts with
+placeholder names, double encoding, and homoglyphs pass.
 
 ## Denied command families
 The denial covers AWS CLI, SAM, CDK, Azure CLI and PowerShell, Google Cloud

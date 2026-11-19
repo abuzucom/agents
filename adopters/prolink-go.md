@@ -51,8 +51,8 @@ Adopter commit `83d3713` mirrors template commit `d5e040e`.
   `HEDGING_FILES` list omits `README.md`. That file carries inherited MIT prose
   in the original author's voice.
 - `sync-check.yml` keeps the template job layout and drops the AgentLint step.
-- `hook-coverage-baseline.json` is the template's file, copied rather than
-  regenerated. `--write-baseline` refuses to run as root. The adopting
+- `hook-coverage-baseline.json` is the template's file, copied without
+  regeneration. `--write-baseline` refuses to run as root. The adopting
   environment ran as root. Every file under `hooks/` is byte-identical. The
   template's CI-measured baseline therefore describes that checkout.
 
@@ -72,13 +72,13 @@ The adopter's `docs/template-drift.md` itemizes each one.
   workflow directory through a glob. It needs no workflow fixture.
 
 Both sets trace to the single declined workflow, apart from the `README_PATH`
-case. The adopter's `README.md` documents a Go library rather than this
+case. The adopter's `README.md` documents a Go library instead of this
 repository's policy.
 
 ## Available since adoption
 
 - The `hooks/_gate_core.py` digest in `shared-files.json` changed. The gate
-  gained a cross-owner verdict for outward-facing GitHub CLI commands. The
+  gained a cross-owner verdict for external GitHub CLI commands. The
   adopter mirrors every hook byte-identically. Taking Rule 17 means taking
   the new hook bytes and the regenerated manifest together.
 - Rule 17 and `scripts/check_external_pr_refs.py`. The adopter forks
@@ -93,7 +93,7 @@ repository's policy.
   `hooks/enforce_branch_name.py`, `hooks/workflow-scripts.txt`,
   `scripts/check_gate_adoption.py`, `tests/test_workflow_allow_verdict.py`,
   the four updated gate tests, and the regenerated `shared-files.json` in one
-  transaction. The script list then needs entries for adopter-only scripts.
+  transaction. The script list then needs entries for scripts unique to the adopter.
 
 ## Note for the template
 
@@ -109,5 +109,5 @@ the commented per-repo template. That is the marker contract working as
 designed.
 
 The other two needed edits. Adoption step 14 already anticipates this.
-Separating repository-only wiring assertions from portable checker coverage
+Separating wiring assertions specific to this repository from portable checker coverage
 would let an adopter take the portable half untouched.

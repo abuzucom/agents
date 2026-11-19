@@ -151,7 +151,7 @@ def _same_file(first: os.stat_result, second: os.stat_result) -> bool:
 
 
 def reaches_a_test_inode(target: str, project_dir: str) -> bool | None:
-    """Return True if `target` is hard-linked to a file in the test tree.
+    """Return True if `target` shares a hard link with a file in the test tree.
 
     `realpath` resolves a symlink because a symlink has a target. A hard
     link has none: two names are the same file with equal standing, so a

@@ -12,7 +12,7 @@ import sync
 
 
 class AdoptablePolicyTest(unittest.TestCase):
-    """Adoption excludes source-repository orientation."""
+    """Adoption excludes source repository orientation."""
 
     def test_filter_removes_repository_only_block(self):
         source = (

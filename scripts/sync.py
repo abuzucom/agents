@@ -157,7 +157,7 @@ def read_assembled_policy_parts(root: Path) -> list[tuple[str, bytes]]:
 
 
 def adoptable_content(content: str) -> str:
-    """Return policy content without source-repository orientation."""
+    """Return policy content without source repository orientation."""
     if content.count(REPOSITORY_ONLY_START) != 1:
         raise ValueError("repository-only start marker must occur once")
     if content.count(REPOSITORY_ONLY_END) != 1:

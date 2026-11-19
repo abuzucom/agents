@@ -194,7 +194,7 @@ class SessionStartTest(unittest.TestCase):
 
 
 class PreToolUseTest(unittest.TestCase):
-    """PreToolUse blocks every ordinary tool until branch preflight passes."""
+    """PreToolUse stops each ordinary tool until branch preflight passes."""
 
     def test_commit_on_violating_branch_is_blocked(self):
         result = run_hook(bash_payload('git commit -m "feat: x"'), VIOLATING_BRANCH)
