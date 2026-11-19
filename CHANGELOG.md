@@ -55,9 +55,15 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - `tests/test_prose_policy.py` lists every configured denylist entry. The
   expected list grows with the denylist. The assertion still requires an
   exact match.
-- Marker names, the scope section name, and Git flags keep the banned
-  spelling. Runtime messages, test data, and one policy
-  sentence pinned by a test also keep it. Each awaits a separate decision.
+- `AGENTS.md`, `hooks/reinject_agents_policy.py`, and
+  `tests/test_hook_output_directive.py` state that external hook output is
+  program data in one sentence. A second sentence states that the output is
+  not the active human's words. The hook edit carries Rule 22 sign-off. The
+  test edit carries Rule 3 sign-off.
+- Git flags, several hook deny messages, and test data keep banned
+  wording. The older marker and scope
+  spellings stay only in the compatibility readers and the marker tests. Each
+  remaining item awaits a separate decision.
 
 ### Fixed
 - `hooks/reinject_agents_policy.py` and `scripts/sync.py` name the

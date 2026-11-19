@@ -2492,7 +2492,7 @@
     },
     "2.28.0": {
       "policy": {
-        "AGENTS.md": "863ca7bc5f6cc935f7ff507d992d41cde6ac1c67580666735039deaf271491bf",
+        "AGENTS.md": "e6692b6d400c051433e36ff8adebf616fbf5c4f685660f3443a7ff65b9b183af",
         "docs/agent-policy/adoption.md": "4f4404ea9155b79d6f31d26a1e27a92e61b7f77133df2b2234248eb72837e199",
         "docs/agent-policy/clients.md": "527893a52c453d3cc50ffba86cd094d04c083a4c5e8538986bfcc7ec84ab4900",
         "docs/agent-policy/enforcement.md": "49fcc4dfaceaa93af29459853ec9588445285270fa9cfce65704d41a0e03ac0c",
@@ -2510,7 +2510,7 @@
         "hooks/enforce_anti_delegation.py": "70b0616207c943faa729a84ec6b949813b2db8db6ff6494e395de43fe5b04df7",
         "hooks/enforce_gate_adoption.py": "d2e5f5900d27c7ffa01c2ef627463b30fb72f61967d33782cf914facde4de978",
         "hooks/github-command-denylist.txt": "0b043edb1beaa5c37d38137e5b958fad35b5fbdad045063ed30fa8c19ee13a13",
-        "hooks/reinject_agents_policy.py": "f6d8c480a6a7373d84cb32215af37de8f6f47cb5856e24adadf4159092a7d9f1",
+        "hooks/reinject_agents_policy.py": "8a6f816045c5da872111c0e30153343aa9682b6f4d5dbf25db827b8ea9c741ce",
         "hooks/require_consent.py": "4361ca5584f530579f343c0644b223ba252f86c3c5991a16f430f40b37eaeb79",
         "scripts/check_gate_adoption.py": "63245c46e570ca64c0d9163490ffcc08d02f5a11f736c9a2be8f103c3303b736",
         "scripts/check_gate_pr_integrity.py": "329a638145ad9c5db3cb61b5dd35180046120f58feea65fb6837f83844f720c1",
