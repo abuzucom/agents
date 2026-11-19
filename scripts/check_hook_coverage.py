@@ -455,15 +455,7 @@ def run_test_shards(root: str, environment: dict,
                     timeout: float = TEST_SHARD_TIMEOUT_SECONDS,
                     test_shards: list[tuple[str, str]] | None = None) -> list[str]:
     """Run traced test classes concurrently and return worker problems."""
-    if workers <= 0:
-        raise ValueError("coverage workers must be positive")
-    if timeout <= 0:
-        raise ValueError("coverage timeout must be positive")
-    if test_shards is None:
-        test_shards = discover_test_shards(root)
-    test_shards = prioritize_test_shards(test_shards)
-    if not test_shards:
-        raise ValueError("coverage test discovery returned no shards")
+    test_shards = _validated_test_shards(root, workers, timeout, test_shards)
     exclusive_shards = deque(
         shard for shard in test_shards
         if is_exclusive_shard(shard[0]))
@@ -473,46 +465,71 @@ def run_test_shards(root: str, environment: dict,
     worker_count = min(workers, len(test_shards))
     print("hook coverage: starting %d test shards with %d workers"
           % (len(test_shards), worker_count), file=sys.stderr, flush=True)
-    environment = dict(environment)
-    test_path = os.path.join(root, "tests")
-    environment["PYTHONPATH"] = os.pathsep.join(filter(None, (
-        environment.get("PYTHONPATH", ""), test_path)))
-    process_registry = ActiveProcessRegistry()
-    active_futures = {}
+    shard_arguments = (root, _coverage_environment(root, environment), timeout,
+                       ActiveProcessRegistry())
     executor = concurrent.futures.ThreadPoolExecutor(worker_count)
     try:
-        shard_arguments = (root, environment, timeout, process_registry)
-        submit_available_shards(
-            executor, active_futures, ordinary_shards,
-            exclusive_shards, worker_count, shard_arguments)
-        while active_futures:
-            completed_futures, _pending_futures = concurrent.futures.wait(
-                set(active_futures), timeout=PROGRESS_INTERVAL_SECONDS,
-                return_when=concurrent.futures.FIRST_COMPLETED)
-            if not completed_futures:
-                remaining_count = (
-                    len(active_futures)
-                    + len(ordinary_shards)
-                    + len(exclusive_shards)
-                )
-                print("hook coverage: %d test shards remain"
-                      % remaining_count,
-                      file=sys.stderr, flush=True)
-                continue
-            problem = collect_completed_results(
-                completed_futures, active_futures)
-            if problem:
-                process_registry.terminate_all_processes()
-                for active_future in active_futures:
-                    active_future.cancel()
-                return [problem]
-            submit_available_shards(
-                executor, active_futures, ordinary_shards,
-                exclusive_shards, worker_count, shard_arguments)
+        return _drive_test_shards(
+            executor, ordinary_shards, exclusive_shards, worker_count,
+            shard_arguments)
     finally:
         # Every result is collected before this point. Waiting here would let one stuck
         # worker thread hang the run after its process was terminated.
         executor.shutdown(wait=False, cancel_futures=True)
+
+
+def _validated_test_shards(root: str, workers: int, timeout: float,
+                           test_shards: list[tuple[str, str]] | None) -> list:
+    """Return prioritized shards after the worker and timeout bounds pass."""
+    if workers <= 0:
+        raise ValueError("coverage workers must be positive")
+    if timeout <= 0:
+        raise ValueError("coverage timeout must be positive")
+    if test_shards is None:
+        test_shards = discover_test_shards(root)
+    test_shards = prioritize_test_shards(test_shards)
+    if not test_shards:
+        raise ValueError("coverage test discovery returned no shards")
+    return test_shards
+
+
+def _coverage_environment(root: str, environment: dict) -> dict:
+    """Return a copy of `environment` with the test directory on PYTHONPATH."""
+    environment = dict(environment)
+    test_path = os.path.join(root, "tests")
+    environment["PYTHONPATH"] = os.pathsep.join(filter(None, (
+        environment.get("PYTHONPATH", ""), test_path)))
+    return environment
+
+
+def _drive_test_shards(executor: concurrent.futures.Executor,
+                       ordinary_shards: deque, exclusive_shards: deque,
+                       worker_count: int, shard_arguments: tuple) -> list[str]:
+    """Submit and collect shards until all finish or one reports a problem."""
+    process_registry = shard_arguments[-1]
+    active_futures = {}
+    submit_available_shards(
+        executor, active_futures, ordinary_shards,
+        exclusive_shards, worker_count, shard_arguments)
+    while active_futures:
+        completed_futures, _pending_futures = concurrent.futures.wait(
+            set(active_futures), timeout=PROGRESS_INTERVAL_SECONDS,
+            return_when=concurrent.futures.FIRST_COMPLETED)
+        if not completed_futures:
+            remaining_count = (len(active_futures) + len(ordinary_shards)
+                               + len(exclusive_shards))
+            print("hook coverage: %d test shards remain" % remaining_count,
+                  file=sys.stderr, flush=True)
+            continue
+        problem = collect_completed_results(completed_futures, active_futures)
+        if problem:
+            process_registry.terminate_all_processes()
+            for active_future in active_futures:
+                active_future.cancel()
+            return [problem]
+        submit_available_shards(
+            executor, active_futures, ordinary_shards,
+            exclusive_shards, worker_count, shard_arguments)
     return []
 
 

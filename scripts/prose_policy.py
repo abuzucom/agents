@@ -335,7 +335,21 @@ def find_violations(
     denylist = entries if entries is not None else load_denylist()
     findings = []
     occupied = []
+    _collect_vocabulary(text, normalized_path, denylist, findings, occupied)
+    prose = mask_trailer_keys(mask_markdown_code(text))
+    _collect_sentence_style(prose, findings, occupied)
+    _collect_discourse(prose, normalized_path, findings, occupied)
+    findings.sort(key=lambda item: (item.start, item.end, item.category))
+    return [
+        _format_finding(text, normalized_path, finding)
+        for finding in findings
+    ]
 
+
+def _collect_vocabulary(
+        text: str, normalized_path: str, denylist: list[DenyEntry],
+        findings: list[Finding], occupied: list[tuple[int, int]]) -> None:
+    """Collect controlled-vocabulary matches from the raw source text."""
     for entry in denylist:
         if entry.scope == HANDOFF_SCOPE and is_handoff_path(normalized_path):
             continue
@@ -348,7 +362,11 @@ def find_violations(
             occupied,
         )
 
-    prose = mask_trailer_keys(mask_markdown_code(text))
+
+def _collect_sentence_style(
+        prose: str, findings: list[Finding],
+        occupied: list[tuple[int, int]]) -> None:
+    """Collect voice, clause, punctuation, and escape findings from prose."""
     pronoun_pattern = _phrase_pattern(PERSONAL_PRONOUNS)
     _collect_pattern(
         prose, pronoun_pattern, "personal pronoun", "impersonal voice",
@@ -397,6 +415,11 @@ def find_violations(
         occupied,
     )
 
+
+def _collect_discourse(
+        prose: str, normalized_path: str, findings: list[Finding],
+        occupied: list[tuple[int, int]]) -> None:
+    """Collect hedging, justification, narration, and provenance findings."""
     discourse_patterns = (
         (_phrase_pattern(HEDGING_PHRASES), "hedging", "direct statement preferred"),
         (
@@ -424,9 +447,3 @@ def find_violations(
         _collect_pattern(
             prose, pattern, category, detail, findings, occupied,
         )
-
-    findings.sort(key=lambda item: (item.start, item.end, item.category))
-    return [
-        _format_finding(text, normalized_path, finding)
-        for finding in findings
-    ]
