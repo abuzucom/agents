@@ -15,7 +15,7 @@ from a SessionStart hook, so injected context is the only lever it has.
 `PreToolUse` on the `Bash` matcher is the blocking half: it exits 2 on a
 `git commit` while the identity is unset or disallowed, and on a `git push`
 while either the working-tree config or any commit that push would publish
-fails the same check. It never runs `--advise`, which makes a network call.
+fails the same check. It skips `--advise`, which makes a network call.
 
 The two events cover a failure no instruction fixes: with `user.email` unset,
 git builds an identity from the account name and hostname, prints its

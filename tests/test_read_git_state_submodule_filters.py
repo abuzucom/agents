@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Tests that the status query never runs a submodule's filter drivers."""
+"""Tests that the status query skips a submodule's filter drivers."""
 import subprocess
 import sys
 import tempfile

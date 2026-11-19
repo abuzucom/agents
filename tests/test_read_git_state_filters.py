@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Tests that the status query never runs repository-configured programs."""
+"""Tests that the status query skips repository-configured programs."""
 import subprocess
 import sys
 import tempfile

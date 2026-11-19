@@ -147,7 +147,7 @@ class ComplianceGitPathTest(unittest.TestCase):
 
 @unittest.skipIf(os.name == "nt", "the fake executable needs a POSIX execute bit")
 class ConflictGitResolverTest(unittest.TestCase):
-    """The conflict checker never runs a Git found inside the repository or a relative PATH."""
+    """The conflict checker refuses a Git found inside the repository or a relative PATH."""
 
     def setUp(self) -> None:
         self.markers = load_script("check_conflict_markers")

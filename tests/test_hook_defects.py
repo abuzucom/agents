@@ -187,7 +187,7 @@ class FileToolScanReasonTest(unittest.TestCase):
 
 
 class ForgeProgramFirstTest(unittest.TestCase):
-    """forge_verdict reads the origin owner only for forge programs (H3)."""
+    """forge_verdict reads the `origin` repository owner only for forge programs (H3)."""
 
     def setUp(self):
         core.reset_invocation_caches()

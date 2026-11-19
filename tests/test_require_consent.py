@@ -299,7 +299,7 @@ class PreservedTextEvasionTest(TestFileFixture):
     Every case here passed the original substring check, which asked only
     whether the old text still appeared anywhere in the new text. An
     assertion that is commented out, wrapped in a string, or moved into a
-    branch that never runs is still present as text and no longer runs.
+    branch that is unreachable is still present as text and no longer runs.
     """
 
     ASSERTION = "  assert.equal(viz.diagnostics().trackState, 'none');"
@@ -801,7 +801,7 @@ class SettingsWiringTest(unittest.TestCase):
         self._assert_registered(EXAMPLE_SETTINGS)
 
     def test_entries_use_the_exec_form(self):
-        """Shell form splits a project path containing spaces and the hook never runs."""
+        """Shell form splits a project path containing spaces and the hook fails to launch."""
         for path in (LIVE_SETTINGS, EXAMPLE_SETTINGS):
             settings = json.loads(path.read_text(encoding="utf-8"))
             for event in ("SessionStart", "PreToolUse"):

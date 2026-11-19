@@ -22,6 +22,9 @@ never reads
 the owner
 that owner
 the origin owner
+does not run
+pull-request
+banned-phrase
 arguably
 
 [handoff-exempt]

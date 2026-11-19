@@ -963,7 +963,7 @@ INFRASTRUCTURE_PATH_MARKERS = (
     "/.terraform.d/",
     "/etc/ssh/",
     # Process environments and developer credential stores hold the same
-    # tokens an agent must never read into its context.
+    # tokens an agent must keep out of its context.
     "/.config/gh/", "/github cli/",
     "/.git-credentials/", "/.docker/config.json/",
 )
@@ -3643,11 +3643,11 @@ _is_github_host = is_github_hostname
 
 
 def _repository_target_owner(token: str) -> str:
-    """Return the owner of a GitHub CLI repository argument.
+    """Return the repository owner named by a GitHub CLI repository argument.
 
     gh accepts `OWNER/REPO`, `HOST/OWNER/REPO`, and a full URL, so a scheme,
     any user information, and a leading GitHub host are stripped before the
-    owner is read. An unrecognized shape returns an empty string, which the
+    owner segment is read. An unrecognized shape returns an empty string, which the
     caller treats as unreadable rather than as clearance.
     """
     if not token or token.startswith("-") or is_ambiguous(token):
@@ -3659,7 +3659,7 @@ def _repository_target_owner(token: str) -> str:
         segments = segments[1:]
     if len(segments) != REPOSITORY_SEGMENT_COUNT:
         return ""
-    # Splitting dropped empty segments, so the owner is never empty here.
+    # Splitting dropped empty segments, so the owner segment is never empty here.
     # A separator left inside it means the token was never owner/name.
     owner = segments[0]
     if any(character in owner for character in ":\\"):
@@ -3898,7 +3898,7 @@ def forge_verdict(program: str, args: list, cwd: str = "") -> tuple:
     name = os.path.basename(program).lower().removesuffix(".exe")
     repository = cwd or os.getcwd()
     wrapped = trusted_gh_arguments(program, args, repository)
-    # Only a forge CLI needs the origin owner, so every other program
+    # Only a forge CLI needs the `origin` repository owner, so every other program
     # skips the config parse.
     if not wrapped and name not in FORGE_PROGRAMS:
         return "", ""

@@ -24,6 +24,9 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   The determiners are `the`, `that`, and `the` with `origin`.
 - `scripts/prose_bans.txt` bans the `[global]` hedge word that starts with
   `argu` and ends with `ably`.
+- `scripts/prose_bans.txt` bans three more `[global]` entries. The entries cover
+  `does` with `not run`, and the hyphenated forms of `pull request` and
+  `banned phrase`.
 - Prose, comments, docstrings, hooks, tests, and policy text drop the
   newly banned phrases. The edits to hooks and existing tests carry Rule
   22 and Rule 3 sign-off. No assertion changes.
@@ -1113,7 +1116,7 @@ session start.
   workflow `GITHUB_TOKEN` cannot read that endpoint.
 
 ### Fixed
-- Bind the `gate-change-approved` label to the current pull-request head.
+- Bind the `gate-change-approved` label to the current pull request head.
   `scripts/check_gate_pr_integrity.py` accepts an optional
   `--timeline-json` flag. With it, the label counts only when a person
   applied it after the latest push, force push, and label removal.
@@ -1122,7 +1125,7 @@ session start.
 - Match protected paths without regard to case. Protect `Makefile`,
   `.pre-commit-config.yaml`, `scripts/run_tests.py`, and `CODEOWNERS`
   files.
-- Stop running the pull-request checker when the base branch lacks one.
+- Stop running the pull request checker when the base branch lacks one.
   The first gate adoption now requires the approval label.
 - Direct agents to derive Git identity from an authenticated account source
   and request approval. Never ask the active human to supply identity values.

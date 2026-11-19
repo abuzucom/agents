@@ -30,7 +30,7 @@ def repo_with_remote(directory: str, url: str) -> str:
 
 
 class OriginOwnerTest(unittest.TestCase):
-    """The origin owner comes from the bounded config reader."""
+    """The `origin` repository owner comes from the bounded config reader."""
 
     def owner_for(self, url: str) -> str:
         """Return the parsed origin owner for one remote URL."""
@@ -137,8 +137,8 @@ class RepositoryTargetTest(unittest.TestCase):
             "owner")
 
     def test_owner_carrying_a_colon_rejected(self):
-        # A separator left inside the owner means the token never had the
-        # owner/name shape, so the gate must not read an owner from it.
+        # A separator left inside the owner segment means the token never had
+        # the owner/name shape, so the gate must not read an owner from it.
         self.assertEqual(
             _gate_core._repository_target_owner("host:owner/name"), "")
 
@@ -216,7 +216,7 @@ class CrossOwnerVerdictTest(unittest.TestCase):
 
     def test_unknown_origin_owner_asks(self):
         # Rule 17 prefers a prompt over waving an outward-facing command
-        # through when the origin owner cannot be read.
+        # through when the `origin` repository owner cannot be read.
         self.assertEqual(
             self.verdict(["pr", "comment", "16", "--repo", EXTERNAL], ""),
             "ask")
@@ -279,7 +279,7 @@ class CrossOwnerVerdictTest(unittest.TestCase):
 
 
 class ForgeVerdictTest(unittest.TestCase):
-    """forge_verdict resolves the owner from the working directory."""
+    """forge_verdict resolves the repository owner from the working directory."""
 
     def verdict(self, args: list, url: str) -> str:
         """Return the decision for one gh invocation in a crafted repository."""

@@ -86,7 +86,7 @@ repository's policy.
   pull request 16 and notified an unmaintained upstream. The checker blocks that
   reference form. The checker compares the pull request event owner. It needs
   no adopter-specific configuration. Taking it requires the checker, its test,
-  and a workflow step on a pull-request-triggered job.
+  and a workflow step on a job that pull request events trigger.
 - The command execution gate allow verdict from template version 2.16.0.
   Inspecting checkers, unittest runs, Ruff checking forms, and `&&` chains run
   without a prompt. Re-adoption takes `hooks/_command_execution_gate.py`,

@@ -90,7 +90,7 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
           PR_LABELS_JSON: ${{ toJSON(github.event.pull_request.labels.*.name) }}
           GIT_ALTERNATE_OBJECT_DIRECTORIES: ${{ github.workspace }}/pr-head/.git/objects
-        # Pull-request code never runs here. Without a base checker, the first
+        # This job executes no pull request code. Without a base checker, the first
         # adoption passes only with the approval label.
         run: |
           if [ -f scripts/check_gate_pr_integrity.py ]; then
