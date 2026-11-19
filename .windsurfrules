@@ -568,7 +568,7 @@ Require the resolved path to remain within the target directory.
 Prefer immutable data and message passing.
 
 **Join tasks.** Join, await, or supervise every thread, goroutine, and async
-task. Ensure unhandled exceptions surface.
+task. Make unhandled exceptions surface.
 
 **Lock ordering.** Keep a consistent lock order to prevent deadlocks.
 Alternatively, use a single lock.

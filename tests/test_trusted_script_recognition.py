@@ -49,7 +49,7 @@ READ_ONLY_COMMANDS = (
 
 
 class TrustedScriptRecognitionTest(unittest.TestCase):
-    """Equivalent invocations of one trusted script get one verdict."""
+    """Equivalent commands for one trusted script get one verdict."""
 
     def test_equivalent_spellings_route_to_consent(self) -> None:
         for command in CONSENT_COMMANDS:

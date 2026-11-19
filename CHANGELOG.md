@@ -27,9 +27,11 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - `scripts/prose_bans.txt` bans three more `[global]` entries. The entries cover
   `does` with `not run`, and the hyphenated forms of `pull request` and
   `banned phrase`.
-- `scripts/prose_bans.txt` bans 149 more `[global]` entries. The entries
-  cover invented hyphenated compounds, filler phrases, hedges, marketing
-  words, and the comma before `never`, `which`, or `instead`.
+- `scripts/prose_bans.txt` bans 217 more `[global]` entries. The entries
+  cover invented hyphenated compounds, filler phrases, hedges, inflated
+  adjectives and nouns, marketing verbs, and the comma before `never` or
+  `instead`. The checker already flags the comma before `which` as a
+  sentence-form finding.
 - Two gate messages drop hedged wording. The shell write prompt for gate
   files and the consent session notice now describe hooks as workflow
   prompts. The shared file drift error now says "intended".
@@ -737,7 +739,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   every client, including Codex and unattended Claude sessions.
 - Add `hooks/workflow-scripts.txt`. The list names each accepted repository
   script form with an `allow`, `consent-read`, or `consent-write` verdict. It
-  covers the checker invocations in the Makefile, `.pre-commit-config.yaml`,
+  covers the checker commands in the Makefile, `.pre-commit-config.yaml`,
   and CI, plus local report and advice flags. A missing or malformed list
   denies every repository script call.
 - Accept `python -m unittest discover` with optional `-s`, `-t`, `-p`, `-v`,
@@ -820,7 +822,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Resolve worktree `.git` pointer files in `parse_git_config` in
   `hooks/_gate_core.py`.
 - Include `Path.cwd()` in `scripts/trusted_gh.py` external directory
-  candidates for temporary-root test invocations.
+  candidates for temporary-root test runs.
 - Flush test runner diagnostics in `scripts/run_tests.py`.
 
 ## [2.14.1] (2026-11-01)

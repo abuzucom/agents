@@ -2492,7 +2492,7 @@
     },
     "2.27.3": {
       "policy": {
-        "AGENTS.md": "356639dd89eda834fbd0dffcbe9ead22af30de6b73f0b54546c63c1e58e9fe20",
+        "AGENTS.md": "7150d09050b1c561b91fc6aa33226dc46e9f4e1ecafb0d86952338d8d88e57c4",
         "docs/agent-policy/adoption.md": "b88fe224a2e9d11534131cf22f8ce24e0dcb2e57513bcf8fe5b3187b94e56f71",
         "docs/agent-policy/clients.md": "527893a52c453d3cc50ffba86cd094d04c083a4c5e8538986bfcc7ec84ab4900",
         "docs/agent-policy/enforcement.md": "126f7019abd5c445182ac0f3abc8d81d72b65de44cd3bf419adb4955973ceba6",

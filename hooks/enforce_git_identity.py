@@ -109,7 +109,7 @@ def find_violation(project_dir: str, extra_args: list,
 
 
 def check_args(label: str) -> list:
-    """Return the checker invocations that gate `label`."""
+    """Return the checker commands that gate `label`."""
     if label == PUSH_LABEL:
         return [[], ["--unpushed"]]
     return [[]]

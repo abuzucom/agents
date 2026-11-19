@@ -578,7 +578,7 @@ def _python_verdict(tokens: list, project_dir: str) -> tuple:
 
 
 def _python_workflow(tokens: list, project_dir: str) -> bool:
-    """Recognize bounded repository scripts, unittest, and Ruff module invocations."""
+    """Recognize bounded repository scripts, unittest, and Ruff module commands."""
     return _python_verdict(tokens, project_dir)[0] in (ALLOW, ASK)
 
 

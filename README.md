@@ -818,7 +818,7 @@ expansion checks, and workflow consent. The branch hook loads it for every
 shell command. Its denials and consent prompts name
 `hooks/_command_execution_gate.py` instead of the branch hook. A denial that
 names this file concerns the command, not the branch name. General interpreter
-commands and unlisted script invocations receive no exception.
+commands and unlisted script commands receive no exception.
 `hooks/workflow-scripts.txt` lists each accepted repository script form with a
 verdict. An `allow` form runs without a prompt and only inspects the repository.
 A `consent-read` or `consent-write` form requests native consent. A missing or
