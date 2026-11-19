@@ -1,3 +1,3 @@
-<!-- source-only:start -->
+<!-- source orientation:start -->
 Source policy repository: `abuzucom/agents`.
-<!-- source-only:end -->
+<!-- source orientation:end -->

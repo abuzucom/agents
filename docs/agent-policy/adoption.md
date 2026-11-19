@@ -57,7 +57,7 @@ the policy copies and adoptable output.
 
 The source repository may provide
 `docs/agent-policy/source-orientation.md`. Its content must use the
-`source-only:start` and `source-only:end` markers. Content between those
+`source orientation:start` and `source orientation:end` markers. Content between those
 markers reaches local policy copies but never adoptable output. An adopter may
 lack that marked content. Missing adopter orientation content fails closed.
 

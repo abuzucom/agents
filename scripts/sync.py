@@ -26,10 +26,23 @@ from pathlib import Path
 
 SOURCE = "AGENTS.md"
 SHARED_MANIFEST = "shared-files.json"
-REPOSITORY_ONLY_START = "<!-- repository-only:start -->"
-REPOSITORY_ONLY_END = "<!-- repository-only:end -->"
-SOURCE_ONLY_START = "<!-- source-only:start -->"
-SOURCE_ONLY_END = "<!-- source-only:end -->"
+LOCAL_POLICY_START = "<!-- local policy:start -->"
+LOCAL_POLICY_END = "<!-- local policy:end -->"
+SOURCE_ORIENTATION_START = "<!-- source orientation:start -->"
+SOURCE_ORIENTATION_END = "<!-- source orientation:end -->"
+# Existing callers import these names. They now hold the new markers.
+REPOSITORY_ONLY_START = LOCAL_POLICY_START
+REPOSITORY_ONLY_END = LOCAL_POLICY_END
+SOURCE_ONLY_START = SOURCE_ORIENTATION_START
+SOURCE_ONLY_END = SOURCE_ORIENTATION_END
+# Adopter policy files still carry the older marker spellings. Adoption
+# accepts each one as its replacement and prints a rename notice.
+LEGACY_MARKERS = {
+    "<!-- repository-only:start -->": LOCAL_POLICY_START,
+    "<!-- repository-only:end -->": LOCAL_POLICY_END,
+    "<!-- source-only:start -->": SOURCE_ORIENTATION_START,
+    "<!-- source-only:end -->": SOURCE_ORIENTATION_END,
+}
 MAX_POLICY_BYTES = 64 * 1024
 MANIFEST_JSON_INDENT = 2
 # Files that must be byte-identical wherever these gates are installed. A
@@ -156,22 +169,35 @@ def read_assembled_policy_parts(root: Path) -> list[tuple[str, bytes]]:
     return parts
 
 
+def _replace_legacy_markers(content: str) -> str:
+    """Return content with older marker spellings replaced by the new markers."""
+    found = [legacy for legacy in LEGACY_MARKERS if legacy in content]
+    if not found:
+        return content
+    for legacy in found:
+        content = content.replace(legacy, LEGACY_MARKERS[legacy])
+    renames = "; ".join(f"{legacy} -> {LEGACY_MARKERS[legacy]}" for legacy in found)
+    print(f"notice: rename older policy markers: {renames}", file=sys.stderr)
+    return content
+
+
 def adoptable_content(content: str) -> str:
     """Return policy content without source repository orientation."""
-    if content.count(REPOSITORY_ONLY_START) != 1:
-        raise ValueError("repository-only start marker must occur once")
-    if content.count(REPOSITORY_ONLY_END) != 1:
-        raise ValueError("repository-only end marker must occur once")
-    prefix, remainder = content.split(REPOSITORY_ONLY_START, 1)
-    _, suffix = remainder.split(REPOSITORY_ONLY_END, 1)
+    content = _replace_legacy_markers(content)
+    if content.count(LOCAL_POLICY_START) != 1:
+        raise ValueError("local policy start marker must occur once")
+    if content.count(LOCAL_POLICY_END) != 1:
+        raise ValueError("local policy end marker must occur once")
+    prefix, remainder = content.split(LOCAL_POLICY_START, 1)
+    _, suffix = remainder.split(LOCAL_POLICY_END, 1)
     if prefix.endswith("\n") and suffix.startswith("\n"):
         suffix = suffix[1:]
     content = prefix + suffix
-    if content.count(SOURCE_ONLY_START) != content.count(SOURCE_ONLY_END):
-        raise ValueError("source-only markers must be balanced")
-    while SOURCE_ONLY_START in content:
-        source_prefix, remainder = content.split(SOURCE_ONLY_START, 1)
-        _, source_suffix = remainder.split(SOURCE_ONLY_END, 1)
+    if content.count(SOURCE_ORIENTATION_START) != content.count(SOURCE_ORIENTATION_END):
+        raise ValueError("source orientation markers must be balanced")
+    while SOURCE_ORIENTATION_START in content:
+        source_prefix, remainder = content.split(SOURCE_ORIENTATION_START, 1)
+        _, source_suffix = remainder.split(SOURCE_ORIENTATION_END, 1)
         content = source_prefix + source_suffix
     return content
 

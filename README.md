@@ -548,8 +548,8 @@ of language models.
 
 `scripts/prose_policy.py` contains the shared advisory analysis.
 `scripts/prose_bans.txt` contains case-insensitive exact entries under
-`[global]` and `[handoff-exempt]` scopes. The policy source skips self-scanning.
-`plan/HANDOFF.md.example` skips only `[handoff-exempt]` entries and
+`[global]` and `[handoff exemption]` scopes. The policy source skips self-scanning.
+`plan/HANDOFF.md.example` skips only `[handoff exemption]` entries and
 conversational-provenance findings. Every other configured prose category
 still applies to the handoff template.
 

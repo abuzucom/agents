@@ -104,7 +104,7 @@ Three suites assert artifacts that exist only in this repository:
 `sync-check.yml` filename and job shape.
 
 `test_policy_distribution.py` needed no edit. The adopter satisfied it by
-wrapping its own filled orientation in `repository-only` markers and retaining
+wrapping its own filled orientation in the older local policy markers and retaining
 the commented per-repo template. That is the marker contract working as
 designed.
 

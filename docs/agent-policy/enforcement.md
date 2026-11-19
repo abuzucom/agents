@@ -146,7 +146,7 @@ repository hook runs this gate. Run it locally or from an external harness.
 In `scripts/prose_bans.txt`, each nonempty policy line defines one exact word
 or phrase. Section headers define scope. Add entries without changing checker
 logic. The denylist source receives the sole self-scan exemption. The
-handoff-exempt section skips matches only for `plan/HANDOFF.md.example`.
+handoff exemption section skips matches only for `plan/HANDOFF.md.example`.
 
 `scripts/check_hedging.py` prose findings always return exit code 0. Unreadable
 policy data and unsafe metadata return exit code 1. Pattern checks provide

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import re
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -17,7 +18,11 @@ DENYLIST_PATH = Path(__file__).resolve().with_name("prose_bans.txt")
 DENYLIST_RELATIVE_PATH = "scripts/prose_bans.txt"
 MAX_DENYLIST_BYTES = 64 * 1024
 
-SCOPES = {"global", "handoff-exempt"}
+HANDOFF_SCOPE = "handoff exemption"
+SCOPES = {"global", HANDOFF_SCOPE}
+# Adopter denylists still carry the older section spelling. Loading maps it
+# to the new scope and prints a rename notice.
+LEGACY_SCOPES = {"handoff-exempt": HANDOFF_SCOPE}
 
 PERSONAL_PRONOUNS = (
     "i", "me", "my", "mine", "myself",
@@ -176,6 +181,16 @@ def _normalize_path(path: str | Path) -> str:
     return normalized
 
 
+def _current_scope_name(name: str, number: int) -> str:
+    """Return the current scope name for one section header."""
+    replacement = LEGACY_SCOPES.get(name)
+    if replacement is None:
+        return name
+    print(f"notice: denylist line {number}: rename [{name}] to [{replacement}]",
+          file=sys.stderr)
+    return replacement
+
+
 def load_denylist(path: str | Path = DENYLIST_PATH) -> list[DenyEntry]:
     """Load and validate scoped exact entries from the policy file."""
     source = Path(path)
@@ -190,7 +205,7 @@ def load_denylist(path: str | Path = DENYLIST_PATH) -> list[DenyEntry]:
         if not value:
             continue
         if value.startswith("[") and value.endswith("]"):
-            scope = value[1:-1]
+            scope = _current_scope_name(value[1:-1], number)
             if scope not in SCOPES:
                 raise ValueError(f"unknown denylist scope on line {number}")
             continue
@@ -309,7 +324,7 @@ def find_violations(
     occupied = []
 
     for entry in denylist:
-        if entry.scope == "handoff-exempt" and is_handoff_path(normalized_path):
+        if entry.scope == HANDOFF_SCOPE and is_handoff_path(normalized_path):
             continue
         _collect_pattern(
             text,

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Tests for repository-only and adoptable policy content."""
+"""Tests for local policy and adoptable policy content."""
 import sys
 import unittest
 from pathlib import Path

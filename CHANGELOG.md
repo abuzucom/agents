@@ -14,9 +14,22 @@ into the entry. Dates never decrease. Ask the active human when a date is in
 doubt.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.27.3] (2026-11-19)
+## [2.28.0] (2026-11-19)
+
+### Added
+- `scripts/sync.py` reads `<!-- local policy:start -->`,
+  `<!-- local policy:end -->`, `<!-- source orientation:start -->`, and
+  `<!-- source orientation:end -->` as the adoption markers. The older
+  marker spellings still work. Adoption replaces each one and prints a
+  rename notice to standard error. The existing marker constant names now
+  hold the new markers. Add `tests/test_policy_marker_names.py`.
+- `scripts/prose_policy.py` reads `[handoff exemption]` as the handoff
+  scope. The older section spelling still loads with a rename notice.
 
 ### Changed
+- `AGENTS.md`, `docs/agent-policy/source-orientation.md`,
+  `scripts/prose_bans.txt`, and the documentation use the new marker and
+  scope names.
 - `scripts/prose_bans.txt` bans twelve `[global]` phrases. Each joins
   `never` to `held`, `holds`, `ran`, `delete`, `deletes`, `follows`,
   `saw`, `reach`, `reaches`, `runs`, `read`, or `reads`.
@@ -1564,7 +1577,7 @@ session start.
 - Added `scripts/read_git_state.py` for bounded structured branch, revision,
   remote, and status output. The reader renders control characters and redacts
   remote URL user information.
-- Added repository-only orientation markers and adoptable policy output through
+- Added local policy orientation markers and adoptable policy output through
   `python scripts/sync.py --print-adoptable`.
 - Added regression coverage for safe Git state output and for filtering of
   policy content limited to this repository.
@@ -1585,7 +1598,7 @@ session start.
   authored files, commit subjects, commit bodies, pull request titles, and pull
   request bodies.
 - Added `scripts/prose_bans.txt` with case-insensitive exact entries under
-  `[global]` and `[handoff-exempt]` scopes. The policy source skips
+  `[global]` and handoff exemption scopes. The policy source skips
   self-scanning. `plan/HANDOFF.md.example` receives the sole scoped vocabulary
   exception. The same handoff file receives the sole conversational-provenance
   exception.

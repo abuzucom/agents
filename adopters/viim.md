@@ -57,7 +57,7 @@ means the supporting tooling, not the template's own `AGENTS.md` content.
   `docs/project-orientation.md` onto the canonical file before comparing or
   copying. The source repository's optional source orientation is
   excluded from adoptable output. `viim`'s `AGENTS.md` carries no
-  `<!-- repository-only:start/end -->` orientation markers, so
+  local policy orientation markers in either spelling, so
   `--print-adoptable` there just prints `AGENTS.md` as-is. `--check-shared`
   and `--write-shared` were adopted unchanged in mechanism, scoped to
   `viim`'s own `SHARED_FILES` list.
