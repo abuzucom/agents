@@ -14,7 +14,7 @@ into the entry. Dates never decrease. Ask the active human when a date is in
 doubt.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.28.4] (2026-11-19)
+## [2.28.5] (2026-11-19)
 
 ### Added
 - `scripts/sync.py` reads `<!-- local policy:start -->`,
@@ -27,6 +27,21 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   scope. The older section spelling still loads with a rename notice.
 
 ### Changed
+- Five checker functions that issue 122 item V-54 names meet the
+  AGENTS.md code quality limits. Behavior stays the same.
+  - `check_hook_coverage.run_test_shards` moves validation, environment
+    setup, and the submit loop into three helpers.
+  - `prose_policy.find_violations` collects vocabulary, sentence style,
+    and discourse findings in three stages. The stage order keeps the
+    overlap priority.
+  - `check_conflict_markers._check_all` probes each path once through
+    `_split_by_presence`.
+  - `check_conflict_markers._parse_tree_entries` splits records through
+    `_split_tree_record` and names the tree entry types.
+  - `check_dockerfile_root._skip_heredocs` finds each terminator through
+    `_heredoc_end`. The helper exits with `return`.
+  - `tests/test_checker_function_limits.py` measures line count, local
+    names, nesting, and nested-loop exits for the five functions.
 - `AGENTS.md`, `docs/agent-policy/source-orientation.md`,
   `scripts/prose_bans.txt`, and the documentation use the new marker and
   scope names.

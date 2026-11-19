@@ -81,16 +81,20 @@ def _skip_heredocs(lines: list[str], index: int, logical: str) -> int:
     matches = list(HEREDOC.finditer(logical)) if instruction in (
         "RUN", "COPY", "ADD") else []
     for delimiter in matches:
-        marker = delimiter.group(HEREDOC_MARKER_GROUP)
-        strip_tabs = "<<-" in delimiter.group(0)
-        while index < len(lines):
-            candidate = lines[index].lstrip("\t") if strip_tabs else lines[index]
-            index += 1
-            if candidate == marker:
-                break
-        else:
-            raise ValueError("unterminated Dockerfile heredoc")
+        index = _heredoc_end(
+            lines, index, delimiter.group(HEREDOC_MARKER_GROUP),
+            "<<-" in delimiter.group(0))
     return index
+
+
+def _heredoc_end(lines: list[str], index: int, marker: str, strip_tabs: bool) -> int:
+    """Return the line index after the heredoc terminator `marker`."""
+    while index < len(lines):
+        candidate = lines[index].lstrip("\t") if strip_tabs else lines[index]
+        index += 1
+        if candidate == marker:
+            return index
+    raise ValueError("unterminated Dockerfile heredoc")
 
 
 def _docker_instructions(text: str) -> list[tuple[int, str]]:

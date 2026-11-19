@@ -59,6 +59,10 @@ STAGE_FIELD_INDEX = 2
 SHORT_SHA_LENGTH = 12
 REGULAR_MODES = {"100644", "100755"}
 OBJECT_ID_PATTERN = re.compile(r"(?:[0-9a-fA-F]{40}|[0-9a-fA-F]{64})\Z")
+# Git tree entry (mode, object type) pairs. Regular and executable files get
+# scanned. Symlinks and submodules carry no file content to scan.
+TREE_REGULAR_BLOB_TYPES = frozenset({(b"100644", b"blob"), (b"100755", b"blob")})
+TREE_SKIPPED_ENTRY_TYPES = frozenset({(b"120000", b"blob"), (b"160000", b"commit")})
 
 
 def _sanitize(value: object) -> str:
@@ -866,41 +870,47 @@ def _check_all(repo_root: str) -> list[str]:
     violations, readable = _partition_index_entries(
         _get_index_entries(repo_root))
     skipped = _skip_worktree_paths(repo_root)
-
-    def _path_exists(candidate_path: str) -> bool:
-        return os.path.lexists(os.path.join(repo_root, candidate_path))
-
-    present = [path for path, _ in readable if _path_exists(path)]
-    absent_skipped = [
-        (path, sha) for path, sha in readable
-        if path in skipped and not _path_exists(path)
-    ]
+    present, absent_skipped = _split_by_presence(readable, skipped, repo_root)
     worktree_attributes = get_git_attributes(
-        present, repo_root=repo_root)
+        list(present), repo_root=repo_root)
     cached_attributes = get_git_attributes(
-        [path for path, _ in absent_skipped], repo_root=repo_root,
-        cached=True)
+        list(absent_skipped), repo_root=repo_root, cached=True)
 
     for file_path, sha in readable:
         if len(violations) >= MAX_VIOLATIONS:
             violations.append(
                 f"reached violation limit ({MAX_VIOLATIONS}), stopping")
             break
-        if file_path in skipped and not _path_exists(file_path):
+        if file_path in absent_skipped:
             attrs = cached_attributes.get(file_path, {})
             violations.extend(_check_staged_blob(
                 file_path, sha, repo_root,
                 _parse_marker_size(attrs.get("conflict-marker-size"))))
-            continue
-        if not _path_exists(file_path):
-            continue
-        attrs = worktree_attributes.get(file_path, {})
-        violations.extend(check_file(
-            file_path,
-            _parse_marker_size(attrs.get("conflict-marker-size")),
-            attrs.get("working-tree-encoding"),
-        ))
+        elif file_path in present:
+            attrs = worktree_attributes.get(file_path, {})
+            violations.extend(check_file(
+                file_path,
+                _parse_marker_size(attrs.get("conflict-marker-size")),
+                attrs.get("working-tree-encoding"),
+            ))
     return violations
+
+
+def _split_by_presence(readable: list, skipped: set,
+                       repo_root: str) -> tuple[dict, dict]:
+    """Return (present paths, absent skip-worktree paths) in index order.
+
+    Each path gets one existence probe. The dicts keep index order for the
+    attribute lookups and give constant-time membership tests.
+    """
+    present: dict = {}
+    absent_skipped: dict = {}
+    for path, _ in readable:
+        if os.path.lexists(os.path.join(repo_root, path)):
+            present[path] = None
+        elif path in skipped:
+            absent_skipped[path] = None
+    return present, absent_skipped
 
 
 def _run_immutable_git(
@@ -956,25 +966,28 @@ def _parse_tree_entries(raw: bytes) -> list[tuple[str, str]]:
     entries: list[tuple[str, str]] = []
     seen: set[str] = set()
     for record in raw[:-1].split(b"\x00") if raw else []:
-        try:
-            metadata, raw_path = record.split(b"\t", 1)
-            mode, object_type, raw_id = metadata.split(b" ")
-            object_id = raw_id.decode("ascii")
-        except (ValueError, UnicodeDecodeError) as err:
-            raise RuntimeError("malformed git ls-tree entry") from err
+        mode_and_type, raw_path, object_id = _split_tree_record(record)
         file_path = _validate_tree_path(raw_path)
         if file_path in seen or not OBJECT_ID_PATTERN.fullmatch(object_id):
             raise RuntimeError(
                 f"malformed git ls-tree entry: {_sanitize(file_path)}")
         seen.add(file_path)
-        if (mode, object_type) in ((b"100644", b"blob"),
-                                   (b"100755", b"blob")):
+        if mode_and_type in TREE_REGULAR_BLOB_TYPES:
             entries.append((file_path, object_id.lower()))
-        elif (mode, object_type) not in ((b"120000", b"blob"),
-                                        (b"160000", b"commit")):
+        elif mode_and_type not in TREE_SKIPPED_ENTRY_TYPES:
             raise RuntimeError(
                 f"unsupported git ls-tree entry: {_sanitize(file_path)}")
     return entries
+
+
+def _split_tree_record(record: bytes) -> tuple[tuple[bytes, bytes], bytes, str]:
+    """Return ((mode, object type), raw path, object ID) for one ls-tree record."""
+    try:
+        metadata, raw_path = record.split(b"\t", 1)
+        mode, object_type, raw_id = metadata.split(b" ")
+        return (mode, object_type), raw_path, raw_id.decode("ascii")
+    except (ValueError, UnicodeDecodeError) as err:
+        raise RuntimeError("malformed git ls-tree entry") from err
 
 
 def _parse_tree_attributes(
