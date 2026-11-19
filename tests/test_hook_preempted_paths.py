@@ -3,7 +3,7 @@
 
 Each removed statement sat behind an earlier check that already handled its
 input. These cases run the real hook code on those inputs, so a later change
-to the earlier check cannot silently drop the outcome.
+to the earlier check cannot drop the outcome without notice.
 """
 import importlib.util
 import json

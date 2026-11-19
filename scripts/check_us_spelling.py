@@ -24,7 +24,7 @@ except ModuleNotFoundError:
 # miscellaneous, plus contested pairs the user chose to enforce
 # (theatre/theater, catalogue/catalog, dialogue/dialog, analogue/analog)
 #
-# Deliberately excluded as ambiguous or dual-valid in American English:
+# Excluded as ambiguous, or valid in both spellings in American English:
 # glamour, burnt, learnt, disc, grey/gray, judgement/judgment,
 # acknowledgement/acknowledgment, moustache/mustache, and the whole class
 # of unstressed-final-syllable "-el"/"-ol" verb forms (cancelled/canceled,

@@ -160,7 +160,7 @@ class ConflictMarkerDetectionTest(unittest.TestCase):
         )
 
     def test_size_1_conflict_block_detected(self):
-        """Genuine size-1 balanced conflict block is detected."""
+        """A real size-1 balanced conflict block is detected."""
         content = "< HEAD\nleft\n=\nright\n> branch\n"
         violations = checker.check_content(content, "test.py")
         self.assertEqual(len(violations), 1)
@@ -181,7 +181,7 @@ class ConflictMarkerDetectionTest(unittest.TestCase):
         )
 
     def test_size_2_conflict_block_detected(self):
-        """Genuine size-2 balanced conflict block is detected."""
+        """A real size-2 balanced conflict block is detected."""
         content = "<< HEAD\nleft\n==\nright\n>> branch\n"
         violations = checker.check_content(content, "test.py")
         self.assertEqual(len(violations), 1)
@@ -998,7 +998,7 @@ class WindowsPathHandlingTest(unittest.TestCase):
         """os.path.relpath returns backslashes on Windows, check-attr does not.
 
         Keying the result on the backslash spelling loses every attribute
-        for a nested path, so conflict-marker-size is silently dropped.
+        for a nested path, so conflict-marker-size drops without notice.
         """
         with RetryingTemporaryDirectory() as tmp:
             nested = Path(tmp) / "nested"

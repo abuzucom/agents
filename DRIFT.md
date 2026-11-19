@@ -51,7 +51,7 @@ gate suites.
 
 Coordinate each shared-file change across every repository holding the file.
 Run `scripts/sync.py --write-shared` in each repository. Commit each local
-manifest. Update the required drift records for deliberate differences.
+manifest. Update the required drift records for intended differences.
 Hashing normalizes line endings before comparison. A Windows checkout therefore
 avoids false drift reports for line endings.
 

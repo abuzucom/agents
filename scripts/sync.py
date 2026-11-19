@@ -453,7 +453,7 @@ def check_shared(root: Path) -> int:
         print(line, file=sys.stderr)
     print("Mirror the change into every repository holding these files, then "
           "run: python scripts/sync.py --write-shared in each. If the "
-          "difference is deliberate, record it in the drift file and move the "
+          "difference is intended, record it in the drift file and move the "
           "file out of SHARED_FILES.", file=sys.stderr)
     return 1
 

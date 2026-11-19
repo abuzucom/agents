@@ -16,7 +16,7 @@ the configured provider, posts a fenced report, and publishes a
 The caller pins both the reusable workflow and `audit_ref` to foucault commit
 `11e55cd691e9a2be086a4fb9378f490d4121e11c`, release 3.7.13. Keeping one
 revision for both means the policy and its runner never diverge. Change the
-pin deliberately, and record the change in `CHANGELOG.md`.
+pin only on purpose. Record the change in `CHANGELOG.md`.
 
 `ci/build_pr_case.py`, `ci/run_model_command.py`, `ci/call_model.py`, and
 `ci/model_providers.json` come from that same foucault revision and run from

@@ -444,7 +444,7 @@ def _safe_read(
     that narrowed, not closed.
 
     Returns (data, error_message). data is None on skip or error.
-    error_message is None when the file is silently skipped.
+    error_message is None when the scan skips the file without a message.
     """
     flags = os.O_RDONLY
     nofollow = hasattr(os, "O_NOFOLLOW")
@@ -639,7 +639,7 @@ def get_tracked_regular_files(
 def _skip_worktree_paths(repo_root: str) -> set:
     """Return index paths that Git keeps out of the worktree. Those paths have no local file.
 
-    A sparse checkout omits them deliberately, so reporting them as
+    A sparse checkout omits them by design, so reporting them as
     missing fails a valid working tree.
     """
     skipped = set()

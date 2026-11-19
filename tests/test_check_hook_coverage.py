@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Cover the hook-coverage gate's comparison and statement accounting.
 
-Deliberately does not run the gate end to end: it launches the whole
+Does not run the gate end to end: it launches the whole
 suite under a tracer, and a suite that runs itself does not terminate.
 CI runs it directly, as its own step.
 

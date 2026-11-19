@@ -789,7 +789,7 @@ def mode_label(payload: dict) -> str:
 
     INTERACTIVE_MODES is a fixed list, so an interactive mode Claude Code
     adds later denies here. Naming the value is what separates that from a
-    genuinely unattended session. The two otherwise read identically.
+    session with no human present. The two otherwise read identically.
     """
     mode = require_str(payload.get("permission_mode"))
     return sanitize(mode) if mode is not None else "absent"
@@ -1930,11 +1930,12 @@ def _protected_path(path: str, cwd: str) -> bool:
 
 def protected_write_verdict(program: str, args: list,
                             redirects: list, cwd: str) -> tuple:
-    """Gate known shell writes to repository-controlled hook files."""
+    """Gate known shell writes to hook files that repository writers control."""
     for target in _known_write_targets(program, args, redirects):
         if _protected_path(target, cwd):
             return "ask", ("a known shell write to gate files, .git/, or agent "
-                           "policy. These prompts are best-effort workflow checks")
+                           "policy. These prompts are workflow checks and not "
+                           "a security boundary")
     return "", ""
 
 

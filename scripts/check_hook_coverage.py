@@ -33,7 +33,7 @@ from threading import Lock
 BASELINE = "hook-coverage-baseline.json"
 TARGET = "hooks"
 # Not tools/coverage: a "coverage/" line is one of the commonest
-# .gitignore entries, and it silently excluded this file from an
+# .gitignore entries, and it excluded this file without warning from an
 # adopting repository. The gate would then report every statement as
 # unreached.
 TRACER_DIR = os.path.join("tools", "hook-trace")

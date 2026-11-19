@@ -27,9 +27,12 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - `scripts/prose_bans.txt` bans three more `[global]` entries. The entries cover
   `does` with `not run`, and the hyphenated forms of `pull request` and
   `banned phrase`.
-- `scripts/prose_bans.txt` bans 123 more `[global]` entries. The entries
-  cover invented hyphenated compounds, filler phrases, and the comma before
-  `never`, `which`, or `instead`.
+- `scripts/prose_bans.txt` bans 149 more `[global]` entries. The entries
+  cover invented hyphenated compounds, filler phrases, hedges, marketing
+  words, and the comma before `never`, `which`, or `instead`.
+- Two gate messages drop hedged wording. The shell write prompt for gate
+  files and the consent session notice now describe hooks as workflow
+  prompts. The shared file drift error now says "intended".
 - Prose in policy text, documentation, comments, and docstrings drops most
   newly banned entries. Comments and docstrings no longer use the word
   `invocation`. The hook edits carry Rule 22 sign-off. The test edits carry
@@ -1244,7 +1247,7 @@ session start.
   other than the pull request author's. An agent can no longer commit as an
   exempt bot to bypass checks.
 - Report unreadable pull request event files as violations instead of
-  granting or silently denying an exemption.
+  granting or denying an exemption without notice.
 - Add the registry to `PROTECTED_FILES`. Registry edits require the
   `gate-change-approved` label.
 

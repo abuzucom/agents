@@ -11,7 +11,7 @@ required files exist, every sibling module a gate imports exists, and every
 required hook stays registered under its required events and matchers.
 
 The registration table repeats `HOOK_MATCHERS` in
-`tests/test_enforce_branch_name.py` deliberately. That table lives inside a
+`tests/test_enforce_branch_name.py` on purpose. That table lives inside a
 test file, so trimming the table together with the settings entry passes the
 suite, and editing it routes through a Rule 3 consent prompt instead of
 failing a check. A copy outside `tests/` fails CI when a registration
