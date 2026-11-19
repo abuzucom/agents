@@ -73,6 +73,13 @@ RHETORICAL_PATTERNS = (
     ),
 )
 LITERAL_ESCAPE_PATTERN = re.compile(r"\\[nrt]")
+# Rule 14 requires these attribution trailers in commits and pull requests.
+# A trailer key and its colon read as a colon clause join. The checker blanks
+# only the key at the line start. The value after the key stays checked.
+TRAILER_KEY_PATTERN = re.compile(
+    r"^[ \t]*(?:co-authored-by|assisted-by|(?:[a-z0-9][a-z0-9-]*-)?session):",
+    re.IGNORECASE | re.MULTILINE,
+)
 
 HEDGING_PHRASES = (
     "could potentially",
@@ -264,6 +271,12 @@ def mask_markdown_code(text: str) -> str:
     return "".join(output)
 
 
+def mask_trailer_keys(text: str) -> str:
+    """Blank each allowed trailer key and its colon while preserving offsets."""
+    return TRAILER_KEY_PATTERN.sub(
+        lambda match: _mask_characters(match.group(0)), text)
+
+
 def _entry_pattern(text: str) -> re.Pattern:
     """Compile one case-insensitive exact token or phrase pattern."""
     escaped = re.escape(text).replace(r"\ ", r"\s+")
@@ -335,7 +348,7 @@ def find_violations(
             occupied,
         )
 
-    prose = mask_markdown_code(text)
+    prose = mask_trailer_keys(mask_markdown_code(text))
     pronoun_pattern = _phrase_pattern(PERSONAL_PRONOUNS)
     _collect_pattern(
         prose, pronoun_pattern, "personal pronoun", "impersonal voice",

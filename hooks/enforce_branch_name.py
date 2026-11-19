@@ -784,12 +784,22 @@ def _primary_branch_failure(error: PrimaryBranchError) -> str:
             "active human repairs the file.")
 
 
-def branch_state(branch_name: str, project_dir: str) -> str:
-    """Classify a failed preflight as read-only, master, or invalid."""
+def read_rebase_state(project_dir: str) -> tuple:
+    """Return (rebase active, lookup error) from one rebase metadata read."""
     try:
-        if rebase_is_active(project_dir):
-            return "invalid"
-    except OSError:
+        return rebase_is_active(project_dir), None
+    except OSError as error:
+        return False, error
+
+
+def branch_state(branch_name: str, project_dir: str, rebase_state: tuple = None) -> str:
+    """Classify a failed preflight as read-only, master, or invalid.
+
+    `rebase_state` takes a read_rebase_state result. A caller that already
+    read the rebase metadata passes it. One call then reads it once.
+    """
+    rebase_active, lookup_error = rebase_state or read_rebase_state(project_dir)
+    if rebase_active or lookup_error is not None:
         return "invalid"
     primary = primary_branch_name(project_dir)
     if branch_name == "master":
@@ -1093,21 +1103,24 @@ def _handle_master_branch(payload: dict, project_dir: str, client: str) -> int:
 def _handle_failed_preflight(payload: dict, project_dir: str, client: str,
                              branch_violation: str, branch_name: str) -> int:
     """Route a failed preflight to read-only, master, or strict recovery handling."""
+    rebase_state = read_rebase_state(project_dir)
     try:
-        state = branch_state(branch_name, project_dir)
+        state = branch_state(branch_name, project_dir, rebase_state)
     except PrimaryBranchError as error:
         return _deny(client, _primary_branch_failure(error))
     if state == "read-only":
         return _handle_read_only_branch(payload, project_dir, client, branch_name)
     if state == "master":
         return _handle_master_branch(payload, project_dir, client)
-    return _handle_invalid_branch(payload, project_dir, client, branch_violation, branch_name)
+    return _handle_invalid_branch(payload, project_dir, client, branch_violation, branch_name,
+                                  rebase_state)
 
 
 def _lifecycle_message(branch_name: str, project_dir: str) -> tuple:
     """Return the lifecycle state and message for a failed preflight."""
+    rebase_state = read_rebase_state(project_dir)
     try:
-        state = branch_state(branch_name, project_dir)
+        state = branch_state(branch_name, project_dir, rebase_state)
     except PrimaryBranchError as error:
         return "failed", _primary_branch_failure(error)
     if state == "read-only":
@@ -1118,11 +1131,8 @@ def _lifecycle_message(branch_name: str, project_dir: str) -> tuple:
     # The tool gate allows only rebase commands during a rebase, so the
     # lifecycle message must not name branch recovery then. An unreadable
     # gitdir keeps the branch lookup failure message. That message states the cause.
-    try:
-        rebase_active = rebase_is_active(project_dir)
-    except OSError:
-        return state, ""
-    if rebase_active:
+    rebase_active, lookup_error = rebase_state
+    if lookup_error is None and rebase_active:
         return state, recovery_authorization_reason(branch_name, rebase_active=True)
     return state, ""
 
@@ -1133,10 +1143,12 @@ def _handle_invalid_branch(
     client: str,
     branch_violation: str,
     branch_name: str = "",
+    rebase_state: tuple = None,
 ) -> int:
     """Allow only questions and exact recovery while preflight fails.
 
-    The caller already ran the branch lookup, so its violation stands.
+    The caller already ran the branch lookup, so its violation stands. A
+    caller that already read the rebase metadata passes `rebase_state`.
     """
     tool_name, tool_input = _tool_call(payload, client)
     if not isinstance(tool_name, str):
@@ -1144,10 +1156,9 @@ def _handle_invalid_branch(
     if tool_name in QUESTION_TOOLS:
         return 0
     label = str(tool_name or "tool")
-    try:
-        rebase_active = rebase_is_active(project_dir)
-    except OSError as error:
-        return _deny(client, f"rebase lookup failed: {core.sanitize(error)}")
+    rebase_active, lookup_error = rebase_state or read_rebase_state(project_dir)
+    if lookup_error is not None:
+        return _deny(client, f"rebase lookup failed: {core.sanitize(lookup_error)}")
     if tool_name in SHELL_TOOLS and isinstance(tool_input, dict):
         command_text = _command_text(tool_input)
         if _valid_bootstrap(command_text, project_dir):

@@ -22,6 +22,8 @@ TABLE_SEPARATOR = re.compile(r"^\s*\|[\s:|-]*-[\s:|-]*\|\s*$")
 LIST_MARKER = re.compile(r"^(\s*)([-*+]|\d+\.)\s")
 
 
+# prose_policy.mask_markdown_code also masks code. This file keeps its own
+# stripper so it stays one portable file with no repository imports.
 def strip_code(line: str, in_span: bool = False) -> tuple:
     """Return the line's prose and whether a code span is still open.
 

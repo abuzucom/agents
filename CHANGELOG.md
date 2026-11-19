@@ -14,7 +14,7 @@ into the entry. Dates never decrease. Ask the active human when a date is in
 doubt.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.28.0] (2026-11-19)
+## [2.28.4] (2026-11-19)
 
 ### Added
 - `scripts/sync.py` reads `<!-- local policy:start -->`,
@@ -66,6 +66,27 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   remaining item awaits a separate decision.
 
 ### Fixed
+- `scripts/prose_policy.py` blanks the `Co-authored-by:`, `Assisted-by:`,
+  `Session:`, and `<name>-Session:` trailer keys at a line start before
+  prose analysis. The keys match in any letter case. The trailer value
+  stays checked. Rule 14 trailers no longer raise a colon clause-join
+  warning. `tests/test_prose_trailer_keys.py` pins the allowance.
+- `tests/test_worker_timeout_defaults.py` joins its worker process before
+  the temporary directory cleanup. The child process wrote bytecode into
+  that directory during removal. macOS then reported a nonempty directory.
+- `tests/test_rebase_lookup_errors.py` drives an unreadable rebase state
+  through the failed preflight and the lifecycle message. Both paths
+  classify the primary branch as invalid. The preflight denial names the
+  lookup failure.
+- `hooks/enforce_branch_name.py` reads the rebase state once per denied
+  call and once per lifecycle message. `read_rebase_state` returns the
+  rebase flag and any lookup error together. `branch_state` and
+  `_handle_invalid_branch` accept that result through a new optional
+  argument. Verdicts and messages stay the same. Add
+  `tests/test_partial_finding_fixes.py`.
+- `scripts/check_ascii.py` states why `strip_code` stays separate from
+  `prose_policy.mask_markdown_code`. `docs/gate-threat-model.md` states
+  that the infrastructure scan cache lasts one hook call.
 - `hooks/reinject_agents_policy.py` and `scripts/sync.py` name the
   assembled policy when the assembled bundle exceeds the size limit.
   Both errors named `AGENTS.md` before. The `AGENTS.md`-only check in
