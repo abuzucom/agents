@@ -14,7 +14,16 @@ into the entry. Dates never decrease. Ask the active human when a date is in
 doubt.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.27.1] (2026-11-19)
+## [2.27.2] (2026-11-19)
+
+### Changed
+- `scripts/prose_bans.txt` bans twelve `[global]` phrases. Each joins
+  `never` to `held`, `holds`, `ran`, `delete`, `deletes`, `follows`,
+  `saw`, `reach`, `reaches`, `runs`, `read`, or `reads`.
+- `scripts/prose_bans.txt` bans the `[global]` phrase that pairs `the`
+  with `owner`.
+- `scripts/prose_bans.txt` bans the `[global]` hedge word that starts with
+  `argu` and ends with `ably`.
 
 ### Fixed
 - The release upload step rechecks the draft state before each write. A

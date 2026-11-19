@@ -7,6 +7,20 @@ serves as
 stands as
 functions as
 utilize
+never held
+never holds
+never ran
+never delete
+never deletes
+never follows
+never saw
+never reach
+never reaches
+never runs
+never read
+never reads
+the owner
+arguably
 
 [handoff-exempt]
 this session
