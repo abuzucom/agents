@@ -262,6 +262,8 @@ def write_gate_archive(root: Path, output: Path) -> None:
 
 def _require_empty_folder(folder: Path) -> None:
     """Create the asset folder, or fail when it already holds entries."""
+    if folder.exists() and not folder.is_dir():
+        raise ValueError(f"{folder} is not a folder. Pass a new or empty folder.")
     if folder.exists() and any(folder.iterdir()):
         raise ValueError(f"{folder} is not empty. Pass a new or empty folder.")
     folder.mkdir(parents=True, exist_ok=True)

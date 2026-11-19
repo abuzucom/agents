@@ -76,7 +76,11 @@ class ReleaseWorkflowWiringTest(unittest.TestCase):
         self.assertIn("gh release create", text)
         self.assertIn("--draft", text)
         self.assertIn("--generate-notes", text)
-        self.assertNotIn("gh release edit", text)
+        edit_lines = [line for line in text.splitlines() if "gh release edit" in line]
+        for line in edit_lines:
+            with self.subTest(line=line.strip()):
+                self.assertIn("--notes-file", line)
+                self.assertNotIn("--draft=false", line)
         self.assertNotIn("--prerelease", text)
         self.assertNotIn("--latest", text)
 

@@ -30,7 +30,8 @@ include the following actions:
   `v<digit>` denies unless a local branch carries that name. A reftable store,
   an unreadable or oversized `packed-refs`, and a name that leaves the refs
   directory ask. The gates also deny `git tag` creation, signing, forcing, and
-  deletion and `git update-ref` under `refs/tags/`. Listing and verifying pass.
+  deletion and `git update-ref` under `refs/tags/`. Listing, verifying, and
+  commit filters such as `--contains` and `--merged` pass.
   `git push --mirror` asks and pushes every tag after consent.
 - The gates classify privilege escalation, process termination, alias
   definition, shell profile writes, schedule destruction, and forge deletion.

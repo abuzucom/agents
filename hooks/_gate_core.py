@@ -534,7 +534,9 @@ TAG_WRITE_LONG_OPTIONS = ("--annotate", "--delete", "--force", "--file",
                           "--message", "--sign", "--local-user", "--edit",
                           "--create-reflog")
 TAG_READ_MODE_SHORT_FLAGS = frozenset("lvn")
-TAG_READ_MODE_LONG_OPTIONS = ("--list", "--verify")
+# git treats each commit filter as implying --list.
+TAG_READ_MODE_LONG_OPTIONS = ("--list", "--verify", "--contains", "--no-contains",
+                              "--points-at", "--merged", "--no-merged")
 # Read filters whose value can arrive as the next token.
 TAG_VALUE_OPTIONS = ("--contains", "--no-contains", "--points-at", "--merged",
                      "--no-merged", "--sort", "--format")

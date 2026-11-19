@@ -156,10 +156,31 @@ jobs:
           tag="$GITHUB_REF_NAME"
           repo="$GITHUB_REPOSITORY"
           assets="$RUNNER_TEMP/release-assets"
+          # The owner can publish the draft while this job runs. Each write
+          # rechecks the draft state first and stops on a published release.
+          require_draft() {
+            state="$(gh release view "$tag" --repo "$repo" --json isDraft --jq .isDraft)"
+            if [ "$state" != "true" ]; then
+              echo "Release $tag is no longer a draft. This job never changes a published release."
+              exit 1
+            fi
+          }
           if [ "$RELEASE_EXISTS" != "true" ]; then
             gh release create "$tag" --repo "$repo" --draft --verify-tag \
               --title "agents $tag" \
               --notes-file "$RUNNER_TEMP/release-notes.md" --generate-notes
+          else
+            # A rerun refreshes the notes of the existing draft. GitHub
+            # generates the merged pull request list again for the tag.
+            generated="$(gh api --method POST "repos/$repo/releases/generate-notes" -f tag_name="$tag" --jq .body)"
+            refreshed="$RUNNER_TEMP/refreshed-notes.md"
+            {
+              cat "$RUNNER_TEMP/release-notes.md"
+              printf '\n'
+              printf '%s\n' "$generated"
+            } > "$refreshed"
+            require_draft
+            gh release edit "$tag" --repo "$repo" --notes-file "$refreshed"
           fi
           existing="$(gh release view "$tag" --repo "$repo" --json assets --jq '.assets[].name')"
           while IFS= read -r name; do
@@ -183,6 +204,7 @@ jobs:
               fi
               echo "$name is already on the draft with the same SHA-256."
             else
+              require_draft
               gh release upload "$tag" "$file" --repo "$repo"
             fi
           done

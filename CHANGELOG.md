@@ -14,6 +14,26 @@ into the entry. Dates never decrease. Ask the active human when a date is in
 doubt.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.27.1] (2026-11-19)
+
+### Fixed
+- The release upload step rechecks the draft state before each write. A
+  draft the owner publishes during the job stops the job before any
+  upload or notes change.
+- A rerun refreshes the notes of an existing draft. The refreshed notes
+  carry the rebuilt changelog sections and adoption block, then a fresh
+  GitHub list of merged pull requests.
+- `tests/test_release_workflow_wiring.py` allows `gh release edit` only
+  with `--notes-file` and never with `--draft=false`. The edit carries
+  Rule 3 sign-off. Add `tests/test_release_draft_refresh.py`.
+- `release.py build` rejects a target path that names an existing file.
+  The command returns its failure status instead of a traceback. Add
+  `tests/test_release_build_target.py`.
+- The tag gate reads `--contains`, `--no-contains`, `--points-at`,
+  `--merged`, and `--no-merged` as listing modes. Git treats each as
+  implying `--list`. A pattern beside such a filter no longer denies. Add
+  `tests/test_tag_read_filters.py`.
+
 ## [2.27.0] (2026-11-18)
 
 ### Added
