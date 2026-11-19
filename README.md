@@ -61,6 +61,7 @@ Each checker covers only its inspected files and behavior.
 | `.github/workflows/` | Pull request, push, immutable-tree, and reusable compliance workflows |
 | `plan/HANDOFF.md.example` | Optional handoff and progress template |
 | `SECURITY.md.example` | Optional vulnerability-reporting policy |
+| `SECURITY.md` | This repository's own vulnerability-reporting and release-integrity policy |
 | `CONTRIBUTING.md.example` | Optional human contribution guide |
 | `.github/PULL_REQUEST_TEMPLATE.md`, `.github/ISSUE_TEMPLATE.md` | Repository pull request and issue templates |
 | `DRIFT.md`, `adopters/` | Adoption drift policy and adopter records |
@@ -582,6 +583,66 @@ jobs:
 
 Pin every reusable workflow to a full commit SHA. Never use `@main`, a tag, or
 another moving reference. Record the release version beside the pin when known.
+
+## Releases
+
+`main` carries development. A published GitHub release marks a version for
+adoption. A pre-release marks a development build. A stable release marks a
+version for normal use.
+
+1. Merge pull requests one at a time. Each pull request advances the version.
+   After each merge, the next pull request merges `main` and takes the next
+   version.
+2. The repository owner tags a chosen `main` commit as `vX.Y.Z` and pushes the
+   tag to `origin`. Untagged versions remain plain commits on `main`.
+3. `.github/workflows/release.yml` runs `scripts/release.py check-tag`. The
+   tag must equal the top `CHANGELOG.md` version without a suffix.
+   `policy-digests.json` must hold an entry for that version.
+   `python scripts/sync.py --check` must pass. The commit must be on `main`.
+4. The release job runs `scripts/release.py build`. The build writes three
+   files:
+   - `agents-policy-X.Y.Z.md` with the `--print-adoptable` policy.
+   - `agents-gate-set-X.Y.Z.tar.gz` with the shared gate files and
+     `shared-files.json`.
+   - `agents-digests-X.Y.Z.json` with the version entry from
+     `policy-digests.json`.
+5. The job attests the three files with `actions/attest`. It saves the
+   Sigstore bundle as `agents-X.Y.Z.sigstore.json`. It writes and attests
+   `SHA256SUMS.txt`. Verify a release file with
+   `gh attestation verify <file> --repo abuzucom/agents --signer-workflow abuzucom/agents/.github/workflows/release.yml`.
+   The `--signer-workflow` flag rejects a signature from any other workflow.
+6. The job fills a draft release. The notes hold every changelog section
+   newer than the highest published stable version. An adoption block and the
+   GitHub list of merged pull requests follow.
+7. The repository owner reviews the draft. The owner selects pre-release or
+   stable at publication. Only the repository owner publishes a release.
+   Rule 16 denies agents `gh release`.
+
+A rerun reuses the draft. A file already on the draft must match the SHA-256
+of the rebuilt file. A mismatch stops the job. A reused bundle must verify
+against every rebuilt file. The job never changes a published release.
+
+No reviewer workflow runs on a tag push. Every tagged commit passed review on
+its way to `main`.
+
+The repository owner configures three repository settings:
+
+- A tag ruleset on every tag (`*`) limits creation, moves, and deletion to
+  the owner. Tags exist only for releases. Every tag takes the `vX.Y.Z`
+  form.
+- The `release` environment names the owner as a required reviewer. The
+  release job receives its write token only after that approval.
+- Immutable releases lock a published release.
+
+Repository files cannot enforce any of the three settings. The owner can sign
+tags with `git tag -s`. The workflow does not verify tag signatures.
+
+Adopters pin the commit of a stable release and put `# vX.Y.Z` beside the
+pin. A pin to any other `main` commit counts as development use. An adopter
+record names the release in its `Adopted at` section. An example reads
+"Adopter commit `abc1234` mirrors template release `v2.27.0` at commit
+`def5678`." Records from before the first stable release name the template
+commit only.
 
 ## Tool Compatibility
 

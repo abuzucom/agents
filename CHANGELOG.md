@@ -14,9 +14,91 @@ into the entry. Dates never decrease. Ask the active human when a date is in
 doubt.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.26.2] (2026-11-18)
+## [2.27.1] (2026-11-19)
+
+### Fixed
+- The release upload step rechecks the draft state before each write. A
+  draft the owner publishes during the job stops the job before any
+  upload or notes change.
+- A rerun refreshes the notes of an existing draft. The refreshed notes
+  carry the rebuilt changelog sections and adoption block, then a fresh
+  GitHub list of merged pull requests.
+- `tests/test_release_workflow_wiring.py` allows `gh release edit` only
+  with `--notes-file` and never with `--draft=false`. The edit carries
+  Rule 3 sign-off. Add `tests/test_release_draft_refresh.py`.
+- `release.py build` rejects a target path that names an existing file.
+  The command returns its failure status instead of a traceback. Add
+  `tests/test_release_build_target.py`.
+- The tag gate reads `--contains`, `--no-contains`, `--points-at`,
+  `--merged`, and `--no-merged` as listing modes. Git treats each as
+  implying `--list`. A pattern beside such a filter no longer denies. Add
+  `tests/test_tag_read_filters.py`.
+
+## [2.27.0] (2026-11-18)
 
 ### Added
+- `.github/workflows/release.yml` builds a draft release from a pushed
+  `vX.Y.Z` tag. The `check-tag` job requires the tag to equal the top
+  changelog version and a `policy-digests.json` entry. It runs
+  `scripts/sync.py --check` and requires the commit on `main`. The
+  `release` job alone holds write permissions. It attests the release files
+  and `SHA256SUMS.txt` with `actions/attest` v4.2.2. A rerun reuses the
+  draft and stops on a SHA-256 mismatch. Only a "release not found"
+  lookup answer counts as an absent draft. Any other lookup failure stops
+  the job. The repository owner publishes each draft and selects
+  pre-release or stable at that moment.
+- `scripts/release.py` provides `check-tag`, `build`, `check-assets`,
+  `checksums`, and `notes`. `build` writes the adoptable policy, a stable
+  archive of the shared gate files, and the version digest entry. Two
+  builds of one commit produce identical bytes. `notes` collects every
+  changelog section newer than the latest published stable release. An
+  adoption block follows the sections. `latest-stable` picks that floor
+  as the highest published `vX.Y.Z` tag. GitHub creation order no longer
+  decides it.
+- `hooks/workflow-scripts.txt` allows `release.py check-tag` and routes
+  `build` and `notes` to consent.
+- The release job runs in the `release` environment. The repository owner
+  configures that environment with a required reviewer.
+- The release notes and README verify provenance with
+  `--signer-workflow abuzucom/agents/.github/workflows/release.yml`. The
+  rerun check of a reused draft bundle applies the same flag.
+- `scripts/check_gate_pr_integrity.py` protects `scripts/release.py`.
+  `shared-files.json` records the new digest.
+- `hooks/_gate_core.py` denies tag pushes in every shell gate. Covered
+  forms include `--tags`, `--follow-tags`, and a refspec side under
+  `refs/tags/` or `tags/`. A source naming an existing local tag denies
+  in any name shape. The gate reads loose refs and `packed-refs`. A
+  `v<digit>` source denies unless a local branch carries that name. An
+  unreadable ref store asks. It also denies `git tag` creation, signing,
+  forcing, and deletion and `git update-ref` under `refs/tags/`. Listing
+  and verifying pass.
+  `shared-files.json` records the new digest.
+- `docs/agent-policy/github.md` states that agents never create, push,
+  move, or delete Git tags and never create, edit, publish, or delete
+  releases. `docs/agent-policy/adoption.md` drops four handoff sentences
+  that `AGENTS.md` states verbatim.
+- `_names_version_tag` drops a `refs/tags/` branch that the tag namespace
+  check made unreachable. `hook-coverage-baseline.json` records one fewer
+  unreached statement in `_apply_git_environment_locations`.
+- README states that tags exist only for releases in `vX.Y.Z` form. The
+  owner tag ruleset covers every tag.
+- `SECURITY.md` covers this repository. It supports the latest stable
+  release only and states the release integrity check.
+  `SECURITY.md.example` tells adopters to verify an adopted release.
+- `docs/gate-threat-model.md` lists what a release attestation proves and
+  what it leaves unproven. `docs/pr-security-review.md` states that a tag
+  push starts no review.
+- README documents the release steps, the development and stable
+  channels, one-at-a-time merging, and the adopter pin rule.
+- Add `tests/test_release_check_tag.py`, `tests/test_release_notes.py`,
+  `tests/test_release_assets.py`, `tests/test_release_draft_lookup.py`,
+  `tests/test_release_hardening.py`, `tests/test_tag_push_gate.py`,
+  `tests/test_release_bundle_signer.py`,
+  `tests/test_tag_read_long_options.py`,
+  `tests/test_tag_push_resolution.py`, `tests/test_tag_push_ref_store.py`,
+  `tests/test_release_latest_stable.py`, and
+  `tests/test_release_workflow_wiring.py`. The wiring test compares the
+  release job permissions with `RELEASE_JOB_PERMISSIONS`.
 - `scripts/check_policy_size.py` fails when the assembled policy exceeds
   the `scripts/sync.py` limit of 65536 bytes. The failure names the
   overage. The existing `AGENTS.md` check keeps its 32768-byte limit.

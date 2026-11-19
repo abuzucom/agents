@@ -23,6 +23,16 @@ include the following actions:
   include `--force`, `--force-with-lease`, `--mirror`, `--delete`, `--prune`, a
   forced or empty refspec, `--amend`, `rebase`, `filter-branch`, `reset --hard`,
   `branch -D`, and `clean -fdx`.
+- The gates deny tag pushes across Bash, PowerShell, and CMD. Covered forms
+  include `--tags`, `--follow-tags`, and a refspec side under `refs/tags/` or
+  `tags/`. A source that names an existing local tag denies in any name shape.
+  The gates read loose refs and `packed-refs` for that check. A source shaped
+  `v<digit>` denies unless a local branch carries that name. A reftable store,
+  an unreadable or oversized `packed-refs`, and a name that leaves the refs
+  directory ask. The gates also deny `git tag` creation, signing, forcing, and
+  deletion and `git update-ref` under `refs/tags/`. Listing, verifying, and
+  commit filters such as `--contains` and `--merged` pass.
+  `git push --mirror` asks and pushes every tag after consent.
 - The gates classify privilege escalation, process termination, alias
   definition, shell profile writes, schedule destruction, and forge deletion.
 - The gates deny cloud, infrastructure-as-code, orchestration, direct SSH,
@@ -191,6 +201,29 @@ renders non-printable and non-ASCII characters visibly. Branch and identity
 `additionalContext`. Universal output sanitization remains outside the
 guarantee. Import-error text remains untrusted output. Checker stderr from
 other paths also remains untrusted output.
+
+## Release integrity
+
+`.github/workflows/release.yml` attests each release file and
+`SHA256SUMS.txt` with `actions/attest`. A verified attestation proves that the
+release workflow built the file from the tagged commit. Verify with
+`--signer-workflow abuzucom/agents/.github/workflows/release.yml`. A check
+with `--repo` alone accepts a signature from any workflow in the repository.
+
+The attestation leaves these facts unproven:
+
+- A human reviewed the tagged commit.
+- The repository owner pushed the tag.
+- A valid signature covers the tag. The workflow does not verify tag
+  signatures.
+- The owner chose the right channel at publication.
+
+Three repository settings carry the remaining controls. A tag ruleset on
+every tag limits tag creation, moves, and deletion to the owner. The ruleset
+also rejects the tags a consented `git push --mirror` would carry. The `release` environment
+requires owner approval before the release job receives its write token.
+Immutable releases lock a published release. Repository files cannot enforce
+or verify these settings.
 
 ## Explicit non-goals
 

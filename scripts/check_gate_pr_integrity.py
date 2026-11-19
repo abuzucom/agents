@@ -52,6 +52,7 @@ PROTECTED_FILES = frozenset({
     "scripts/check_local_paths.py",
     "scripts/complete_gate_adoption.py",
     "scripts/read_git_state.py",
+    "scripts/release.py",
     "scripts/run_tests.py",
     "scripts/sync.py",
     "scripts/trusted_bot_identities.py",

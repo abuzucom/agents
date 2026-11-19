@@ -44,6 +44,9 @@ finishes the `Immutable Compliance` run for that head and the caller starts.
 Find the `security-review-pr` run under the default branch in the Actions
 tab. `workflow_run` runs do not appear on the pull request branch.
 
+A `v*` tag push starts no foucault or euler review. Every tagged commit
+passed both reviews on its way to `main`.
+
 ## Required repository secret
 
 The review does not run until an active human adds the provider API key as a

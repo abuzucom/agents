@@ -69,3 +69,7 @@ compliance. This repository cannot enforce or verify third-party practices.
 
 Every repository change requires a versioned SemVer changelog entry. Adopting
 repositories must not use `[Unreleased]`.
+
+Record the `abuzucom/agents` release version this repository adopted. Check
+each release file against `SHA256SUMS.txt`, `gh attestation verify`, and the
+release digest file before adoption.

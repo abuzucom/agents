@@ -252,9 +252,160 @@ def push_ask_reason(token: str, name: str) -> str:
     return _push_operand_reason(token)
 
 
-def push_verdict(args: list) -> tuple:
-    """Return (decision, reason) for a git push argument list."""
-    ask = ""
+TAG_PUSH_REASON = ("git push sending a tag: agents never create, push, move, "
+                   "or delete Git tags. The repository owner pushes release tags")
+TAG_REF_PREFIX = "refs/tags/"
+ASCII_DIGITS = "0123456789"
+
+
+def _names_version_tag(side: str) -> bool:
+    """Return True for one refspec side shaped like a vX release tag.
+
+    Release tags take the vX.Y.Z form. Ref names compare without case
+    because macOS and Windows ref storage ignores case. The tag namespace
+    check runs first and covers refs/tags/ and tags/ sides.
+    """
+    folded = side.casefold()
+    return folded[:1] == "v" and folded[1:2] != "" and folded[1:2] in ASCII_DIGITS
+
+
+TAG_SHORTHAND_PREFIX = "tags/"
+BRANCH_REF_PREFIX = "refs/heads/"
+PACKED_REFS_NAME = "packed-refs"
+REFTABLE_DIRECTORY = "reftable"
+MAX_PACKED_REFS_BYTES = 4 * 1024 * 1024
+UNRESOLVED_REF_REASON = ("git push names a ref the gate cannot resolve "
+                         "safely, so it cannot rule out a tag push")
+# git push options whose value can arrive as the next token.
+PUSH_VALUE_OPTIONS = ("--push-option", "--receive-pack", "--exec", "--repo")
+
+
+def _push_flag_sends_tag(name: str) -> bool:
+    """Return True for a git push flag that sends tags."""
+    return (long_option_matches(name, "--tags")
+            or long_option_matches(name, "--follow-tags"))
+
+
+def _names_tag_namespace(side: str) -> bool:
+    """Return True for one refspec side spelled inside the tag namespace."""
+    folded = side.casefold()
+    return folded.startswith(TAG_REF_PREFIX) or folded.startswith(TAG_SHORTHAND_PREFIX)
+
+
+def _push_refspecs(args: list) -> list:
+    """Return the refspec operands of a git push, without the remote."""
+    operands, index, remote_named = [], 0, False
+    while index < len(args):
+        token = args[index]
+        name = token.split("=", 1)[0]
+        named_option = any(long_option_matches(name, option) for option in PUSH_VALUE_OPTIONS)
+        remote_named = remote_named or long_option_matches(name, "--repo")
+        if token == "-o" or (named_option and "=" not in token):
+            index += 1
+        elif not token.startswith("-"):
+            operands.append(token)
+        index += 1
+    return operands if remote_named else operands[1:]
+
+
+def _is_unsafe_ref_name(name: str) -> bool:
+    """Return True for a name that could leave the refs directory."""
+    return (name.startswith(("/", "\\")) or ":" in name
+            or ".." in name.replace("\\", "/").split("/"))
+
+
+def _read_packed_ref_names(common_dir: str):
+    """Return the ref names in packed-refs, or None when unreadable."""
+    path = os.path.join(common_dir, PACKED_REFS_NAME)
+    try:
+        with open(path, "rb") as handle:
+            raw = handle.read(MAX_PACKED_REFS_BYTES + 1)
+    except FileNotFoundError:
+        return frozenset()
+    except OSError:
+        return None
+    if len(raw) > MAX_PACKED_REFS_BYTES:
+        return None
+    try:
+        lines = raw.decode("utf-8").splitlines()
+    except UnicodeDecodeError:
+        return None
+    return frozenset(line.split(" ", 1)[1] for line in lines
+                     if " " in line and not line.startswith(("#", "^")))
+
+
+def _push_ref_store(args: list, cwd: str, environment: list) -> tuple:
+    """Return (common_dir, packed ref names) for a push, or (None, reason)."""
+    state, reason = _git_global_state(args, cwd, _git_environment(environment or []))
+    if state is None:
+        return None, reason
+    paths, reason = _repo_config_paths(state)
+    if paths is None:
+        return None, reason
+    common_dir = os.path.dirname(paths[0][0])
+    if os.path.exists(os.path.join(common_dir, REFTABLE_DIRECTORY)):
+        return None, "the repository uses a reftable ref store the gate cannot read"
+    packed = _read_packed_ref_names(common_dir)
+    if packed is None:
+        return None, "the repository packed-refs file could not be read"
+    return (common_dir, packed), ""
+
+
+def _ref_exists(store: tuple, ref: str) -> bool:
+    """Return True when a loose or packed ref with this name exists."""
+    common_dir, packed = store
+    return ref in packed or os.path.isfile(os.path.join(common_dir, *ref.split("/")))
+
+
+def _source_tag_verdict(source: str, store: tuple) -> str:
+    """Return deny, ask, or an empty verdict for one refspec source."""
+    if _is_unsafe_ref_name(source):
+        return "ask"
+    if _ref_exists(store, TAG_REF_PREFIX + source):
+        return "deny"
+    shaped = _names_version_tag(source)
+    return "deny" if shaped and not _ref_exists(store, BRANCH_REF_PREFIX + source) else ""
+
+
+def _refspec_tag_verdict(refspecs: list, store_reader) -> tuple:
+    """Return the strictest tag verdict across refspecs, reading refs once."""
+    store, ask = None, ""
+    for refspec in refspecs:
+        source, _separator, destination = refspec.removeprefix("+").partition(":")
+        if _names_tag_namespace(source) or _names_tag_namespace(destination):
+            return "deny", TAG_PUSH_REASON
+        if _names_version_tag(destination):
+            return "deny", TAG_PUSH_REASON
+        if not source:
+            continue
+        if store is None:
+            store, reason = store_reader()
+        if store is None:
+            return "ask", reason
+        verdict = _source_tag_verdict(source, store)
+        if verdict == "deny":
+            return "deny", TAG_PUSH_REASON
+        ask = ask or (UNRESOLVED_REF_REASON if verdict else "")
+    return ("ask", ask) if ask else ("", "")
+
+
+def push_verdict(args: list, cwd: str = "", global_args: list = None,
+                 environment: list = None) -> tuple:
+    """Return (decision, reason) for a git push argument list.
+
+    A tag push denies before any other check. A forced tag push therefore
+    denies rather than asks. `global_args` carries the git options before
+    the subcommand, so -C and --git-dir locate the ref store.
+    """
+    if any(token.startswith("-") and _push_flag_sends_tag(token.split("=", 1)[0])
+           for token in args):
+        return "deny", TAG_PUSH_REASON
+    tag_decision = _refspec_tag_verdict(
+        _push_refspecs(args),
+        lambda: _push_ref_store(global_args or [], cwd, environment))
+    if tag_decision[0] == "deny":
+        return tag_decision
+    ask = tag_decision[1]
     for token in args:
         name = token.split("=", 1)[0]
         if long_option_matches(name, "--force") or (is_short_group(token) and "f" in token):
@@ -374,6 +525,72 @@ def _git_clean_verdict(rest: list) -> tuple:
                    "decided at run time")
 
 
+TAG_WRITE_REASON = ("git tag creating, signing, forcing, or deleting a tag: "
+                    "agents never create, move, or delete Git tags")
+# Short flags that make git tag write: annotate, delete, force, file,
+# message, sign, local user, and edit.
+TAG_WRITE_SHORT_FLAGS = frozenset("adfFmsue")
+TAG_WRITE_LONG_OPTIONS = ("--annotate", "--delete", "--force", "--file",
+                          "--message", "--sign", "--local-user", "--edit",
+                          "--create-reflog")
+TAG_READ_MODE_SHORT_FLAGS = frozenset("lvn")
+# git treats each commit filter as implying --list.
+TAG_READ_MODE_LONG_OPTIONS = ("--list", "--verify", "--contains", "--no-contains",
+                              "--points-at", "--merged", "--no-merged")
+# Read filters whose value can arrive as the next token.
+TAG_VALUE_OPTIONS = ("--contains", "--no-contains", "--points-at", "--merged",
+                     "--no-merged", "--sort", "--format")
+
+
+def _is_tag_write_flag(token: str) -> bool:
+    """Return True for one git tag flag that writes a tag."""
+    if is_short_group(token):
+        return any(flag in TAG_WRITE_SHORT_FLAGS for flag in token[1:])
+    return any(long_option_matches(token, option) for option in TAG_WRITE_LONG_OPTIONS)
+
+
+def _is_tag_read_mode_flag(token: str) -> bool:
+    """Return True for one git tag flag that selects listing or verifying."""
+    if is_short_group(token):
+        return token[1] in TAG_READ_MODE_SHORT_FLAGS
+    return any(long_option_matches(token, option) for option in TAG_READ_MODE_LONG_OPTIONS)
+
+
+def _takes_separate_value(token: str) -> bool:
+    """Return True for a git tag read filter whose value is the next token."""
+    return "=" not in token and any(
+        long_option_matches(token, option) for option in TAG_VALUE_OPTIONS)
+
+
+def _split_tag_arguments(rest: list) -> tuple:
+    """Return the flags and the operands of a git tag argument list."""
+    flags, operands = [], []
+    index = 0
+    while index < len(rest):
+        token = rest[index]
+        if not token.startswith("-"):
+            operands.append(token)
+        else:
+            flags.append(token)
+            index += 1 if _takes_separate_value(token) else 0
+        index += 1
+    return flags, operands
+
+
+def _git_tag_verdict(rest: list) -> tuple:
+    """Return (decision, reason) for a git tag argument list.
+
+    Listing and verifying pass. A name operand without a listing flag
+    creates a tag, so it denies like an explicit write flag.
+    """
+    flags, operands = _split_tag_arguments(rest)
+    if any(_is_tag_write_flag(flag) for flag in flags):
+        return "deny", TAG_WRITE_REASON
+    if operands and not any(_is_tag_read_mode_flag(flag) for flag in flags):
+        return "deny", TAG_WRITE_REASON
+    return "", ""
+
+
 def _git_flag_verdict(subcommand: str, rest: list) -> tuple:
     """Return (decision, reason) for the subcommands one flag decides."""
     if subcommand == "reset" and any(
@@ -392,6 +609,7 @@ def _git_flag_verdict(subcommand: str, rest: list) -> tuple:
 GIT_SUBCOMMAND_READERS = {
     "branch": _git_branch_verdict,
     "clean": _git_clean_verdict,
+    "tag": _git_tag_verdict,
 }
 
 
@@ -403,12 +621,17 @@ def git_verdict(args: list, cwd: str = "", environment: list = None,
     expansion sets it.
     """
     subcommand, rest = git_subcommand(args)
+    # update-ref is not a known subcommand, so other forms keep the
+    # unresolved-subcommand ask. A tag ref operand denies outright.
+    if subcommand == "update-ref" and any(
+            token.casefold().startswith(TAG_REF_PREFIX) for token in rest):
+        return "deny", TAG_WRITE_REASON
     resolved = _git_resolution_verdict(
         subcommand, rest, args, cwd, environment or [], alias_chain)
     if resolved is not None:
         return resolved
     if subcommand == "push":
-        return push_verdict(rest)
+        return push_verdict(rest, cwd, args, environment)
     alias_decision = alias_verdict("git", [subcommand] + rest)
     if alias_decision[0]:
         return alias_decision
