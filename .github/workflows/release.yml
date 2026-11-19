@@ -1,10 +1,10 @@
 name: Release
 
-# The owner pushes a vX.Y.Z tag on a main commit. check-tag verifies the tag.
-# The release job builds the release files, attests each file, and fills a
-# draft release. The owner publishes the draft by hand and chooses pre-release or
-# stable at that moment. No reviewer workflow runs here. Every tagged commit
-# already passed review on its way to main.
+# The repository owner pushes a vX.Y.Z tag on a main commit. check-tag
+# verifies the tag. The release job builds the release files, attests each
+# file, and fills a draft release. The repository owner publishes the draft by
+# hand and chooses pre-release or stable at that moment. No reviewer workflow
+# runs here. Every tagged commit already passed review on its way to main.
 
 on:
   push:
@@ -156,7 +156,7 @@ jobs:
           tag="$GITHUB_REF_NAME"
           repo="$GITHUB_REPOSITORY"
           assets="$RUNNER_TEMP/release-assets"
-          # The owner can publish the draft while this job runs. Each write
+          # The repository owner can publish the draft while this job runs. Each write
           # rechecks the draft state first and stops on a published release.
           require_draft() {
             state="$(gh release view "$tag" --repo "$repo" --json isDraft --jq .isDraft)"

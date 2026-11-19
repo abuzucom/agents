@@ -614,7 +614,7 @@ version for normal use.
 6. The job fills a draft release. The notes hold every changelog section
    newer than the highest published stable version. An adoption block and the
    GitHub list of merged pull requests follow.
-7. The repository owner reviews the draft. The owner selects pre-release or
+7. The repository owner reviews the draft. The repository owner selects pre-release or
    stable at publication. Only the repository owner publishes a release.
    Rule 16 denies agents `gh release`.
 
@@ -628,13 +628,13 @@ its way to `main`.
 The repository owner configures three repository settings:
 
 - A tag ruleset on every tag (`*`) limits creation, moves, and deletion to
-  the owner. Tags exist only for releases. Every tag takes the `vX.Y.Z`
+  the repository owner. Tags exist only for releases. Every tag takes the `vX.Y.Z`
   form.
-- The `release` environment names the owner as a required reviewer. The
+- The `release` environment names the repository owner as a required reviewer. The
   release job receives its write token only after that approval.
 - Immutable releases lock a published release.
 
-Repository files cannot enforce any of the three settings. The owner can sign
+Repository files cannot enforce any of the three settings. The repository owner can sign
 tags with `git tag -s`. The workflow does not verify tag signatures.
 
 Adopters pin the commit of a stable release and put `# vX.Y.Z` beside the

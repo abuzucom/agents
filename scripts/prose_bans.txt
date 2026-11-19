@@ -20,6 +20,8 @@ never runs
 never read
 never reads
 the owner
+that owner
+the origin owner
 arguably
 
 [handoff-exempt]

@@ -20,14 +20,17 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - `scripts/prose_bans.txt` bans twelve `[global]` phrases. Each joins
   `never` to `held`, `holds`, `ran`, `delete`, `deletes`, `follows`,
   `saw`, `reach`, `reaches`, `runs`, `read`, or `reads`.
-- `scripts/prose_bans.txt` bans the `[global]` phrase that pairs `the`
-  with `owner`.
+- `scripts/prose_bans.txt` bans three `[global]` phrases built on `owner`.
+  The determiners are `the`, `that`, and `the` with `origin`.
+- Existing prose, release comments, and script comments drop the newly
+  banned phrases. Hook, test, and synchronized policy text keeps those
+  phrases until a separate approval.
 - `scripts/prose_bans.txt` bans the `[global]` hedge word that starts with
   `argu` and ends with `ably`.
 
 ### Fixed
 - The release upload step rechecks the draft state before each write. A
-  draft the owner publishes during the job stops the job before any
+  draft the repository owner publishes during the job stops the job before any
   upload or notes change.
 - A rerun refreshes the notes of an existing draft. The refreshed notes
   carry the rebuilt changelog sections and adoption block, then a fresh
@@ -90,7 +93,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   check made unreachable. `hook-coverage-baseline.json` records one fewer
   unreached statement in `_apply_git_environment_locations`.
 - README states that tags exist only for releases in `vX.Y.Z` form. The
-  owner tag ruleset covers every tag.
+  repository owner tag ruleset covers every tag.
 - `SECURITY.md` covers this repository. It supports the latest stable
   release only and states the release integrity check.
   `SECURITY.md.example` tells adopters to verify an adopted release.
@@ -381,9 +384,9 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   instead of clear.
   The limit and unreadable reasons name a recovery step. The shell gates
   and `block_infrastructure_access.py` use the new reasons.
-- `forge_verdict` reads the origin owner only for a forge CLI. A cache
-  holds the owner and the scan result for one hook invocation. Each hook
-  main clears the cache first.
+- `forge_verdict` reads the `origin` repository owner only for a forge CLI. A cache
+  keeps one owner lookup and one scan result for each hook invocation. Each
+  hook main clears the cache first.
 - A cyclic git alias, or one past the 10-alias depth limit, denies with a
   named reason instead of a recursion error.
 - `git filter-repo` reaches the history-rewrite ask.
@@ -738,7 +741,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   the five linked policy documents. The assembled policy shrinks by about 3 KB.
   Adopter orientation files gain that room under the 64 KiB limit.
 - Remove the Rule 15 pointer to `docs/agent-policy/github.md` for the SSH
-  distinction. That document never held the text.
+  distinction. That document did not contain the text.
 
 ### Fixed
 - Reject workflow commands that contain `#`. The tokenizer ends a word at `#`.
@@ -830,7 +833,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   only a bare `-i` token. It also read `-n` as a dry run for sed and perl.
   Only `git clean` now treats `-n` as a dry run.
 - Ask on `xargs rm`, `xargs shred`, and `xargs truncate` in the Bash gate.
-  The parser strips xargs as a wrapper. The xargs check never ran.
+  The parser strips xargs as a wrapper. The xargs check did not run.
 - Ask on a recursive `chmod`, `chown`, `chgrp`, `icacls /T`, or
   `takeown /R` under a mount point or shared temp directory.
   `volume_verdict` had no caller.
@@ -1044,7 +1047,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Deny `gh api` when any `-X` or `--method` value is not `GET`. gh keeps the
   last value. A leading `-X GET` no longer hides a mutation.
 - Ask before an outward-facing gh command with an implicit target when the
-  origin owner is unreadable.
+  `origin` repository owner is unreadable.
 - Recognize the trusted wrapper after any run of interpreter flags and from
   any working directory.
 - Replace the identity block text that asked for name and email values.

@@ -3,7 +3,7 @@
 
 An incomplete candidate cannot activate. Missing registrations, shared modules,
 or cited checkers leave the verified gate set unchanged. Every gate then
-behaves as designed for an absent dependency: an unregistered gate never runs,
+behaves as designed for an absent dependency: an unregistered gate does not run,
 and a gate whose shared module is absent denies and exits 2.
 
 This checker names the absent artifact instead. It verifies three properties:

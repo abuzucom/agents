@@ -108,7 +108,7 @@ COMMENT_DRAFT_DIRECTORY = ".comment-drafts"
 COMMENT_BODY_OPTION = "--body-file"
 # GitHub caps a comment body at 65536 characters.
 MAX_COMMENT_BYTES = 65536
-# Draft reads open one descriptor that never follows a link and never blocks
+# Draft reads open one descriptor that does not follow a link and never blocks
 # on a FIFO, so a path swapped after the check cannot redirect the read.
 DRAFT_NO_FOLLOW = getattr(os, "O_NOFOLLOW", 0)
 DRAFT_READ_FLAGS = (os.O_RDONLY | DRAFT_NO_FOLLOW | getattr(os, "O_NONBLOCK", 0)
@@ -327,7 +327,7 @@ def is_allowed_base_branch(name: str) -> bool:
 def _read_primary_branch_bytes(path: Path) -> bytes | None:
     """Return the override bytes read through one descriptor, or None when absent.
 
-    The open never follows a link and never blocks on a FIFO. The descriptor
+    The open does not follow a link and never blocks on a FIFO. The descriptor
     is checked and read directly, so a path swapped after the open cannot
     change the bytes.
     """

@@ -89,7 +89,7 @@ def load_event_author(path: str) -> EventAuthor | None:
     """Return the pull request author, or None when no event path exists.
 
     Error messages name the failing field only. Payload values can hold pull
-    request text or personal data, so they never reach a message.
+    request text or personal data, so they stay out of every message.
     """
     if not path:
         return None

@@ -99,7 +99,7 @@ include the following actions:
   operation. Native Git resolves includes and configuration precedence.
   Invocation settings travel through argument arrays and environment values.
   The config reader accepts only required environment fields. Trace and stream
-  redirection controls never reach Git. Fixed environment values disable Trace2
+  redirection controls do not reach Git. Fixed environment values disable Trace2
   destinations from Git configuration.
   The inspection never executes an alias. Reads stop at 256 KiB or five seconds.
   Alias expansion stops after ten steps. Unknown and shell aliases deny.
@@ -216,10 +216,10 @@ The attestation leaves these facts unproven:
 - The repository owner pushed the tag.
 - A valid signature covers the tag. The workflow does not verify tag
   signatures.
-- The owner chose the right channel at publication.
+- The repository owner chose the right channel at publication.
 
 Three repository settings carry the remaining controls. A tag ruleset on
-every tag limits tag creation, moves, and deletion to the owner. The ruleset
+every tag limits tag creation, moves, and deletion to the repository owner. The ruleset
 also rejects the tags a consented `git push --mirror` would carry. The `release` environment
 requires owner approval before the release job receives its write token.
 Immutable releases lock a published release. Repository files cannot enforce
