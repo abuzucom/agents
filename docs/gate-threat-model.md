@@ -272,6 +272,10 @@ current behavior correctly handles `bypassPermissions`. A future interactive
 mode would also deny. A legitimate gated action would then fail closed. Review
 the list when Claude Code adds a mode.
 
+A broad read command triggers an infrastructure scan of up to 20000 files.
+Each hook call starts a new process. The scan cache therefore lasts one hook
+call. A second broad read in a later call scans again.
+
 The editor tool inode walk for tests with hard links runs only when `st_nlink > 1`.
 The walk skips `.git`, `node_modules`, `.venv`, and `__pycache__`. The walk
 carries a budget.

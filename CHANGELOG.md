@@ -14,7 +14,7 @@ into the entry. Dates never decrease. Ask the active human when a date is in
 doubt.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.28.0] (2026-11-19)
+## [2.28.1] (2026-11-19)
 
 ### Added
 - `scripts/sync.py` reads `<!-- local policy:start -->`,
@@ -66,6 +66,15 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   remaining item awaits a separate decision.
 
 ### Fixed
+- `hooks/enforce_branch_name.py` reads the rebase state once per denied
+  call and once per lifecycle message. `read_rebase_state` returns the
+  rebase flag and any lookup error together. `branch_state` and
+  `_handle_invalid_branch` accept that result through a new optional
+  argument. Verdicts and messages stay the same. Add
+  `tests/test_partial_finding_fixes.py`.
+- `scripts/check_ascii.py` states why `strip_code` stays separate from
+  `prose_policy.mask_markdown_code`. `docs/gate-threat-model.md` states
+  that the infrastructure scan cache lasts one hook call.
 - `hooks/reinject_agents_policy.py` and `scripts/sync.py` name the
   assembled policy when the assembled bundle exceeds the size limit.
   Both errors named `AGENTS.md` before. The `AGENTS.md`-only check in
