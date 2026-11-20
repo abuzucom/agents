@@ -4,7 +4,6 @@
     "_bash_parser.py::_env_split_value": 1,
     "_bash_parser.py::git_write_operation": 2,
     "_bash_parser.py::redirect_targets": 3,
-    "_cmd_parser.py::append_segment": 1,
     "_cmd_parser.py::contains_dynamic_expansion": 3,
     "_cmd_parser.py::parse_cmd_command": 3,
     "_cmd_parser.py::scan_cmd_characters": 1,

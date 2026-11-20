@@ -2659,6 +2659,32 @@ def environment_assignment_verdict(program: str, args: list) -> tuple:
     return "", ""
 
 
+def cmd_set_assignment_verdict(program: str, args: list) -> tuple:
+    """Gate a CMD `set` of a variable that alters Git reads."""
+    if normalize_windows_command_name(program) != "set":
+        return "", ""
+    for token in args:
+        if token.startswith("/"):
+            continue
+        name = token.strip('"').split("=", 1)[0].strip().upper()
+        if is_relevant_git_environment(name):
+            return "ask", (f"setting {sanitize(name)} changes how a later git "
+                           "read resolves or executes programs")
+        return "", ""
+    return "", ""
+
+
+def plan_mode_harden(mode: str, verdict: tuple) -> tuple:
+    """Return `verdict` with an ask turned into a deny while `mode` is plan.
+
+    Plan mode permits inspection only. An approved ask would still run the
+    program the assignment names.
+    """
+    if mode != PLAN_MODE or verdict[0] != "ask":
+        return verdict
+    return "deny", f"{verdict[1]}. Plan mode permits inspection only"
+
+
 def resolve_alias(cwd: str, subcommand: str) -> str:
     """Return what `subcommand` expands to, or an empty string."""
     expansion, _problem = expand_git_alias(subcommand, parse_git_config(cwd))

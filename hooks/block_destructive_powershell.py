@@ -197,7 +197,7 @@ def _strip_wrappers(tokens: list) -> list:
 def _statement_verdict(tokens: list, depth: int) -> tuple:
     """Return (decision, reason) for one PowerShell statement."""
     privileged = core.privilege_verdict(tokens)
-    environment = _environment_assignment_verdict(tokens)
+    environment = core.plan_mode_harden(_MODE[0], _environment_assignment_verdict(tokens))
     redirects = _redirect_targets(tokens)
     return core.strongest(
         environment,

@@ -127,5 +127,36 @@ class PlanModeHelperTest(unittest.TestCase):
         self.assertEqual(bash("GIT_PAGER=less git log", PLAN_MODE), "deny")
 
 
+class EnvironmentAssignmentTest(unittest.TestCase):
+    """An in-command Git variable assignment asks, and plan mode denies it."""
+
+    ASSIGNMENTS = (
+        ("bash", bash, "export GIT_PAGER=less; git log"),
+        ("powershell", powershell, "$env:GIT_PAGER='less'; git log"),
+        ("cmd", cmd, "set GIT_PAGER=less && git log"),
+    )
+    CMD_ASKS = ('set "GIT_PAGER=less"', "set GIT_EXTERNAL_DIFF=x", "set /a GIT_PAGER=1")
+
+    def test_assignment_denies_in_plan_mode(self):
+        for gate_name, gate, command in self.ASSIGNMENTS:
+            with self.subTest(gate=gate_name):
+                self.assertEqual(gate(command, PLAN_MODE), "deny")
+
+    def test_assignment_asks_in_default_mode(self):
+        for gate_name, gate, command in self.ASSIGNMENTS:
+            with self.subTest(gate=gate_name):
+                self.assertEqual(gate(command, DEFAULT_MODE), "ask")
+
+    def test_cmd_set_forms_ask(self):
+        for command in self.CMD_ASKS:
+            with self.subTest(command=command):
+                self.assertEqual(cmd(command, DEFAULT_MODE), "ask")
+
+    def test_cmd_set_of_an_unrelated_variable_passes(self):
+        for command in ("set FOO=1", "set", "set /a"):
+            with self.subTest(command=command):
+                self.assertEqual(cmd(command, DEFAULT_MODE), "")
+
+
 if __name__ == "__main__":
     unittest.main()

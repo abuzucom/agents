@@ -281,6 +281,11 @@ gets the config and environment check of `git_read_verdict`. A configured
 external diff, driver, pager, or `GIT_PAGER` value turns the ask into a
 deny in plan mode. An approved ask would still run that program.
 
+An in-command assignment of a Git-relevant variable asks in every mode. The
+Bash gate reads `export` and `declare -x`. The PowerShell gate reads `$env:`
+assignments. The CMD gate reads `set`. Plan mode turns each of those asks
+into a deny through `plan_mode_harden`.
+
 On an invalid branch `EnterPlanMode` passes in every mode. `ExitPlanMode`
 and `ToolSearch` pass only while `permission_mode` is plan.
 

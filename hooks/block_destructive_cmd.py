@@ -141,6 +141,8 @@ def classify_cmd_segment(command_tokens: tuple[str, ...]) -> tuple[str, str]:
     policies = (
         core.cloudflare_pages_verdict(
             program_name, list(arguments), _CWD[0]),
+        core.plan_mode_harden(
+            _MODE[0], core.cmd_set_assignment_verdict(program_name, list(arguments))),
         core.destruction_verdict(program_name, list(arguments)),
         core.alias_verdict(program_name, list(arguments)),
         core.mode_change_verdict(program_name, list(arguments)),
