@@ -686,7 +686,12 @@ class BlockedCommandTest(unittest.TestCase):
                 self.assertEqual(hook.blocked_command(command), [])
 
     def test_match_carries_effective_git_context(self):
-        with tempfile.TemporaryDirectory() as directory:
+        # Cloud sessions export GIT_CONFIG_* vectors. The hook reads the
+        # process environment. Inherited settings would join the command's own.
+        environment = {key: value for key, value in os.environ.items()
+                       if not key.startswith("GIT_CONFIG_")}
+        with tempfile.TemporaryDirectory() as directory, \
+                patch.dict(os.environ, environment, clear=True):
             child = Path(directory) / "child"
             child.mkdir()
             command = f"git -C {child.as_posix()} -c user.name=x commit"

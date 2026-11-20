@@ -217,6 +217,110 @@ class TranscriptScanTest(TranscriptCase):
         self.assertIsNone(self.hook.compaction_verdict(transcript))
 
 
+def tool_call_decoy() -> dict:
+    """Return an assistant tool call whose argument serializes as the raw token.
+
+    JSON escapes quotes inside message text. A string value of its own
+    serializes with bare quotes, so the raw boundary token appears.
+    """
+    return {"type": "assistant",
+            "message": {"role": "assistant", "content": [
+                {"type": "tool_use", "name": "Grep",
+                 "input": {"pattern": "compact_boundary"}}]}}
+
+
+class BoundaryTextTest(TranscriptCase):
+    """Only a parsed boundary entry counts as a compaction."""
+
+    def test_decoy_holds_the_raw_token(self):
+        self.assertIn('"compact_boundary"', json.dumps(tool_call_decoy()))
+
+    def test_boundary_token_in_a_later_tool_call_still_blocks(self):
+        path = self.transcript([BOUNDARY, summary(), assistant("resumed"),
+                                tool_call_decoy()])
+        self.assertBlocks(run_stop(path))
+
+    def test_boundary_token_without_a_real_boundary_passes(self):
+        self.assertPasses(run_stop(self.transcript([tool_call_decoy()])))
+
+
+class BoundaryLineTest(unittest.TestCase):
+    """Direct calls cover each boundary line outcome."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.hook = load_hook()
+        cls.boundary_line = json.dumps(BOUNDARY).encode("utf-8")
+
+    def test_token_on_invalid_json_line_is_skipped(self):
+        data = self.boundary_line + b'\n"compact_boundary" broken\n'
+        self.assertEqual(self.hook._boundary_line_start(data, 0), 0)
+
+    def test_token_on_invalid_utf8_line_is_skipped(self):
+        self.assertFalse(self.hook._is_boundary_line(b'"compact_boundary" \xff'))
+
+    def test_boundary_on_the_last_line_without_newline_counts(self):
+        data = b"{}\n" + self.boundary_line
+        self.assertEqual(self.hook._boundary_line_start(data, 0), len(b"{}\n"))
+
+    def test_line_that_may_start_earlier_asks_for_more_bytes(self):
+        self.assertEqual(self.hook._boundary_line_start(self.boundary_line, 1),
+                         self.hook.NEED_EARLIER_BYTES)
+
+    def test_data_without_a_token_reports_no_boundary(self):
+        self.assertEqual(self.hook._boundary_line_start(b"{}\n", 0),
+                         self.hook.NO_BOUNDARY)
+
+
+class StopHelperTest(TranscriptCase):
+    """In-process calls reach each Stop helper branch."""
+
+    def setUp(self):
+        super().setUp()
+        self.hook = load_hook()
+
+    def test_open_rejects_a_missing_path_value(self):
+        for value in (None, ""):
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                self.hook._open_transcript(value)
+
+    def test_open_rejects_a_directory(self):
+        with self.assertRaises((OSError, ValueError)):
+            self.hook._open_transcript(str(self.directory))
+
+    def test_open_rejects_a_device(self):
+        # The null device opens like a file but is not a regular file.
+        with self.assertRaises(ValueError):
+            self.hook._open_transcript(os.devnull)
+
+    def test_parser_skips_malformed_lines(self):
+        transcript = "\n".join(("not json", "[1, 2]", json.dumps(BOUNDARY),
+                                json.dumps(summary()), json.dumps(assistant("resumed"))))
+        summary_text, texts = self.hook._entries_after_last_compaction(transcript)
+        self.assertEqual(summary_text, SUMMARY_TEXT)
+        self.assertEqual(texts, ["resumed"])
+
+    def test_entry_text_reads_string_content(self):
+        entry = {"type": "assistant", "message": {"role": "assistant", "content": "plain"}}
+        self.assertEqual(self.hook._entry_text(entry), "plain")
+
+    def test_entry_text_rejects_other_content(self):
+        entry = {"type": "assistant", "message": {"role": "assistant", "content": 5}}
+        self.assertEqual(self.hook._entry_text(entry), "")
+
+    def test_incomplete_scan_ends_the_turn_with_a_notice(self):
+        path = self.transcript([assistant("plain")])
+        printed = []
+        with patch.object(self.hook, "read_transcript_from_last_boundary",
+                          return_value=("", False)), \
+                patch("builtins.print", side_effect=printed.append):
+            code = self.hook.emit_claude_stop({"transcript_path": path})
+        self.assertEqual(code, 0)
+        output = json.loads(printed[0])
+        self.assertIn("systemMessage", output)
+        self.assertNotIn("decision", output)
+
+
 class StopRegistrationTest(unittest.TestCase):
     """Both Claude settings files run the reinjection hook on Stop."""
 

@@ -431,6 +431,17 @@ PLAN_MODE_GIT_SUBCOMMANDS = READ_SUBCOMMANDS | frozenset({
     "describe", "rev-parse", "rev-list", "ls-files", "ls-tree", "ls-remote",
     "cat-file", "check-attr", "show-ref", "help", "version",
 })
+# Options that write files or run a program in any position. An inspection
+# subcommand with one of them leaves the inspection set.
+PLAN_MODE_DENIED_GIT_OPTIONS = frozenset({
+    "--output", "--output-directory", "-o", "-O", "--open-files-in-pager",
+    "--ext-diff", "--textconv",
+})
+# Global options before the subcommand that set config, a pager, or the
+# helper path. After the subcommand, `-p` and `-c` carry read meanings.
+PLAN_MODE_DENIED_GLOBAL_GIT_OPTIONS = frozenset({
+    "-c", "--config-env", "-p", "--paginate", "--exec-path",
+})
 
 
 KNOWN_SUBCOMMANDS = frozenset({
@@ -661,11 +672,33 @@ def plan_mode_git_verdict(mode: str, args: list) -> tuple:
     """
     if mode != PLAN_MODE:
         return "", ""
-    subcommand, _rest = git_subcommand(args)
+    subcommand, rest = git_subcommand(args)
+    global_options = args[:len(args) - len(rest) - 1] if subcommand else args
+    unsafe = _plan_mode_unsafe_option(global_options, PLAN_MODE_DENIED_GLOBAL_GIT_OPTIONS)
+    unsafe = unsafe or _plan_mode_unsafe_option(args, PLAN_MODE_DENIED_GIT_OPTIONS)
+    if unsafe:
+        return "deny", (f"git option {sanitize(unsafe)} writes files or runs a program. "
+                        "Plan mode permits inspection only")
     if not subcommand or subcommand.casefold() in PLAN_MODE_GIT_SUBCOMMANDS:
         return "", ""
-    return "deny", (f"git {sanitize(subcommand)} writes repository state, and plan "
+    return "deny", (f"git {sanitize(subcommand)} writes repository state. Plan "
                     "mode permits inspection only")
+
+
+def _plan_mode_unsafe_option(tokens: list, denied: frozenset) -> str:
+    """Return the first token that names an option in `denied`, or an empty string.
+
+    A long option matches with or without an `=value` suffix. A short option
+    also matches with its value attached, such as `-Ocat`.
+    """
+    for token in tokens:
+        name = token.split("=", 1)[0]
+        if name in denied:
+            return name
+        short = token[:SHORT_OPTION_LENGTH]
+        if not token.startswith("--") and short in denied:
+            return short
+    return ""
 
 
 def unparseable_verdict(command: str, keywords: tuple) -> tuple:

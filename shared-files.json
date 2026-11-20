@@ -3,7 +3,7 @@
   "shared": {
     "hooks/_bash_parser.py": "e5d35b99bc21ea94ea3f0cbc5e83da71359420fa60eeb0f1e7007259b6721f85",
     "hooks/_cmd_parser.py": "246febca4007230c77f0980bec98ee94e14e14b21d5dddf5567101a38c7d80b3",
-    "hooks/_gate_core.py": "295f613e9922fd7612bf12c8ac84a20989d9ee710b15c98b4da67e3ed474f273",
+    "hooks/_gate_core.py": "29fe7b3fab9b28bf0df10c412b125159ad64e4e2612c13dfccd553d709c1b22f",
     "hooks/_platform_policy.py": "c307db1286f61fa987bf898e9ec0843b33188ea56538a24d62fa0e98a968b24e",
     "hooks/block_destructive_bash.py": "1ed979ad6e1763d12a8300990a0066c8b4993e3817a74a08d549ae0a06bc672f",
     "hooks/block_destructive_cmd.py": "3083485c6539d865eaa5ba1f2db27343f30915c8ded81a3800aef32eb447167b",
@@ -11,7 +11,7 @@
     "hooks/enforce_anti_delegation.py": "70b0616207c943faa729a84ec6b949813b2db8db6ff6494e395de43fe5b04df7",
     "hooks/enforce_gate_adoption.py": "d2e5f5900d27c7ffa01c2ef627463b30fb72f61967d33782cf914facde4de978",
     "hooks/github-command-denylist.txt": "0b043edb1beaa5c37d38137e5b958fad35b5fbdad045063ed30fa8c19ee13a13",
-    "hooks/reinject_agents_policy.py": "8af3a913c8f88b1e45045ba47d3a311e22f8a39a73336087167e3b2a48883465",
+    "hooks/reinject_agents_policy.py": "fdb77594df566e6bc59254b04b7dfc510b3b8e7617f40991af379257b7ce005d",
     "hooks/require_consent.py": "4361ca5584f530579f343c0644b223ba252f86c3c5991a16f430f40b37eaeb79",
     "scripts/check_gate_adoption.py": "72b4a1332ffc1b5dcce300b3767288f64f8329c3eba564d33d16f404425944af",
     "scripts/check_gate_pr_integrity.py": "329a638145ad9c5db3cb61b5dd35180046120f58feea65fb6837f83844f720c1",

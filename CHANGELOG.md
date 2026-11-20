@@ -14,7 +14,7 @@ into the entry. Dates never decrease. Ask the active human when a date is in
 doubt.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.29.1] (2026-11-20)
+## [2.29.2] (2026-11-20)
 
 ### Added
 - `hooks/reinject_agents_policy.py` checks the compaction disclosure on
@@ -26,10 +26,14 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   missing or unreadable transcript, a missing summary entry, or a scan
   past 64 MiB lets the turn end with a notice. `.claude/settings.json`,
   `hooks/claude-code-settings.example.json`, and
-  `scripts/check_gate_adoption.py` register the check. Issue 101.
+  `scripts/check_gate_adoption.py` register the check. Only a parsed
+  entry with type `system` and subtype `compact_boundary` counts as a
+  boundary. Issue 101.
 - `hooks/_gate_core.plan_mode_git_verdict` denies a Git write while
   `permission_mode` is plan. The Bash, PowerShell, and CMD gates merge
   the verdict into each Git command. Inspection subcommands stay open.
+  Options that write files or run a program deny in any position. Global
+  config, pager, and helper path options deny before the subcommand.
   Issue 100.
 
 ### Changed
@@ -43,7 +47,9 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - `tests/test_block_destructive_bash.py` strips inherited `GIT_CONFIG_*`
   variables from the hook environment in `run_hook_in`. Cloud sessions
   export those vectors. The malformed vector test now fails closed there
-  too. Issue 103.
+  too. `tests/test_enforce_branch_name.py` runs
+  `test_match_carries_effective_git_context` without those variables.
+  Issue 103.
 - `tests/test_compaction_disclosure_form.py` passes a 30 second timeout
   to the hook subprocess. A hung hook fails the test instead of hanging
   the suite. Issue 104.

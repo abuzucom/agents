@@ -267,7 +267,18 @@ enforce Constrained Language Mode.
 ## Modes and limits
 
 Plan mode denies Git writes in every shell gate. `plan_mode_git_verdict` in
-`hooks/_gate_core.py` keeps inspection subcommands open.
+`hooks/_gate_core.py` keeps inspection subcommands open. It denies options
+that write files or run a program in any position:
+
+- `--output`, `--output-directory`, `-o`, `-O`
+- `--open-files-in-pager`, `--ext-diff`, `--textconv`
+
+Before the subcommand it also denies `-c`, `--config-env`, `-p`,
+`--paginate`, and `--exec-path`. In plan mode `git grep -o` denies too.
+
+The disclosure check parses each line that holds the raw boundary token.
+Only an entry with type `system` and subtype `compact_boundary` counts. A
+tool argument with the same text never hides the real boundary.
 
 The Claude `Stop` registration of the reinjection hook checks the compaction
 disclosure. The check reads the transcript backward in 4 MiB chunks up to

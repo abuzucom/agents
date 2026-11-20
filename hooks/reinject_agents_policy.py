@@ -27,6 +27,9 @@ POLICY_DENIAL_EXIT_CODE = 2
 # Claude records each compaction as a system transcript entry with this subtype.
 COMPACT_BOUNDARY_SUBTYPE = "compact_boundary"
 BOUNDARY_TOKEN = b'"compact_boundary"'
+# _boundary_line_start results that carry no line offset.
+NO_BOUNDARY = -1
+NEED_EARLIER_BYTES = -2
 DISCLOSURE_MARKER = "COMPACTION TEXT DISCLOSURE"
 # A Markdown fence opens with up to three spaces and three or more backticks
 # or tildes. The fence characters stay in group 1.
@@ -285,16 +288,36 @@ def _open_transcript(path_value):
     return handle
 
 
-def _boundary_line_start(data: bytes) -> int:
-    """Return where the line holding the last boundary token starts, or -1.
+def _is_boundary_line(line: bytes) -> bool:
+    """Return whether one JSONL line parses as a compaction boundary entry."""
+    try:
+        entry = json.loads(line)
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        return False
+    return (isinstance(entry, dict) and entry.get("type") == "system"
+            and entry.get("subtype") == COMPACT_BOUNDARY_SUBTYPE)
 
-    A start of 0 with no newline before the token means the line may begin
-    in an earlier chunk.
+
+def _boundary_line_start(data: bytes, position: int) -> int:
+    """Return where the last parsed boundary line starts in `data`.
+
+    Returns NO_BOUNDARY when `data` holds none. Returns NEED_EARLIER_BYTES
+    when a token sits on a line that may begin before `data`. A raw token
+    inside other text, such as a tool argument, never counts as a boundary.
     """
-    token_index = data.rfind(BOUNDARY_TOKEN)
-    if token_index < 0:
-        return -1
-    return data.rfind(b"\n", 0, token_index) + 1
+    search_end = len(data)
+    while True:
+        token_index = data.rfind(BOUNDARY_TOKEN, 0, search_end)
+        if token_index < 0:
+            return NO_BOUNDARY
+        line_start = data.rfind(b"\n", 0, token_index) + 1
+        if line_start == 0 and position > 0:
+            return NEED_EARLIER_BYTES
+        line_end = data.find(b"\n", token_index)
+        line = data[line_start:] if line_end < 0 else data[line_start:line_end]
+        if _is_boundary_line(line):
+            return line_start
+        search_end = line_start
 
 
 def _scan_backward(handle, size: int) -> tuple:
@@ -312,8 +335,8 @@ def _scan_backward(handle, size: int) -> tuple:
         handle.seek(start)
         data = handle.read(position - start) + data
         position = start
-        line_start = _boundary_line_start(data)
-        if line_start > 0 or (line_start == 0 and position == 0):
+        line_start = _boundary_line_start(data, position)
+        if line_start >= 0:
             return data[line_start:], True
     if position == 0:
         return data, True

@@ -25,6 +25,27 @@ GIT_READ_COMMANDS = (
     "git diff",
     "git show HEAD",
 )
+# Inspection subcommands with options that write files or run programs.
+GIT_UNSAFE_OPTION_COMMANDS = (
+    "git diff --output=changes.txt",
+    "git diff --output changes.txt",
+    "git grep -O cat pattern",
+    "git grep -Ocat pattern",
+    "git grep --open-files-in-pager=cat pattern",
+    "git log --ext-diff",
+    "git diff --textconv",
+    "git -c core.pager=cat status",
+    "git --config-env=core.pager=PAGER status",
+    "git --paginate log",
+    "git -p log",
+    "git --exec-path=/tmp status",
+    "git format-patch -o out HEAD~1",
+)
+GIT_SAFE_OPTION_COMMANDS = (
+    "git log --oneline -5",
+    "git diff --stat",
+    "git show --name-only HEAD",
+)
 GATES = (("bash", bash), ("powershell", powershell), ("cmd", cmd))
 
 
@@ -39,6 +60,18 @@ class PlanModeGitWriteTest(unittest.TestCase):
 
     def test_git_reads_pass_in_plan_mode(self):
         for command in GIT_READ_COMMANDS:
+            for gate_name, gate in GATES:
+                with self.subTest(command=command, gate=gate_name):
+                    self.assertEqual(gate(command, PLAN_MODE), "")
+
+    def test_unsafe_git_options_deny_in_plan_mode(self):
+        for command in GIT_UNSAFE_OPTION_COMMANDS:
+            for gate_name, gate in GATES:
+                with self.subTest(command=command, gate=gate_name):
+                    self.assertEqual(gate(command, PLAN_MODE), "deny")
+
+    def test_safe_git_options_pass_in_plan_mode(self):
+        for command in GIT_SAFE_OPTION_COMMANDS:
             for gate_name, gate in GATES:
                 with self.subTest(command=command, gate=gate_name):
                     self.assertEqual(gate(command, PLAN_MODE), "")
