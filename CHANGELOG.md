@@ -14,7 +14,7 @@ into the entry. Dates never decrease. Ask the active human when a date is in
 doubt.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.29.6] (2026-11-20)
+## [2.29.7] (2026-11-20)
 
 ### Added
 - `hooks/reinject_agents_policy.py` checks the compaction disclosure on
@@ -78,6 +78,10 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - `tests/test_compaction_disclosure_form.py` passes a 30 second timeout
   to the hook subprocess. A hung hook fails the test instead of hanging
   the suite. Issue 104.
+- The Rule 22 protected hook inventory in
+  `docs/agent-policy/enforcement.md` lists
+  `hooks/enforce_anti_delegation.py`. `scripts/sync.py` already lists
+  the hook in `SHARED_FILES`.
 
 ## [2.28.5] (2026-11-19)
 

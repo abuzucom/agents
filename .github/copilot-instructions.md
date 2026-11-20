@@ -1068,11 +1068,11 @@ The protected inventory covers:
   `hooks/_command_execution_gate.py`, `hooks/_gate_core.py`,
   `hooks/_platform_policy.py`, `hooks/block_destructive_bash.py`,
   `hooks/block_destructive_cmd.py`, `hooks/block_destructive_powershell.py`,
-  `hooks/block_infrastructure_access.py`, `hooks/enforce_branch_name.py`,
-  `hooks/enforce_gate_adoption.py`, `hooks/enforce_git_identity.py`,
-  `hooks/reinject_agents_policy.py`, `hooks/require_consent.py`,
-  `hooks/github-command-denylist.txt`, `hooks/primary-branch.txt`,
-  `hooks/workflow-scripts.txt`, and
+  `hooks/block_infrastructure_access.py`, `hooks/enforce_anti_delegation.py`,
+  `hooks/enforce_branch_name.py`, `hooks/enforce_gate_adoption.py`,
+  `hooks/enforce_git_identity.py`, `hooks/reinject_agents_policy.py`,
+  `hooks/require_consent.py`, `hooks/github-command-denylist.txt`,
+  `hooks/primary-branch.txt`, `hooks/workflow-scripts.txt`, and
   `hooks/claude-code-settings.example.json`.
 - Hook configurations:
   `.claude/settings.json`, `.agents/`, `.codex/hooks.json`,
