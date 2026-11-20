@@ -196,6 +196,10 @@ class BackfillHistory:
         self.template.mkdir()
         build_index_tree(self.template)
         run_git(self.template, "init", "--quiet")
+        # A commit can start detached Git maintenance. That process removes
+        # .git/objects/maintenance.lock while copy_into copies the template.
+        run_git(self.template, "config", "maintenance.auto", "false")
+        run_git(self.template, "config", "gc.auto", "0")
         self.write_shared_manifest()
         run_git(self.template, "add", "--all")
         run_git(self.template, "commit", "--quiet", "-m", "first")

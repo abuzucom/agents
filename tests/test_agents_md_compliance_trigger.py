@@ -8,8 +8,8 @@ import yaml
 ROOT = Path(__file__).resolve().parent.parent
 WORKFLOW_PATH = ROOT / ".github" / "workflows" / "agents-md-compliance.yml"
 EXPECTED_BRANCHES = ["main"]
-# ready_for_review starts pr-checks for a pull request that leaves draft.
-# The reusable workflow skips pr-checks while the pull request is a draft.
+# The reusable workflow runs pr-checks on drafts. ready_for_review reruns it
+# when a draft becomes ready.
 EXPECTED_TYPES = ["opened", "synchronize", "reopened", "ready_for_review"]
 SYNC_WORKFLOW_PATH = ROOT / ".github" / "workflows" / "sync-check.yml"
 # The edited activity reruns the pull request message checks.
