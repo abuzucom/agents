@@ -5,6 +5,10 @@ Plan mode permits inspection only. Each shell gate denies a Git write while
 `permission_mode` is plan and keeps read-only Git commands open. The three
 gates share one core helper. The verdicts match across the gates.
 """
+import json
+import os
+import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -14,6 +18,7 @@ from tests.test_gate_parity import (BASH_HOOK, CMD_HOOK, POWERSHELL_HOOK, _decis
 
 PLAN_MODE = "plan"
 DEFAULT_MODE = "default"
+HOOK_TIMEOUT_SECONDS = 30
 # Subcommands that run a helper program through a transport, a filter, or
 # a help viewer.
 GIT_HELPER_COMMANDS = (
@@ -59,7 +64,7 @@ GIT_UNSAFE_OPTION_COMMANDS = (
 GIT_SAFE_OPTION_COMMANDS = (
     "git log --oneline -5",
     "git diff --stat",
-    "git show --name-only HEAD",
+    "git show --oneline HEAD",
 )
 GATES = (("bash", bash), ("powershell", powershell), ("cmd", cmd))
 
@@ -156,6 +161,62 @@ class EnvironmentAssignmentTest(unittest.TestCase):
         for command in ("set FOO=1", "set", "set /a"):
             with self.subTest(command=command):
                 self.assertEqual(cmd(command, DEFAULT_MODE), "")
+
+
+def run_with_environment(hook: Path, tool: str, command: str, mode: str,
+                         cwd: str, environment: dict) -> str:
+    """Run one gate in a fresh process with `environment` and return its decision."""
+    payload = {"hook_event_name": "PreToolUse", "tool_name": tool,
+               "permission_mode": mode, "cwd": cwd,
+               "tool_input": {"command": command}}
+    result = subprocess.run(
+        [sys.executable, str(hook)], input=json.dumps(payload),
+        capture_output=True, text=True, env=environment, check=False,
+        timeout=HOOK_TIMEOUT_SECONDS)
+    try:
+        return json.loads(result.stdout)["hookSpecificOutput"]["permissionDecision"]
+    except (ValueError, KeyError):
+        return ""
+
+
+class InheritedEnvironmentTest(unittest.TestCase):
+    """Each gate reads Git helper variables inherited from its own process."""
+
+    def setUp(self):
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        self.root = directory.name
+        git_dir = Path(self.root) / ".git"
+        git_dir.mkdir()
+        (git_dir / "config").write_text("[core]\n\tbare = false\n", encoding="utf-8")
+        self.clean = {key: value for key, value in os.environ.items()
+                      if not key.startswith("GIT_") and key not in ("PAGER",)}
+        self.clean["GIT_CONFIG_NOSYSTEM"] = "1"
+        self.clean["GIT_CONFIG_GLOBAL"] = os.devnull
+
+    def decisions(self, mode: str, extra: dict) -> dict:
+        """Return each gate's decision for `git diff` with `extra` inherited."""
+        environment = dict(self.clean, **extra)
+        return {gate_name: run_with_environment(hook, tool, "git diff", mode,
+                                                self.root, environment)
+                for gate_name, hook, tool in GATE_HOOKS}
+
+    def test_inherited_external_diff_denies_in_plan_mode(self):
+        for gate_name, decision in self.decisions(
+                PLAN_MODE, {"GIT_EXTERNAL_DIFF": "/tmp/helper"}).items():
+            with self.subTest(gate=gate_name):
+                self.assertEqual(decision, "deny")
+
+    def test_inherited_pager_denies_in_plan_mode(self):
+        for gate_name, decision in self.decisions(
+                PLAN_MODE, {"GIT_PAGER": "less"}).items():
+            with self.subTest(gate=gate_name):
+                self.assertEqual(decision, "deny")
+
+    def test_clean_environment_passes_in_plan_mode(self):
+        for gate_name, decision in self.decisions(PLAN_MODE, {}).items():
+            with self.subTest(gate=gate_name):
+                self.assertEqual(decision, "")
 
 
 if __name__ == "__main__":

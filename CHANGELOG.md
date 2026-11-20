@@ -14,7 +14,7 @@ into the entry. Dates never decrease. Ask the active human when a date is in
 doubt.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.29.4] (2026-11-20)
+## [2.29.5] (2026-11-20)
 
 ### Added
 - `hooks/reinject_agents_policy.py` checks the compaction disclosure on
@@ -39,7 +39,10 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   Plan mode turns any Git ask into a deny. The CMD gate now asks for a
   `set` of a Git-relevant variable through
   `_gate_core.cmd_set_assignment_verdict`. Plan mode turns each Bash,
-  PowerShell, and CMD assignment ask into a deny. Issue 100.
+  PowerShell, and CMD assignment ask into a deny.
+  `tests/test_plan_mode_git_parity.py` runs each gate with an inherited
+  `GIT_EXTERNAL_DIFF` or `GIT_PAGER` and pins the plan-mode deny.
+  Issue 100.
 
 ### Changed
 - `hooks/enforce_branch_name.py` allows `EnterPlanMode` and plan file
