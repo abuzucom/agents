@@ -270,13 +270,20 @@ Plan mode denies Git writes in every shell gate. `plan_mode_git_verdict` in
 `hooks/_gate_core.py` keeps inspection subcommands open.
 
 The Claude `Stop` registration of the reinjection hook checks the compaction
-disclosure. The check reads the last 4 MiB of the transcript. It finds the
-last `compact_boundary` entry. It blocks one turn end when no later assistant
-text opens a fenced block with the first line `COMPACTION TEXT DISCLOSURE`.
-A missing or unreadable transcript lets the turn end with a notice. The check
-covers only the disclosure. It cannot verify the stop, plan mode, or
-continuation claims. Codex exposes no assistant output to a stop hook. Codex
-disclosure stays unverified.
+disclosure. The check reads the transcript backward in 4 MiB chunks up to
+64 MiB. It finds the last `compact_boundary` entry and the next
+`isCompactSummary` entry. It blocks one turn end unless later assistant text
+holds a closed fenced block with the first line `COMPACTION TEXT DISCLOSURE`.
+The block body must contain the summary text after whitespace normalization.
+These cases let the turn end with a notice:
+
+- a missing or unreadable transcript
+- a boundary with no summary entry
+- a scan that reaches 64 MiB without a boundary
+
+The check covers only the disclosure. It cannot verify the stop, plan mode,
+or continuation claims. Codex exposes no assistant output to a stop hook.
+Codex disclosure stays unverified.
 
 `INTERACTIVE_MODES` lists the `permission_mode` values in which a person can
 answer a gated prompt. An unrecognized value denies a gated verdict. The

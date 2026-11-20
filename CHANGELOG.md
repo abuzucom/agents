@@ -14,15 +14,17 @@ into the entry. Dates never decrease. Ask the active human when a date is in
 doubt.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.29.0] (2026-11-20)
+## [2.29.1] (2026-11-20)
 
 ### Added
 - `hooks/reinject_agents_policy.py` checks the compaction disclosure on
-  the Claude `Stop` event. It reads the last 4 MiB of the transcript and
-  finds the last `compact_boundary` entry. It blocks one turn end when no
-  later assistant text opens a fenced block with the first line
-  `COMPACTION TEXT DISCLOSURE`. A missing or unreadable transcript lets
-  the turn end with a notice. `.claude/settings.json`,
+  the Claude `Stop` event. It scans the transcript backward in 4 MiB
+  chunks up to 64 MiB for the last `compact_boundary` entry and the next
+  `isCompactSummary` entry. It blocks one turn end unless later assistant
+  text holds a closed fenced block with the first line
+  `COMPACTION TEXT DISCLOSURE` and a body that contains the summary. A
+  missing or unreadable transcript, a missing summary entry, or a scan
+  past 64 MiB lets the turn end with a notice. `.claude/settings.json`,
   `hooks/claude-code-settings.example.json`, and
   `scripts/check_gate_adoption.py` register the check. Issue 101.
 - `hooks/_gate_core.plan_mode_git_verdict` denies a Git write while
