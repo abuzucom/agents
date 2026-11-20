@@ -54,8 +54,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 - `hooks/_gate_core.py` limits the Kubernetes values file name match to YAML
-  extensions. The gate protected any file whose name starts with `values-`
-  or `values.`. A Helm values file carries a YAML extension. A source file
+  extensions. The gate protected any file with a name that starts with
+  `values-` or `values.`. A Helm values file carries a YAML extension. A source file
   named `values.ts` carries no Kubernetes configuration, and its name reached
   the protected set. That denied broad searches in repositories holding such
   a file. Add `tests/test_infrastructure_values_scope.py`.
