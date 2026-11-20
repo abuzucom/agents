@@ -14,7 +14,7 @@ into the entry. Dates never decrease. Ask the active human when a date is in
 doubt.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.29.6] (2026-11-20)
+## [2.29.7] (2026-11-20)
 
 ### Added
 - `hooks/reinject_agents_policy.py` checks the compaction disclosure on
@@ -53,6 +53,12 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   states the allowance. Issue 100.
 
 ### Fixed
+- `hooks/_gate_core.py` limits the Kubernetes values file name match to YAML
+  extensions. The gate protected any file whose name starts with `values-`
+  or `values.`. A Helm values file carries a YAML extension. A source file
+  named `values.ts` carries no Kubernetes configuration, and its name reached
+  the protected set. That denied broad searches in repositories holding such
+  a file. Add `tests/test_infrastructure_values_scope.py`.
 - The reusable `pr-checks` job in `agents-compliance.yml` runs on draft
   pull requests. Rule 5 makes every agent pull request a draft. The old
   draft skip kept `scripts/check_agent_prose_gate.py` from running until
