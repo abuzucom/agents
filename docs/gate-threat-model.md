@@ -266,6 +266,54 @@ enforce Constrained Language Mode.
 
 ## Modes and limits
 
+Plan mode denies Git writes in every shell gate. `plan_mode_git_verdict` in
+`hooks/_gate_core.py` keeps inspection subcommands open. It denies options
+that write files or run a program in any position:
+
+- `--output`, `--output-directory`, `-o`, `-O`
+- `--open-files-in-pager`, `--ext-diff`, `--textconv`
+
+Before the subcommand it also denies `-c`, `--config-env`, `-p`,
+`--paginate`, and `--exec-path`. In plan mode `git grep -o` denies too.
+Plan mode leaves out `ls-remote`, `cat-file`, and `help`. Each one can run
+a transport helper, a filter, or a help viewer. Every allowed subcommand
+gets the config and environment check of `git_read_verdict`. A configured
+external diff, driver, pager, or `GIT_PAGER` value turns the ask into a
+deny in plan mode. An approved ask would still run that program.
+
+An in-command assignment of a Git-relevant variable asks in every mode. The
+Bash gate reads `export` and `declare -x`. The PowerShell gate reads `$env:`
+assignments. The CMD gate reads `set`. Plan mode turns each of those asks
+into a deny through `plan_mode_harden`.
+
+On an invalid branch `EnterPlanMode` passes in every mode. `ExitPlanMode`
+and `ToolSearch` pass only while `permission_mode` is plan.
+
+The disclosure check parses each line that holds the raw boundary token.
+Only an entry with type `system` and subtype `compact_boundary` counts. A
+tool argument with the same text never hides the real boundary.
+
+The Claude `Stop` registration of the reinjection hook checks the compaction
+disclosure. The check reads the transcript backward in 4 MiB chunks up to
+64 MiB. It finds the last `compact_boundary` entry and the next
+`isCompactSummary` entry. It blocks one turn end unless later assistant text
+holds a closed fenced block with the first line `COMPACTION TEXT DISCLOSURE`.
+The block body must contain the summary text after whitespace normalization.
+These cases let the turn end with a notice:
+
+- a missing or unreadable transcript
+- a boundary with no summary entry
+- a scan that reaches 64 MiB without a boundary
+
+The check covers only the disclosure. It cannot verify the stop, plan mode,
+or continuation claims. Codex exposes no assistant output to a stop hook.
+Codex disclosure stays unverified.
+
+The check blocks once per turn end. Claude sets `stop_hook_active` on the
+retry, and the check then lets the turn end. The retry can therefore end
+without a disclosure. Every Stop hook here keeps that guard. A check without
+it would trap a session that cannot produce the disclosure.
+
 `INTERACTIVE_MODES` lists the `permission_mode` values in which a person can
 answer a gated prompt. An unrecognized value denies a gated verdict. The
 current behavior correctly handles `bypassPermissions`. A future interactive

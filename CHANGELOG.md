@@ -14,6 +14,55 @@ into the entry. Dates never decrease. Ask the active human when a date is in
 doubt.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.29.5] (2026-11-20)
+
+### Added
+- `hooks/reinject_agents_policy.py` checks the compaction disclosure on
+  the Claude `Stop` event. It scans the transcript backward in 4 MiB
+  chunks up to 64 MiB for the last `compact_boundary` entry and the next
+  `isCompactSummary` entry. It blocks one turn end unless later assistant
+  text holds a closed fenced block with the first line
+  `COMPACTION TEXT DISCLOSURE` and a body that contains the summary. A
+  missing or unreadable transcript, a missing summary entry, or a scan
+  past 64 MiB lets the turn end with a notice. `.claude/settings.json`,
+  `hooks/claude-code-settings.example.json`, and
+  `scripts/check_gate_adoption.py` register the check. Only a parsed
+  entry with type `system` and subtype `compact_boundary` counts as a
+  boundary. Issue 101.
+- `hooks/_gate_core.plan_mode_git_verdict` denies a Git write while
+  `permission_mode` is plan. The Bash, PowerShell, and CMD gates merge
+  the verdict into each Git command. Inspection subcommands stay open.
+  Options that write files or run a program deny in any position. Global
+  config, pager, and helper path options deny before the subcommand.
+  Plan mode leaves out `ls-remote`, `cat-file`, and `help`. Each allowed
+  subcommand gets the `git_read_verdict` config and environment check.
+  Plan mode turns any Git ask into a deny. The CMD gate now asks for a
+  `set` of a Git-relevant variable through
+  `_gate_core.cmd_set_assignment_verdict`. Plan mode turns each Bash,
+  PowerShell, and CMD assignment ask into a deny.
+  `tests/test_plan_mode_git_parity.py` runs each gate with an inherited
+  `GIT_EXTERNAL_DIFF` or `GIT_PAGER` and pins the plan-mode deny.
+  Issue 100.
+
+### Changed
+- `hooks/enforce_branch_name.py` allows `EnterPlanMode` and plan file
+  writes outside the repository on an invalid branch. It allows
+  `ExitPlanMode` and `ToolSearch` there only while `permission_mode` is
+  plan. Repository reads and writes stay blocked. The Stop check ends a
+  plan-mode turn with the rename reminder instead of a block. `AGENTS.md`
+  states the allowance. Issue 100.
+
+### Fixed
+- `tests/test_block_destructive_bash.py` strips inherited `GIT_CONFIG_*`
+  variables from the hook environment in `run_hook_in`. Cloud sessions
+  export those vectors. The malformed vector test now fails closed there
+  too. `tests/test_enforce_branch_name.py` runs
+  `test_match_carries_effective_git_context` without those variables.
+  Issue 103.
+- `tests/test_compaction_disclosure_form.py` passes a 30 second timeout
+  to the hook subprocess. A hung hook fails the test instead of hanging
+  the suite. Issue 104.
+
 ## [2.28.5] (2026-11-19)
 
 ### Added

@@ -28,6 +28,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent
 HOOK_PATH = REPO_ROOT / "hooks" / "block_destructive_bash.py"
 CORE_PATH = REPO_ROOT / "hooks" / "_gate_core.py"
+INHERITED_GIT_CONFIG_PREFIX = "GIT_CONFIG_"
 BLOCKING_EXIT_CODE = 2
 NUMERIC_COMMAND_VALUE = 5
 _HOOK_WORKER = None
@@ -537,9 +538,15 @@ def run_hook_in(command: str, cwd: str) -> tuple:
         "cwd": cwd,
         "tool_input": {"command": command},
     }
+    # Cloud sessions export GIT_CONFIG_* vectors. The hook merges inherited
+    # variables with the command's own assignments. An inherited value would
+    # complete a vector the command leaves malformed.
+    environment = {key: value for key, value in os.environ.items()
+                   if not key.startswith(INHERITED_GIT_CONFIG_PREFIX)}
     result = subprocess.run(
         [sys.executable, str(HOOK_PATH)],
-        input=json.dumps(payload), capture_output=True, text=True, check=False)
+        input=json.dumps(payload), capture_output=True, text=True, check=False,
+        env=environment)
     try:
         decision = json.loads(result.stdout)["hookSpecificOutput"]["permissionDecision"]
     except (ValueError, KeyError):

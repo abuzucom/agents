@@ -37,6 +37,8 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 _CWD = [""]
+# The payload permission mode for the current call. Plan mode denies git writes.
+_MODE = [""]
 GATE = "block_destructive_powershell.py"
 POLICY_DENIAL_EXIT_CODE = 2
 BRACED_ENVIRONMENT_PREFIX = "${env:"
@@ -195,7 +197,7 @@ def _strip_wrappers(tokens: list) -> list:
 def _statement_verdict(tokens: list, depth: int) -> tuple:
     """Return (decision, reason) for one PowerShell statement."""
     privileged = core.privilege_verdict(tokens)
-    environment = _environment_assignment_verdict(tokens)
+    environment = core.plan_mode_harden(_MODE[0], _environment_assignment_verdict(tokens))
     redirects = _redirect_targets(tokens)
     return core.strongest(
         environment,
@@ -251,7 +253,8 @@ def _named_program_verdict(program: str, args: list, depth: int) -> tuple:
     if program in core.DELETE_PROGRAMS:
         return core.any_delete_verdict(program, args)
     if core.normalize_windows_command_name(program) == "git":
-        return core.git_verdict(args, _CWD[0])
+        return core.plan_mode_git_verdict(
+            _MODE[0], args, _CWD[0], None, core.git_verdict(args, _CWD[0]))
     return None
 
 
@@ -337,6 +340,7 @@ def _run() -> int:
         return core.emit(GATE, "deny", "the tool input is malformed, so the "
                                        "gate cannot read this command")
     _CWD[0] = core.project_dir(payload)
+    _MODE[0] = core.require_str(payload.get("permission_mode", "")) or ""
     command = core.require_str(tool_input.get("command", ""))
     if command is None:
         return core.emit(GATE, "deny", "the command field is not a string, so "
