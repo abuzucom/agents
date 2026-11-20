@@ -21,8 +21,8 @@ class AdvisoryWorkflowTest(unittest.TestCase):
         self.assertNotIn("github.event.pull_request.body", text)
 
     def test_sync_workflow_runs_authorship_checkers(self):
-        # The reusable workflow's pr-checks job is skipped on every event
-        # this repository fires, so these checkers need a live home here.
+        # The sync check workflow also runs these checkers on every pull
+        # request. The reusable pr-checks job runs them on drafts too.
         text = SYNC_WORKFLOW.read_text(encoding="utf-8")
         self.assertIn("python scripts/check_banned_agents.py", text)
         self.assertIn("python scripts/check_git_identity.py", text)

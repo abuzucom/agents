@@ -14,7 +14,7 @@ into the entry. Dates never decrease. Ask the active human when a date is in
 doubt.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.28.6] (2026-11-20)
+## [2.28.7] (2026-11-20)
 
 ### Fixed
 - The reusable `pr-checks` job in `agents-compliance.yml` runs on draft
@@ -23,6 +23,13 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   a person marked the pull request ready. Add
   `tests/test_pr_checks_draft_coverage.py`. Correct the draft comments in
   `agents-md-compliance.yml`, `sync-check.yml`, and `README.md`.
+- The `BackfillHistory` fixture in `tests/test_sync_digest_index.py`
+  disables `maintenance.auto` and `gc.auto` in its template repository.
+  Detached Git maintenance removed `.git/objects/maintenance.lock` during
+  the fixture copy and raised `shutil.Error`.
+- Correct the draft-skip comments in
+  `tests/test_advisory_workflow_wiring.py` and
+  `tests/test_agents_md_compliance_trigger.py`.
 
 ## [2.28.5] (2026-11-19)
 
