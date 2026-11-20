@@ -1035,8 +1035,9 @@ trailer (`check_commit_attribution.py::has_agent_label`) or a matching
 pull request description line. Undisclosed agent authorship stays
 invisible to this signal, the same documented gap
 `check_banned_agents.py` already states. Never remove or edit that
-trailer to evade this gate. Fix the flagged prose instead. No CI job or
-repository hook runs this gate. Run it locally or from an external harness.
+trailer to evade this gate. Fix the flagged prose instead. The `pr-checks`
+job in `.github/workflows/agents-compliance.yml` runs this gate on every
+pull request, drafts included. No repository hook runs it.
 
 In `scripts/prose_bans.txt`, each nonempty policy line defines one exact word
 or phrase. Section headers define scope. Add entries without changing checker
