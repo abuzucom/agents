@@ -14,6 +14,38 @@ into the entry. Dates never decrease. Ask the active human when a date is in
 doubt.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.29.0] (2026-11-20)
+
+### Added
+- `hooks/reinject_agents_policy.py` checks the compaction disclosure on
+  the Claude `Stop` event. It reads the last 4 MiB of the transcript and
+  finds the last `compact_boundary` entry. It blocks one turn end when no
+  later assistant text opens a fenced block with the first line
+  `COMPACTION TEXT DISCLOSURE`. A missing or unreadable transcript lets
+  the turn end with a notice. `.claude/settings.json`,
+  `hooks/claude-code-settings.example.json`, and
+  `scripts/check_gate_adoption.py` register the check. Issue 101.
+- `hooks/_gate_core.plan_mode_git_verdict` denies a Git write while
+  `permission_mode` is plan. The Bash, PowerShell, and CMD gates merge
+  the verdict into each Git command. Inspection subcommands stay open.
+  Issue 100.
+
+### Changed
+- `hooks/enforce_branch_name.py` allows `EnterPlanMode`, `ExitPlanMode`,
+  `ToolSearch`, and plan file writes outside the repository on an invalid
+  branch. Repository reads and writes stay blocked. The Stop check ends a
+  plan-mode turn with the rename reminder instead of a block. `AGENTS.md`
+  states the allowance. Issue 100.
+
+### Fixed
+- `tests/test_block_destructive_bash.py` strips inherited `GIT_CONFIG_*`
+  variables from the hook environment in `run_hook_in`. Cloud sessions
+  export those vectors. The malformed vector test now fails closed there
+  too. Issue 103.
+- `tests/test_compaction_disclosure_form.py` passes a 30 second timeout
+  to the hook subprocess. A hung hook fails the test instead of hanging
+  the suite. Issue 104.
+
 ## [2.28.5] (2026-11-19)
 
 ### Added

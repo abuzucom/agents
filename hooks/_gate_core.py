@@ -424,6 +424,13 @@ def push_verdict(args: list, cwd: str = "", global_args: list = None,
 
 READ_SUBCOMMANDS = frozenset({"status", "diff", "log", "show", "blame",
                               "grep", "shortlog", "whatchanged"})
+PLAN_MODE = "plan"
+# Plan mode keeps these inspection-only subcommands open. Each one reads
+# objects, refs, or the index without writing any of them.
+PLAN_MODE_GIT_SUBCOMMANDS = READ_SUBCOMMANDS | frozenset({
+    "describe", "rev-parse", "rev-list", "ls-files", "ls-tree", "ls-remote",
+    "cat-file", "check-attr", "show-ref", "help", "version",
+})
 
 
 KNOWN_SUBCOMMANDS = frozenset({
@@ -642,6 +649,23 @@ def git_verdict(args: list, cwd: str = "", environment: list = None,
     if reader:
         return reader(rest)
     return _git_flag_verdict(subcommand, rest)
+
+
+def plan_mode_git_verdict(mode: str, args: list) -> tuple:
+    """Return (decision, reason) for a git command under `mode`.
+
+    Plan mode permits inspection only. A git subcommand outside the
+    inspection set denies there. A plan-mode session therefore cannot
+    rename a branch, commit, or push. A bare `git --version` names no
+    subcommand and stays open. Every other mode returns no verdict.
+    """
+    if mode != PLAN_MODE:
+        return "", ""
+    subcommand, _rest = git_subcommand(args)
+    if not subcommand or subcommand.casefold() in PLAN_MODE_GIT_SUBCOMMANDS:
+        return "", ""
+    return "deny", (f"git {sanitize(subcommand)} writes repository state, and plan "
+                    "mode permits inspection only")
 
 
 def unparseable_verdict(command: str, keywords: tuple) -> tuple:

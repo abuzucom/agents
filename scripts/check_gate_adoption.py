@@ -101,6 +101,7 @@ REQUIRED_REGISTRATIONS = {
     "reinject_agents_policy.py": {
         "SessionStart": {SESSION_START_MATCHER},
         "SubagentStart": {SUBAGENT_MATCHER},
+        "Stop": {""},
     },
     "block_destructive_bash.py": {"PreToolUse": {"Bash"}},
     "block_destructive_powershell.py": {"PreToolUse": {"PowerShell"}},
