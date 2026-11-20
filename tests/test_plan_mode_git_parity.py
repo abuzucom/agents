@@ -5,11 +5,26 @@ Plan mode permits inspection only. Each shell gate denies a Git write while
 `permission_mode` is plan and keeps read-only Git commands open. The three
 gates share one core helper. The verdicts match across the gates.
 """
+import tempfile
 import unittest
+from pathlib import Path
 
-from tests.test_gate_parity import bash, cmd, powershell
+from tests.test_gate_parity import (BASH_HOOK, CMD_HOOK, POWERSHELL_HOOK, _decision,
+                                    bash, cmd, powershell)
 
 PLAN_MODE = "plan"
+DEFAULT_MODE = "default"
+# Subcommands that run a helper program through a transport, a filter, or
+# a help viewer.
+GIT_HELPER_COMMANDS = (
+    "git ls-remote ext::sh",
+    "git cat-file --textconv HEAD:README.md",
+    "git help log",
+)
+# Reads that a configured external diff program turns into a program run.
+CONFIGURED_HELPER_READS = ("git diff", "git ls-files")
+GATE_HOOKS = (("bash", BASH_HOOK, "Bash"), ("powershell", POWERSHELL_HOOK, "PowerShell"),
+              ("cmd", CMD_HOOK, "Cmd"))
 GIT_WRITE_COMMANDS = (
     "git commit -m change",
     "git branch -m fix/rename-branch",
@@ -80,6 +95,36 @@ class PlanModeGitWriteTest(unittest.TestCase):
         for gate_name, gate in GATES:
             with self.subTest(gate=gate_name):
                 self.assertEqual(gate("git commit -m change"), "")
+
+
+class PlanModeHelperTest(unittest.TestCase):
+    """Plan mode denies Git reads that run a helper program."""
+
+    def test_helper_subcommands_deny_in_plan_mode(self):
+        for command in GIT_HELPER_COMMANDS:
+            for gate_name, gate in GATES:
+                with self.subTest(command=command, gate=gate_name):
+                    self.assertEqual(gate(command, PLAN_MODE), "deny")
+
+    def test_configured_external_diff_denies_in_plan_mode(self):
+        with tempfile.TemporaryDirectory() as root:
+            git_dir = Path(root) / ".git"
+            git_dir.mkdir()
+            (git_dir / "config").write_text(
+                "[core]\n\tbare = false\n[diff]\n\texternal = /tmp/helper\n",
+                encoding="utf-8")
+            for command in CONFIGURED_HELPER_READS:
+                for gate_name, hook, tool in GATE_HOOKS:
+                    with self.subTest(command=command, gate=gate_name):
+                        self.assertEqual(
+                            _decision(hook, tool, command, PLAN_MODE, root), "deny")
+            for gate_name, hook, tool in GATE_HOOKS:
+                with self.subTest(command="git diff", gate=gate_name, mode=DEFAULT_MODE):
+                    self.assertEqual(
+                        _decision(hook, tool, "git diff", DEFAULT_MODE, root), "ask")
+
+    def test_bash_pager_assignment_denies_in_plan_mode(self):
+        self.assertEqual(bash("GIT_PAGER=less git log", PLAN_MODE), "deny")
 
 
 if __name__ == "__main__":

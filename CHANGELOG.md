@@ -14,7 +14,7 @@ into the entry. Dates never decrease. Ask the active human when a date is in
 doubt.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.29.2] (2026-11-20)
+## [2.29.3] (2026-11-20)
 
 ### Added
 - `hooks/reinject_agents_policy.py` checks the compaction disclosure on
@@ -34,12 +34,15 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   the verdict into each Git command. Inspection subcommands stay open.
   Options that write files or run a program deny in any position. Global
   config, pager, and helper path options deny before the subcommand.
-  Issue 100.
+  Plan mode leaves out `ls-remote`, `cat-file`, and `help`. Each allowed
+  subcommand gets the `git_read_verdict` config and environment check.
+  Plan mode turns any Git ask into a deny. Issue 100.
 
 ### Changed
-- `hooks/enforce_branch_name.py` allows `EnterPlanMode`, `ExitPlanMode`,
-  `ToolSearch`, and plan file writes outside the repository on an invalid
-  branch. Repository reads and writes stay blocked. The Stop check ends a
+- `hooks/enforce_branch_name.py` allows `EnterPlanMode` and plan file
+  writes outside the repository on an invalid branch. It allows
+  `ExitPlanMode` and `ToolSearch` there only while `permission_mode` is
+  plan. Repository reads and writes stay blocked. The Stop check ends a
   plan-mode turn with the rename reminder instead of a block. `AGENTS.md`
   states the allowance. Issue 100.
 

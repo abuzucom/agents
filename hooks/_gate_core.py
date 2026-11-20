@@ -428,8 +428,8 @@ PLAN_MODE = "plan"
 # Plan mode keeps these inspection-only subcommands open. Each one reads
 # objects, refs, or the index without writing any of them.
 PLAN_MODE_GIT_SUBCOMMANDS = READ_SUBCOMMANDS | frozenset({
-    "describe", "rev-parse", "rev-list", "ls-files", "ls-tree", "ls-remote",
-    "cat-file", "check-attr", "show-ref", "help", "version",
+    "describe", "rev-parse", "rev-list", "ls-files", "ls-tree",
+    "check-attr", "show-ref", "version",
 })
 # Options that write files or run a program in any position. An inspection
 # subcommand with one of them leaves the inspection set.
@@ -662,16 +662,37 @@ def git_verdict(args: list, cwd: str = "", environment: list = None,
     return _git_flag_verdict(subcommand, rest)
 
 
-def plan_mode_git_verdict(mode: str, args: list) -> tuple:
-    """Return (decision, reason) for a git command under `mode`.
+def plan_mode_git_verdict(mode: str, args: list, cwd: str = "",
+                          environment: list = None, base: tuple = ("", "")) -> tuple:
+    """Return the final (decision, reason) for a git command under `mode`.
 
-    Plan mode permits inspection only. A git subcommand outside the
-    inspection set denies there. A plan-mode session therefore cannot
-    rename a branch, commit, or push. A bare `git --version` names no
-    subcommand and stays open. Every other mode returns no verdict.
+    `base` holds the gate's ordinary git verdict. Every mode except plan
+    returns it unchanged. Plan mode permits inspection only:
+
+    - A git subcommand outside the inspection set denies. A plan-mode
+      session therefore cannot rename a branch, commit, or push.
+    - Each allowed subcommand outside READ_SUBCOMMANDS gets the same
+      config and environment check that `git_read_verdict` gives reads.
+    - An ask denies. An approved ask would still run the named program.
+
+    A bare `git --version` names no subcommand and stays open.
     """
     if mode != PLAN_MODE:
-        return "", ""
+        return base
+    rule = _plan_mode_git_rule(args)
+    if rule[0]:
+        return rule
+    subcommand, _rest = git_subcommand(args)
+    merged = base
+    if subcommand and subcommand.casefold() not in READ_SUBCOMMANDS:
+        merged = strongest(base, git_read_verdict(args, cwd, environment or []))
+    if merged[0] == "ask":
+        return "deny", f"{merged[1]}. Plan mode permits inspection only"
+    return merged
+
+
+def _plan_mode_git_rule(args: list) -> tuple:
+    """Return a plan-mode deny for an unsafe option or a write subcommand."""
     subcommand, rest = git_subcommand(args)
     global_options = args[:len(args) - len(rest) - 1] if subcommand else args
     unsafe = _plan_mode_unsafe_option(global_options, PLAN_MODE_DENIED_GLOBAL_GIT_OPTIONS)

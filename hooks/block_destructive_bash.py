@@ -238,8 +238,9 @@ def _named_program_verdict(program: str, args: list,
     if lowered in core.DELETE_PROGRAMS:
         return core.any_delete_verdict(lowered, args)
     if core.normalize_windows_command_name(program) == "git":
-        return core.strongest(core.git_verdict(args, _CWD[0], environment),
-                              core.plan_mode_git_verdict(_MODE[0], args))
+        return core.plan_mode_git_verdict(
+            _MODE[0], args, _CWD[0], environment,
+            core.git_verdict(args, _CWD[0], environment))
     return None
 
 

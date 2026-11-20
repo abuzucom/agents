@@ -134,8 +134,9 @@ def classify_cmd_segment(command_tokens: tuple[str, ...]) -> tuple[str, str]:
     if program_name == "git":
         verdict = core.strongest(
             verdict,
-            core.strongest(core.git_verdict(list(arguments), _CWD[0]),
-                           core.plan_mode_git_verdict(_MODE[0], list(arguments))),
+            core.plan_mode_git_verdict(
+                _MODE[0], list(arguments), _CWD[0], None,
+                core.git_verdict(list(arguments), _CWD[0])),
         )
     policies = (
         core.cloudflare_pages_verdict(

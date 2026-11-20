@@ -275,6 +275,14 @@ that write files or run a program in any position:
 
 Before the subcommand it also denies `-c`, `--config-env`, `-p`,
 `--paginate`, and `--exec-path`. In plan mode `git grep -o` denies too.
+Plan mode leaves out `ls-remote`, `cat-file`, and `help`. Each one can run
+a transport helper, a filter, or a help viewer. Every allowed subcommand
+gets the config and environment check of `git_read_verdict`. A configured
+external diff, driver, pager, or `GIT_PAGER` value turns the ask into a
+deny in plan mode. An approved ask would still run that program.
+
+On an invalid branch `EnterPlanMode` passes in every mode. `ExitPlanMode`
+and `ToolSearch` pass only while `permission_mode` is plan.
 
 The disclosure check parses each line that holds the raw boundary token.
 Only an entry with type `system` and subtype `compact_boundary` counts. A
@@ -295,6 +303,11 @@ These cases let the turn end with a notice:
 The check covers only the disclosure. It cannot verify the stop, plan mode,
 or continuation claims. Codex exposes no assistant output to a stop hook.
 Codex disclosure stays unverified.
+
+The check blocks once per turn end. Claude sets `stop_hook_active` on the
+retry, and the check then lets the turn end. The retry can therefore end
+without a disclosure. Every Stop hook here keeps that guard. A check without
+it would trap a session that cannot produce the disclosure.
 
 `INTERACTIVE_MODES` lists the `permission_mode` values in which a person can
 answer a gated prompt. An unrecognized value denies a gated verdict. The

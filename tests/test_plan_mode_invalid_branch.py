@@ -13,6 +13,9 @@ from tests.read_only_branch_support import BranchFixture, decision
 
 INVALID_BRANCH = "not-a-valid-branch"
 PLAN_EXIT_TOOLS = ("EnterPlanMode", "ExitPlanMode", "ToolSearch")
+# These pass only while permission_mode is plan. EnterPlanMode passes in
+# every mode, or a session could never reach plan mode.
+PLAN_ONLY_TOOLS = ("ExitPlanMode", "ToolSearch")
 PLAN_FILE_NAME = "plan.md"
 
 
@@ -27,6 +30,14 @@ class PlanModeInvalidBranchTest(unittest.TestCase):
             with self.subTest(tool=tool_name):
                 result = self.fixture.run(tool_name, {}, mode="plan")
                 self.assertEqual(decision(result), "allow")
+
+    def test_plan_only_tools_deny_outside_plan_mode(self):
+        for tool_name in PLAN_ONLY_TOOLS:
+            with self.subTest(tool=tool_name):
+                self.assertEqual(decision(self.fixture.run(tool_name, {})), "deny")
+
+    def test_plan_entry_passes_outside_plan_mode(self):
+        self.assertEqual(decision(self.fixture.run("EnterPlanMode", {})), "allow")
 
     def test_plan_file_write_outside_repository_passes(self):
         plan_path = self.fixture.home / ".claude" / "plans" / PLAN_FILE_NAME

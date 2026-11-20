@@ -94,10 +94,11 @@ PLAN_WRITE_TOOLS = frozenset({
     "Edit", "MultiEdit", "Write", "write_file", "replace", "write_to_file",
     "replace_file_content",
 })
-# Plan mode forbids the branch rename. These tools let a session on an
-# invalid branch enter or leave plan mode and load tool schemas. None of
-# them reads or writes the repository.
-PLAN_EXIT_TOOLS = frozenset({"EnterPlanMode", "ExitPlanMode", "ToolSearch"})
+# Plan mode forbids the branch rename. On an invalid branch a session may
+# always enter plan mode. Inside plan mode it may also leave plan mode and
+# load tool schemas. None of these tools reads or writes the repository.
+PLAN_ENTRY_TOOL = "EnterPlanMode"
+PLAN_EXIT_TOOLS = frozenset({"ExitPlanMode", "ToolSearch"})
 BASH_READ_PROGRAMS = frozenset({
     "echo", "printf", "pwd", "cat", "head", "tail", "wc", "ls", "dir",
 })
@@ -1157,7 +1158,9 @@ def _handle_invalid_branch(
     tool_name, tool_input = _tool_call(payload, client)
     if not isinstance(tool_name, str):
         return _deny(client, "Tool name is missing or malformed")
-    if tool_name in QUESTION_TOOLS | PLAN_EXIT_TOOLS:
+    if tool_name in QUESTION_TOOLS or tool_name == PLAN_ENTRY_TOOL:
+        return 0
+    if tool_name in PLAN_EXIT_TOOLS and payload.get("permission_mode") == core.PLAN_MODE:
         return 0
     if (tool_name in PLAN_WRITE_TOOLS and isinstance(tool_input, dict)
             and _plan_write_allowed(tool_input, project_dir, client)):
