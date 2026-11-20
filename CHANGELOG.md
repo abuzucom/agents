@@ -14,6 +14,16 @@ into the entry. Dates never decrease. Ask the active human when a date is in
 doubt.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.28.6] (2026-11-20)
+
+### Fixed
+- The reusable `pr-checks` job in `agents-compliance.yml` runs on draft
+  pull requests. Rule 5 makes every agent pull request a draft. The old
+  draft skip kept `scripts/check_agent_prose_gate.py` from running until
+  a person marked the pull request ready. Add
+  `tests/test_pr_checks_draft_coverage.py`. Correct the draft comments in
+  `agents-md-compliance.yml`, `sync-check.yml`, and `README.md`.
+
 ## [2.28.5] (2026-11-19)
 
 ### Added

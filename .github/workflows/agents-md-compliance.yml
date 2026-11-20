@@ -3,7 +3,7 @@ name: AGENTS.md Compliance
 on:
   pull_request:
     branches: [ main ]
-    # The reusable pr-checks job skips drafts. ready_for_review starts it
+    # The reusable pr-checks job runs on drafts. ready_for_review reruns it
     # when a draft pull request becomes ready.
     types: [opened, synchronize, reopened, ready_for_review]
 

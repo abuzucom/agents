@@ -55,8 +55,8 @@ jobs:
 
   pr-authorship:
     # agents-md-compliance.yml runs the reusable pr-checks job on pull
-    # requests. That job skips drafts. This job runs these two checkers on
-    # draft pull requests too.
+    # requests to main, drafts included. This job runs these checkers in
+    # the sync check workflow as well.
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:

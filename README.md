@@ -180,10 +180,10 @@ immutable pull request tree and commit metadata.
 `agents-md-compliance.yml` runs compliance on pull requests to `main`
 through the reusable `agents-compliance.yml` workflow. The `static-checks`
 job runs before merge on every listed pull request activity. The
-`pr-checks` job skips draft pull requests. The `ready_for_review` activity
-starts it when a draft becomes ready. `sync-check.yml` also carries the
-banned-agent and commit-identity checks. That copy covers draft pull
-requests. A push to `main` after a merge reruns neither `sync-check.yml`
+`pr-checks` job runs on draft pull requests. Rule 5 makes every agent pull
+request a draft. The `ready_for_review` activity reruns the job when a draft
+becomes ready. `sync-check.yml` also carries the banned-agent and
+commit-identity checks. A push to `main` after a merge reruns neither `sync-check.yml`
 nor `agents-md-compliance.yml`.
 
 `sync-check.yml` also runs
