@@ -14,6 +14,22 @@ into the entry. Dates never decrease. Ask the active human when a date is in
 doubt.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.28.6] (2026-11-20)
+
+### Fixed
+- The reusable `pr-checks` job in `agents-compliance.yml` runs on draft
+  pull requests. Rule 5 makes every agent pull request a draft. The agent
+  prose gate now reaches agent pull requests. Add
+  `tests/test_pr_checks_draft_coverage.py`.
+- The `pr-authorship` job in `sync-check.yml` drops the banned-agent,
+  identity, and attribution steps that `pr-checks` already runs. The job
+  keeps the commit-range external reference check.
+- The digest backfill fixture in `tests/test_sync_digest_index.py` turns
+  off automatic Git maintenance and garbage collection. Detached
+  maintenance removed `maintenance.lock` during the template copy. Add
+  `tests/test_digest_fixture_maintenance.py`.
+- Workflow, README, and test comments describe the draft coverage.
+
 ## [2.28.5] (2026-11-19)
 
 ### Added

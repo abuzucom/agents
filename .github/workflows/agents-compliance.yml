@@ -32,7 +32,9 @@ jobs:
         run: python scripts/check_pull_request_message.py
 
   pr-checks:
-    if: github.event_name == 'pull_request' && github.event.pull_request.draft == false
+    # Rule 5 makes every agent pull request a draft. This job runs on drafts
+    # so the agent prose gate and the authorship checks reach agent work.
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
