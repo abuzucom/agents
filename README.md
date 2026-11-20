@@ -685,7 +685,8 @@ require trust. Hosted tools do not pass through `PreToolUse`.
 
 Claude and Codex compaction events prepend a directive. The directive orders
 compaction-text disclosure, a stop, a return to plan mode, and replanning from
-current repository state.
+current repository state. On Claude, a `Stop` check blocks one turn end when
+no response after the last compaction holds the disclosure block.
 
 Gemini receives complete policy context at `SessionStart` and before every
 model request. Antigravity receives complete policy context as an ephemeral

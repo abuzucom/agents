@@ -94,6 +94,11 @@ PLAN_WRITE_TOOLS = frozenset({
     "Edit", "MultiEdit", "Write", "write_file", "replace", "write_to_file",
     "replace_file_content",
 })
+# Plan mode forbids the branch rename. On an invalid branch a session may
+# always enter plan mode. Inside plan mode it may also leave plan mode and
+# load tool schemas. None of these tools reads or writes the repository.
+PLAN_ENTRY_TOOL = "EnterPlanMode"
+PLAN_EXIT_TOOLS = frozenset({"ExitPlanMode", "ToolSearch"})
 BASH_READ_PROGRAMS = frozenset({
     "echo", "printf", "pwd", "cat", "head", "tail", "wc", "ls", "dir",
 })
@@ -1153,7 +1158,12 @@ def _handle_invalid_branch(
     tool_name, tool_input = _tool_call(payload, client)
     if not isinstance(tool_name, str):
         return _deny(client, "Tool name is missing or malformed")
-    if tool_name in QUESTION_TOOLS:
+    if tool_name in QUESTION_TOOLS or tool_name == PLAN_ENTRY_TOOL:
+        return 0
+    if tool_name in PLAN_EXIT_TOOLS and payload.get("permission_mode") == core.PLAN_MODE:
+        return 0
+    if (tool_name in PLAN_WRITE_TOOLS and isinstance(tool_input, dict)
+            and _plan_write_allowed(tool_input, project_dir, client)):
         return 0
     label = str(tool_name or "tool")
     rebase_active, lookup_error = rebase_state or read_rebase_state(project_dir)
@@ -1242,6 +1252,11 @@ def handle_stop_event(payload: dict, project_dir: str) -> int:
     else:
         recovery = recovery_authorization_reason(branch_name, _rebase_assumed(project_dir))
         reason = f"{recovery} {core.sanitize(branch_violation)}"
+    # Plan mode forbids the rename itself. A block there would only repeat a
+    # demand the session cannot meet. The turn ends with the reminder instead.
+    if payload.get("permission_mode") == core.PLAN_MODE:
+        print(json.dumps({"systemMessage": reason}))
+        return 0
     output = {
         "decision": "block",
         "reason": reason,

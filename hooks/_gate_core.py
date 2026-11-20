@@ -424,6 +424,24 @@ def push_verdict(args: list, cwd: str = "", global_args: list = None,
 
 READ_SUBCOMMANDS = frozenset({"status", "diff", "log", "show", "blame",
                               "grep", "shortlog", "whatchanged"})
+PLAN_MODE = "plan"
+# Plan mode keeps these inspection-only subcommands open. Each one reads
+# objects, refs, or the index without writing any of them.
+PLAN_MODE_GIT_SUBCOMMANDS = READ_SUBCOMMANDS | frozenset({
+    "describe", "rev-parse", "rev-list", "ls-files", "ls-tree",
+    "check-attr", "show-ref", "version",
+})
+# Options that write files or run a program in any position. An inspection
+# subcommand with one of them leaves the inspection set.
+PLAN_MODE_DENIED_GIT_OPTIONS = frozenset({
+    "--output", "--output-directory", "-o", "-O", "--open-files-in-pager",
+    "--ext-diff", "--textconv",
+})
+# Global options before the subcommand that set config, a pager, or the
+# helper path. After the subcommand, `-p` and `-c` carry read meanings.
+PLAN_MODE_DENIED_GLOBAL_GIT_OPTIONS = frozenset({
+    "-c", "--config-env", "-p", "--paginate", "--exec-path",
+})
 
 
 KNOWN_SUBCOMMANDS = frozenset({
@@ -642,6 +660,66 @@ def git_verdict(args: list, cwd: str = "", environment: list = None,
     if reader:
         return reader(rest)
     return _git_flag_verdict(subcommand, rest)
+
+
+def plan_mode_git_verdict(mode: str, args: list, cwd: str = "",
+                          environment: list = None, base: tuple = ("", "")) -> tuple:
+    """Return the final (decision, reason) for a git command under `mode`.
+
+    `base` holds the gate's ordinary git verdict. Every mode except plan
+    returns it unchanged. Plan mode permits inspection only:
+
+    - A git subcommand outside the inspection set denies. A plan-mode
+      session therefore cannot rename a branch, commit, or push.
+    - Each allowed subcommand outside READ_SUBCOMMANDS gets the same
+      config and environment check that `git_read_verdict` gives reads.
+    - An ask denies. An approved ask would still run the named program.
+
+    A bare `git --version` names no subcommand and stays open.
+    """
+    if mode != PLAN_MODE:
+        return base
+    rule = _plan_mode_git_rule(args)
+    if rule[0]:
+        return rule
+    subcommand, _rest = git_subcommand(args)
+    merged = base
+    if subcommand and subcommand.casefold() not in READ_SUBCOMMANDS:
+        merged = strongest(base, git_read_verdict(args, cwd, environment or []))
+    if merged[0] == "ask":
+        return "deny", f"{merged[1]}. Plan mode permits inspection only"
+    return merged
+
+
+def _plan_mode_git_rule(args: list) -> tuple:
+    """Return a plan-mode deny for an unsafe option or a write subcommand."""
+    subcommand, rest = git_subcommand(args)
+    global_options = args[:len(args) - len(rest) - 1] if subcommand else args
+    unsafe = _plan_mode_unsafe_option(global_options, PLAN_MODE_DENIED_GLOBAL_GIT_OPTIONS)
+    unsafe = unsafe or _plan_mode_unsafe_option(args, PLAN_MODE_DENIED_GIT_OPTIONS)
+    if unsafe:
+        return "deny", (f"git option {sanitize(unsafe)} writes files or runs a program. "
+                        "Plan mode permits inspection only")
+    if not subcommand or subcommand.casefold() in PLAN_MODE_GIT_SUBCOMMANDS:
+        return "", ""
+    return "deny", (f"git {sanitize(subcommand)} writes repository state. Plan "
+                    "mode permits inspection only")
+
+
+def _plan_mode_unsafe_option(tokens: list, denied: frozenset) -> str:
+    """Return the first token that names an option in `denied`, or an empty string.
+
+    A long option matches with or without an `=value` suffix. A short option
+    also matches with its value attached, such as `-Ocat`.
+    """
+    for token in tokens:
+        name = token.split("=", 1)[0]
+        if name in denied:
+            return name
+        short = token[:SHORT_OPTION_LENGTH]
+        if not token.startswith("--") and short in denied:
+            return short
+    return ""
 
 
 def unparseable_verdict(command: str, keywords: tuple) -> tuple:
@@ -2579,6 +2657,32 @@ def environment_assignment_verdict(program: str, args: list) -> tuple:
             return "ask", (f"exporting {sanitize(name)} changes how a later "
                            "git read resolves or executes programs")
     return "", ""
+
+
+def cmd_set_assignment_verdict(program: str, args: list) -> tuple:
+    """Gate a CMD `set` of a variable that alters Git reads."""
+    if normalize_windows_command_name(program) != "set":
+        return "", ""
+    for token in args:
+        if token.startswith("/"):
+            continue
+        name = token.strip('"').split("=", 1)[0].strip().upper()
+        if is_relevant_git_environment(name):
+            return "ask", (f"setting {sanitize(name)} changes how a later git "
+                           "read resolves or executes programs")
+        return "", ""
+    return "", ""
+
+
+def plan_mode_harden(mode: str, verdict: tuple) -> tuple:
+    """Return `verdict` with an ask turned into a deny while `mode` is plan.
+
+    Plan mode permits inspection only. An approved ask would still run the
+    program the assignment names.
+    """
+    if mode != PLAN_MODE or verdict[0] != "ask":
+        return verdict
+    return "deny", f"{verdict[1]}. Plan mode permits inspection only"
 
 
 def resolve_alias(cwd: str, subcommand: str) -> str:

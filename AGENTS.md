@@ -436,7 +436,8 @@ Use the task type and description to select a compliant replacement. Ask for
 consent before the applicable exact recovery command.
 
 Until recovery succeeds, block ordinary tools. Allow questions and native
-recovery consent. Accept `git -C <current-repository>` recovery. Reject foreign
+recovery consent. Allow plan mode tools and plan file writes outside the
+repository. Accept `git -C <current-repository>` recovery. Reject foreign
 paths, wrappers, and chains. Mode limits forbid delegation. Never ask the
 active human to run recovery. Record rejection. Use one equivalent path. Rule
 10 applies. Never assume it.

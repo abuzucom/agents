@@ -79,6 +79,16 @@
               "claude"
             ],
             "timeout": 30
+          },
+          {
+            "type": "command",
+            "command": "python",
+            "args": [
+              "${CLAUDE_PROJECT_DIR}/hooks/reinject_agents_policy.py",
+              "--client",
+              "claude"
+            ],
+            "timeout": 30
           }
         ]
       }

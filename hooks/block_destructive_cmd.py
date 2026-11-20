@@ -40,6 +40,8 @@ SCRIPT_SUFFIXES = (".bat", ".cmd", ".ps1")
 INTERPRETER_PROGRAMS = frozenset(
     core.normalize_windows_command_name(name) for name in core.SHELL_INTERPRETERS)
 _CWD = [""]
+# The payload permission mode for the current call. Plan mode denies git writes.
+_MODE = [""]
 
 
 def normalize_cmd_program(program_token: str) -> str:
@@ -132,11 +134,15 @@ def classify_cmd_segment(command_tokens: tuple[str, ...]) -> tuple[str, str]:
     if program_name == "git":
         verdict = core.strongest(
             verdict,
-            core.git_verdict(list(arguments), _CWD[0]),
+            core.plan_mode_git_verdict(
+                _MODE[0], list(arguments), _CWD[0], None,
+                core.git_verdict(list(arguments), _CWD[0])),
         )
     policies = (
         core.cloudflare_pages_verdict(
             program_name, list(arguments), _CWD[0]),
+        core.plan_mode_harden(
+            _MODE[0], core.cmd_set_assignment_verdict(program_name, list(arguments))),
         core.destruction_verdict(program_name, list(arguments)),
         core.alias_verdict(program_name, list(arguments)),
         core.mode_change_verdict(program_name, list(arguments)),
@@ -193,6 +199,7 @@ def main() -> int:
     if command_text is None:
         return core.emit(GATE, "deny", "the CMD command field is not a string")
     _CWD[0] = core.project_dir(payload)
+    _MODE[0] = core.require_str(payload.get("permission_mode", "")) or ""
     decision, decision_reason = classify_cmd_command(command_text)
     if not decision:
         return 0

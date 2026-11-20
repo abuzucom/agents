@@ -76,6 +76,8 @@ except ImportError as error:
     sys.exit(POLICY_DENIAL_EXIT_CODE)
 
 _CWD = [""]
+# The payload permission mode for the current call. Plan mode denies git writes.
+_MODE = [""]
 GATE = "block_destructive_bash.py"
 GATED_KEYWORDS = core.gated_keywords()
 # A shell handed a command string is a wrapper with another command as its
@@ -236,7 +238,9 @@ def _named_program_verdict(program: str, args: list,
     if lowered in core.DELETE_PROGRAMS:
         return core.any_delete_verdict(lowered, args)
     if core.normalize_windows_command_name(program) == "git":
-        return core.git_verdict(args, _CWD[0], environment)
+        return core.plan_mode_git_verdict(
+            _MODE[0], args, _CWD[0], environment,
+            core.git_verdict(args, _CWD[0], environment))
     return None
 
 
@@ -268,7 +272,8 @@ def _program_verdict(tokens: list, redirects: list,
                           sys.platform, program, args),
                       core.destruction_verdict(program, args),
                       core.alias_verdict(program, args),
-                      core.environment_assignment_verdict(program, args),
+                      core.plan_mode_harden(
+                          _MODE[0], core.environment_assignment_verdict(program, args)),
                       core.mode_change_verdict(program, args),
                       core.truncation_verdict(program, args, redirects),
                       core.process_verdict(program, args),
@@ -333,6 +338,7 @@ def _run() -> int:
     if not isinstance(tool_input, dict):
         return emit("deny", "the tool input is malformed, so the gate cannot read this command")
     _CWD[0] = core.project_dir(payload)
+    _MODE[0] = core.require_str(payload.get("permission_mode", "")) or ""
     command = core.require_str(tool_input.get("command", ""))
     if command is None:
         return emit("deny", "the command field is not a string, so the gate cannot read it")
