@@ -18,17 +18,21 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 - The reusable `pr-checks` job in `agents-compliance.yml` runs on draft
-  pull requests. Rule 5 makes every agent pull request a draft. The agent
-  prose gate now reaches agent pull requests. Add
-  `tests/test_pr_checks_draft_coverage.py`.
+  pull requests. Rule 5 makes every agent pull request a draft. The old
+  draft skip kept `scripts/check_agent_prose_gate.py` from running until
+  a person marked the pull request ready. Add
+  `tests/test_pr_checks_draft_coverage.py`. Correct the draft comments in
+  `agents-md-compliance.yml`, `sync-check.yml`, and `README.md`.
 - The `pr-authorship` job in `sync-check.yml` drops the banned-agent,
   identity, and attribution steps that `pr-checks` already runs. The job
-  keeps the commit-range external reference check.
+  keeps the commit-range external reference check. Add
+  `tests/test_pr_authorship_deduplication.py`.
 - The digest backfill fixture in `tests/test_sync_digest_index.py` turns
   off automatic Git maintenance and garbage collection. Detached
   maintenance removed `maintenance.lock` during the template copy. Add
   `tests/test_digest_fixture_maintenance.py`.
-- Workflow, README, and test comments describe the draft coverage.
+- Comments in `tests/test_advisory_workflow_wiring.py` and
+  `tests/test_agents_md_compliance_trigger.py` describe the draft coverage.
 
 ## [2.28.5] (2026-11-19)
 
