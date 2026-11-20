@@ -14,7 +14,7 @@ into the entry. Dates never decrease. Ask the active human when a date is in
 doubt.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.29.8] (2026-11-20)
+## [2.29.9] (2026-11-20)
 
 ### Added
 - `hooks/reinject_agents_policy.py` checks the compaction disclosure on
@@ -54,8 +54,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 - `hooks/_gate_core.py` limits the Kubernetes values file name match to YAML
-  extensions. The gate protected any file whose name starts with `values-`
-  or `values.`. A Helm values file carries a YAML extension. A source file
+  extensions. The gate protected any file with a name that starts with
+  `values-` or `values.`. A Helm values file carries a YAML extension. A source file
   named `values.ts` carries no Kubernetes configuration, and its name reached
   the protected set. That denied broad searches in repositories holding such
   a file. Add `tests/test_infrastructure_values_scope.py`.
@@ -84,10 +84,18 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - `tests/test_compaction_disclosure_form.py` passes a 30 second timeout
   to the hook subprocess. A hung hook fails the test instead of hanging
   the suite. Issue 104.
+- The agent prose gate section in `docs/agent-policy/enforcement.md`
+  names the `pr-checks` job in `agents-compliance.yml` as the CI runner
+  of `scripts/check_agent_prose_gate.py`. The old text claimed that no
+  CI job runs the gate. Regenerate the synchronized policy copies.
 - The Rule 22 protected hook inventory in
   `docs/agent-policy/enforcement.md` lists
   `hooks/enforce_anti_delegation.py`. `scripts/sync.py` already lists
   the hook in `SHARED_FILES`.
+- The agent prose gate section in `docs/agent-policy/enforcement.md`
+  states the shared `check_banned_agents.py` gap in its own sentence and
+  names `agents-compliance.yml` by file name. The rewording keeps the
+  assembled policy within the 65,536 byte limit.
 
 ## [2.28.5] (2026-11-19)
 
