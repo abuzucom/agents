@@ -16,7 +16,7 @@ import unittest
 from pathlib import Path
 
 # scripts/ is never on the path, so the file lists come from the module
-# that defines them instead of a restated copy.
+# that defines the lists instead of a restated copy.
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 import sync
 

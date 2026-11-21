@@ -8,7 +8,7 @@ import yaml
 ROOT = Path(__file__).resolve().parent.parent
 REUSABLE_WORKFLOW = ROOT / ".github" / "workflows" / "agents-compliance.yml"
 SYNC_WORKFLOW = ROOT / ".github" / "workflows" / "sync-check.yml"
-# pr-checks owns these authorship checkers. sync-check.yml must not repeat them.
+# pr-checks owns these authorship checkers. sync-check.yml must not repeat those checkers.
 AUTHORSHIP_COMMANDS = (
     "python scripts/check_banned_agents.py",
     "python scripts/check_git_identity.py",

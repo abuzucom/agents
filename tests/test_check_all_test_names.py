@@ -26,6 +26,10 @@ PRONOUN_COMMENT_TEST = """def test_row_height():
     # We check the row height here.
     pass
 """
+THIRD_PERSON_COMMENT_TEST = """def test_row_height():
+    # They check the row height.
+    pass
+"""
 MARKER_COMMENT_TEST = """def test_row_height():
     # Now build the fixture.
     pass
@@ -97,6 +101,12 @@ class AllModeTest(unittest.TestCase):
         self.assertEqual(result.returncode, 1)
         self.assertIn("tests/test_rows.py:2", result.stdout)
         self.assertIn("narration", result.stdout)
+
+    def test_third_person_comment_fails(self):
+        self._write("tests/test_rows.py", THIRD_PERSON_COMMENT_TEST)
+        result = self._run_checker()
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("tests/test_rows.py:2", result.stdout)
 
     def test_marker_comment_fails(self):
         self._write("tests/test_rows.py", MARKER_COMMENT_TEST)

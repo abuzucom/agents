@@ -14,7 +14,7 @@ into the entry. Dates never decrease. Ask the active human when a date is in
 doubt.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.33.0] (2026-11-21)
+## [2.33.1] (2026-11-21)
 
 ### Added
 - `scripts/check_test_names.py --all` reads every `tests/**/*.py` file in
@@ -50,6 +50,10 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   next sync.
 
 ### Fixed
+- `scripts/check_test_names.py --all` takes its pronoun list from
+  `PERSONAL_PRONOUNS` in `scripts/prose_policy.py`. Third person pronouns
+  in test comments now fail too. Two test comments drop the pronoun
+  `them`.
 - `scripts/check_test_names.py` queries each blob size with
   `git cat-file -s` before reading the blob. A test file over the 4 MiB
   cap exits 1 and never enters memory.
