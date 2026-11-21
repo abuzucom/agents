@@ -100,11 +100,6 @@ documented branch and commit-message exemption through trusted metadata.
 Copy `scripts/trusted_bot_identities.py` with it. That registry lists every
 bot exempt from branch rules. A third-party bot also needs its account ID in the event.
 
-Retry variations include changed flags, working directories, and argument
-order. Stop after the second unprompted failure. Analyze the error and change
-strategy. An active-human retry instruction resets the retry count and requires
-a fresh attempt.
-
 Branch adoption copies `scripts/check_branch_name.py`,
 `scripts/read_git_state.py`, `scripts/trusted_git.py`,
 `hooks/enforce_branch_name.py`, `hooks/_command_execution_gate.py`,

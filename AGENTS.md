@@ -663,6 +663,8 @@ cannot license other languages outside required string literals or data.
 
 **Avoid emojis.** No emojis unless justified and approved by a human.
 
+**Numbers.** In prose, comments, commits, and PRs, spell out zero through ten. Use digits above.
+
 **Direct factual discourse.** State facts, requirements, results, and concrete
 effects. Omit hedging, fluff, self-justification, self-narration, tutorial
 narration, ownership deflections, conversational provenance, temporary-work

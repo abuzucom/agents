@@ -243,6 +243,10 @@ stop-and-ask
 line-ending-normalized
 non-pre-release
 non-dry-run
+writeability
+raises before
+raises after
+as no
 
 [handoff exemption]
 this session
