@@ -63,7 +63,7 @@ class OriginOwnerTest(unittest.TestCase):
     def test_missing_config_yields_nothing(self):
         self.assertEqual(self.owner_for(""), "")
 
-    def test_remote_with_port_resolves_past_it(self):
+    def test_remote_with_port(self):
         self.assertEqual(
             self.owner_for("https://github.com:443/abuzucom/agents"), OWNER)
 
@@ -190,11 +190,11 @@ class CrossOwnerVerdictTest(unittest.TestCase):
         self.assertEqual(
             self.verdict(["pr", "create", "--repo", EXTERNAL]), "ask")
 
-    def test_issue_create_asks_through_short_flag(self):
+    def test_issue_create_short_flag(self):
         self.assertEqual(
             self.verdict(["issue", "create", "-R", EXTERNAL]), "ask")
 
-    def test_repository_fork_denies_from_positional_target(self):
+    def test_fork_positional_target_denies(self):
         self.assertEqual(self.verdict(["repo", "fork", EXTERNAL]), "deny")
 
     def test_positional_scan_skips_leading_flags(self):
@@ -233,7 +233,7 @@ class CrossOwnerVerdictTest(unittest.TestCase):
                           f"github.com/{EXTERNAL}"]),
             "ask")
 
-    def test_url_target_from_positional_argument_denies(self):
+    def test_positional_url_target_denies(self):
         self.assertEqual(
             self.verdict(["repo", "fork", f"https://github.com/{EXTERNAL}"]),
             "deny")
@@ -253,7 +253,7 @@ class CrossOwnerVerdictTest(unittest.TestCase):
                 self.assertEqual(
                     self.verdict(["pr", "create", "--repo", target]), "ask")
 
-    def test_read_only_command_with_unreadable_target_passes(self):
+    def test_read_only_unreadable_target_passes(self):
         self.assertEqual(
             self.verdict(["pr", "view", "1", "--repo", "not-a-repository"]),
             "")

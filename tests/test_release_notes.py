@@ -23,31 +23,31 @@ class ChangelogSectionsTest(unittest.TestCase):
         """Return the collected sections for one version and start point."""
         return self.release.changelog_sections(CHANGELOG_TEXT, version, since)
 
-    def test_without_a_previous_stable_only_the_own_section_appears(self):
+    def test_no_previous_stable_own_section(self):
         text = self.collect("2.28.0", None)
         self.assertIn("Item C.", text)
         self.assertNotIn("Item B.", text)
         self.assertNotIn("Preamble", text)
 
-    def test_sections_newer_than_the_previous_stable_appear_newest_first(self):
+    def test_newer_sections_newest_first(self):
         text = self.collect("2.28.0", "2.26.2")
         self.assertIn("## [2.28.0] (2026-11-20)", text)
         self.assertIn("## [2.27.1] (2026-11-19)", text)
         self.assertLess(text.index("Item C."), text.index("Item B."))
         self.assertNotIn("Item A.", text)
 
-    def test_previous_stable_absent_from_the_changelog_compares_by_number(self):
+    def test_absent_stable_numeric_compare(self):
         text = self.collect("2.28.0", "2.27.0")
         self.assertIn("Item C.", text)
         self.assertIn("Item B.", text)
         self.assertNotIn("Item A.", text)
 
-    def test_sections_newer_than_the_release_are_excluded(self):
+    def test_later_sections_excluded(self):
         text = self.collect("2.27.1", "2.26.2")
         self.assertIn("Item B.", text)
         self.assertNotIn("Item C.", text)
 
-    def test_previous_stable_not_older_than_the_release_is_rejected(self):
+    def test_newer_previous_stable_rejected(self):
         for since in ("2.28.0", "3.0.0"):
             with self.subTest(since=since):
                 with self.assertRaises(ValueError):
@@ -69,7 +69,7 @@ class ReleaseNotesTest(unittest.TestCase):
         self.root = Path(temporary.name)
         (self.root / "CHANGELOG.md").write_text(CHANGELOG_TEXT, encoding="utf-8")
 
-    def test_notes_end_with_the_adoption_block(self):
+    def test_notes_end_with_adoption(self):
         notes = self.release.release_notes(self.root, "2.28.0", "2.26.2")
         self.assertIn("Item C.", notes)
         self.assertIn("## Adopting this release", notes)
@@ -84,7 +84,7 @@ class ReleaseNotesTest(unittest.TestCase):
         notes = self.release.release_notes(self.root, "2.28.0", None)
         notes.encode("ascii")
 
-    def test_main_writes_notes_and_accepts_a_tag_as_since(self):
+    def test_main_accepts_tag_since(self):
         output = self.root / "notes.md"
         status = self.release.main(
             ["notes", "2.28.0", str(output), "--since", "v2.26.2"], root=self.root)

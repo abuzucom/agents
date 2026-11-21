@@ -24,7 +24,7 @@ def findings(text: str, path: str = "sample.md") -> list:
 class VocabularyTest(unittest.TestCase):
     """Exact vocabulary checks scan raw configured content."""
 
-    def test_configured_entries_load_in_two_scopes(self):
+    def test_configured_entry_scopes(self):
         entries = prose_policy.load_denylist()
         self.assertEqual(
             [entry.text for entry in entries],
@@ -295,7 +295,7 @@ class VocabularyTest(unittest.TestCase):
         self.assertEqual(findings("The failure was seriously disruptive.\n"), [])
         self.assertEqual(findings("The helper utilized an existing API.\n"), [])
 
-    def test_matching_includes_inline_and_fenced_code(self):
+    def test_matching_includes_code(self):
         inline = findings("Call `utilize(resource)` here.\n")
         fenced = findings("```text\nworst\n```\n")
         self.assertEqual(len(inline), 1)
@@ -377,7 +377,7 @@ class SentenceFormTest(unittest.TestCase):
         self.assertEqual(len(found), 1)
         self.assertIn("punctuation chain", found[0])
 
-    def test_inline_enumeration_rejects_pathological_input_quickly(self):
+    def test_inline_enumeration_pathological_input(self):
         script = (
             "from scripts.prose_policy import find_violations\n"
             f"text = 'Values: ' + ', '.join(['token'] * {REDOS_TOKEN_COUNT}) + '.\\n'\n"
@@ -415,12 +415,12 @@ class DiscourseTest(unittest.TestCase):
         self.assertEqual(len(found), 1)
         self.assertIn("ownership deflection", found[0])
 
-    def test_pronoun_ownership_emits_only_pronoun_warning(self):
+    def test_pronoun_ownership_warning_only(self):
         found = findings("The defect is not mine to fix.\n")
         self.assertEqual(len(found), 1)
         self.assertIn("personal pronoun", found[0])
 
-    def test_pronoun_intent_emits_only_pronoun_warnings(self):
+    def test_pronoun_intent_warning_only(self):
         found = findings("This matches what you want.\n")
         self.assertEqual(len(found), 1)
         self.assertTrue(all("personal pronoun" in item for item in found))
@@ -439,7 +439,7 @@ class LiteralEscapeTest(unittest.TestCase):
         self.assertEqual(len(found), NEWLINE_ESCAPE_FINDING_COUNT)
         self.assertTrue(all("literal escape sequence" in item for item in found))
 
-    def test_literal_carriage_return_and_tab_warn(self):
+    def test_carriage_return_and_tab_warn(self):
         found = findings("Header\\r\\tDetails.\n")
         self.assertEqual(len(found), CARRIAGE_RETURN_AND_TAB_FINDING_COUNT)
         self.assertTrue(all("literal escape sequence" in item for item in found))
@@ -447,7 +447,7 @@ class LiteralEscapeTest(unittest.TestCase):
     def test_code_span_skips_escape_sequences(self):
         self.assertEqual(findings("Use `\\n` to represent newlines.\n"), [])
 
-    def test_fenced_code_block_skips_escape_sequences(self):
+    def test_fenced_code_skips_escapes(self):
         text = "```text\nSummary\\n- item\n```\n"
         self.assertEqual(findings(text), [])
 

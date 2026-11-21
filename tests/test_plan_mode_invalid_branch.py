@@ -31,15 +31,15 @@ class PlanModeInvalidBranchTest(unittest.TestCase):
                 result = self.fixture.run(tool_name, {}, mode="plan")
                 self.assertEqual(decision(result), "allow")
 
-    def test_plan_only_tools_deny_outside_plan_mode(self):
+    def test_plan_tools_deny_outside_plan(self):
         for tool_name in PLAN_ONLY_TOOLS:
             with self.subTest(tool=tool_name):
                 self.assertEqual(decision(self.fixture.run(tool_name, {})), "deny")
 
-    def test_plan_entry_passes_outside_plan_mode(self):
+    def test_plan_entry_passes(self):
         self.assertEqual(decision(self.fixture.run("EnterPlanMode", {})), "allow")
 
-    def test_plan_file_write_outside_repository_passes(self):
+    def test_external_plan_write_passes(self):
         plan_path = self.fixture.home / ".claude" / "plans" / PLAN_FILE_NAME
         result = self.fixture.run(
             "Write", {"file_path": str(plan_path), "content": "plan"}, mode="plan")
@@ -64,12 +64,12 @@ class PlanModeInvalidBranchTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         return json.loads(result.stdout) if result.stdout.strip() else {}
 
-    def test_stop_in_plan_mode_ends_the_turn_with_a_reminder(self):
+    def test_plan_mode_stop_reminds(self):
         output = self.stop("plan")
         self.assertNotEqual(output.get("decision"), "block")
         self.assertIn("git branch -m", json.dumps(output))
 
-    def test_stop_in_default_mode_still_blocks(self):
+    def test_default_mode_stop_blocks(self):
         self.assertEqual(self.stop("default").get("decision"), "block")
 
 

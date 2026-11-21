@@ -221,7 +221,7 @@ class ReportFixture(unittest.TestCase):
 class RepositoryScopeTest(ReportFixture):
     """The report covers non-fork, non-archived, non-excluded repositories."""
 
-    def test_forks_archives_and_exclusions_stay_out(self):
+    def test_excluded_repositories_skipped(self):
         status, _, stderr = self.run_report()
         self.assertEqual(status, 0, stderr)
         self.assertEqual(
@@ -236,14 +236,14 @@ class PolicyStateTest(ReportFixture):
         self.run_report()
         self.rows = self.read_rows()
 
-    def test_a_current_repository_matches_the_newest_version(self):
+    def test_current_repository_newest(self):
         policy = self.rows["current"]["policy"]
         self.assertEqual(policy["state"], "current")
         self.assertEqual(policy["version"], NEW_VERSION)
         self.assertEqual(policy["versions_behind"], 0)
         self.assertEqual(policy["files_matching"], policy["files_total"])
 
-    def test_an_older_adoption_reports_its_version_and_distance(self):
+    def test_older_adoption_distance(self):
         policy = self.rows["behind"]["policy"]
         self.assertEqual(policy["state"], "behind")
         self.assertEqual(policy["version"], OLD_VERSION)
@@ -254,10 +254,10 @@ class PolicyStateTest(ReportFixture):
         self.assertEqual(policy["state"], "drifted")
         self.assertIsNone(policy["version"])
 
-    def test_a_repository_without_policy_reports_absent(self):
+    def test_missing_policy_absent(self):
         self.assertEqual(self.rows["bare"]["policy"]["state"], "absent")
 
-    def test_synchronized_copies_count_as_in_sync(self):
+    def test_synchronized_copies_in_sync(self):
         copies = self.rows["current"]["copies"]
         self.assertEqual(copies["in_sync"], len(sync.COPIES))
         self.assertEqual(self.rows["behind"]["copies"]["in_sync"], 0)
@@ -276,21 +276,21 @@ class GateAndWiringTest(ReportFixture):
         self.assertEqual(gates["matching"], gates["total"])
         self.assertEqual(self.rows["bare"]["gates"]["present"], 0)
 
-    def test_complete_client_coverage_is_not_partial(self):
+    def test_complete_coverage_not_partial(self):
         gates = self.rows["current"]["gates"]
         self.assertTrue(all(gates["clients"].values()))
         self.assertFalse(gates["partial"])
 
-    def test_one_registered_client_is_partial_adoption(self):
+    def test_single_client_partial(self):
         gates = self.rows["behind"]["gates"]
         self.assertTrue(gates["clients"]["claude"])
         self.assertFalse(gates["clients"]["codex"])
         self.assertTrue(gates["partial"])
 
-    def test_no_gate_artifact_is_not_partial(self):
+    def test_no_gate_not_partial(self):
         self.assertFalse(self.rows["bare"]["gates"]["partial"])
 
-    def test_the_reusable_workflow_pin_is_reported(self):
+    def test_workflow_pin_reported(self):
         wiring = self.rows["current"]["ci"]
         self.assertEqual(wiring["reference"], PINNED_REFERENCE)
         self.assertTrue(wiring["pinned"])
@@ -300,7 +300,7 @@ class GateAndWiringTest(ReportFixture):
 class OutputTest(ReportFixture):
     """A run writes dated files, the latest copies, and a weekly delta."""
 
-    def test_dated_and_latest_files_are_written(self):
+    def test_dated_and_latest_files(self):
         self.run_report()
         stem = REPORT_DATE.isoformat()
         for name in (f"{stem}.md", f"{stem}.json", "latest.md", "latest.json"):
@@ -311,14 +311,14 @@ class OutputTest(ReportFixture):
             self.assertIn(name, markdown)
         self.assertNotIn("skipped |", markdown)
 
-    def test_the_first_run_marks_every_repository_as_new(self):
+    def test_first_run_marks_new(self):
         self.run_report()
         document = json.loads(
             (self.output / "latest.json").read_text(encoding="utf-8"))
         changes = {item["name"]: item["change"] for item in document["delta"]}
         self.assertEqual(changes["current"], "new repository")
 
-    def test_a_later_run_reports_adoption_upgrade_and_regression(self):
+    def test_later_run_reports_changes(self):
         self.run_report()
         organization = self.server.organization
         organization["bare"]["files"].update(RELEASES[OLD_VERSION])
@@ -339,36 +339,36 @@ class OutputTest(ReportFixture):
 class FailureTest(ReportFixture):
     """Credential problems fail the run and never print the token."""
 
-    def test_a_missing_token_fails_and_names_the_variable(self):
+    def test_missing_token_named(self):
         status, _, stderr = self.run_report(token=None)
         self.assertEqual(status, FAILURE_EXIT)
         self.assertIn(report.TOKEN_VARIABLE, stderr)
 
-    def test_a_rejected_token_fails_without_writing_a_report(self):
+    def test_rejected_token_no_report(self):
         status, stdout, stderr = self.run_report(token="wrong-token-value")
         self.assertEqual(status, FAILURE_EXIT)
         self.assertFalse(self.output.exists())
         self.assertNotIn("wrong-token-value", stdout + stderr)
 
-    def test_the_token_never_reaches_the_report(self):
+    def test_token_absent_from_report(self):
         _, stdout, stderr = self.run_report()
         written = (self.output / "latest.md").read_text(encoding="utf-8")
         written += (self.output / "latest.json").read_text(encoding="utf-8")
         self.assertNotIn(TOKEN, stdout + stderr + written)
 
-    def test_an_expiring_token_adds_a_warning(self):
+    def test_expiring_token_warns(self):
         self.server.token_expiry = SOON_EXPIRY
         self.run_report()
         markdown = (self.output / "latest.md").read_text(encoding="utf-8")
         self.assertIn("expires", markdown)
         self.assertIn("2026-01-10", markdown)
 
-    def test_a_distant_expiry_adds_no_warning(self):
+    def test_distant_expiry_no_warning(self):
         self.run_report()
         markdown = (self.output / "latest.md").read_text(encoding="utf-8")
         self.assertNotIn("expires", markdown)
 
-    def test_a_plain_http_remote_host_is_refused(self):
+    def test_plain_http_host_refused(self):
         stderr = io.StringIO()
         with contextlib.redirect_stderr(stderr):
             status = report.main(
@@ -379,7 +379,7 @@ class FailureTest(ReportFixture):
         self.assertEqual(status, FAILURE_EXIT)
         self.assertIn("https", stderr.getvalue())
 
-    def test_an_invalid_organization_name_is_refused(self):
+    def test_invalid_organization_refused(self):
         self.config.write_text(json.dumps(
             {"organization": "acme/../other", "exclude": []}), encoding="utf-8")
         status, _, stderr = self.run_report()

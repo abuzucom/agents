@@ -98,7 +98,7 @@ class StopEventTest(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertEqual(stdout.strip(), "")
 
-    def test_active_stop_hook_does_not_block_again(self) -> None:
+    def test_active_stop_no_reblock(self) -> None:
         code, stdout, _error = run_hook({
             "hook_event_name": "Stop",
             "stop_hook_active": True,
@@ -180,7 +180,7 @@ class PreToolEventTest(unittest.TestCase):
 class PayloadShapeTest(unittest.TestCase):
     """Verify the payload and transcript shapes the hook accepts."""
 
-    def test_content_block_list_blocks_the_stop(self) -> None:
+    def test_content_block_list_blocks(self) -> None:
         code, stdout, _error = run_hook({
             "hook_event_name": "Stop",
             "assistant_message": [
@@ -191,7 +191,7 @@ class PayloadShapeTest(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertEqual(json.loads(stdout)["decision"], "block")
 
-    def test_nested_message_transcript_blocks_the_stop(self) -> None:
+    def test_nested_transcript_blocks(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             transcript = Path(directory) / "transcript.jsonl"
             transcript.write_text(
@@ -210,7 +210,7 @@ class PayloadShapeTest(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertEqual(json.loads(stdout)["decision"], "block")
 
-    def test_transcript_without_an_assistant_record_allows(self) -> None:
+    def test_no_assistant_record_allows(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             transcript = Path(directory) / "transcript.jsonl"
             transcript.write_text(
@@ -255,7 +255,7 @@ class PayloadShapeTest(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertEqual(json.loads(stdout)["decision"], "block")
 
-    def test_missing_checker_module_reports_no_finding(self) -> None:
+    def test_missing_checker_no_finding(self) -> None:
         module = load_hook_module()
         module.checker = None
         self.assertEqual(module._findings({"assistant_message": DELEGATING_TEXT}), [])
@@ -277,7 +277,7 @@ class RegistrationTest(unittest.TestCase):
                         any("enforce_anti_delegation.py" in item for item in commands)
                     )
 
-    def test_codex_registers_lifecycle_and_tool_events(self) -> None:
+    def test_codex_registration(self) -> None:
         document = json.loads(
             (REPO_ROOT / ".codex" / "hooks.json").read_text(encoding="utf-8")
         )
@@ -288,7 +288,7 @@ class RegistrationTest(unittest.TestCase):
                     any("enforce_anti_delegation.py" in item for item in commands)
                 )
 
-    def test_gemini_registers_lifecycle_and_tool_events(self) -> None:
+    def test_gemini_registration(self) -> None:
         document = json.loads(
             (REPO_ROOT / ".gemini" / "settings.json").read_text(encoding="utf-8")
         )
@@ -299,7 +299,7 @@ class RegistrationTest(unittest.TestCase):
                     any("enforce_anti_delegation.py" in item for item in commands)
                 )
 
-    def test_antigravity_registers_lifecycle_and_tool_events(self) -> None:
+    def test_antigravity_registration(self) -> None:
         document = json.loads(
             (REPO_ROOT / ".agents" / "hooks.json").read_text(encoding="utf-8")
         )

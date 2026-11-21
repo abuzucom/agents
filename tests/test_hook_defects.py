@@ -73,7 +73,7 @@ class GitdirPointerTest(unittest.TestCase):
         target = "/" + "w" * LONG_POINTER_CHARACTERS
         self.assertEqual(core._read_gitdir_pointer(self.write_pointer(target), "gitdir"), target)
 
-    def test_pointer_over_the_bound_fails_closed(self):
+    def test_oversize_pointer_fails_closed(self):
         target = "/" + "w" * (core.MAX_GITDIR_POINTER_CHARACTERS + 1)
         self.assertIsNone(core._read_gitdir_pointer(self.write_pointer(target), "gitdir"))
 
@@ -101,7 +101,7 @@ class InfrastructureScanStatusTest(unittest.TestCase):
         self.assertEqual(decision, "deny")
         self.assertIn("includes protected infrastructure files", reason)
 
-    def test_limit_denies_with_a_recovery_step(self):
+    def test_limit_denial_recovery(self):
         with patch.object(core, "MAX_INFRASTRUCTURE_SCAN_FILES", SHORT_SCAN_LIMIT):
             status = core.infrastructure_scan_status(self.root)
             decision, reason = core.infrastructure_path_verdict("ls", ["."], [], self.root)
@@ -110,7 +110,7 @@ class InfrastructureScanStatusTest(unittest.TestCase):
         self.assertIn("Narrow the search root", reason)
         self.assertNotIn("includes protected infrastructure files", reason)
 
-    def test_unreadable_denies_with_a_recovery_step(self):
+    def test_unreadable_denial_recovery(self):
         with patch.object(core.os, "walk", side_effect=OSError("synthetic")):
             status = core.infrastructure_scan_status(self.root)
             decision, reason = core.infrastructure_path_verdict("ls", ["."], [], self.root)
@@ -161,7 +161,7 @@ class UnreadableDescendantTest(unittest.TestCase):
         self.assertEqual(decision, "deny")
         self.assertIn("could not be read", reason)
 
-    def test_missing_root_and_file_root_stay_clear(self):
+    def test_missing_or_file_root_clear(self):
         missing = os.path.join(self.root, "absent")
         single_file = os.path.join(self.root, "notes.txt")
         Path(single_file).write_text("safe\n", encoding="utf-8")
@@ -193,13 +193,13 @@ class ForgeProgramFirstTest(unittest.TestCase):
         core.reset_invocation_caches()
         self.addCleanup(core.reset_invocation_caches)
 
-    def test_non_forge_program_skips_the_owner_lookup(self):
+    def test_non_forge_skips_lookup(self):
         calls = []
         with patch.object(core, "_origin_owner", side_effect=lambda cwd: calls.append(cwd) or ""):
             self.assertEqual(core.forge_verdict("ls", ["-l"], str(REPO_ROOT)), ("", ""))
         self.assertEqual(calls, [])
 
-    def test_owner_lookup_is_cached_until_reset(self):
+    def test_owner_lookup_cached(self):
         calls = []
         real_parse = core.parse_git_config
 
@@ -247,7 +247,7 @@ class AliasCycleTest(unittest.TestCase):
 class FilterRepoTest(unittest.TestCase):
     """git filter-repo reaches the history-rewrite rule (H8)."""
 
-    def test_filter_repo_asks_with_the_history_reason(self):
+    def test_filter_repo_history_reason(self):
         repository = make_repository(self, {})
         self.assertEqual(core.git_verdict(["filter-repo", "--force"], repository),
                          ("ask", "git filter-repo: this rewrites history"))
@@ -261,7 +261,7 @@ class RoutingSubcommandTest(unittest.TestCase):
         decision, _reason = core.github_routing_verdict("git", args, str(REPO_ROOT))
         self.assertEqual(decision, "deny")
 
-    def test_upper_case_c_value_is_skipped(self):
+    def test_upper_c_value_skipped(self):
         args = ["-C", "elsewhere", "remote", "add", "origin", GITHUB_URL]
         decision, _reason = core.github_routing_verdict("git", args, str(REPO_ROOT))
         self.assertEqual(decision, "deny")
@@ -282,7 +282,7 @@ class DottedSubsectionTest(unittest.TestCase):
 class RebaseLookupFailureTest(unittest.TestCase):
     """An unreadable rebase lookup yields rebase-only recovery text (H13)."""
 
-    def test_stop_reason_assumes_a_rebase_and_keeps_the_cause(self):
+    def test_stop_reason_keeps_cause(self):
         module = load_hook("enforce_branch_name")
         stdout = _Capture()
         with patch.object(module, "rebase_is_active", side_effect=OSError("synthetic")), \
@@ -297,7 +297,7 @@ class RebaseLookupFailureTest(unittest.TestCase):
         for command in ("git switch -c", "git branch -m"):
             self.assertNotIn(command, reason)
 
-    def test_invalid_branch_keeps_the_caller_violation(self):
+    def test_invalid_branch_keeps_violation(self):
         module = load_hook("enforce_branch_name")
         payload = {"tool_name": "Read", "tool_input": {"file_path": "README.md"}}
         stderr = _Capture()

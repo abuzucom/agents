@@ -72,31 +72,31 @@ GATES = (("bash", bash), ("powershell", powershell), ("cmd", cmd))
 class PlanModeGitWriteTest(unittest.TestCase):
     """Plan mode denies Git writes in every shell gate."""
 
-    def test_git_writes_deny_in_plan_mode(self):
+    def test_git_writes_deny(self):
         for command in GIT_WRITE_COMMANDS:
             for gate_name, gate in GATES:
                 with self.subTest(command=command, gate=gate_name):
                     self.assertEqual(gate(command, PLAN_MODE), "deny")
 
-    def test_git_reads_pass_in_plan_mode(self):
+    def test_git_reads_pass(self):
         for command in GIT_READ_COMMANDS:
             for gate_name, gate in GATES:
                 with self.subTest(command=command, gate=gate_name):
                     self.assertEqual(gate(command, PLAN_MODE), "")
 
-    def test_unsafe_git_options_deny_in_plan_mode(self):
+    def test_unsafe_options_deny(self):
         for command in GIT_UNSAFE_OPTION_COMMANDS:
             for gate_name, gate in GATES:
                 with self.subTest(command=command, gate=gate_name):
                     self.assertEqual(gate(command, PLAN_MODE), "deny")
 
-    def test_safe_git_options_pass_in_plan_mode(self):
+    def test_safe_options_pass(self):
         for command in GIT_SAFE_OPTION_COMMANDS:
             for gate_name, gate in GATES:
                 with self.subTest(command=command, gate=gate_name):
                     self.assertEqual(gate(command, PLAN_MODE), "")
 
-    def test_default_mode_keeps_ordinary_git_writes_open(self):
+    def test_default_mode_allows_writes(self):
         for gate_name, gate in GATES:
             with self.subTest(gate=gate_name):
                 self.assertEqual(gate("git commit -m change"), "")
@@ -105,13 +105,13 @@ class PlanModeGitWriteTest(unittest.TestCase):
 class PlanModeHelperTest(unittest.TestCase):
     """Plan mode denies Git reads that run a helper program."""
 
-    def test_helper_subcommands_deny_in_plan_mode(self):
+    def test_helper_subcommands_deny(self):
         for command in GIT_HELPER_COMMANDS:
             for gate_name, gate in GATES:
                 with self.subTest(command=command, gate=gate_name):
                     self.assertEqual(gate(command, PLAN_MODE), "deny")
 
-    def test_configured_external_diff_denies_in_plan_mode(self):
+    def test_configured_external_diff_denies(self):
         with tempfile.TemporaryDirectory() as root:
             git_dir = Path(root) / ".git"
             git_dir.mkdir()
@@ -128,7 +128,7 @@ class PlanModeHelperTest(unittest.TestCase):
                     self.assertEqual(
                         _decision(hook, tool, "git diff", DEFAULT_MODE, root), "ask")
 
-    def test_bash_pager_assignment_denies_in_plan_mode(self):
+    def test_bash_pager_assignment_denies(self):
         self.assertEqual(bash("GIT_PAGER=less git log", PLAN_MODE), "deny")
 
 
@@ -157,7 +157,7 @@ class EnvironmentAssignmentTest(unittest.TestCase):
             with self.subTest(command=command):
                 self.assertEqual(cmd(command, DEFAULT_MODE), "ask")
 
-    def test_cmd_set_of_an_unrelated_variable_passes(self):
+    def test_cmd_set_unrelated_passes(self):
         for command in ("set FOO=1", "set", "set /a"):
             with self.subTest(command=command):
                 self.assertEqual(cmd(command, DEFAULT_MODE), "")
@@ -201,19 +201,19 @@ class InheritedEnvironmentTest(unittest.TestCase):
                                                 self.root, environment)
                 for gate_name, hook, tool in GATE_HOOKS}
 
-    def test_inherited_external_diff_denies_in_plan_mode(self):
+    def test_inherited_external_diff_denies(self):
         for gate_name, decision in self.decisions(
                 PLAN_MODE, {"GIT_EXTERNAL_DIFF": "/tmp/helper"}).items():
             with self.subTest(gate=gate_name):
                 self.assertEqual(decision, "deny")
 
-    def test_inherited_pager_denies_in_plan_mode(self):
+    def test_inherited_pager_denies(self):
         for gate_name, decision in self.decisions(
                 PLAN_MODE, {"GIT_PAGER": "less"}).items():
             with self.subTest(gate=gate_name):
                 self.assertEqual(decision, "deny")
 
-    def test_clean_environment_passes_in_plan_mode(self):
+    def test_clean_environment_passes(self):
         for gate_name, decision in self.decisions(PLAN_MODE, {}).items():
             with self.subTest(gate=gate_name):
                 self.assertEqual(decision, "")

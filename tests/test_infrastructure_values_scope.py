@@ -16,25 +16,25 @@ import _gate_core
 class ValuesFileScopeTest(unittest.TestCase):
     """Only YAML values file names reach the protected set."""
 
-    def test_a_plain_values_file_is_protected(self):
+    def test_plain_values_file_protected(self):
         self.assertTrue(_gate_core.is_protected_infrastructure_path("values.yaml"))
 
-    def test_a_values_file_with_another_yaml_name_is_protected(self):
+    def test_other_yaml_values_protected(self):
         self.assertTrue(
             _gate_core.is_protected_infrastructure_path("values-production.yaml"))
 
-    def test_a_dotted_values_file_name_is_protected(self):
+    def test_dotted_values_file_protected(self):
         self.assertTrue(
             _gate_core.is_protected_infrastructure_path("values.common.yaml"))
 
-    def test_a_typescript_values_file_is_not_protected(self):
+    def test_typescript_values_unprotected(self):
         self.assertFalse(_gate_core.is_protected_infrastructure_path("values.ts"))
 
-    def test_a_typescript_values_test_file_is_not_protected(self):
+    def test_typescript_values_test_unprotected(self):
         self.assertFalse(
             _gate_core.is_protected_infrastructure_path("values.test.ts"))
 
-    def test_a_javascript_values_file_is_not_protected(self):
+    def test_javascript_values_unprotected(self):
         self.assertFalse(_gate_core.is_protected_infrastructure_path("values.js"))
 
 

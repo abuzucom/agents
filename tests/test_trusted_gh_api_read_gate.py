@@ -79,12 +79,12 @@ def wrapper_decision(arguments: str, project_dir: str = PROJECT_DIR) -> str:
 class ApiReadVerdictTest(unittest.TestCase):
     """Read-only GET requests pass and every other wrapper call keeps its verdict."""
 
-    def test_read_only_get_requests_are_allowed(self):
+    def test_get_requests_allowed(self):
         for arguments in ALLOWED_READS:
             with self.subTest(arguments=arguments):
                 self.assertEqual(wrapper_decision(arguments), "allow")
 
-    def test_read_only_get_requests_are_read_only_workflows(self):
+    def test_get_requests_read_only(self):
         for arguments in ALLOWED_READS:
             with self.subTest(arguments=arguments):
                 self.assertTrue(GATE.read_only_workflow(WRAPPER + arguments, PROJECT_DIR))
@@ -109,17 +109,17 @@ class ApiReadVerdictTest(unittest.TestCase):
                 self.assertEqual(
                     wrapper_decision(f"api repos/OWNER/REPO/issues {option} title=value"), "")
 
-    def test_non_api_wrapper_calls_still_ask(self):
+    def test_non_api_calls_ask(self):
         for arguments in ("pr list", "issue view 5", "repo view OWNER/REPO"):
             with self.subTest(arguments=arguments):
                 self.assertEqual(wrapper_decision(arguments), "ask")
 
-    def test_get_chained_with_a_consent_call_still_asks(self):
+    def test_chained_get_asks(self):
         command = WRAPPER + "api user && " + WRAPPER + "pr list"
         decision, _reason = GATE.workflow_decision(command, PROJECT_DIR)
         self.assertEqual(decision, "ask")
 
-    def test_get_through_another_script_is_not_allowed(self):
+    def test_other_script_get_not_allowed(self):
         decision, _reason = GATE.workflow_decision(
             "python scripts/trusted_git.py run api user", PROJECT_DIR)
         self.assertNotEqual(decision, "allow")
@@ -216,7 +216,7 @@ class ApiReadHookTest(unittest.TestCase):
     def setUp(self):
         self.hook = ApiHookFixture(self)
 
-    def test_get_passes_without_prompt_for_every_shell_tool_and_branch_state(self):
+    def test_get_passes_without_prompt(self):
         for branch in (FEATURE_BRANCH, "main", "HEAD"):
             self.hook.set_head(branch)
             for tool_name in SHELL_TOOL_NAMES:
@@ -232,7 +232,7 @@ class ApiNonGetHookTest(unittest.TestCase):
     def setUp(self):
         self.hook = ApiHookFixture(self)
 
-    def test_non_get_wrapper_calls_keep_their_verdict_for_every_shell_tool(self):
+    def test_non_get_verdict_kept(self):
         self.hook.set_head(FEATURE_BRANCH)
         cases = (
             ("pr list", "ask"),
@@ -258,7 +258,7 @@ class ApiHeaderHookTest(unittest.TestCase):
     def setUp(self):
         self.hook = ApiHookFixture(self)
 
-    def test_header_and_graphql_requests_never_pass_without_prompt(self):
+    def test_header_graphql_prompt(self):
         self.hook.set_head(FEATURE_BRANCH)
         for arguments in ("api repos/OWNER/REPO -H Accept:application/json",
                           "api --hostname github.example repos/OWNER/REPO",

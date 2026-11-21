@@ -76,7 +76,7 @@ class CommentBodyTest(unittest.TestCase):
         return trusted_gh.comment_body_path(self.repository.root, raw)
 
     @unittest.skipUnless(SAFE_DRAFT_OPEN, NO_SAFE_DRAFT_OPEN)
-    def test_relative_draft_resolves_to_absolute_path(self):
+    def test_relative_draft_absolute(self):
         expected = self.repository.draft("reply.md", b"Line one.\nLine two.\n")
         self.assertEqual(self.resolve(".comment-drafts/reply.md"), expected)
 
@@ -115,13 +115,13 @@ class CommentBodyTest(unittest.TestCase):
             self.resolve(".comment-drafts/reply.md")
 
     @unittest.skipUnless(hasattr(os, "mkfifo"), "FIFOs need POSIX")
-    def test_fifo_draft_is_rejected_without_hanging(self):
+    def test_fifo_draft_rejected(self):
         os.mkfifo(self.repository.drafts / "pipe.md")
         with self.assertRaises(ValueError):
             self.resolve(".comment-drafts/pipe.md")
 
     @unittest.skipIf(os.name == "nt", "Symlink creation needs privileges on Windows")
-    def test_swap_to_link_during_open_cannot_disclose_another_file(self):
+    def test_link_swap_during_open(self):
         secret = self.repository.root / "secret.txt"
         secret.write_bytes(b"SECRET VALUE\n")
         draft = self.repository.draft("reply.md", b"Approved text.\n")
@@ -195,21 +195,21 @@ class CommentCommandTest(unittest.TestCase):
             "api", f"repos/{REPOSITORY}/issues/5/comments?per_page=100&page=1"]])
         self.assertEqual(stdout, "[]\n")
 
-    def test_comments_read_takes_one_bounded_page(self):
+    def test_comments_read_single_page(self):
         code, _stdout, stderr = self.run_main(["comments", "pr", "8", "--page", "3"])
         self.assertEqual(code, 0)
         self.assertEqual(self.calls, [[
             "api", f"repos/{REPOSITORY}/issues/8/comments?per_page=100&page=3"]])
         self.assertNotIn("--page", stderr)
 
-    def test_full_page_names_the_next_page(self):
+    def test_full_page_next_hint(self):
         full_page = json.dumps([{"id": index} for index in range(trusted_gh.COMMENT_PAGE_SIZE)])
         code, _stdout, stderr = self.run_main(
             ["comments", "issue", "5", "--page", "2"], response=full_page)
         self.assertEqual(code, 0)
         self.assertIn("--page 3", stderr)
 
-    def test_last_page_has_no_next_page_hint(self):
+    def test_last_page_no_hint(self):
         full_page = json.dumps([{"id": index} for index in range(trusted_gh.COMMENT_PAGE_SIZE)])
         last = str(trusted_gh.MAX_COMMENT_PAGE)
         code, _stdout, stderr = self.run_main(
@@ -217,7 +217,7 @@ class CommentCommandTest(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertNotIn("--page", stderr)
 
-    def test_invalid_pages_exit_2_without_calls(self):
+    def test_invalid_pages_exit(self):
         for page in ("0", "-1", "01", "1001", "x", "2.5"):
             with self.subTest(page=page):
                 code, _stdout, stderr = self.run_main(["comments", "issue", "5", "--page", page])
@@ -228,7 +228,7 @@ class CommentCommandTest(unittest.TestCase):
         self.assertEqual(self.calls, [])
 
     @unittest.skipUnless(SAFE_DRAFT_OPEN, NO_SAFE_DRAFT_OPEN)
-    def test_comment_post_sends_validated_body_on_stdin(self):
+    def test_post_body_on_stdin(self):
         self.repository.draft("reply.md", b"Thanks.\n")
         code, _stdout, _stderr = self.run_main(
             ["comment", "pr", "9", "--body-file", ".comment-drafts/reply.md"])
@@ -238,7 +238,7 @@ class CommentCommandTest(unittest.TestCase):
             "--input", "-"]])
         self.assertEqual([json.loads(text) for text in self.inputs], [{"body": "Thanks.\n"}])
 
-    def test_post_without_dir_fd_exits_2_without_calls(self):
+    def test_post_without_dir_fd(self):
         self.repository.draft("reply.md", b"Thanks.\n")
         with patch.object(trusted_gh.os, "supports_dir_fd", set()):
             code, _stdout, stderr = self.run_main(
@@ -247,7 +247,7 @@ class CommentCommandTest(unittest.TestCase):
         self.assertIn("dir_fd", stderr)
         self.assertEqual(self.calls, [])
 
-    def test_read_without_dir_fd_still_works(self):
+    def test_read_without_dir_fd(self):
         with patch.object(trusted_gh.os, "supports_dir_fd", set()):
             code, _stdout, _stderr = self.run_main(["comments", "issue", "5"])
         self.assertEqual(code, 0)
@@ -263,7 +263,7 @@ class CommentCommandTest(unittest.TestCase):
         self.assertEqual(self.calls, [])
 
     @unittest.skipUnless(SAFE_DRAFT_OPEN, NO_SAFE_DRAFT_OPEN)
-    def test_draft_change_after_validation_cannot_change_the_post(self):
+    def test_post_ignores_draft_change(self):
         draft = self.repository.draft("reply.md", b"Approved text.\n")
 
         def replace_draft(_repo_root):
@@ -276,7 +276,7 @@ class CommentCommandTest(unittest.TestCase):
         self.assertEqual([json.loads(text) for text in self.inputs], [{"body": "Approved text.\n"}])
         self.assertNotIn(str(draft), " ".join(self.calls[0]))
 
-    def test_usage_errors_exit_2_without_calls(self):
+    def test_usage_errors_exit(self):
         for argv in (["comments", "issue"], ["comments", "issue", "x"],
                      ["comment", "issue", "1"], ["comment", "issue", "1", "--body", "hi"],
                      ["comment", "issue", "1", "--body-file", "notes.md"]):
@@ -308,7 +308,7 @@ class RunReportingTest(unittest.TestCase):
         self.assertEqual(code, USAGE_EXIT_CODE)
         self.assertIn("gh api can mutate hosted GitHub resources", stderr)
 
-    def test_run_gh_delivers_stdin_to_the_process(self):
+    def test_run_gh_stdin_delivery(self):
         echo = ["-c", "import sys; sys.stdout.write(sys.stdin.read())"]
         with patch.object(trusted_gh, "resolve_gh", return_value=sys.executable), \
                 patch.object(trusted_gh, "_safe_directory",
@@ -318,7 +318,7 @@ class RunReportingTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(json.loads(result.stdout), {"body": "Thanks.\n"})
 
-    def test_graphql_block_names_the_rest_path(self):
+    def test_graphql_block_rest_path(self):
         code, stderr = self.run_main(
             ["issue", "view", "1"], completed(stderr=GRAPHQL_BLOCKED, returncode=1))
         self.assertEqual(code, FAILURE_EXIT_CODE)

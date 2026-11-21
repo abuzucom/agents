@@ -91,7 +91,7 @@ class VerifyWebFlowSignatureTest(unittest.TestCase):
             with self.subTest(case=name):
                 self.assertFalse(attribution.verify_web_flow_signature(payload, signature))
 
-    def test_value_at_or_above_modulus_fails(self):
+    def test_value_above_modulus_fails(self):
         signature = with_signature_value(attribution.GITHUB_WEB_FLOW_MODULUS)
         self.assertFalse(attribution.verify_web_flow_signature(GITHUB_PAYLOAD, signature))
 
@@ -99,7 +99,7 @@ class VerifyWebFlowSignatureTest(unittest.TestCase):
 class Pkcs1EncodingTest(unittest.TestCase):
     """The encoding rejects a digest too long for the minimum padding."""
 
-    def test_oversized_digest_info_has_no_encoding(self):
+    def test_oversized_digest_info(self):
         oversized = bytes(attribution.GITHUB_WEB_FLOW_MODULUS_BYTES)
         self.assertEqual(attribution._pkcs1_encoding(oversized), b"")
 

@@ -98,7 +98,7 @@ class CoreResponseTest(unittest.TestCase):
         _, stdout, _ = capture(self.core.emit, "sample.py", "ask", SAMPLE_REASON)
         self.assertNotIn(EXPECTED_RESPONSE, json_reason(stdout))
 
-    def test_unattended_ask_becomes_deny_with_response(self) -> None:
+    def test_unattended_ask_denies(self) -> None:
         _, stdout, stderr = capture(self.core.decide, "sample.py", {}, "ask", SAMPLE_REASON)
         self.assertTrue(json_reason(stdout).endswith(EXPECTED_RESPONSE), stdout)
         self.assertTrue(stderr.strip().endswith(EXPECTED_RESPONSE), stderr)

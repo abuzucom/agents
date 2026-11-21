@@ -74,7 +74,7 @@ class ConflictReportTest(unittest.TestCase):
         self.assertNotIn("\x1b", stderr.text)
         self.assertIn("\\x1b", stderr.text)
 
-    def test_decode_error_sanitizes_path_and_message(self):
+    def test_decode_error_sanitized(self):
         markers = load_script("check_conflict_markers")
         # Windows rejects a control character in a file name, so the read
         # is replaced and the hostile path stays a plain string.
@@ -169,12 +169,12 @@ class ConflictGitResolverTest(unittest.TestCase):
                 patch.object(self.markers.Path, "cwd", return_value=self.repo):
             return self.markers._git_executable()
 
-    def test_standalone_resolver_skips_repo_and_relative_entries(self):
+    def test_standalone_resolver_skips_entries(self):
         executable = self.resolved(None)
         self.assertTrue(os.path.isabs(executable))
         self.assertFalse(Path(executable).resolve().is_relative_to(self.repo))
 
-    def test_trusted_resolver_is_used_when_importable(self):
+    def test_trusted_resolver_preferred(self):
         calls = []
 
         def trusted(repository):
@@ -191,7 +191,7 @@ class ConflictGitResolverTest(unittest.TestCase):
             with self.assertRaises(RuntimeError):
                 self.markers._git_executable()
 
-    def test_commands_start_with_the_resolved_executable(self):
+    def test_commands_use_resolved_git(self):
         with patch.object(self.markers, "_git_executable", return_value="/opt/git/bin/git"), \
                 patch.object(self.markers, "_supports_no_lazy_fetch", return_value=True):
             command = self.markers._object_command(str(self.repo), "cat-file", "-t", "a" * 40)

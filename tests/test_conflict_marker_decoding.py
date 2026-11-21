@@ -29,7 +29,7 @@ checker = load_script("check_conflict_markers")
 class DecodeContentTest(unittest.TestCase):
     """Each decode path keeps its result."""
 
-    def test_unknown_codec_falls_back_to_utf8(self):
+    def test_unknown_codec_fallback(self):
         self.assertEqual(checker.decode_content(CONFLICT.encode(), "no-such-codec"),
                          (CONFLICT, None))
 
@@ -37,10 +37,10 @@ class DecodeContentTest(unittest.TestCase):
         self.assertEqual(checker.decode_content("caf\xe9".encode("latin-1"), "latin-1"),
                          ("caf\xe9", None))
 
-    def test_invalid_utf8_with_nul_is_binary(self):
+    def test_invalid_utf8_nul_binary(self):
         self.assertEqual(checker.decode_content(b"\xff\x00\xfe"), (None, None))
 
-    def test_invalid_utf8_without_nul_reads_as_latin1(self):
+    def test_invalid_utf8_latin1_fallback(self):
         self.assertEqual(checker.decode_content(b"\xffabc"), ("\xffabc", None))
 
     def test_utf8_bom_is_stripped(self):

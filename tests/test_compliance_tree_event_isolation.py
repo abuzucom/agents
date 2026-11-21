@@ -51,7 +51,7 @@ def _run_git(repo: Path, *args: str) -> str:
 class ComplianceTreeEventIsolationTest(unittest.TestCase):
     """Compliance tree scanner does not fail when GITHUB_EVENT_PATH is a push event."""
 
-    def test_scanner_worker_handles_push_event_payload_in_environment(self) -> None:
+    def test_scanner_push_event_payload(self) -> None:
         with RetryingTemporaryDirectory() as temporary:
             repo = Path(temporary)
             _run_git(repo, "init", "-q", "-b", "main")

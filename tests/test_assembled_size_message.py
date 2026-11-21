@@ -31,7 +31,7 @@ def write_overflowing_policy(root: Path, files: tuple, limit: int) -> None:
 
 
 class AssembledSizeMessageTest(unittest.TestCase):
-    def test_reinjection_hook_names_the_assembled_policy(self):
+    def test_reinjection_hook_names_policy(self):
         hook = load_module(HOOK_PATH, "reinject_size_message")
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

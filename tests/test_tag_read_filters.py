@@ -15,12 +15,12 @@ FILTERED_READS = (
 
 
 class TagReadFilterTest(unittest.TestCase):
-    def test_read_filters_with_a_pattern_pass(self):
+    def test_pattern_filters_pass(self):
         for command in FILTERED_READS:
             with self.subTest(command=command):
                 self.assertEqual(git_decision(command), "")
 
-    def test_a_write_flag_beside_a_filter_still_denies(self):
+    def test_write_flag_with_filter_denies(self):
         for command in ("git tag -d --contains HEAD v2.27.0",
                         "git tag -a --merged main v2.27.0 -m x"):
             with self.subTest(command=command):

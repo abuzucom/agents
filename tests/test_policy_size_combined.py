@@ -74,7 +74,7 @@ class CombinedPolicySizeTests(unittest.TestCase):
         self.assertEqual(
             check_policy_size.find_combined_violations(self.root), [])
 
-    def test_combined_over_limit_fails_with_overage(self):
+    def test_combined_over_limit_fails(self):
         supporting = COMBINED_LIMIT // len(sync.ADOPTER_POLICY_FILES)
         _write_fixture(self.root, AGENTS_FIXTURE_BYTES, supporting)
         total = _compute_combined_size(AGENTS_FIXTURE_BYTES, supporting)
@@ -103,7 +103,7 @@ class CombinedPolicySizeTests(unittest.TestCase):
         exit_code, stdout, stderr = _run_main([str(self.root / "AGENTS.md")])
         self.assertEqual((exit_code, stdout, stderr), (0, "", ""))
 
-    def test_default_relative_path_measures_working_directory(self):
+    def test_default_path_working_directory(self):
         _write_fixture(self.root, AGENTS_FIXTURE_BYTES, SUPPORTING_FIXTURE_BYTES)
         original_directory = os.getcwd()
         os.chdir(self.root)
@@ -132,7 +132,7 @@ class CombinedPolicySizeTests(unittest.TestCase):
              "limit": COMBINED_LIMIT},
         ])
 
-    def test_json_report_still_emits_when_over_limit(self):
+    def test_json_report_over_limit(self):
         supporting = COMBINED_LIMIT // len(sync.ADOPTER_POLICY_FILES)
         _write_fixture(self.root, AGENTS_FIXTURE_BYTES, supporting)
         exit_code, stdout, _ = _run_main(
@@ -161,7 +161,7 @@ class PolicySizeReportRenderTests(unittest.TestCase):
         self.report_path.write_text(json.dumps(report), encoding="ascii")
         return _run_main(["--render-markdown", str(self.report_path)])
 
-    def test_render_shows_sizes_headroom_and_directive(self):
+    def test_render_sizes_headroom(self):
         exit_code, stdout, _ = self._render(self._build_report(32602, 65532))
         self.assertEqual(exit_code, 0)
         self.assertTrue(stdout.startswith("<!-- policy-size-report -->"))

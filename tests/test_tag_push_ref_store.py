@@ -17,14 +17,14 @@ class PushOperandParsingTest(unittest.TestCase):
         self.root = Path(temporary.name)
         build_repository(self.root)
 
-    def test_option_values_are_not_read_as_refspecs(self):
+    def test_option_values_not_refspecs(self):
         for command in ("git push -o production origin feat/x",
                         "git push --push-option production origin feat/x",
                         "git push --push-option=production origin feat/x"):
             with self.subTest(command=command):
                 self.assertEqual(decide(command, self.root), ("", ""))
 
-    def test_repo_option_leaves_every_operand_a_refspec(self):
+    def test_repo_option_operands(self):
         self.assertEqual(decide("git push --repo origin production", self.root)[0], "deny")
         self.assertEqual(decide("git push --repo=origin feat/x", self.root), ("", ""))
 
@@ -49,7 +49,7 @@ class RefStoreFailureTest(unittest.TestCase):
         (self.git_dir / "packed-refs").mkdir()
         self.assertEqual(decide("git push origin feat/x", self.root)[0], "ask")
 
-    def test_missing_packed_refs_reads_loose_refs_only(self):
+    def test_missing_packed_refs(self):
         (self.git_dir / "packed-refs").unlink()
         self.assertEqual(decide("git push origin production", self.root)[0], "deny")
         self.assertEqual(decide("git push origin feat/x", self.root), ("", ""))

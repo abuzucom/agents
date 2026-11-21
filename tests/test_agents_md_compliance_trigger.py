@@ -35,22 +35,22 @@ class AgentsMdComplianceTriggerTest(unittest.TestCase):
     def test_workflow_has_no_push_trigger(self):
         self.assertNotIn("push", self.triggers)
 
-    def test_workflow_triggers_only_on_pull_request(self):
+    def test_workflow_pull_request_only(self):
         self.assertEqual(set(self.triggers), {"pull_request"})
 
     def test_pull_request_targets_main(self):
         self.assertEqual(
             self.triggers["pull_request"]["branches"], EXPECTED_BRANCHES)
 
-    def test_pull_request_lists_the_four_activity_types(self):
+    def test_pull_request_activity_types(self):
         self.assertEqual(
             self.triggers["pull_request"]["types"], EXPECTED_TYPES)
 
-    def test_ready_for_review_reason_is_commented(self):
+    def test_ready_for_review_commented(self):
         self.assertIn("ready_for_review", self.text)
         self.assertRegex(self.text, r"#[^\n]*draft")
 
-    def test_workflow_still_calls_the_reusable_compliance_workflow(self):
+    def test_reusable_workflow_called(self):
         workflow = yaml.safe_load(self.text)
         self.assertEqual(
             workflow["jobs"]["compliance"]["uses"],
@@ -65,13 +65,13 @@ class SyncCheckTriggerTest(unittest.TestCase):
         self.triggers = load_trigger_block(
             SYNC_WORKFLOW_PATH.read_text(encoding="utf-8"))
 
-    def test_sync_check_has_no_push_trigger(self):
+    def test_sync_check_no_push(self):
         self.assertNotIn("push", self.triggers)
 
-    def test_sync_check_triggers_only_on_pull_request(self):
+    def test_sync_check_pull_request_only(self):
         self.assertEqual(set(self.triggers), {"pull_request"})
 
-    def test_sync_check_pull_request_trigger_is_unchanged(self):
+    def test_sync_check_trigger_unchanged(self):
         self.assertEqual(
             self.triggers["pull_request"]["branches"], EXPECTED_BRANCHES)
         self.assertEqual(

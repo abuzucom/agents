@@ -20,14 +20,14 @@ class DraftLookupTest(unittest.TestCase):
     def setUpClass(cls):
         cls.job = load_workflow()["jobs"]["release"]
 
-    def test_inspect_step_treats_only_not_found_as_absent(self):
+    def test_inspect_not_found_absent(self):
         text = find_step(self.job, "Inspect existing draft")["run"]
         self.assertIn(NOT_FOUND_MESSAGE, text)
         self.assertNotIn("2>/dev/null", text)
         self.assertIn("release_exists=false", text)
         self.assertIn("release_exists=true", text)
 
-    def test_upload_step_uses_the_inspect_result(self):
+    def test_upload_uses_inspect_result(self):
         step = find_step(self.job, "Upload to draft release")
         self.assertEqual(step["env"]["RELEASE_EXISTS"],
                          "${{ steps.draft.outputs.release_exists }}")

@@ -44,13 +44,13 @@ class MarkerNameTest(unittest.TestCase):
         self.assertEqual(sync.SOURCE_ORIENTATION_START, "<!-- source orientation:start -->")
         self.assertEqual(sync.SOURCE_ORIENTATION_END, "<!-- source orientation:end -->")
 
-    def test_existing_constant_names_point_to_new_markers(self):
+    def test_constants_point_to_new_markers(self):
         self.assertEqual(sync.REPOSITORY_ONLY_START, sync.LOCAL_POLICY_START)
         self.assertEqual(sync.REPOSITORY_ONLY_END, sync.LOCAL_POLICY_END)
         self.assertEqual(sync.SOURCE_ONLY_START, sync.SOURCE_ORIENTATION_START)
         self.assertEqual(sync.SOURCE_ONLY_END, sync.SOURCE_ORIENTATION_END)
 
-    def test_new_markers_strip_both_blocks_without_notice(self):
+    def test_new_markers_strip_without_notice(self):
         content = (
             f"before\n{sync.LOCAL_POLICY_START}\nlocal facts\n"
             f"{sync.LOCAL_POLICY_END}\nafter\n"
@@ -61,7 +61,7 @@ class MarkerNameTest(unittest.TestCase):
         self.assertEqual(result, "before\nafter\n\n")
         self.assertEqual(notices, "")
 
-    def test_legacy_markers_strip_both_blocks_with_notice(self):
+    def test_legacy_markers_strip_with_notice(self):
         content = (
             f"before\n{LEGACY_LOCAL_START}\nlocal facts\n"
             f"{LEGACY_LOCAL_END}\nafter\n"
@@ -73,12 +73,12 @@ class MarkerNameTest(unittest.TestCase):
         self.assertIn(sync.LOCAL_POLICY_START, notices)
         self.assertIn(sync.SOURCE_ORIENTATION_START, notices)
 
-    def test_mixed_local_markers_form_one_block(self):
+    def test_mixed_markers_single_block(self):
         content = f"before\n{LEGACY_LOCAL_START}\nlocal\n{sync.LOCAL_POLICY_END}\nafter\n"
         result, _ = run_adoptable(content)
         self.assertEqual(result, "before\nafter\n")
 
-    def test_new_and_legacy_local_starts_count_as_two_blocks(self):
+    def test_mixed_starts_separate_blocks(self):
         content = (
             f"{sync.LOCAL_POLICY_START}\n{sync.LOCAL_POLICY_END}\n"
             f"{LEGACY_LOCAL_START}\n{LEGACY_LOCAL_END}\n"
@@ -111,17 +111,17 @@ class HandoffScopeTest(unittest.TestCase):
                 entries = prose_policy.load_denylist(path)
         return entries, notices.getvalue()
 
-    def test_new_scope_name_loads_without_notice(self):
+    def test_new_scope_no_notice(self):
         entries, notices = self.load(HANDOFF_SCOPE)
         self.assertEqual([entry.scope for entry in entries], ["global", HANDOFF_SCOPE])
         self.assertEqual(notices, "")
 
-    def test_legacy_scope_name_maps_to_new_name_with_notice(self):
+    def test_legacy_scope_maps_with_notice(self):
         entries, notices = self.load(LEGACY_HANDOFF_SCOPE)
         self.assertEqual([entry.scope for entry in entries], ["global", HANDOFF_SCOPE])
         self.assertIn(f"[{HANDOFF_SCOPE}]", notices)
 
-    def test_handoff_example_skips_entries_in_new_scope(self):
+    def test_handoff_example_skips_scope(self):
         entries, _ = self.load(HANDOFF_SCOPE)
         handoff = prose_policy.HANDOFF_PATH
         self.assertEqual(
@@ -129,7 +129,7 @@ class HandoffScopeTest(unittest.TestCase):
         self.assertEqual(
             len(prose_policy.find_violations("A second entry here.\n", "README.md", entries)), 1)
 
-    def test_live_denylist_uses_new_scope_name(self):
+    def test_live_denylist_new_scope(self):
         text = prose_policy.DENYLIST_PATH.read_text(encoding="ascii")
         self.assertIn(f"[{HANDOFF_SCOPE}]", text)
         self.assertNotIn(f"[{LEGACY_HANDOFF_SCOPE}]", text)

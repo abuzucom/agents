@@ -36,7 +36,7 @@ class RestrictedEncodingStream(io.TextIOBase):
 class TrustedGhEncodingTest(unittest.TestCase):
     """Verify trusted_gh output handling on streams with restricted encodings."""
 
-    def test_run_requested_command_handles_unencodable_output(self) -> None:
+    def test_run_unencodable_output(self) -> None:
         fake_result = subprocess.CompletedProcess(
             args=["gh", "run", "view"],
             returncode=0,
@@ -52,7 +52,7 @@ class TrustedGhEncodingTest(unittest.TestCase):
                     ret = trusted_gh._run_requested_command(REPOSITORY_ROOT, ["run", "view", "123"])
                     self.assertEqual(ret, 0)
 
-    def test_run_requested_command_handles_unbuffered_stream(self) -> None:
+    def test_run_unbuffered_stream(self) -> None:
         fake_result = subprocess.CompletedProcess(
             args=["gh", "run", "view"],
             returncode=0,

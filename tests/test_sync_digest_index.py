@@ -96,13 +96,13 @@ class WriteIndexTest(IndexFixture):
         self.assertEqual(entry["policy"]["AGENTS.md"], expected)
         self.assertIn("docs/agent-policy/adoption.md", entry["policy"])
 
-    def test_the_orientation_stub_stays_out_of_the_index(self):
+    def test_orientation_stub_excluded(self):
         """Every adopter rewrites the orientation file, so it never matches."""
         run_sync(self.root)
         entry = read_index(self.root)["versions"][FIRST_VERSION]
         self.assertNotIn("docs/project-orientation.md", entry["policy"])
 
-    def test_a_new_version_keeps_the_earlier_entry(self):
+    def test_new_version_keeps_entry(self):
         run_sync(self.root)
         before = read_index(self.root)["versions"][FIRST_VERSION]
         write_changelog(self.root, SECOND_VERSION)
@@ -114,7 +114,7 @@ class WriteIndexTest(IndexFixture):
         self.assertEqual(versions[FIRST_VERSION], before)
         self.assertNotEqual(versions[SECOND_VERSION], before)
 
-    def test_a_tree_without_an_index_gains_none(self):
+    def test_missing_index_not_created(self):
         """Adopters copy sync.py. Only the source repository holds an index."""
         (self.root / INDEX_NAME).unlink()
         result = run_sync(self.root)
@@ -147,7 +147,7 @@ class CheckIndexTest(IndexFixture):
         self.assertEqual(result.returncode, 1)
         self.assertIn(INDEX_NAME, result.stderr)
 
-    def test_a_version_without_an_entry_fails(self):
+    def test_missing_version_entry_fails(self):
         write_changelog(self.root, SECOND_VERSION)
         result = run_sync(self.root, "--check")
         self.assertEqual(result.returncode, 1)
@@ -166,7 +166,7 @@ class CheckIndexTest(IndexFixture):
         self.assertEqual(result.returncode, 1)
         self.assertIn(INDEX_NAME, result.stderr)
 
-    def test_a_tree_without_an_index_passes(self):
+    def test_missing_index_passes(self):
         (self.root / INDEX_NAME).unlink()
         result = run_sync(self.root, "--check")
         self.assertEqual(result.returncode, 0, result.stderr)
@@ -252,7 +252,7 @@ class BackfillIndexTest(unittest.TestCase):
         versions = read_index(self.root)["versions"]
         self.assertEqual(sorted(versions), [FIRST_VERSION, SECOND_VERSION])
 
-    def test_backfill_hashes_each_revision_own_policy(self):
+    def test_backfill_revision_policy(self):
         run_sync(self.root, "--backfill-digests")
         versions = read_index(self.root)["versions"]
         first = hashlib.sha256(b"# Policy\n").hexdigest()
@@ -263,7 +263,7 @@ class BackfillIndexTest(unittest.TestCase):
         self.assertNotIn("docs/project-orientation.md",
                          versions[FIRST_VERSION]["policy"])
 
-    def test_backfill_reuses_each_revision_own_shared_manifest(self):
+    def test_backfill_revision_manifest(self):
         run_sync(self.root, "--backfill-digests")
         versions = read_index(self.root)["versions"]
         self.assertEqual(
@@ -311,7 +311,7 @@ class BackfillExistingIndexTest(unittest.TestCase):
 class LiveIndexTest(unittest.TestCase):
     """This repository's committed index describes its current release."""
 
-    def test_the_committed_index_matches_this_tree(self):
+    def test_committed_index_current(self):
         if SOURCE_MARKER.is_file():
             self.assertTrue((REPO_ROOT / INDEX_NAME).is_file())
         result = run_sync(REPO_ROOT, "--check")

@@ -102,7 +102,7 @@ class GitParityTest(unittest.TestCase):
                 self.assertEqual(bash(command), powershell(command))
                 self.assertEqual(bash(command), cmd(command))
 
-    def test_inline_config_and_repo_location_forms_agree(self):
+    def test_inline_config_forms_agree(self):
         with tempfile.TemporaryDirectory() as root:
             git_dir = Path(root) / ".git"
             git_dir.mkdir()
@@ -223,7 +223,7 @@ class PowerShellPolicyParityTest(unittest.TestCase):
         ("Get-ChildItem .", ""),
     )
 
-    def test_shared_policy_commands_match_expected_verdicts(self):
+    def test_shared_policy_verdicts(self):
         for command, expected in self.CASES:
             with self.subTest(command=command):
                 self.assertEqual(bash(command), expected)
@@ -332,7 +332,7 @@ class SharedCommandPolicyParityTest(unittest.TestCase):
                 self.assertEqual(powershell(command), "deny")
                 self.assertEqual(cmd(command), "deny")
 
-    def test_subcommand_only_bans_keep_read_forms(self):
+    def test_subcommand_bans_keep_reads(self):
         for command in ("gpt show disk0", "log show --last 1m"):
             with self.subTest(command=command):
                 self.assertEqual(bash(command), powershell(command))
@@ -531,7 +531,7 @@ class GitHubCliSafetyParityTest(unittest.TestCase):
         self.assertEqual(powershell(command), "ask")
         self.assertEqual(cmd(command), "ask")
 
-    def test_normal_local_git_transport_stays_available(self):
+    def test_local_git_transport_available(self):
         for command in ("git fetch origin main", "git pull", "git push origin HEAD"):
             with self.subTest(command=command):
                 self.assertEqual(bash(command), "")
@@ -549,7 +549,7 @@ class CoreOwnershipTest(unittest.TestCase):
         self.assertTrue(core.is_relevant_git_environment("GIT_DIR"))
         self.assertFalse(core.is_relevant_git_environment("PATH"))
 
-    def test_no_gate_defines_its_own_verdict_helpers(self):
+    def test_verdict_helpers_centralized(self):
         shared = ("delete_verdict", "git_verdict", "push_verdict",
                   "is_root_target", "strongest", "is_test_path",
                   "cmd_delete_verdict", "curl_transfer_verdict",

@@ -101,13 +101,13 @@ class PytestLookupTest(unittest.TestCase):
         self.addCleanup(temporary.cleanup)
         self.root = Path(temporary.name).resolve()
 
-    def test_root_module_file_shadows_module_launch(self) -> None:
+    def test_root_module_file_shadows(self) -> None:
         (self.root / "pytest.py").write_text("", encoding="utf-8")
         decision, reason = self.gate.workflow_decision("python -m pytest tests", str(self.root))
         self.assertEqual(decision, "deny")
         self.assertIn("pytest.py", reason)
 
-    def test_root_package_directory_shadows_module_launch(self) -> None:
+    def test_root_package_shadows(self) -> None:
         (self.root / "pytest").mkdir()
         decision, reason = self.gate.workflow_decision("python3 -m pytest", str(self.root))
         self.assertEqual(decision, "deny")

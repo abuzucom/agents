@@ -82,7 +82,7 @@ class ReadOnlyCase(unittest.TestCase):
 class ReadOnlyAllowedToolTest(ReadOnlyCase):
     """Read and planning tools pass."""
 
-    def test_read_and_planning_tools_are_allowed(self):
+    def test_read_planning_tools_allowed(self):
         for branch in READ_ONLY_STATES:
             fixture = self.fixture(branch)
             for tool in ALLOWED_TOOLS:
@@ -120,35 +120,35 @@ class ReadOnlyMalformedCallTest(ReadOnlyCase):
 class ReadOnlyShellMainTest(ReadOnlyCase):
     """The first half of the inspection commands pass on main."""
 
-    def test_read_only_shell_commands_are_allowed(self):
+    def test_read_only_shell_allowed(self):
         self.assert_shell_allowed("main", ALLOWED_BASH[:ALLOWED_SPLIT])
 
 
 class ReadOnlyShellMainRestTest(ReadOnlyCase):
     """The second half of the inspection commands pass on main."""
 
-    def test_read_only_shell_commands_are_allowed(self):
+    def test_read_only_shell_allowed(self):
         self.assert_shell_allowed("main", ALLOWED_BASH[ALLOWED_SPLIT:])
 
 
 class ReadOnlyShellDetachedTest(ReadOnlyCase):
     """The first half of the inspection commands pass on a detached HEAD."""
 
-    def test_read_only_shell_commands_are_allowed(self):
+    def test_read_only_shell_allowed(self):
         self.assert_shell_allowed(DETACHED_HEAD, ALLOWED_BASH[:ALLOWED_SPLIT])
 
 
 class ReadOnlyShellDetachedRestTest(ReadOnlyCase):
     """The second half of the inspection commands pass on a detached HEAD."""
 
-    def test_read_only_shell_commands_are_allowed(self):
+    def test_read_only_shell_allowed(self):
         self.assert_shell_allowed(DETACHED_HEAD, ALLOWED_BASH[ALLOWED_SPLIT:])
 
 
 class ReadOnlyConsentTest(ReadOnlyCase):
     """Workflows and branch creation ask, and fail without an interactive session."""
 
-    def test_workflows_and_branch_creation_request_consent(self):
+    def test_workflows_request_consent(self):
         for branch in READ_ONLY_STATES:
             fixture = self.fixture(branch)
             for command in CONSENT_BASH:
@@ -156,7 +156,7 @@ class ReadOnlyConsentTest(ReadOnlyCase):
                     result = fixture.shell(command)
                     self.assertEqual(decision(result), "ask", result.stderr)
 
-    def test_consent_is_denied_without_an_interactive_session(self):
+    def test_unattended_consent_denied(self):
         fixture = self.fixture("main")
         result = fixture.run("Bash", {"command": "git switch -c feat/new-work"}, mode="dontAsk")
         self.assertEqual(decision(result), "deny")
@@ -301,7 +301,7 @@ class ReadOnlyRebaseTest(ReadOnlyCase):
 class ReadOnlyLifecycleTest(ReadOnlyCase):
     """Lifecycle events show only the read-only note."""
 
-    def test_lifecycle_events_show_only_a_note(self):
+    def test_lifecycle_note_only(self):
         for branch, label in (("main", "`main`"), (DETACHED_HEAD, "detached HEAD")):
             fixture = self.fixture(branch)
             start = fixture.lifecycle("SessionStart")

@@ -24,7 +24,7 @@ def find_line_index(lines: list[str], fragment: str) -> int:
 
 
 class DraftRecheckTest(unittest.TestCase):
-    def test_guard_reads_the_draft_state_and_fails_closed(self):
+    def test_guard_draft_state(self):
         text = "\n".join(read_upload_lines())
         self.assertIn(f"{DRAFT_GUARD}()", text)
         self.assertIn("--json isDraft", text)
@@ -35,7 +35,7 @@ class DraftRecheckTest(unittest.TestCase):
         upload = find_line_index(lines, "gh release upload")
         self.assertEqual(lines[upload - 1], DRAFT_GUARD)
 
-    def test_guard_runs_before_the_notes_refresh(self):
+    def test_guard_before_notes_refresh(self):
         lines = read_upload_lines()
         edit = find_line_index(lines, "gh release edit")
         guard_calls = [index for index, line in enumerate(lines) if line == DRAFT_GUARD]
@@ -43,12 +43,12 @@ class DraftRecheckTest(unittest.TestCase):
 
 
 class DraftNotesRefreshTest(unittest.TestCase):
-    def test_existing_draft_receives_the_current_notes(self):
+    def test_existing_draft_notes_refresh(self):
         text = "\n".join(read_upload_lines())
         self.assertIn("releases/generate-notes", text)
         self.assertIn('gh release edit "$tag" --repo "$repo" --notes-file', text)
 
-    def test_refreshed_notes_start_with_the_built_notes(self):
+    def test_refreshed_notes_prefix(self):
         lines = read_upload_lines()
         built = find_line_index(lines, 'cat "$RUNNER_TEMP/release-notes.md"')
         generated = find_line_index(lines, 'printf \'%s\\n\' "$generated"')

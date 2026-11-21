@@ -40,7 +40,7 @@ class ApprovalTimelineTest(unittest.TestCase):
     def test_label_before_push_is_stale(self) -> None:
         self.assertFalse(integrity.approval_is_current(timeline([labeled(BEFORE_PUSH)])))
 
-    def test_force_push_after_label_is_stale(self) -> None:
+    def test_force_push_label_stale(self) -> None:
         force_push = {"event": "head_ref_force_pushed", "created_at": LATER,
                       "label": None, "actor_type": "User"}
         self.assertFalse(integrity.approval_is_current(
@@ -120,7 +120,7 @@ class TimelineCliTest(unittest.TestCase):
         path.write_text(json.dumps(document), encoding="utf-8")
         return str(path)
 
-    def test_without_flag_label_presence_still_approves(self) -> None:
+    def test_label_presence_without_flag(self) -> None:
         self.assertEqual(self.run_main(["hooks/x.py"], [LABEL], []), 0)
 
     def test_stale_label_fails_with_flag(self) -> None:
@@ -148,7 +148,7 @@ class ProtectedPathCoverageTest(unittest.TestCase):
             with self.subTest(path=path):
                 self.assertTrue(integrity.requires_approval([path]))
 
-    def test_build_and_ownership_files_require_approval(self) -> None:
+    def test_build_ownership_files_protected(self) -> None:
         for path in ("Makefile", ".pre-commit-config.yaml", "scripts/run_tests.py", "CODEOWNERS",
                      ".github/CODEOWNERS", "docs/CODEOWNERS"):
             with self.subTest(path=path):
@@ -169,7 +169,7 @@ class WorkflowWiringTest(unittest.TestCase):
     def test_bootstrap_never_runs_head_checker(self) -> None:
         self.assertNotIn("pr-head/scripts", self.text)
 
-    def test_timeline_is_read_with_pinned_script_action(self) -> None:
+    def test_timeline_pinned_script_action(self) -> None:
         self.assertIn("actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b", self.text)
         self.assertIn("listEventsForTimeline", self.text)
         self.assertIn("listSuitesForRef", self.text)

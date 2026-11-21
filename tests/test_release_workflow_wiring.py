@@ -31,15 +31,15 @@ class ReleaseWorkflowWiringTest(unittest.TestCase):
         cls.release = load_release()
         cls.workflow = load_workflow()
 
-    def test_only_a_pushed_v_tag_starts_the_workflow(self):
+    def test_version_tag_trigger(self):
         self.assertEqual(read_triggers(self.workflow), {"push": {"tags": ["v*"]}})
         self.assertEqual(self.workflow["permissions"], {"contents": "read"})
 
-    def test_release_job_permissions_equal_the_constant(self):
+    def test_release_job_permissions(self):
         job = self.workflow["jobs"]["release"]
         self.assertEqual(job["permissions"], dict(self.release.RELEASE_JOB_PERMISSIONS))
 
-    def test_only_the_release_job_can_write(self):
+    def test_release_job_sole_writer(self):
         for name, job in self.workflow["jobs"].items():
             with self.subTest(job=name):
                 writes = [scope for scope, level in job.get("permissions", {}).items()
@@ -49,7 +49,7 @@ class ReleaseWorkflowWiringTest(unittest.TestCase):
     def test_release_needs_the_tag_check(self):
         self.assertEqual(self.workflow["jobs"]["release"]["needs"], "check-tag")
 
-    def test_tag_check_runs_the_helper_sync_check_and_main_ancestry(self):
+    def test_tag_check_steps(self):
         text = list_run_text(self.workflow["jobs"]["check-tag"])
         self.assertIn('python scripts/release.py check-tag "$GITHUB_REF_NAME"', text)
         self.assertIn("python scripts/sync.py --check", text)

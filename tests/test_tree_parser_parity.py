@@ -41,13 +41,13 @@ class TreeParserParityTest(unittest.TestCase):
         cls.tree = load_script("check_compliance_tree")
         cls.markers = load_script("check_conflict_markers")
 
-    def test_regular_blobs_parse_to_the_same_paths_and_ids(self):
+    def test_regular_blobs_parse_equal(self):
         tree_entries = self.tree._parse_tree_entries(REGULAR_RECORDS)
         marker_entries = self.markers._parse_tree_entries(REGULAR_RECORDS)
         self.assertEqual([(path, object_id) for path, object_id, _mode in tree_entries],
                          marker_entries)
 
-    def test_both_parsers_reject_the_same_malformed_output(self):
+    def test_parsers_reject_malformed_output(self):
         for raw in REJECTED_OUTPUTS:
             with self.subTest(raw=raw):
                 self.assertEqual(outcome(self.tree._parse_tree_entries, raw)[0], "error")
@@ -57,7 +57,7 @@ class TreeParserParityTest(unittest.TestCase):
         self.assertEqual(self.tree._parse_tree_entries(b""), [])
         self.assertEqual(self.markers._parse_tree_entries(b""), [])
 
-    def test_documented_differences_for_symlinks_and_submodules(self):
+    def test_symlink_submodule_differences(self):
         symlink = build_record(b"120000", b"blob", SYMLINK_ID, b"link")
         submodule = build_record(b"160000", b"commit", SUBMODULE_ID, b"vendor/lib")
         self.assertEqual(self.tree._parse_tree_entries(symlink), [("link", SYMLINK_ID, "120000")])

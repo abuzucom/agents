@@ -18,7 +18,7 @@ def main():
 class WorkerTimeoutDefaultTest(unittest.TestCase):
     """The default deadline covers observed CI process startup time."""
 
-    def test_main_worker_uses_ci_safe_bounded_default(self):
+    def test_main_worker_default_timeout(self):
         with tempfile.TemporaryDirectory() as temporary:
             module_path = Path(temporary) / "sample_cli.py"
             module_path.write_text(MODULE_SOURCE, encoding="utf-8")

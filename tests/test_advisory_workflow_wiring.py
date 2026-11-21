@@ -13,7 +13,7 @@ INTEGRITY_WORKFLOW = ROOT / ".github" / "workflows" / "gate-integrity.yml"
 class AdvisoryWorkflowTest(unittest.TestCase):
     """Workflow source keeps untrusted metadata outside shell text."""
 
-    def test_sync_workflow_runs_pull_request_checker(self):
+    def test_sync_workflow_pr_checker(self):
         text = SYNC_WORKFLOW.read_text(encoding="utf-8")
         self.assertIn("python scripts/check_pull_request_message.py", text)
         self.assertIn("if: github.event_name == 'pull_request'", text)
@@ -49,7 +49,7 @@ class AdvisoryWorkflowTest(unittest.TestCase):
                 text.count("persist-credentials: false"),
             )
 
-    def test_changelog_range_jobs_fetch_full_history(self):
+    def test_changelog_jobs_full_history(self):
         workflow_jobs = (
             (SYNC_WORKFLOW, "check-sync"),
             (REUSABLE_WORKFLOW, "static-checks"),
@@ -66,7 +66,7 @@ class AdvisoryWorkflowTest(unittest.TestCase):
             self.assertIn("python scripts/check_gate_adoption.py", text)
             self.assertIn("python scripts/check_hook_launchers.py", text)
 
-    def test_integrity_workflow_uses_trusted_base_code(self):
+    def test_integrity_workflow_base_code(self):
         text = INTEGRITY_WORKFLOW.read_text(encoding="utf-8")
         self.assertIn("pull_request", text)
         self.assertNotIn("pull_request_target", text)

@@ -25,7 +25,7 @@ def _read_triggers(workflow: dict) -> dict:
 
 
 class PolicySizeReportWiringTests(unittest.TestCase):
-    def test_workflow_runs_from_default_branch_after_sync_check(self):
+    def test_workflow_runs_after_sync(self):
         workflow = _load_workflow()
         triggers = _read_triggers(workflow)
         self.assertEqual(set(triggers), {"workflow_run"})
@@ -38,7 +38,7 @@ class PolicySizeReportWiringTests(unittest.TestCase):
             encoding="utf-8")
         self.assertIn(f"name: {UPSTREAM_WORKFLOW}\n", text)
 
-    def test_measure_job_reads_only_and_persists_no_token(self):
+    def test_measure_job_read_only(self):
         job = _load_workflow()["jobs"]["measure"]
         self.assertEqual(
             job["permissions"], {"contents": "read", "pull-requests": "read"})
@@ -49,7 +49,7 @@ class PolicySizeReportWiringTests(unittest.TestCase):
         self.assertNotIn("ref", checkout[0]["with"])
         self.assertIn("comment", job["outputs"])
 
-    def test_comment_job_holds_write_and_runs_no_checkout_or_code(self):
+    def test_comment_job_runs_no_code(self):
         job = _load_workflow()["jobs"]["comment"]
         self.assertEqual(job["needs"], "measure")
         self.assertEqual(job["permissions"], {"pull-requests": "write"})
@@ -63,7 +63,7 @@ class PolicySizeReportWiringTests(unittest.TestCase):
         self.assertIn("${{ needs.measure.outputs.comment }}",
                       [value for env in environments for value in env.values()])
 
-    def test_only_the_comment_job_can_write(self):
+    def test_comment_job_sole_writer(self):
         for name, job in _load_workflow()["jobs"].items():
             with self.subTest(job=name):
                 writes = [scope for scope, level in job.get("permissions", {}).items()
@@ -71,7 +71,7 @@ class PolicySizeReportWiringTests(unittest.TestCase):
                 expected = ["pull-requests"] if name == "comment" else []
                 self.assertEqual(writes, expected)
 
-    def test_report_job_measures_renders_and_posts_sticky_comment(self):
+    def test_report_job_sticky_comment(self):
         text = WORKFLOW.read_text(encoding="utf-8")
         self.assertIn("python scripts/check_policy_size.py", text)
         self.assertIn("--json", text)
@@ -87,7 +87,7 @@ class PolicySizeReportWiringTests(unittest.TestCase):
             with self.subTest(name=name):
                 self.assertIn(f"'{name}'", text)
 
-    def test_policy_size_checker_still_gates_pull_requests(self):
+    def test_size_checker_gates_prs(self):
         text = (ROOT / ".github" / "workflows" / "sync-check.yml").read_text(
             encoding="utf-8")
         self.assertIn("run: python scripts/check_policy_size.py\n", text)

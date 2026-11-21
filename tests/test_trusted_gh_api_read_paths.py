@@ -66,7 +66,7 @@ def api_decision(arguments: str) -> str:
 class ApiReadPathShapeTest(unittest.TestCase):
     """Only plain segments and a plain query pass the read allow."""
 
-    def test_graphql_and_ambiguous_paths_are_not_allowed(self):
+    def test_graphql_paths_not_allowed(self):
         for path in REJECTED_PATHS:
             with self.subTest(path=path):
                 self.assertNotEqual(api_decision(f"api {path}"), "allow")
@@ -76,12 +76,12 @@ class ApiReadPathShapeTest(unittest.TestCase):
             with self.subTest(path=path):
                 self.assertEqual(api_decision(f"api {path}"), "allow")
 
-    def test_incomplete_or_non_get_requests_are_not_allowed(self):
+    def test_incomplete_non_get_requests(self):
         for arguments in INCOMPLETE_OR_NON_GET_REQUESTS:
             with self.subTest(arguments=arguments):
                 self.assertNotEqual(api_decision(arguments), "allow")
 
-    def test_helper_rejects_graphql_and_ambiguous_paths(self):
+    def test_helper_rejects_graphql_paths(self):
         for path in REJECTED_PATHS + HELPER_ONLY_REJECTED_PATHS:
             with self.subTest(path=path):
                 self.assertFalse(GATE._api_read_path_safe(path))
@@ -91,7 +91,7 @@ class ApiReadPathShapeTest(unittest.TestCase):
             with self.subTest(path=path):
                 self.assertTrue(GATE._api_read_path_safe(path))
 
-    def test_option_scan_rejects_missing_values_and_non_get_methods(self):
+    def test_option_scan_rejects_invalid(self):
         cases = (
             ("repos/OWNER/REPO", "--jq"),
             ("repos/OWNER/REPO", "-X"),
@@ -142,7 +142,7 @@ class ApiReadPathHookTest(unittest.TestCase):
             return "allow"
         return json.loads(result.stdout)["hookSpecificOutput"]["permissionDecision"]
 
-    def test_graphql_variants_never_pass_without_prompt(self):
+    def test_graphql_variants_prompt(self):
         for path in ("graphql?query=x", "graphql/"):
             for tool_name in SHELL_TOOL_NAMES:
                 with self.subTest(path=path, tool=tool_name):

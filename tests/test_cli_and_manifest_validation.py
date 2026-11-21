@@ -108,7 +108,7 @@ class SyncManifestTest(unittest.TestCase):
         self.assertIn("JSON object", stderr)
         self.assertIn("--write-shared", stderr)
 
-    def test_non_object_shared_entry_fails_with_recovery(self):
+    def test_non_object_shared_entry_fails(self):
         code, stderr = self.check_manifest(json.dumps({"shared": ["hooks/x.py"]}))
         self.assertEqual(code, FAILURE_EXIT_CODE)
         self.assertIn("JSON object", stderr)

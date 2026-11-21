@@ -145,7 +145,7 @@ class PowerShellOperandTest(unittest.TestCase):
 class WriteContentTest(unittest.TestCase):
     """One write-content helper serves the branch and infrastructure hooks."""
 
-    def test_every_field_and_edit_is_joined(self):
+    def test_fields_edits_joined(self):
         tool_input = {"content": "alpha", "new_source": "beta",
                       "edits": [{"new_string": "gamma"}, {"old_string": "only"}, "bad"]}
         self.assertEqual(core.write_content(tool_input), "alpha beta gamma")
@@ -185,7 +185,7 @@ class ReasonTextTest(unittest.TestCase):
         self.assertNotIn("filesystem", reason)
         self.assertIn("raw", reason)
 
-    def test_root_mode_change_reason_drops_recursive(self):
+    def test_root_mode_reason(self):
         decision, reason = core.mode_change_verdict("chown", ["nobody", "/etc"])
         self.assertEqual(decision, "deny")
         self.assertNotIn("recursive", reason)

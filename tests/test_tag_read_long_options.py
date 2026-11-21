@@ -12,12 +12,12 @@ LONG_OPTION_READS = (
 
 
 class TagLongReadOptionTest(unittest.TestCase):
-    def test_long_listing_options_with_an_operand_pass(self):
+    def test_long_listing_options_pass(self):
         for command in LONG_OPTION_READS:
             with self.subTest(command=command):
                 self.assertEqual(git_decision(command), "")
 
-    def test_an_unrelated_long_option_with_an_operand_still_denies(self):
+    def test_unrelated_long_option_denies(self):
         self.assertEqual(git_decision("git tag --no-sign v2.27.0"), "deny")
 
 

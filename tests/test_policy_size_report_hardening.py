@@ -67,7 +67,7 @@ class LimitPinningTests(unittest.TestCase):
 
 
 class CommentSerializationTests(unittest.TestCase):
-    def test_runs_for_one_branch_share_a_queue(self):
+    def test_branch_runs_share_queue(self):
         workflow = yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))
         concurrency = workflow["concurrency"]
         group = concurrency["group"]

@@ -41,7 +41,7 @@ class RebaseLookupErrorTest(unittest.TestCase):
         failing_lookup.start()
         self.addCleanup(failing_lookup.stop)
 
-    def test_failed_preflight_denies_and_names_the_lookup_failure(self):
+    def test_failed_lookup_named_in_denial(self):
         payload = {"hook_event_name": "PreToolUse", "tool_name": "Read",
                    "tool_input": {"file_path": str(self.root / "a.txt")}}
         captured = io.StringIO()
@@ -52,7 +52,7 @@ class RebaseLookupErrorTest(unittest.TestCase):
         self.assertIn("rebase lookup failed", captured.getvalue())
         self.assertIn(LOOKUP_FAILURE, captured.getvalue())
 
-    def test_lifecycle_message_reports_invalid_without_recovery_text(self):
+    def test_lifecycle_message_omits_recovery(self):
         state, message = self.hook._lifecycle_message(PRIMARY_BRANCH, str(self.root))
         self.assertEqual(state, "invalid")
         self.assertEqual(message, "")

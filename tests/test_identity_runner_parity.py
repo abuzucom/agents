@@ -65,7 +65,7 @@ class ConstantParityTest(unittest.TestCase):
 class ProxyParityTest(unittest.TestCase):
     """Both runners strip the same managed proxy placeholders."""
 
-    def test_placeholders_removed_and_real_proxy_kept(self):
+    def test_placeholder_proxies_removed(self):
         with patch.dict(os.environ, {**PLACEHOLDER_PROXIES, **REAL_PROXY}):
             standalone = capture_environment(
                 check_git_identity._standalone_run_git, "status")["env"]
@@ -128,7 +128,7 @@ class GitTimeoutTest(unittest.TestCase):
             check_git_identity._standalone_run_git, "status", timeout=7)
         self.assertEqual(captured.get("timeout"), 7)
 
-    def test_timeout_exits_1_and_names_the_command(self):
+    def test_timeout_names_command(self):
         expired = subprocess.TimeoutExpired(["git", "config", "user.name"], 120)
         stderr = io.StringIO()
         with patch.object(check_git_identity, "run_git", side_effect=expired), \

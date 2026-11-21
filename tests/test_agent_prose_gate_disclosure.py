@@ -33,7 +33,7 @@ def find_body_findings(body: str) -> list[str]:
 
 
 class DisclosureExemptionTest(unittest.TestCase):
-    def test_plain_disclosure_line_raises_no_finding(self):
+    def test_plain_disclosure_no_finding(self):
         body = f"{CLEAN_SUMMARY}\n\n{PLAIN_DISCLOSURE}\n"
         self.assertEqual(find_body_findings(body), [])
 
@@ -49,12 +49,12 @@ class DisclosureExemptionTest(unittest.TestCase):
                 body = f"{CLEAN_SUMMARY}\n\n{line}\n"
                 self.assertEqual(find_body_findings(body), [])
 
-    def test_disclosure_still_marks_the_pull_request_as_agent_attributed(self):
+    def test_disclosure_marks_agent_attribution(self):
         checker = load_checker()
         body = f"{CLEAN_SUMMARY}\n\n{PLAIN_DISCLOSURE}\n"
         self.assertTrue(checker.is_agent_attributed([], body))
 
-    def test_prose_after_a_disclosure_name_is_still_checked(self):
+    def test_prose_after_disclosure_name(self):
         body = (
             f"{CLEAN_SUMMARY}\n\n"
             "Assisted-by: Claude Opus 5.5. They wrote this summary.\n"
@@ -62,7 +62,7 @@ class DisclosureExemptionTest(unittest.TestCase):
         findings = find_body_findings(body)
         self.assertTrue(any("personal pronoun" in item for item in findings))
 
-    def test_prose_inside_a_disclosure_value_is_still_checked(self):
+    def test_prose_inside_disclosure_value(self):
         for line in (
             "Assisted-by: Claude they wrote this summary",
             "**Assisted-by:** Claude we wrote this summary",
@@ -74,7 +74,7 @@ class DisclosureExemptionTest(unittest.TestCase):
                 findings = find_body_findings(f"{CLEAN_SUMMARY}\n\n{line}\n")
                 self.assertTrue(any("personal pronoun" in item for item in findings))
 
-    def test_disclosure_value_findings_keep_their_column(self):
+    def test_value_finding_column(self):
         line = "Assisted-by: Claude they wrote this summary"
         findings = find_body_findings(f"{line}\n")
         column = line.index("they") + 1
@@ -83,7 +83,7 @@ class DisclosureExemptionTest(unittest.TestCase):
             for item in findings
         ))
 
-    def test_bold_disclosure_value_findings_keep_their_column(self):
+    def test_bold_value_finding_column(self):
         for line in ("**Assisted-by:** Claude they wrote this summary",
                      "- **Assisted-by:** Claude they wrote this summary"):
             with self.subTest(line=line):
@@ -95,7 +95,7 @@ class DisclosureExemptionTest(unittest.TestCase):
                     for item in findings
                 ), findings)
 
-    def test_masking_keeps_the_line_width_and_value_position(self):
+    def test_masking_keeps_positions(self):
         checker = load_checker()
         for line in ("**Assisted-by:** Claude Opus 5.5",
                      "Assisted-by: Claude Opus 5.5",
@@ -107,7 +107,7 @@ class DisclosureExemptionTest(unittest.TestCase):
                 self.assertEqual(masked[value_start:], line[value_start:])
                 self.assertEqual(masked[:value_start].strip(), "")
 
-    def test_other_lines_keep_their_findings_and_line_numbers(self):
+    def test_other_lines_keep_findings(self):
         body = f"{PLAIN_DISCLOSURE}\n\nThey wrote this summary.\n"
         findings = find_body_findings(body)
         self.assertTrue(any(
@@ -115,7 +115,7 @@ class DisclosureExemptionTest(unittest.TestCase):
             for item in findings
         ))
 
-    def test_session_link_lines_raise_no_finding(self):
+    def test_session_link_no_finding(self):
         for line in (
             f"Claude-Session: {SESSION_URL}",
             f"**Claude-Session:** {SESSION_URL}",
@@ -126,22 +126,22 @@ class DisclosureExemptionTest(unittest.TestCase):
                 body = f"{CLEAN_SUMMARY}\n\n{PLAIN_DISCLOSURE}\n{line}\n"
                 self.assertEqual(find_body_findings(body), [])
 
-    def test_session_link_alone_does_not_mark_agent_attribution(self):
+    def test_session_link_not_attribution(self):
         checker = load_checker()
         body = f"{CLEAN_SUMMARY}\n\nClaude-Session: {SESSION_URL}\n"
         self.assertFalse(checker.is_agent_attributed([], body))
 
-    def test_prose_after_a_session_link_is_still_checked(self):
+    def test_prose_after_session_link(self):
         body = f"Claude-Session: {SESSION_URL} They wrote this summary.\n"
         findings = find_body_findings(body)
         self.assertTrue(any("personal pronoun" in item for item in findings))
 
-    def test_other_hosts_are_not_session_links(self):
+    def test_other_hosts_not_session_links(self):
         line = "Claude-Session: https://example.com/code/session_01X They are here."
         findings = find_body_findings(f"{line}\n")
         self.assertTrue(any("personal pronoun" in item for item in findings))
 
-    def test_disclosure_word_inside_a_sentence_is_still_checked(self):
+    def test_disclosure_word_in_sentence(self):
         body = "The note says Assisted-by: The tool writes prose.\n"
         findings = find_body_findings(body)
         self.assertTrue(any("clause join" in item for item in findings))

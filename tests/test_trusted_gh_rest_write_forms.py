@@ -111,7 +111,7 @@ class RestWriteHarness(unittest.TestCase):
 class DraftPullCreateTest(RestWriteHarness):
     """`pr create --draft` with a title and a body file runs as a REST POST."""
 
-    def test_create_maps_to_post_with_default_base(self):
+    def test_create_default_base(self):
         code, stdout, _stderr = self.run_wrapper(PR_CREATE)
         self.assertEqual(code, 0)
         self.assertEqual(self.calls, [CREATE_PULL])
@@ -132,13 +132,13 @@ class DraftPullCreateTest(RestWriteHarness):
         self.assertEqual(code, 0)
         self.assertEqual(self.calls, [CREATE_PULL])
 
-    def test_primary_branch_file_sets_the_default_base(self):
+    def test_primary_branch_file_base(self):
         self.write_primary_branch("trunk\n")
         code, _stdout, _stderr = self.run_wrapper(PR_CREATE)
         self.assertEqual(code, 0)
         self.assertEqual(self.sent_payloads()[0]["base"], "trunk")
 
-    def test_invalid_primary_branch_file_is_refused(self):
+    def test_invalid_primary_branch_file(self):
         for content in ("master\n", "HEAD\n", "one\ntwo\n", "bad name\n", ""):
             with self.subTest(content=content):
                 self.calls.clear()
@@ -168,13 +168,13 @@ class DraftPullCreateTest(RestWriteHarness):
 class DraftPullCreateExclusionTest(RestWriteHarness):
     """Other `pr create` shapes reach gh unchanged or stay denied."""
 
-    def test_create_without_draft_reaches_gh_unchanged(self):
+    def test_non_draft_passthrough(self):
         self.assert_unmapped(["pr", "create", "--title", "T", "--body-file", DRAFT_ARGUMENT])
 
-    def test_create_without_title_reaches_gh_unchanged(self):
+    def test_untitled_passthrough(self):
         self.assert_unmapped(["pr", "create", "--draft", "--body-file", DRAFT_ARGUMENT])
 
-    def test_create_with_other_options_reaches_gh_unchanged(self):
+    def test_other_options_passthrough(self):
         for extra in (["--fill"], ["--web"], ["--reviewer", "someone"],
                       ["--assignee", "someone"], ["--head", "other"], ["--body", "x"]):
             with self.subTest(extra=extra):
@@ -182,7 +182,7 @@ class DraftPullCreateExclusionTest(RestWriteHarness):
                 self.inputs.clear()
                 self.assert_unmapped([*PR_CREATE, *extra])
 
-    def test_create_with_stdin_body_reaches_gh_unchanged(self):
+    def test_stdin_body_passthrough(self):
         self.assert_unmapped(["pr", "create", "--draft", "--title", "T", "--body-file", "-"])
 
     def test_create_with_label_stays_denied(self):
@@ -204,7 +204,7 @@ class PullEditTest(RestWriteHarness):
         self.assertEqual(self.sent_payloads(), [{"body": DRAFT_TEXT}])
         self.assertEqual(stdout, PULL_URL + "\n")
 
-    def test_edit_body_and_title_maps_to_patch(self):
+    def test_edit_body_and_title(self):
         code, _stdout, _stderr = self.run_wrapper(
             ["pr", "edit", "7", "--title", "New title", "--body-file", DRAFT_ARGUMENT])
         self.assertEqual(code, 0)
@@ -217,7 +217,7 @@ class PullEditTest(RestWriteHarness):
 class PullEditExclusionTest(RestWriteHarness):
     """Other `pr edit` shapes reach gh unchanged or stay denied."""
 
-    def test_other_edit_options_reach_gh_unchanged(self):
+    def test_other_options_passthrough(self):
         for extra in (["--base", "main"], ["--add-reviewer", "someone"],
                       ["--milestone", "v1"], ["--add-assignee", "someone"]):
             with self.subTest(extra=extra):
@@ -225,7 +225,7 @@ class PullEditExclusionTest(RestWriteHarness):
                 self.inputs.clear()
                 self.assert_unmapped(["pr", "edit", "7", "--body-file", DRAFT_ARGUMENT, *extra])
 
-    def test_edit_without_body_reaches_gh_unchanged(self):
+    def test_bodyless_edit_passthrough(self):
         self.assert_unmapped(["pr", "edit", "7", "--title", "New title"])
 
     def test_edit_with_label_stays_denied(self):
@@ -248,7 +248,7 @@ class IssueStateTest(RestWriteHarness):
         self.assertEqual(self.sent_payloads(), [{"state": "closed"}])
         self.assertEqual(stdout, ISSUE_URL + "\n")
 
-    def test_close_reasons_map_to_state_reason(self):
+    def test_close_reason_mapping(self):
         for reason in ("completed", "not_planned"):
             with self.subTest(reason=reason):
                 self.calls.clear()
@@ -263,7 +263,7 @@ class IssueStateTest(RestWriteHarness):
         self.assertEqual(self.calls, [EDIT_ISSUE])
         self.assertEqual(self.sent_payloads(), [{"state": "open"}])
 
-    def test_other_state_shapes_reach_gh_unchanged(self):
+    def test_other_state_shapes_passthrough(self):
         for argv in (["issue", "close", "5", "--reason", "duplicate"],
                      ["issue", "close", "5", "--comment", "done"],
                      ["issue", "close", "5", "--reason"],
