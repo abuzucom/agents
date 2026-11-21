@@ -14,13 +14,14 @@ into the entry. Dates never decrease. Ask the active human when a date is in
 doubt.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.32.2] (2026-11-21)
+## [2.32.3] (2026-11-21)
 
 ### Added
 - `scripts/check_test_names.py` fails on test functions under `tests/`
   that a `--base`/`--head` range adds or renames with more than five words
-  after `test_`. Names present in the base version pass. The `pr-checks`
-  job in `agents-compliance.yml` runs it. It covers changed tests only.
+  after `test_`. Names present in the base version at the same path
+  pass. The `pr-checks` job in `agents-compliance.yml` runs it. It covers
+  changed tests only.
   `tests/test_check_test_names.py` covers it.
   `hooks/workflow-scripts.txt` allows the range form in hook-enabled
   sessions.
@@ -38,6 +39,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   cap exits 1 and never enters memory.
 - `scripts/check_test_names.py` matches base tests by bare name. A long
   test moved to another class or under a renamed class passes.
+- `scripts/check_test_names.py` gives a renamed test file no base
+  exemption. Every long test name in a renamed file fails.
 
 ### Removed
 - `docs/agent-policy/adoption.md` drops the retry variations paragraph.

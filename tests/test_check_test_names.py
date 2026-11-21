@@ -125,6 +125,15 @@ class RangeCheckTest(unittest.TestCase):
         result = self._run_checker()
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
+    def test_renamed_file_fails(self):
+        self._commit("tests/test_old_path.py", LONG_TEST)
+        self.base = self._git("rev-parse", "HEAD")
+        self._git("mv", "tests/test_old_path.py", "tests/test_new_path.py")
+        self._git("commit", "-m", "test: move test file")
+        result = self._run_checker()
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("tests/test_new_path.py:1", result.stdout)
+
     def test_oversize_blob_fails(self):
         oversize = "#" * OVERSIZE_BYTES
         self._commit("tests/test_huge.py", oversize)

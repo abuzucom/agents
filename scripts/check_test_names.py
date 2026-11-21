@@ -3,8 +3,9 @@
 
 The AGENTS.md Test names rule allows at most five words after `test_`.
 This check covers test functions under `tests/` that the range adds or
-renames. Names present in the base version of the same file pass. Exits
-1 on any finding or on any Git, decoding, or parse failure.
+renames. Names present in the base version at the same path pass. A
+renamed test file gets no exemption. Exits 1 on any finding or on any
+Git, decoding, or parse failure.
 """
 import argparse
 import ast
@@ -122,12 +123,13 @@ def find_file_violations(repo: str, base: str, head: str, pair: tuple[str, str])
     """Return findings for new long test names in one changed file.
 
     The base comparison uses bare names. A test moved to another class or
-    under a renamed class keeps its exemption.
+    under a renamed class keeps its exemption. A renamed file gets no
+    exemption. Every long name in it counts as new.
     """
     base_path, head_path = pair
     head_names = collect_test_names(read_blob(repo, head, head_path), head_path)
     base_bare_names = set()
-    if base_path:
+    if base_path == head_path:
         base_entries = collect_test_names(read_blob(repo, base, base_path), base_path)
         base_bare_names = {name for name, _line in base_entries.values()}
     findings = []
