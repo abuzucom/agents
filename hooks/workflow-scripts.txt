@@ -46,6 +46,7 @@ allow scripts/check_changelog.py --staged
 allow scripts/check_changelog.py --base <revision> --head <revision>
 allow scripts/check_commit_message.py --base <revision> --head <revision>
 allow scripts/check_test_names.py --base <revision> --head <revision>
+allow scripts/check_test_names.py --all
 allow scripts/check_conflict_markers.py
 allow scripts/check_conflict_markers.py --staged
 allow scripts/check_dockerfile_root.py <paths>

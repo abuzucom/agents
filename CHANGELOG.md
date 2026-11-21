@@ -14,18 +14,16 @@ into the entry. Dates never decrease. Ask the active human when a date is in
 doubt.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.32.5] (2026-11-21)
-
-### Changed
-- 968 test functions in 160 files under `tests/` now use at most five
-  words after `test_`. The renames change no test body, assertion, or
-  docstring. `tests/test_check_conflict_markers.py` updates the three
-  test names its direct execution test lists.
-- `shared-files.json` records new digests for the ten renamed shared test
-  files. Each repository holding copies takes the new digests at its
-  next sync.
+## [2.33.0] (2026-11-21)
 
 ### Added
+- `scripts/check_test_names.py --all` reads every `tests/**/*.py` file in
+  the working tree. It fails on test names over five words after `test_`
+  and on narration in test comments. Narration means a personal pronoun
+  or an opening sequencing word. Pattern matching covers those forms only.
+  `make lint`, the `sync-check.yml` lint steps, and
+  `hooks/workflow-scripts.txt` run or allow it.
+  `tests/test_check_all_test_names.py` covers it.
 - `scripts/check_test_names.py` fails on test functions under `tests/`
   that a `--base`/`--head` range adds or renames with more than five words
   after `test_`. Names present in the base version at the same path
@@ -41,6 +39,15 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   holds at most five words after `test_`. The rule text names that limit. Test comments state what the code
   does. No check enforces the rule.
 - `scripts/prose_bans.txt` adds four banned phrases to the global scope.
+
+### Changed
+- 968 test functions in 160 files under `tests/` now use at most five
+  words after `test_`. The renames change no test body, assertion, or
+  docstring. `tests/test_check_conflict_markers.py` updates the three
+  test names its direct execution test lists.
+- `shared-files.json` records new digests for the ten renamed shared test
+  files. Each repository holding copies takes the new digests at its
+  next sync.
 
 ### Fixed
 - `scripts/check_test_names.py` queries each blob size with
