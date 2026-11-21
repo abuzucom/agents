@@ -14,14 +14,21 @@ into the entry. Dates never decrease. Ask the active human when a date is in
 doubt.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.31.0] (2026-11-21)
+## [2.32.0] (2026-11-21)
 
 ### Added
+- `scripts/check_test_names.py` fails on test functions under `tests/`
+  that a `--base`/`--head` range adds or renames with more than five words
+  after `test_`. Names present in the base version pass. The `pr-checks`
+  job in `agents-compliance.yml` runs it. It covers changed tests only.
+  `tests/test_check_test_names.py` covers it.
+  `hooks/workflow-scripts.txt` allows the range form in hook-enabled
+  sessions.
 - `AGENTS.md` adds a Numbers rule to the Style section. Prose, comments,
   commits, and PRs spell out zero through ten and use digits above. No check
   enforces the rule.
 - `AGENTS.md` adds a Test names rule to the Style section. A test name
-  holds at most five words after `test_`. Test comments state what the code
+  holds at most five words after `test_`. The rule text names that limit. Test comments state what the code
   does. No check enforces the rule.
 - `scripts/prose_bans.txt` adds four banned phrases to the global scope.
 

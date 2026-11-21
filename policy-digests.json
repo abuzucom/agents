@@ -3304,6 +3304,49 @@
         "tests/test_platform_policy.py": "769d5ab1a4a6580ba54a5a3cd6fa8c13dc646bb877085047a5298a1bfe9a70c5"
       }
     },
+    "2.32.0": {
+      "policy": {
+        "AGENTS.md": "6f0eabc17b280bfcda9812287aef1156979bda7a25e2e172222074fb1bec0600",
+        "docs/agent-policy/adoption.md": "4da2d1a7985a08a06f5dce746cf1402920f6931a850d94474ec6b3784857ccaf",
+        "docs/agent-policy/clients.md": "527893a52c453d3cc50ffba86cd094d04c083a4c5e8538986bfcc7ec84ab4900",
+        "docs/agent-policy/enforcement.md": "07efc1329e12564bd9ea110b5785d26cb6fb0a8a622a4e36bdf7c5e68fc400ed",
+        "docs/agent-policy/github.md": "ac6aeff492440b66e16abeee02a1edbe53a783e7c5ddd0fffdfea209ceeec0d0",
+        "docs/agent-policy/security.md": "2c559a1539e8a896886a010c214f80d379c0069c06b55a7fe43d01a45950e8bd"
+      },
+      "shared": {
+        "hooks/_bash_parser.py": "e5d35b99bc21ea94ea3f0cbc5e83da71359420fa60eeb0f1e7007259b6721f85",
+        "hooks/_cmd_parser.py": "246febca4007230c77f0980bec98ee94e14e14b21d5dddf5567101a38c7d80b3",
+        "hooks/_gate_core.py": "510e64bf99f28c943964d7b9b6273626e300b8d8556cb72801d8c002d4986ff3",
+        "hooks/_platform_policy.py": "c307db1286f61fa987bf898e9ec0843b33188ea56538a24d62fa0e98a968b24e",
+        "hooks/block_destructive_bash.py": "a0d5a963b369472a6de4848c2c59a94f3da9b38983e29716cb1b89e36cd50868",
+        "hooks/block_destructive_cmd.py": "8b14f372cf2ba876777746b0c35a258f666edfdd22f1fbfe991f198a30b1f9fa",
+        "hooks/block_destructive_powershell.py": "e1d2ae15b2cea91a227745220d9e3b47bd488800f95eba13e99f0f8220fea3a8",
+        "hooks/enforce_anti_delegation.py": "70b0616207c943faa729a84ec6b949813b2db8db6ff6494e395de43fe5b04df7",
+        "hooks/enforce_gate_adoption.py": "d2e5f5900d27c7ffa01c2ef627463b30fb72f61967d33782cf914facde4de978",
+        "hooks/github-command-denylist.txt": "0b043edb1beaa5c37d38137e5b958fad35b5fbdad045063ed30fa8c19ee13a13",
+        "hooks/reinject_agents_policy.py": "fdb77594df566e6bc59254b04b7dfc510b3b8e7617f40991af379257b7ce005d",
+        "hooks/require_consent.py": "4361ca5584f530579f343c0644b223ba252f86c3c5991a16f430f40b37eaeb79",
+        "scripts/check_gate_adoption.py": "72b4a1332ffc1b5dcce300b3767288f64f8329c3eba564d33d16f404425944af",
+        "scripts/check_gate_pr_integrity.py": "329a638145ad9c5db3cb61b5dd35180046120f58feea65fb6837f83844f720c1",
+        "scripts/check_hook_launchers.py": "4ab5d8a4e1c796512f4a21ec945feca5101caafd6e56bf1d7d1a3b530a3b51d1",
+        "scripts/check_local_paths.py": "9b12d12d3da1f44ca6756f331b22586ba32bf907af1e1703c0f91cace0f9db11",
+        "scripts/complete_gate_adoption.py": "d179d011be09d29ac2ba85879f2362518bb6084500cd3740c884e1e392d344f4",
+        "tests/gate_corpus.py": "edb8d544ef7e402ad174b57e780166730cd6b86137c7d77c4293c06fd211161f",
+        "tests/json_line_worker.py": "57cbf9ed4c57506201e9c9e4ae57d6b8a330d5ede2f8fb76f0c4f72dae55fc0b",
+        "tests/json_line_worker_child.py": "4a6c64a70264aebe350a83dc2908963adc87b421b0ab3648631371e6b1c6c45d",
+        "tests/test_block_destructive_bash.py": "143d55eddb90031ef4e007df0b266a9392d92b3342bc6b0e0a7791c101235024",
+        "tests/test_block_destructive_cmd.py": "6d8ada534ccc91af6b05930a13208234361dffa6c653c2326b19d108324c33cc",
+        "tests/test_block_destructive_powershell.py": "fa921504a039c48a8a7043b7ef0622ee42bd9bdb8ae4167d50caf141bc160835",
+        "tests/test_check_gate_adoption.py": "3a492ab99fcbf822c492d7a988c1cd321830709be4b30bcd3cbbef4143768c51",
+        "tests/test_check_gate_pr_integrity.py": "e7876990de8953238bccac888e60ad227486fae4c1bbc9784437d9fb4eaa17c1",
+        "tests/test_check_hook_launchers.py": "e3d28d71eccc3707afa5f2bc4ede01b2ffc9c59eb755fe072b6fed67990396f9",
+        "tests/test_check_local_paths.py": "3dd0b7a348eff17da1909997ac3478ddfcc864a80b7fd7423fd4ef20a3d9c1cb",
+        "tests/test_complete_gate_adoption.py": "d2f7e5ea9cf20f340b71a19f1991d4df3eec36fdf2afb51f3f457282352d027a",
+        "tests/test_enforce_gate_adoption.py": "769ee2a9f14783d92661c14912717239e603cb5ece138556aba14da0a8abac33",
+        "tests/test_gate_adoption_transaction.py": "fe03b777db0daabfe094d023bad97bb6cbf7d09b69a770f411bcab2e9100ec9e",
+        "tests/test_platform_policy.py": "769d5ab1a4a6580ba54a5a3cd6fa8c13dc646bb877085047a5298a1bfe9a70c5"
+      }
+    },
     "2.4.0": {
       "policy": {
         "AGENTS.md": "edabe3718d921c663b09d712060373837c284520965e4b63e623a9ada04979c7",

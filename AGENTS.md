@@ -664,7 +664,7 @@ cannot license other languages outside required string literals or data.
 
 **Numbers.** In prose, comments, commits, and PRs, spell out zero through ten. Use digits above.
 
-**Test names.** Use `test_<subject>_<property>` in at most five words. Comments state what the code does.
+**Test names.** Use `test_<subject>_<property>` with at most five words after `test_`. Comments state what the code does.
 
 **Direct factual discourse.** State facts, requirements, results, and concrete
 effects. Omit hedging, fluff, self-justification, self-narration, tutorial
