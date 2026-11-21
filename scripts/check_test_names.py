@@ -3,15 +3,18 @@
 
 The AGENTS.md Test names rule allows at most five words after `test_`.
 This check covers test functions under `tests/` that the range adds or
-renames. Names present in the base version at the same path pass. A
-renamed test file gets no exemption. Exits 1 on any finding or on any
-Git, decoding, or parse failure.
+renames. It reads module and class level functions, the same scope
+unittest discovery reads. A function named `test...` without `test_`
+fails. Each base name at the same path exempts one head test of that
+name. A renamed test file gets no exemption. Exits 1 on any finding or
+on any Git, decoding, or parse failure.
 """
 import argparse
 import ast
 import os
 import subprocess
 import sys
+from collections import Counter
 
 try:
     from scripts.trusted_git import run_git
@@ -20,6 +23,8 @@ except ModuleNotFoundError:
 
 MAX_TEST_NAME_WORDS = 5
 TEST_PREFIX = "test_"
+# unittest discovery runs every method that starts with this prefix.
+DISCOVERY_PREFIX = "test"
 TESTS_DIRECTORY = "tests/"
 PYTHON_SUFFIX = ".py"
 MAX_BLOB_BYTES = 4 * 1024 * 1024
@@ -86,7 +91,9 @@ def read_blob_size(repo: str, commit: str, path: str) -> int:
 def read_blob(repo: str, commit: str, path: str) -> str:
     """Return one file's text at a commit.
 
-    The size query runs first. An oversize blob never enters memory.
+    The size query runs first. A blob over the cap at that query stays
+    unread. A post-read check covers a blob that changes between the two
+    Git calls.
     """
     blob_size = read_blob_size(repo, commit, path)
     if blob_size > MAX_BLOB_BYTES:
@@ -114,33 +121,43 @@ def collect_test_names(source: str, path: str) -> dict[str, tuple[str, int]]:
         for node in body:
             if isinstance(node, ast.ClassDef):
                 stack.append((node.body, f"{prefix}{node.name}."))
-            elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name.startswith(TEST_PREFIX):
+            elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name.startswith(DISCOVERY_PREFIX):
                 names[f"{prefix}{node.name}"] = (node.name, node.lineno)
     return names
 
 
-def find_file_violations(repo: str, base: str, head: str, pair: tuple[str, str]) -> list[str]:
-    """Return findings for new long test names in one changed file.
+def describe_name_violation(name: str) -> str:
+    """Return a finding text for a test name, or an empty string."""
+    if not name.startswith(TEST_PREFIX):
+        return f"{name} lacks the {TEST_PREFIX} prefix"
+    word_count = count_name_words(name)
+    if word_count <= MAX_TEST_NAME_WORDS:
+        return ""
+    return f"{name} has {word_count} words after {TEST_PREFIX} (limit {MAX_TEST_NAME_WORDS})"
 
-    The base comparison uses bare names. A test moved to another class or
-    under a renamed class keeps its exemption. A renamed file gets no
-    exemption. Every long name in it counts as new.
+
+def find_file_violations(repo: str, base: str, head: str, pair: tuple[str, str]) -> list[str]:
+    """Return findings for new nonconforming test names in one changed file.
+
+    The base comparison counts bare names. Each base occurrence exempts one
+    head test of that name, in line order. A test moved to another class
+    keeps its exemption. A copy into a second class fails. A renamed file
+    gets no exemption.
     """
     base_path, head_path = pair
     head_names = collect_test_names(read_blob(repo, head, head_path), head_path)
-    base_bare_names = set()
+    base_name_counts = Counter()
     if base_path == head_path:
         base_entries = collect_test_names(read_blob(repo, base, base_path), base_path)
-        base_bare_names = {name for name, _line in base_entries.values()}
+        base_name_counts = Counter(name for name, _line in base_entries.values())
     findings = []
     for name, line in sorted(head_names.values(), key=lambda entry: entry[1]):
-        word_count = count_name_words(name)
-        if name in base_bare_names or word_count <= MAX_TEST_NAME_WORDS:
+        if base_name_counts[name] > 0:
+            base_name_counts[name] -= 1
             continue
-        findings.append(
-            f"{head_path}:{line}: {name} has {word_count} words after {TEST_PREFIX}"
-            f" (limit {MAX_TEST_NAME_WORDS})"
-        )
+        violation = describe_name_violation(name)
+        if violation:
+            findings.append(f"{head_path}:{line}: {violation}")
     return findings
 
 
@@ -155,7 +172,7 @@ def check(base: str, head: str, repo: str) -> int:
         print(finding)
     if not findings:
         return 0
-    print(f"Rename each listed test to at most {MAX_TEST_NAME_WORDS} words after {TEST_PREFIX}.", file=sys.stderr)
+    print(f"Rename each listed test to {TEST_PREFIX} plus at most {MAX_TEST_NAME_WORDS} words.", file=sys.stderr)
     return 1
 
 

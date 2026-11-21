@@ -42,6 +42,10 @@ CLASS_B_LONG_TEST = """class Second:
     def test_rows_are_twenty_px_at_standard_size(self):
         pass
 """
+TWO_CLASS_LONG_TEST = CLASS_A_LONG_TEST + CLASS_B_LONG_TEST
+NO_UNDERSCORE_TEST = """def testRowHeight():
+    pass
+"""
 # One byte over the checker cap of 4 MiB.
 OVERSIZE_BYTES = 4 * 1024 * 1024 + 1
 
@@ -133,6 +137,21 @@ class RangeCheckTest(unittest.TestCase):
         result = self._run_checker()
         self.assertEqual(result.returncode, 1)
         self.assertIn("tests/test_new_path.py:1", result.stdout)
+
+    def test_duplicate_long_name_fails(self):
+        self._commit("tests/test_copied.py", CLASS_A_LONG_TEST)
+        self.base = self._git("rev-parse", "HEAD")
+        self._commit("tests/test_copied.py", TWO_CLASS_LONG_TEST)
+        result = self._run_checker()
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("tests/test_copied.py:5", result.stdout)
+        self.assertNotIn("tests/test_copied.py:2", result.stdout)
+
+    def test_missing_underscore_fails(self):
+        self._commit("tests/test_prefix.py", NO_UNDERSCORE_TEST)
+        result = self._run_checker()
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("testRowHeight", result.stdout)
 
     def test_oversize_blob_fails(self):
         oversize = "#" * OVERSIZE_BYTES

@@ -14,7 +14,7 @@ into the entry. Dates never decrease. Ask the active human when a date is in
 doubt.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.32.3] (2026-11-21)
+## [2.32.4] (2026-11-21)
 
 ### Added
 - `scripts/check_test_names.py` fails on test functions under `tests/`
@@ -41,6 +41,10 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   test moved to another class or under a renamed class passes.
 - `scripts/check_test_names.py` gives a renamed test file no base
   exemption. Every long test name in a renamed file fails.
+- `scripts/check_test_names.py` exempts each base name once per base
+  occurrence. A long name copied into a second class fails. A new
+  function named `test...` without `test_` fails. The docstring states
+  the module and class scope and the pre-read size check.
 
 ### Removed
 - `docs/agent-policy/adoption.md` drops the retry variations paragraph.
