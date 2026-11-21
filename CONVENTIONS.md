@@ -1033,11 +1033,10 @@ fails on the same findings for commits or pull requests that disclose
 agent authorship through the Rule 14 `Assisted-by`/`Co-authored-by`
 trailer (`check_commit_attribution.py::has_agent_label`) or a matching
 pull request description line. Undisclosed agent authorship stays
-invisible to this signal, the same documented gap
-`check_banned_agents.py` already states. Never remove or edit that
-trailer to evade this gate. Fix the flagged prose instead. The `pr-checks`
-job in `.github/workflows/agents-compliance.yml` runs this gate on every
-pull request, drafts included. No repository hook runs it.
+invisible to this signal. `check_banned_agents.py` shares that gap. Never
+remove or edit that trailer to evade this gate. Fix the flagged prose
+instead. The `pr-checks` job in `agents-compliance.yml` runs this gate on
+every pull request, drafts included. No repository hook runs it.
 
 In `scripts/prose_bans.txt`, each nonempty policy line defines one exact word
 or phrase. Section headers define scope. Add entries without changing checker
@@ -1069,11 +1068,11 @@ The protected inventory covers:
   `hooks/_command_execution_gate.py`, `hooks/_gate_core.py`,
   `hooks/_platform_policy.py`, `hooks/block_destructive_bash.py`,
   `hooks/block_destructive_cmd.py`, `hooks/block_destructive_powershell.py`,
-  `hooks/block_infrastructure_access.py`, `hooks/enforce_branch_name.py`,
-  `hooks/enforce_gate_adoption.py`, `hooks/enforce_git_identity.py`,
-  `hooks/reinject_agents_policy.py`, `hooks/require_consent.py`,
-  `hooks/github-command-denylist.txt`, `hooks/primary-branch.txt`,
-  `hooks/workflow-scripts.txt`, and
+  `hooks/block_infrastructure_access.py`, `hooks/enforce_anti_delegation.py`,
+  `hooks/enforce_branch_name.py`, `hooks/enforce_gate_adoption.py`,
+  `hooks/enforce_git_identity.py`, `hooks/reinject_agents_policy.py`,
+  `hooks/require_consent.py`, `hooks/github-command-denylist.txt`,
+  `hooks/primary-branch.txt`, `hooks/workflow-scripts.txt`, and
   `hooks/claude-code-settings.example.json`.
 - Hook configurations:
   `.claude/settings.json`, `.agents/`, `.codex/hooks.json`,
