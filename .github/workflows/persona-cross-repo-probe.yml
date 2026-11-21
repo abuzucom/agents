@@ -1,0 +1,29 @@
+name: persona-cross-repo-probe
+
+# Throwaway probe for the consolidation plan. It calls the euler wrapper in
+# abuzucom/agents-personas from this repository. The wrapper calls
+# review.yml through a relative `uses: ./.github/workflows/review.yml` line.
+# A run that starts proves the relative reference resolves to
+# agents-personas at the pinned commit. A startup failure that names a
+# missing review.yml proves it resolves to this repository instead. The
+# pull request that adds this file closes without merging.
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  euler:
+    permissions:
+      checks: write
+      contents: read
+      pull-requests: write
+    # agents-personas main at the stop-requested label merge.
+    uses: abuzucom/agents-personas/.github/workflows/euler-quality-review.yml@6fc56794f6985f4d6c66ab88cb6e1553198ca442
+    with:
+      personas_ref: "6fc56794f6985f4d6c66ab88cb6e1553198ca442"
+    secrets:
+      MODEL_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
