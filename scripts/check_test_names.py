@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fail on long test names added in a `--base`/`--head` commit range.
+"""Fail on long test names in a commit range or in every test file.
 
 The AGENTS.md Test names rule allows at most five words after `test_`.
 This check covers test functions under `tests/` that the range adds or
@@ -8,13 +8,21 @@ unittest discovery reads. A function named `test...` without `test_`
 fails. Each base name at the same path exempts one head test of that
 name. A renamed test file gets no exemption. Exits 1 on any finding or
 on any Git, decoding, or parse failure.
+
+The `--all` mode reads every `tests/**/*.py` file in the working tree at
+`--repo`. It applies the name rule with no base exemption. It also fails
+on narration in comments: a personal pronoun anywhere in the comment, or
+a sequencing word (now, first, next, then, finally) that opens it. Pattern
+matching covers those forms only. String literals stay out of scope.
 """
 import argparse
 import ast
 import os
+import re
 import subprocess
 import sys
 from collections import Counter
+from pathlib import Path
 
 try:
     from scripts.trusted_git import run_git
@@ -29,6 +37,13 @@ TESTS_DIRECTORY = "tests/"
 PYTHON_SUFFIX = ".py"
 MAX_BLOB_BYTES = 4 * 1024 * 1024
 CHANGED_STATUSES = ("A", "M", "R")
+TESTS_FOLDER = "tests"
+PYTHON_GLOB = "*.py"
+NARRATION_PRONOUN = re.compile(
+    r"\b(?:i|me|my|mine|myself|we|us|our|ours|ourselves|you|your|yours|let's|let me)\b",
+    re.IGNORECASE,
+)
+NARRATION_OPENER = re.compile(r"^#+\s*(?:now|first|next|then|finally)\b", re.IGNORECASE)
 
 
 def count_name_words(name: str) -> int:
@@ -161,6 +176,97 @@ def find_file_violations(repo: str, base: str, head: str, pair: tuple[str, str])
     return findings
 
 
+def collect_string_spans(tree: ast.AST) -> dict[int, list[tuple[int, float]]]:
+    """Map each line number to the byte ranges that string literals cover.
+
+    The parser reports UTF-8 byte columns. A `#` inside one of these
+    ranges belongs to a string, not to a comment.
+    """
+    spans = {}
+    for node in ast.walk(tree):
+        if not isinstance(node, (ast.Constant, ast.JoinedStr)):
+            continue
+        if isinstance(node, ast.Constant) and not isinstance(node.value, (str, bytes)):
+            continue
+        for line_number in range(node.lineno, node.end_lineno + 1):
+            start = node.col_offset if line_number == node.lineno else 0
+            end = node.end_col_offset if line_number == node.end_lineno else float("inf")
+            spans.setdefault(line_number, []).append((start, end))
+    return spans
+
+
+def find_line_comment(line: bytes, ranges: list[tuple[int, float]]) -> str:
+    """Return the comment text on one line, or an empty string."""
+    position = line.find(b"#")
+    while position != -1:
+        if not any(start <= position < end for start, end in ranges):
+            return line[position:].decode("utf-8")
+        position = line.find(b"#", position + 1)
+    return ""
+
+
+def find_comment_violations(source: str, path: str) -> list[str]:
+    """Return findings for narration in the comments of one source file."""
+    spans = collect_string_spans(ast.parse(source, filename=path))
+    findings = []
+    for line_number, line in enumerate(source.splitlines(), start=1):
+        comment = find_line_comment(line.encode("utf-8"), spans.get(line_number, []))
+        if not comment or comment.startswith("#!"):
+            continue
+        if NARRATION_OPENER.match(comment) or NARRATION_PRONOUN.search(comment):
+            findings.append(f"{path}:{line_number}: comment narration ({comment.strip()[:60]})")
+    return findings
+
+
+def read_tree_file(file_path: Path, display_path: str) -> str:
+    """Return one working tree file's text. Reject files over the size cap."""
+    file_size = file_path.stat().st_size
+    if file_size > MAX_BLOB_BYTES:
+        raise ValueError(f"file {display_path} holds {file_size} bytes over the {MAX_BLOB_BYTES} byte cap")
+    return file_path.read_text(encoding="utf-8")
+
+
+def find_tree_violations(repo: str) -> list[str]:
+    """Return name and comment findings for every test file in a tree.
+
+    Symbolic links and files that resolve outside the tests folder stay
+    unread.
+    """
+    tests_root = (Path(repo) / TESTS_FOLDER).resolve()
+    findings = []
+    if not tests_root.is_dir():
+        return findings
+    for file_path in sorted(tests_root.rglob(PYTHON_GLOB)):
+        if file_path.is_symlink() or not file_path.is_file():
+            continue
+        if not file_path.resolve().is_relative_to(tests_root):
+            continue
+        display_path = f"{TESTS_FOLDER}/{file_path.relative_to(tests_root).as_posix()}"
+        source = read_tree_file(file_path, display_path)
+        names = collect_test_names(source, display_path)
+        for name, line in sorted(names.values(), key=lambda entry: entry[1]):
+            violation = describe_name_violation(name)
+            if violation:
+                findings.append(f"{display_path}:{line}: {violation}")
+        findings.extend(find_comment_violations(source, display_path))
+    return findings
+
+
+def check_tree(repo: str) -> int:
+    """Print findings for every test file. Return 1 on any finding, else 0."""
+    findings = find_tree_violations(repo)
+    for finding in findings:
+        print(finding)
+    if not findings:
+        return 0
+    print(
+        f"Rename each listed test to {TEST_PREFIX} plus at most {MAX_TEST_NAME_WORDS} words."
+        " Rewrite each listed comment to state what the code does.",
+        file=sys.stderr,
+    )
+    return 1
+
+
 def check(base: str, head: str, repo: str) -> int:
     """Print findings for base..head. Return 1 on any finding, else 0."""
     base_commit = resolve_commit(repo, base)
@@ -177,13 +283,20 @@ def check(base: str, head: str, repo: str) -> int:
 
 
 def main() -> int:
-    """Parse arguments and run the range check."""
+    """Parse arguments and run the range or tree check."""
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--base", required=True, help="base revision (exclusive)")
-    parser.add_argument("--head", required=True, help="head revision (inclusive)")
+    parser.add_argument("--base", help="base revision (exclusive)")
+    parser.add_argument("--head", help="head revision (inclusive)")
+    parser.add_argument("--all", action="store_true", help="check every test file in the working tree")
     parser.add_argument("--repo", default=os.getcwd(), help="repository to inspect (default: cwd)")
     args = parser.parse_args()
+    if args.all and (args.base or args.head):
+        parser.error("--all takes no --base or --head")
+    if not args.all and not (args.base and args.head):
+        parser.error("pass --base and --head, or pass --all")
     try:
+        if args.all:
+            return check_tree(args.repo)
         return check(args.base, args.head, args.repo)
     except (OSError, subprocess.CalledProcessError, UnicodeError, ValueError, IndexError) as error:
         print(f"Test name check failed ({error}). Fix the cause and rerun.", file=sys.stderr)
