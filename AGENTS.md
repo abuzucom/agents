@@ -224,7 +224,7 @@ placeholders. `scripts/check_local_paths.py` backs this rule.
 Never add, remove, or upgrade dependencies without explicit active-human
 authorization.
 Pin all versions. Prefer the standard library or existing dependencies.
-Propose every new dependency for approval first. Use the full-SHA rule for
+Use the full-SHA rule for
 actions and reusable workflows.
 
 ### 10. Verify state before inferring workflow scope
@@ -597,8 +597,7 @@ and UI concerns.
 **Composition.** Avoid deep inheritance. Use composition, dependency injection,
 or interfaces.
 
-**Line length.** Keep lines between 80 and 120 characters. Break after commas
-or before operators.
+**Line length.** Keep lines between 80 and 120 characters.
 
 **Catch blocks.** Never leave a catch block empty. Log context, show feedback,
 or rethrow. Error messages must state the failure and recovery action. Comment
@@ -662,6 +661,10 @@ cannot license other languages outside required string literals or data.
 `scripts/check_english_only.py` provides warnings and always exits 0.
 
 **Avoid emojis.** No emojis unless justified and approved by a human.
+
+**Numbers.** In prose, comments, commits, and PRs, spell out zero through ten. Use digits above.
+
+**Test names.** Use `test_<subject>_<property>` with at most five words after `test_`. Comments state what the code does.
 
 **Direct factual discourse.** State facts, requirements, results, and concrete
 effects. Omit hedging, fluff, self-justification, self-narration, tutorial

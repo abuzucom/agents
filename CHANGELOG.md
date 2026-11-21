@@ -14,6 +14,45 @@ into the entry. Dates never decrease. Ask the active human when a date is in
 doubt.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.32.4] (2026-11-21)
+
+### Added
+- `scripts/check_test_names.py` fails on test functions under `tests/`
+  that a `--base`/`--head` range adds or renames with more than five words
+  after `test_`. Names present in the base version at the same path
+  pass. The `pr-checks` job in `agents-compliance.yml` runs it. It covers
+  changed tests only.
+  `tests/test_check_test_names.py` covers it.
+  `hooks/workflow-scripts.txt` allows the range form in hook-enabled
+  sessions.
+- `AGENTS.md` adds a Numbers rule to the Style section. Prose, comments,
+  commits, and PRs spell out zero through ten and use digits above. No check
+  enforces the rule.
+- `AGENTS.md` adds a Test names rule to the Style section. A test name
+  holds at most five words after `test_`. The rule text names that limit. Test comments state what the code
+  does. No check enforces the rule.
+- `scripts/prose_bans.txt` adds four banned phrases to the global scope.
+
+### Fixed
+- `scripts/check_test_names.py` queries each blob size with
+  `git cat-file -s` before reading the blob. A test file over the 4 MiB
+  cap exits 1 and never enters memory.
+- `scripts/check_test_names.py` matches base tests by bare name. A long
+  test moved to another class or under a renamed class passes.
+- `scripts/check_test_names.py` gives a renamed test file no base
+  exemption. Every long test name in a renamed file fails.
+- `scripts/check_test_names.py` exempts each base name once per base
+  occurrence. A long name copied into a second class fails. A new
+  function named `test...` without `test_` fails. The docstring states
+  the module and class scope and the pre-read size check.
+
+### Removed
+- `docs/agent-policy/adoption.md` drops the retry variations paragraph.
+  The Retry discipline rule in `AGENTS.md` keeps the requirement.
+- Rule 9 in `AGENTS.md` drops the sentence on proposing each new dependency.
+  The rule still requires authorization before any dependency change.
+- The Line length rule in `AGENTS.md` drops its line-break hint.
+
 ## [2.29.9] (2026-11-20)
 
 ### Added
