@@ -58,18 +58,18 @@ class SourceRepositoryTest(ReportFixture):
         self.run_report()
         self.rows = self.read_rows()
 
-    def test_source_copies_count_the_source_only_orientation(self) -> None:
+    def test_source_orientation_counted(self) -> None:
         """Copies assembled with source orientation are in sync."""
         copies = self.rows[SOURCE_REPOSITORY]["copies"]
         self.assertEqual(copies["in_sync"], copies["total"])
 
-    def test_adopter_copies_stay_in_sync_without_source_orientation(
+    def test_adopter_copies_in_sync(
             self) -> None:
         """An adopter without the source orientation file keeps its count."""
         copies = self.rows["current"]["copies"]
         self.assertEqual(copies["in_sync"], copies["total"])
 
-    def test_local_workflow_call_is_reported_as_local(self) -> None:
+    def test_local_workflow_call_reported(self) -> None:
         """A local call to the compliance workflow sets ci.local."""
         wiring = self.rows[SOURCE_REPOSITORY]["ci"]
         self.assertTrue(wiring["local"])
@@ -82,7 +82,7 @@ class SourceRepositoryTest(ReportFixture):
         self.assertFalse(wiring["local"])
         self.assertTrue(wiring["pinned"])
 
-    def test_repository_without_workflow_is_not_local(self) -> None:
+    def test_missing_workflow_not_local(self) -> None:
         """No compliance workflow call leaves the local flag false."""
         self.assertFalse(self.rows["bare"]["ci"]["local"])
 
@@ -121,7 +121,7 @@ class MixedWorkflowTest(ReportFixture):
         self.run_report()
         self.rows = self.read_rows()
 
-    def test_local_call_after_a_pinned_call_is_reported(self) -> None:
+    def test_local_after_pinned_call(self) -> None:
         """A later local call still sets local beside the pinned reference."""
         for name in ("remote-first", "local-first"):
             with self.subTest(repository=name):
@@ -130,7 +130,7 @@ class MixedWorkflowTest(ReportFixture):
                 self.assertEqual(wiring["reference"], "b" * 40)
                 self.assertTrue(wiring["pinned"])
 
-    def test_commented_local_call_is_not_reported(self) -> None:
+    def test_commented_local_call_ignored(self) -> None:
         """A commented-out workflow call is not an active call."""
         self.assertFalse(self.rows["commented"]["ci"]["local"])
 

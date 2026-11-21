@@ -105,7 +105,7 @@ class CheckerFunctionLimitTest(unittest.TestCase):
                 length = len(range(function.lineno, function.end_lineno + 1))
                 self.assertLessEqual(length, MAX_FUNCTION_LINES)
 
-    def test_functions_stay_within_local_name_limit(self):
+    def test_local_name_limit(self):
         for relative_path, name in TARGET_FUNCTIONS:
             with self.subTest(function=name):
                 names = local_names(load_function(relative_path, name))
@@ -117,7 +117,7 @@ class CheckerFunctionLimitTest(unittest.TestCase):
                 function = load_function(relative_path, name)
                 self.assertLessEqual(nesting_depth(function.body), MAX_NESTING_DEPTH)
 
-    def test_functions_exit_nested_loops_through_return(self):
+    def test_nested_loops_exit_by_return(self):
         for relative_path, name in TARGET_FUNCTIONS:
             with self.subTest(function=name):
                 function = load_function(relative_path, name)

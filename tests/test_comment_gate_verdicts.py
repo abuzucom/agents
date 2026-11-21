@@ -32,7 +32,7 @@ class CommentWorkflowVerdictTest(unittest.TestCase):
     def setUpClass(cls) -> None:
         cls.gate = _load_gate_module()
 
-    def test_read_is_allowed_and_read_only(self) -> None:
+    def test_read_allowed(self) -> None:
         self.assertEqual(self.gate.workflow_decision(READ_COMMAND, PROJECT_DIR), ("allow", ""))
         self.assertTrue(self.gate.read_only_workflow(READ_COMMAND, PROJECT_DIR))
 
@@ -53,7 +53,7 @@ class CommentPageVerdictTest(unittest.TestCase):
     def setUpClass(cls) -> None:
         cls.gate = _load_gate_module()
 
-    def test_bounded_page_is_allowed_and_read_only(self) -> None:
+    def test_bounded_page_allowed(self) -> None:
         for page in ("1", "42", "1000"):
             command = f"{READ_COMMAND} --page {page}"
             with self.subTest(page=page):

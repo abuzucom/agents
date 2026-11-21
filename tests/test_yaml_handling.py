@@ -64,7 +64,7 @@ def probe(order: tuple) -> dict:
 class ImportOrderTest(unittest.TestCase):
     """Checker line numbers and the global loader ignore import order."""
 
-    def test_line_numbers_match_in_every_import_order(self):
+    def test_import_order_line_numbers(self):
         for order in IMPORT_ORDERS:
             with self.subTest(order=order):
                 self.assertEqual(probe(order)["findings"], [EXPECTED_CHECKOUT_FINDING])
@@ -88,7 +88,7 @@ class ActionPinAliasTest(unittest.TestCase):
     def test_sequence_cycle_without_uses(self):
         self.assertEqual(self.pins.find_violations("a: &x [*x]\n", "w.yml"), [])
 
-    def test_cycle_reports_an_unpinned_action_once(self):
+    def test_cycle_unpinned_action_reported(self):
         findings = self.pins.find_violations(
             "a: &x {uses: actions/checkout@v4, b: *x}\n", "w.yml")
         self.assertEqual(findings, ["w.yml: a.uses must use a full commit SHA"])

@@ -109,7 +109,7 @@ class ForcePushTest(unittest.TestCase):
         self.assertEqual(decision, "deny")
         self.assertEqual(code, BLOCKING_EXIT_CODE)
 
-    def test_shell_command_string_denies_before_force_push_consent(self):
+    def test_shell_string_denied_first(self):
         code, decision = run_hook("bash -lc 'git push --force'")
         self.assertEqual(decision, "deny")
         self.assertEqual(code, BLOCKING_EXIT_CODE)
@@ -133,7 +133,7 @@ class AskTest(unittest.TestCase):
         "git filter-branch --tree-filter true HEAD",
     )
 
-    def test_asked_commands_route_to_the_human(self):
+    def test_asked_commands_route(self):
         for command in self.ASKED:
             with self.subTest(command=command):
                 code, decision = run_hook(command)
@@ -145,7 +145,7 @@ class AskTest(unittest.TestCase):
         _, decision = run_hook("rm -rf /tmp/my-own-scratch-dir")
         self.assertEqual(decision, "ask")
 
-    def test_force_with_lease_is_not_exempt(self):
+    def test_force_with_lease_not_exempt(self):
         """A lease does not make a history rewrite consented to."""
         _, decision = run_hook("git push --force-with-lease")
         self.assertEqual(decision, "ask")
@@ -156,7 +156,7 @@ class FailClosedTest(unittest.TestCase):
 
     UNATTENDED_MODES = ("bypassPermissions", "dontAsk", "", "something-new")
 
-    def test_unattended_modes_deny_instead_of_asking(self):
+    def test_unattended_modes_deny(self):
         for mode in self.UNATTENDED_MODES:
             with self.subTest(mode=mode):
                 code, decision = run_hook("rm -rf /tmp/scratch", permission_mode=mode)
@@ -265,7 +265,7 @@ class CommandBoundaryTest(unittest.TestCase):
                 self.assertEqual(code, BLOCKING_EXIT_CODE)
                 self.assertEqual(decision, "deny")
 
-    def test_hidden_gated_commands_reach_the_human(self):
+    def test_hidden_gated_commands_ask(self):
         for command in self.ASKED:
             with self.subTest(command=command):
                 code, decision = run_hook(command)
@@ -321,7 +321,7 @@ class FieldTypeTest(unittest.TestCase):
                 self.assertEqual(code, BLOCKING_EXIT_CODE)
                 self.assertEqual(decision, "deny")
 
-    def test_unhashable_permission_mode_does_not_crash(self):
+    def test_unhashable_mode_no_crash(self):
         code, decision = self._run({"command": "rm -rf /tmp/x"}, mode=["default"])
         self.assertEqual(code, BLOCKING_EXIT_CODE)
         self.assertEqual(decision, "deny")
@@ -423,7 +423,7 @@ class InterpreterWrapperTest(unittest.TestCase):
                 _, decision = run_hook(command)
                 self.assertEqual(decision, expected)
 
-    def test_shell_without_a_payload_uses_transition_policy(self):
+    def test_bare_shell_transition_policy(self):
         cases = (
             ("bash --version", ""),
             ("sh -n script.sh", "ask"),
@@ -434,7 +434,7 @@ class InterpreterWrapperTest(unittest.TestCase):
                 _, decision = run_hook(command)
                 self.assertEqual(decision, expected)
 
-    def test_eval_and_exec_payloads_are_classified(self):
+    def test_eval_exec_payloads_classified(self):
         cases = (
             ("eval", ""),
             ("eval 'rm -rf /tmp/x'", "ask"),
@@ -499,13 +499,13 @@ class BashWriteToTestTest(unittest.TestCase):
         ("python -m pytest tests/test_auth.py", ""),
     )
 
-    def test_writes_reaching_a_test_path_are_gated(self):
+    def test_test_path_writes_gated(self):
         for command, expected in self.CASES:
             with self.subTest(command=command):
                 _, decision = run_hook(command)
                 self.assertEqual(decision, expected)
 
-    def test_known_shell_writes_to_gate_paths_ask(self):
+    def test_gate_path_writes_ask(self):
         commands = (
             "echo x > hooks/new.py",
             "echo x >> .claude/settings.json",
@@ -578,7 +578,7 @@ class RepoExecutesOnReadTest(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
 
-    def test_exec_capable_config_gates_a_read(self):
+    def test_exec_config_gates_read(self):
         for body, command in self.EXEC_CONFIGS:
             with self.subTest(config=body.strip(), command=command):
                 _repo_with_config(self.tmp.name, body)
@@ -608,12 +608,12 @@ class RepoExecutesOnReadTest(unittest.TestCase):
                 _, decision = run_hook_in(command, self.tmp.name)
                 self.assertEqual(decision, "")
 
-    def test_neutralizing_the_key_on_the_command_line_passes(self):
+    def test_inline_neutralized_key_passes(self):
         _repo_with_config(self.tmp.name, '[diff]\n\texternal = /tmp/evil\n')
         _, decision = run_hook_in("git -c diff.external= diff", self.tmp.name)
         self.assertEqual(decision, "")
 
-    def test_inline_exec_settings_and_last_value_win(self):
+    def test_inline_exec_last_value_wins(self):
         _repo_with_config(self.tmp.name, '[core]\n\tbare = false\n')
         cases = (
             ("git -c core.pager=/tmp/evil status", "ask"),
@@ -632,7 +632,7 @@ class RepoExecutesOnReadTest(unittest.TestCase):
                 _, decision = run_hook_in(command, self.tmp.name)
                 self.assertEqual(decision, expected)
 
-    def test_leading_environment_exec_settings_gate_reads(self):
+    def test_env_exec_settings_gate_reads(self):
         _repo_with_config(self.tmp.name, '[core]\n\tbare = false\n')
         commands = (
             "GIT_PAGER=/tmp/evil git status",
@@ -646,7 +646,7 @@ class RepoExecutesOnReadTest(unittest.TestCase):
                 _, decision = run_hook_in(command, self.tmp.name)
                 self.assertEqual(decision, "ask")
 
-    def test_environment_config_vector_uses_last_value(self):
+    def test_env_config_last_value(self):
         _repo_with_config(self.tmp.name, '[core]\n\tbare = false\n')
         cleared_last = (
             "GIT_CONFIG_COUNT=2 GIT_CONFIG_KEY_0=core.pager "
@@ -661,7 +661,7 @@ class RepoExecutesOnReadTest(unittest.TestCase):
         self.assertEqual(run_hook_in(cleared_last, self.tmp.name)[1], "")
         self.assertEqual(run_hook_in(executable_last, self.tmp.name)[1], "ask")
 
-    def test_malformed_environment_config_vector_fails_closed(self):
+    def test_malformed_env_config_fails_closed(self):
         _repo_with_config(self.tmp.name, '[core]\n\tbare = false\n')
         for command in (
                 "GIT_CONFIG_COUNT=x git status",
@@ -670,7 +670,7 @@ class RepoExecutesOnReadTest(unittest.TestCase):
                 _, decision = run_hook_in(command, self.tmp.name)
                 self.assertEqual(decision, "ask")
 
-    def test_config_path_and_repository_location_globals_are_inspected(self):
+    def test_location_globals_inspected(self):
         root = Path(self.tmp.name)
         redirected = root / "redirected.config"
         redirected.write_text('[core]\n\tpager = /tmp/evil\n', encoding="utf-8")
@@ -714,7 +714,7 @@ class RepoExecutesOnReadTest(unittest.TestCase):
         command = "GIT_CONFIG_PARAMETERS='core.pager=/tmp/evil' git status"
         self.assertEqual(run_hook_in(command, self.tmp.name)[1], "ask")
 
-    def test_exported_git_execution_environment_is_gated(self):
+    def test_exported_exec_env_gated(self):
         _repo_with_config(self.tmp.name, '[core]\n\tbare = false\n')
         commands = (
             "export GIT_PAGER=/tmp/evil; git status",
@@ -737,14 +737,14 @@ class RepoExecutesOnReadTest(unittest.TestCase):
             with self.subTest(command=command):
                 self.assertEqual(run_hook_in(command, self.tmp.name)[1], "ask")
 
-    def test_parent_repository_config_is_discovered_after_c(self):
+    def test_parent_config_found_after_c(self):
         _repo_with_config(self.tmp.name, '[diff]\n\texternal = /tmp/evil\n')
         child = Path(self.tmp.name) / "nested" / "child"
         child.mkdir(parents=True)
         self.assertEqual(
             run_hook_in("git -C nested/child diff", self.tmp.name)[1], "ask")
 
-    def test_parent_gitfile_target_is_relative_to_the_gitfile(self):
+    def test_parent_gitfile_relative_target(self):
         root = Path(self.tmp.name)
         admin = root / "admin"
         admin.mkdir()
@@ -756,7 +756,7 @@ class RepoExecutesOnReadTest(unittest.TestCase):
         self.assertEqual(
             run_hook_in("git -C nested/child status", self.tmp.name)[1], "")
 
-    def test_uninspectable_redirected_repo_config_fails_closed(self):
+    def test_redirected_config_fails_closed(self):
         _, decision = run_hook_in(
             "git --git-dir=missing/../unknown.git status", self.tmp.name)
         self.assertEqual(decision, "ask")
@@ -793,7 +793,7 @@ class GitConfigPathTest(unittest.TestCase):
             "cwd": str(cwd),
         }
 
-    def test_missing_repository_search_root_reports_inspection_failure(self):
+    def test_missing_search_root_fails(self):
         paths, reason = self.core._repo_config_paths(
             self.make_state(self.root / "missing"))
         self.assertIsNone(paths)
@@ -817,7 +817,7 @@ class GitConfigPathTest(unittest.TestCase):
         self.assertEqual(
             reason, "the redirected repository common config could not be resolved")
 
-    def test_valid_commondir_returns_common_and_worktree_configs(self):
+    def test_valid_commondir_configs(self):
         common_dir = self.root / "admin"
         git_dir = common_dir / "worktrees" / "one"
         git_dir.mkdir(parents=True)
@@ -834,10 +834,10 @@ class GitConfigPathTest(unittest.TestCase):
             (os.path.join(canonical_git, "config.worktree"), False),
         ])
 
-    def test_resolve_alias_without_config_returns_empty(self):
+    def test_alias_without_config_empty(self):
         self.assertEqual(self.core.resolve_alias(str(self.root), "ship"), "")
 
-    def test_alias_cycle_reports_cycle_before_depth_exhaustion(self):
+    def test_alias_cycle_reported(self):
         entries = {"alias.first": "second", "alias.second": "first"}
         label, reason = self.core._alias_write_label("first", [], entries)
         self.assertEqual(label, "")
@@ -851,23 +851,23 @@ class GitAliasTest(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
 
-    def test_alias_expanding_to_a_gated_command_is_classified(self):
+    def test_gated_alias_classified(self):
         _repo_with_config(self.tmp.name, '[alias]\n\tnuke = push --force\n')
         _, decision = run_hook_in("git nuke", self.tmp.name)
         self.assertEqual(decision, "ask")
 
-    def test_alias_expanding_to_a_safe_command_passes(self):
+    def test_safe_alias_passes(self):
         _repo_with_config(self.tmp.name, '[alias]\n\tst = status\n')
         _, decision = run_hook_in("git st", self.tmp.name)
         self.assertEqual(decision, "")
 
-    def test_shell_alias_is_classified_never_executed(self):
+    def test_shell_alias_not_executed(self):
         _repo_with_config(
             self.tmp.name, '[alias]\n\tboom = !rm -rf /tmp/x\n')
         _, decision = run_hook_in("git boom", self.tmp.name)
         self.assertEqual(decision, "ask")
 
-    def test_unknown_subcommand_without_an_alias_asks(self):
+    def test_unknown_subcommand_asks(self):
         _repo_with_config(self.tmp.name, '[core]\n\tbare = false\n')
         _, decision = run_hook_in("git mysterious-thing", self.tmp.name)
         self.assertEqual(decision, "ask")
@@ -888,7 +888,7 @@ class SystemRootTest(unittest.TestCase):
                 self.assertEqual(decision, "deny", f"{target} was not denied")
                 self.assertEqual(code, BLOCKING_EXIT_CODE)
 
-    def test_a_path_inside_a_system_root_still_asks(self):
+    def test_system_root_child_asks(self):
         for target in ("/etc/nginx", "/var/log/app", "/home/dev/project",
                        "/usr/local/share/thing", "/opt/tool/build"):
             with self.subTest(target=target):
@@ -1038,7 +1038,7 @@ class RemoteToShellTest(unittest.TestCase):
         "cat install.sh | grep curl",
     )
 
-    def test_piping_a_download_into_a_shell_denies(self):
+    def test_download_into_shell_denies(self):
         for command in self.DENY:
             with self.subTest(command=command):
                 code, decision = run_hook(command)
@@ -1128,7 +1128,7 @@ class PrivilegeEscalationTest(unittest.TestCase):
                 _, decision = run_hook(command)
                 self.assertEqual(decision, "ask")
 
-    def test_a_worse_wrapped_command_still_denies(self):
+    def test_wrapped_denial_still_denies(self):
         for command in self.DENY:
             with self.subTest(command=command):
                 _, decision = run_hook(command)
@@ -1178,7 +1178,7 @@ class WindowsPathModuleTest(unittest.TestCase):
             with self.subTest(target=target):
                 self.assertFalse(self.core.is_root_target(target))
 
-    def test_protected_path_rejects_a_different_ntpath_drive(self):
+    def test_ntpath_other_drive_rejected(self):
         self.assertFalse(
             self.core._protected_path("D:\\outside", "C:\\repository"))
 
@@ -1284,13 +1284,13 @@ class MassChmodTest(unittest.TestCase):
         "chmod -R 777 C:\\",
     )
 
-    def test_recursive_mode_change_on_a_root_denies(self):
+    def test_root_chmod_denies(self):
         for command in self.DENY:
             with self.subTest(command=command):
                 _, decision = run_hook(command)
                 self.assertEqual(decision, "deny")
 
-    def test_recursive_mode_change_in_a_project_passes(self):
+    def test_project_chmod_passes(self):
         for command in ("chmod -R u+w src/", "chown -R me:me ./build"):
             with self.subTest(command=command):
                 _, decision = run_hook(command)
@@ -1331,7 +1331,7 @@ class PipeToInterpreterTest(unittest.TestCase):
                 _, decision = run_hook(command)
                 self.assertEqual(decision, "")
 
-    def test_piping_a_curl_download_into_a_reader_asks(self):
+    def test_curl_into_reader_asks(self):
         for command in self.ASK:
             with self.subTest(command=command):
                 _, decision = run_hook(command)
@@ -1364,7 +1364,7 @@ class ScheduledAndFilesystemTest(unittest.TestCase):
                 _, decision = run_hook(command)
                 self.assertEqual(decision, "deny")
 
-    def test_reading_and_project_scoped_changes_pass(self):
+    def test_reads_and_project_changes_pass(self):
         for command in self.ALLOW:
             with self.subTest(command=command):
                 _, decision = run_hook(command)
@@ -1440,7 +1440,7 @@ class UnrecognizedModeTest(unittest.TestCase):
         emitted = json.loads(result.stdout)["hookSpecificOutput"]
         return result.returncode, emitted["permissionDecisionReason"]
 
-    def test_deny_reason_names_the_unrecognized_mode(self):
+    def test_reason_names_unknown_mode(self):
         code, reason = self.reason_for({
             "hook_event_name": "PreToolUse",
             "tool_name": "Bash",
@@ -1450,7 +1450,7 @@ class UnrecognizedModeTest(unittest.TestCase):
         self.assertEqual(code, BLOCKING_EXIT_CODE)
         self.assertIn("someFutureMode", reason)
 
-    def test_deny_reason_marks_an_absent_mode(self):
+    def test_reason_marks_absent_mode(self):
         code, reason = self.reason_for({
             "hook_event_name": "PreToolUse",
             "tool_name": "Bash",
@@ -1459,7 +1459,7 @@ class UnrecognizedModeTest(unittest.TestCase):
         self.assertEqual(code, BLOCKING_EXIT_CODE)
         self.assertIn("absent", reason)
 
-    def test_an_unrecognized_mode_cannot_rewrite_the_reason(self):
+    def test_mode_cannot_rewrite_reason(self):
         """The mode is payload text, so it renders through the allowlist."""
         code, reason = self.reason_for({
             "hook_event_name": "PreToolUse",
@@ -1479,7 +1479,7 @@ class CorpusTest(unittest.TestCase):
     landing in one repo and not the other fails here.
     """
 
-    def test_every_corpus_row_reaches_its_verdict(self):
+    def test_corpus_verdicts(self):
         for command, expected, why in gate_corpus.BASH_CASES:
             with self.subTest(command=command, why=why):
                 _, decision = run_hook(command)

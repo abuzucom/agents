@@ -23,7 +23,7 @@ def load_integrity():
 
 
 class ReleaseHelperProtectionTest(unittest.TestCase):
-    def test_release_helper_change_requires_the_approval_label(self):
+    def test_release_helper_requires_label(self):
         integrity = load_integrity()
         for path in ("scripts/release.py", "Scripts/Release.py"):
             with self.subTest(path=path):
@@ -31,17 +31,17 @@ class ReleaseHelperProtectionTest(unittest.TestCase):
 
 
 class ReleaseEnvironmentTest(unittest.TestCase):
-    def test_release_job_waits_for_the_release_environment(self):
+    def test_release_job_environment(self):
         job = load_workflow()["jobs"]["release"]
         self.assertEqual(job["environment"], RELEASE_ENVIRONMENT)
 
-    def test_tag_check_job_holds_no_environment(self):
+    def test_tag_check_no_environment(self):
         job = load_workflow()["jobs"]["check-tag"]
         self.assertNotIn("environment", job)
 
 
 class VerifyCommandTest(unittest.TestCase):
-    def test_release_notes_pin_the_signer_workflow(self):
+    def test_release_notes_signer_pin(self):
         release = load_release()
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

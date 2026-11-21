@@ -9,7 +9,7 @@ SIGNER_FLAG = '--signer-workflow "$GITHUB_REPOSITORY/.github/workflows/release.y
 
 
 class ReusedBundleSignerTest(unittest.TestCase):
-    def test_reused_bundle_verify_pins_the_release_workflow(self):
+    def test_reused_bundle_pins_workflow(self):
         job = load_workflow()["jobs"]["release"]
         text = find_step(job, "Save attestation bundle")["run"]
         verify_lines = [line for line in text.splitlines()

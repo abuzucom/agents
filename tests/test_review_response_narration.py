@@ -21,7 +21,7 @@ NARRATION_LINE_NUMBER = 2
 class NarrationRuleTest(unittest.TestCase):
     """A report line that opens in the first person fails validation."""
 
-    def test_a_first_person_report_line_is_rejected(self):
+    def test_first_person_line_rejected(self):
         """A first-person sentence fails with its line number."""
         response = "Scope: one file.\nI need to review the diff first.\n" + VERDICT_LINES
         with self.assertRaises(ResponseError) as raised:
@@ -29,7 +29,7 @@ class NarrationRuleTest(unittest.TestCase):
         self.assertIn("process narration", str(raised.exception))
         self.assertIn(str(NARRATION_LINE_NUMBER), str(raised.exception))
 
-    def test_a_first_person_list_item_is_rejected(self):
+    def test_first_person_item_rejected(self):
         """A first-person list item counts as narration."""
         response = "Scope: one file.\n- We checked the workflow.\n" + VERDICT_LINES
         self.assertEqual(
@@ -42,12 +42,12 @@ class NarrationRuleTest(unittest.TestCase):
         self.assertEqual(verdict, "APPROVE")
         self.assertEqual(payload["findings"], [])
 
-    def test_a_word_that_only_starts_with_i_passes(self):
+    def test_i_prefixed_word_passes(self):
         """A word that only begins with the letter i is not narration."""
         response = "Scope: one file.\nInputs stay unchanged.\n" + VERDICT_LINES
         self.assertEqual(process_narration_lines(response), [])
 
-    def test_a_fenced_first_person_line_passes(self):
+    def test_fenced_first_person_passes(self):
         """First-person text inside a code fence is quoted evidence."""
         response = (
             "Scope: one file.\n```\nI am quoted evidence.\n```\n" + VERDICT_LINES)

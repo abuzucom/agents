@@ -33,7 +33,7 @@ class ExplicitBaseTest(forms.RestWriteHarness):
 class MissingBodyTest(forms.RestWriteHarness):
     """A create command without `--body-file` reaches gh unchanged."""
 
-    def test_create_without_body_file_reaches_gh_unchanged(self):
+    def test_create_without_body_file(self):
         self.assert_unmapped(["pr", "create", "--draft", "--title", "T"])
 
 
@@ -51,7 +51,7 @@ class PrimaryBranchReadRaceTest(unittest.TestCase):
         self.other = self.root / "other.txt"
         self.other.write_text("release-line\n", encoding="utf-8")
 
-    def test_swap_to_link_before_open_is_refused(self):
+    def test_link_swap_refused(self):
         real_open = os.open
 
         def swap_then_open(path, flags, *args, **kwargs):
@@ -65,7 +65,7 @@ class PrimaryBranchReadRaceTest(unittest.TestCase):
                 trusted_gh.primary_branch_name(self.root)
 
     @unittest.skipUnless(hasattr(os, "mkfifo"), "FIFOs need POSIX")
-    def test_fifo_override_is_refused_without_hanging(self):
+    def test_fifo_override_refused(self):
         self.override.unlink()
         os.mkfifo(self.override)
         with self.assertRaises(ValueError):

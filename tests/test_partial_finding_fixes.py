@@ -45,19 +45,19 @@ class RebaseLookupCountTest(unittest.TestCase):
             action()
         return len(calls)
 
-    def test_denied_tool_call_reads_the_rebase_state_once(self):
+    def test_denied_call_rebase_read_once(self):
         payload = {"hook_event_name": "PreToolUse", "tool_name": "Write",
                    "tool_input": {"file_path": str(self.root / "a.txt"), "content": "x"}}
         count = self.count_rebase_lookups(lambda: self.hook._handle_failed_preflight(
             payload, str(self.root), "claude", "invalid branch", INVALID_BRANCH))
         self.assertEqual(count, 1)
 
-    def test_lifecycle_message_reads_the_rebase_state_once(self):
+    def test_lifecycle_rebase_read_once(self):
         count = self.count_rebase_lookups(
             lambda: self.hook._lifecycle_message(INVALID_BRANCH, str(self.root)))
         self.assertEqual(count, 1)
 
-    def test_unreadable_rebase_state_still_denies_with_its_cause(self):
+    def test_unreadable_rebase_state_denies(self):
         payload = {"hook_event_name": "PreToolUse", "tool_name": "Write",
                    "tool_input": {"file_path": str(self.root / "a.txt"), "content": "x"}}
         with patch.object(self.hook, "rebase_is_active", side_effect=OSError("unreadable")):

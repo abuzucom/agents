@@ -26,10 +26,10 @@ def colon_findings(text: str) -> list[str]:
 class TrailerKeyAllowanceTest(unittest.TestCase):
     """Each trailer key and the colon after it skip prose analysis. Values stay checked."""
 
-    def test_allowed_trailer_keys_raise_no_colon_finding(self):
+    def test_trailer_keys_no_colon_finding(self):
         self.assertEqual(colon_findings(TRAILER_BLOCK), [])
 
-    def test_trailer_keys_match_in_any_letter_case(self):
+    def test_trailer_keys_case_insensitive(self):
         self.assertEqual(colon_findings("Co-Authored-By: Claude Opus 5.5\n"), [])
 
     def test_trailer_value_stays_checked(self):
@@ -43,11 +43,11 @@ class TrailerKeyAllowanceTest(unittest.TestCase):
             with self.subTest(line=line):
                 self.assertEqual(len(colon_findings(line)), 1)
 
-    def test_key_inside_a_sentence_stays_checked(self):
+    def test_sentence_key_checked(self):
         self.assertEqual(
             len(colon_findings("The line reads Assisted-by: the tool runs.\n")), 1)
 
-    def test_finding_columns_stay_aligned_after_a_trailer(self):
+    def test_finding_columns_aligned(self):
         text = "Assisted-by: Claude\nResult: the check runs.\n"
         self.assertEqual(colon_findings(text),
                          ["warning: sample.md:2:1: clause join (colon)"])

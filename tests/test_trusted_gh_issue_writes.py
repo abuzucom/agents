@@ -94,14 +94,14 @@ class IssueRestMappingTest(IssueWriteHarness):
         self.assertEqual(self.sent_payloads(), [{"body": DRAFT_TEXT}])
         self.assertEqual(stdout, ISSUE_URL + "\n")
 
-    def test_edit_body_and_title_maps_to_patch(self):
+    def test_edit_body_title_patch(self):
         code, _stdout, _stderr = self.run_wrapper(
             ["issue", "edit", "5", "--body-file", DRAFT_ARGUMENT, "--title", "New title"])
         self.assertEqual(code, 0)
         self.assertEqual(self.calls, [EDIT_ENDPOINT])
         self.assertEqual(self.sent_payloads(), [{"title": "New title", "body": DRAFT_TEXT}])
 
-    def test_edit_title_before_body_maps_to_patch(self):
+    def test_edit_title_first_patch(self):
         code, _stdout, _stderr = self.run_wrapper(
             ["issue", "edit", "5", "--title", "New title", "--body-file", DRAFT_ARGUMENT])
         self.assertEqual(code, 0)
@@ -120,7 +120,7 @@ class IssueRestMappingTest(IssueWriteHarness):
         self.run_wrapper(["issue", "edit", "5", "--body-file", DRAFT_ARGUMENT])
         self.assertEqual(self.account_checks, 1)
 
-    def test_rest_failure_relays_error_and_exit_code(self):
+    def test_rest_failure_relayed(self):
         code, stdout, stderr = self.run_wrapper(
             ["issue", "edit", "5", "--body-file", DRAFT_ARGUMENT],
             completed(stderr="HTTP 404: Not Found", returncode=1))
@@ -128,7 +128,7 @@ class IssueRestMappingTest(IssueWriteHarness):
         self.assertEqual(stdout, "")
         self.assertIn("HTTP 404", stderr)
 
-    def test_draft_path_never_reaches_the_cli(self):
+    def test_draft_path_hidden_from_cli(self):
         self.run_wrapper(["issue", "edit", "5", "--body-file", DRAFT_ARGUMENT])
         self.assertNotIn(DRAFT_ARGUMENT, " ".join(self.calls[0]))
         self.assertNotIn("--body-file", self.calls[0])
@@ -146,7 +146,7 @@ class IssueRestExclusionTest(IssueWriteHarness):
         self.assertNotIn("api", self.calls[0])
         self.assertEqual(self.inputs, [None])
 
-    def test_excluded_edit_options_reach_gh_unchanged(self):
+    def test_excluded_edit_options_passthrough(self):
         extras = (
             ["--add-assignee", "someone"], ["--remove-assignee", "someone"],
             ["--milestone", "v1"], ["--remove-milestone"],
@@ -159,7 +159,7 @@ class IssueRestExclusionTest(IssueWriteHarness):
                 self.inputs.clear()
                 self.assert_unmapped(["issue", "edit", "5", "--body-file", DRAFT_ARGUMENT, *extra])
 
-    def test_excluded_create_options_reach_gh_unchanged(self):
+    def test_excluded_create_options_passthrough(self):
         extras = (
             ["--assignee", "someone"], ["--milestone", "v1"], ["--project", "Board"],
             ["--template", "bug"], ["--web"],
@@ -171,24 +171,24 @@ class IssueRestExclusionTest(IssueWriteHarness):
                 self.assert_unmapped(
                     ["issue", "create", "--title", "T", "--body-file", DRAFT_ARGUMENT, *extra])
 
-    def test_stdin_body_file_reaches_gh_unchanged(self):
+    def test_stdin_body_passthrough(self):
         self.assert_unmapped(["issue", "edit", "5", "--body-file", "-"])
 
-    def test_create_without_title_reaches_gh_unchanged(self):
+    def test_untitled_create_passthrough(self):
         self.assert_unmapped(["issue", "create", "--body-file", DRAFT_ARGUMENT])
 
     def test_explicit_repository_reaches_gh_unchanged(self):
         self.assert_unmapped(
             ["issue", "edit", "5", "--body-file", DRAFT_ARGUMENT, "--repo", REPOSITORY])
 
-    def test_other_issue_commands_reach_gh_unchanged(self):
+    def test_other_commands_passthrough(self):
         self.assert_unmapped(["issue", "view", "5"])
 
 
 class IssueRestGateTest(IssueWriteHarness):
     """The mapping runs only after the existing gate checks pass."""
 
-    def test_label_options_stay_denied_without_calls(self):
+    def test_label_options_denied(self):
         for argv in (
             ["issue", "edit", "5", "--body-file", DRAFT_ARGUMENT, "--add-label", "bug"],
             ["issue", "edit", "5", "--body-file", DRAFT_ARGUMENT, "--remove-label", "bug"],
@@ -201,14 +201,14 @@ class IssueRestGateTest(IssueWriteHarness):
         self.assertEqual(self.calls, [])
         self.assertEqual(self.account_checks, 0)
 
-    def test_direct_rest_issue_patch_stays_denied(self):
+    def test_direct_patch_denied(self):
         code, _stdout, stderr = self.run_wrapper(
             ["api", "-X", "PATCH", f"repos/{REPOSITORY}/issues/5", "--input", "-"])
         self.assertEqual(code, USAGE_EXIT_CODE)
         self.assertIn("denied by policy", stderr)
         self.assertEqual(self.calls, [])
 
-    def test_direct_rest_issue_post_stays_denied(self):
+    def test_direct_post_denied(self):
         code, _stdout, stderr = self.run_wrapper(
             ["api", "-X", "POST", f"repos/{REPOSITORY}/issues", "--input", "-"])
         self.assertEqual(code, USAGE_EXIT_CODE)
@@ -263,7 +263,7 @@ class IssueBodyBoundsTest(IssueWriteHarness):
         (self.drafts / "link.md").symlink_to(target)
         self.assert_refused(".comment-drafts/link.md")
 
-    def test_body_change_after_validation_cannot_change_the_request(self):
+    def test_body_swap_after_validation(self):
         draft = self.drafts / "body.md"
         code, _stdout, _stderr = self.run_wrapper(
             ["issue", "edit", "5", "--body-file", DRAFT_ARGUMENT],

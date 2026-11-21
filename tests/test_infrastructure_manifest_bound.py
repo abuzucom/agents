@@ -30,7 +30,7 @@ class ManifestBoundTest(unittest.TestCase):
         self.assertTrue(
             _gate_core.is_protected_infrastructure_path(str(self.path)))
 
-    def test_an_oversize_manifest_is_not_read(self):
+    def test_oversize_manifest_skipped(self):
         padding = " " * _gate_core.MAX_INFRASTRUCTURE_FILE_BYTES
         self.path.write_text(MANIFEST_TEXT + padding, encoding="utf-8")
         self.assertGreater(
@@ -38,7 +38,7 @@ class ManifestBoundTest(unittest.TestCase):
         self.assertFalse(
             _gate_core.is_protected_infrastructure_path(str(self.path)))
 
-    def test_a_missing_file_is_not_protected(self):
+    def test_missing_file_unprotected(self):
         self.assertFalse(
             _gate_core.is_protected_infrastructure_path(str(self.path)))
 

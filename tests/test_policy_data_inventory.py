@@ -52,7 +52,7 @@ class BanListFailClosedTest(unittest.TestCase):
         self.assertIn("branch_name_bans.txt", findings[0])
         self.assertIn("Recovery:", findings[0])
 
-    def test_non_ascii_list_rejects_compliant_branch(self):
+    def test_non_ascii_list_rejects_branch(self):
         with tempfile.TemporaryDirectory() as temporary:
             unreadable = Path(temporary) / "branch_name_bans.txt"
             unreadable.write_bytes("caf\xe9\n".encode("utf-8"))
@@ -65,7 +65,7 @@ class BanListFailClosedTest(unittest.TestCase):
 class ForeignTokenParityTest(unittest.TestCase):
     """The branch stopword list tracks the English-only checker list."""
 
-    def test_branch_tokens_equal_english_stopwords_minus_collisions(self):
+    def test_branch_tokens_match_stopwords(self):
         branch = load_script("check_branch_name")
         english = load_script("check_english_only")
         self.assertEqual(set(branch.FOREIGN_TOKENS),
@@ -86,7 +86,7 @@ class AdoptionInventoryTest(unittest.TestCase):
             with self.subTest(relative=relative):
                 self.assertIn(f"{relative} is absent from the adopted tree", findings)
 
-    def test_source_tree_holds_each_data_file(self):
+    def test_source_tree_data_files(self):
         findings = self.adoption.check_required_files(REPO_ROOT)
         for relative in INVENTORIED_FILES:
             with self.subTest(relative=relative):

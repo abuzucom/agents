@@ -56,7 +56,7 @@ class CoauthorParsingTest(unittest.TestCase):
         self.assertEqual(_commit_trailers.parse_coauthor("Claude Code").group("email"), None)
         self.assertIsNone(_commit_trailers.parse_coauthor("<only@example.com>"))
 
-    def test_banned_agent_coauthor_with_trailing_space_is_flagged(self):
+    def test_padded_banned_coauthor_flagged(self):
         commit = {"sha": "a" * 40, "author_name": "Ada", "author_email": "ada@example.com",
                   "committer_name": "Ada", "committer_email": "ada@example.com",
                   "body": BODIES[2]}

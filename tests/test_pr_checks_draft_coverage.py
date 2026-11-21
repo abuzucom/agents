@@ -26,10 +26,10 @@ class PrChecksDraftCoverageTest(unittest.TestCase):
     def test_condition_does_not_exclude_drafts(self):
         self.assertNotIn("draft", self.job["if"])
 
-    def test_condition_still_requires_a_pull_request_event(self):
+    def test_condition_requires_pull_request(self):
         self.assertIn(PULL_REQUEST_CONDITION, self.job["if"])
 
-    def test_job_runs_the_agent_prose_gate(self):
+    def test_job_runs_prose_gate(self):
         step_commands = [step.get("run", "") for step in self.job["steps"]]
         self.assertTrue(
             any(PROSE_GATE_COMMAND in command for command in step_commands),

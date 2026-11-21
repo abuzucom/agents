@@ -68,7 +68,7 @@ class StatusFilterDriverTest(unittest.TestCase):
     def test_info_attributes_filter_never_runs(self):
         self._assert_filter_never_runs(".git/info/attributes", "probe")
 
-    def test_driver_name_with_dots_and_equals_never_runs(self):
+    def test_dotted_driver_not_executed(self):
         self._assert_filter_never_runs(".git/info/attributes", "a.b=c")
 
 

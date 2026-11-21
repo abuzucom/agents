@@ -46,7 +46,7 @@ class LocalTagResolutionTest(unittest.TestCase):
         self.root = Path(temporary.name)
         self.git_dir = build_repository(self.root)
 
-    def test_pushing_an_existing_tag_by_short_name_denies(self):
+    def test_existing_tag_push_denies(self):
         for command in ("git push origin production",
                         "git push origin packed-tag",
                         "git push origin team/stable",
@@ -55,7 +55,7 @@ class LocalTagResolutionTest(unittest.TestCase):
             with self.subTest(command=command):
                 self.assertEqual(decide(command, self.root)[0], "deny")
 
-    def test_a_branch_shaped_like_a_version_passes(self):
+    def test_version_shaped_branch_passes(self):
         self.assertEqual(decide("git push origin v2-release", self.root), ("", ""))
 
     def test_ordinary_branch_pushes_pass(self):
@@ -64,7 +64,7 @@ class LocalTagResolutionTest(unittest.TestCase):
             with self.subTest(command=command):
                 self.assertEqual(decide(command, self.root), ("", ""))
 
-    def test_the_remote_operand_is_not_read_as_a_tag(self):
+    def test_remote_operand_not_tag(self):
         (self.git_dir / "refs" / "tags" / "origin").write_text(
             FIXTURE_OBJECT_ID + "\n", encoding="utf-8")
         self.assertEqual(decide("git push origin feat/x", self.root), ("", ""))
@@ -81,7 +81,7 @@ class LocalTagResolutionTest(unittest.TestCase):
     def test_mirror_keeps_asking(self):
         self.assertEqual(decide("git push --mirror origin", self.root)[0], "ask")
 
-    def test_a_repository_named_with_dash_c_resolves_its_tags(self):
+    def test_dash_c_repository_tags(self):
         outside = self.root / "outside"
         outside.mkdir()
         args = ["-C", str(self.root), "push", "origin", "production"]
@@ -89,7 +89,7 @@ class LocalTagResolutionTest(unittest.TestCase):
 
 
 class UpdateRefTagTest(unittest.TestCase):
-    def test_update_ref_under_refs_tags_denies(self):
+    def test_update_ref_tags_denies(self):
         for args in (["update-ref", "refs/tags/x", "HEAD"],
                      ["update-ref", "-d", "refs/tags/x"],
                      ["update-ref", "REFS/TAGS/x", "HEAD"]):
@@ -99,13 +99,13 @@ class UpdateRefTagTest(unittest.TestCase):
     def test_update_ref_from_stdin_asks(self):
         self.assertEqual(_gate_core.git_verdict(["update-ref", "--stdin"])[0], "ask")
 
-    def test_update_ref_on_a_branch_keeps_asking(self):
+    def test_update_ref_branch_asks(self):
         self.assertEqual(
             _gate_core.git_verdict(["update-ref", "refs/heads/feat/x", "HEAD"])[0], "ask")
 
 
 class ShellGateResolutionTest(unittest.TestCase):
-    def test_bash_gate_denies_a_local_tag_push_by_short_name(self):
+    def test_bash_local_tag_push(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             build_repository(root)

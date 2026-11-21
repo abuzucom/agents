@@ -80,7 +80,7 @@ class TagPushVerdictTest(unittest.TestCase):
             with self.subTest(command=command):
                 self.assertEqual(git_decision(command), "deny")
 
-    def test_tag_push_reason_names_the_rule(self):
+    def test_tag_push_reason(self):
         decision, reason = _gate_core.git_verdict(["push", "--tags"])
         self.assertEqual(decision, "deny")
         self.assertIn("tag", reason)
@@ -90,7 +90,7 @@ class TagPushVerdictTest(unittest.TestCase):
             with self.subTest(command=command):
                 self.assertEqual(git_decision(command), "")
 
-    def test_force_push_without_tags_still_asks(self):
+    def test_force_push_without_tags_asks(self):
         self.assertEqual(git_decision("git push --force origin feat/x"), "ask")
 
 
@@ -107,7 +107,7 @@ class TagSubcommandVerdictTest(unittest.TestCase):
 
 
 class ShellGateTagParityTest(unittest.TestCase):
-    def test_every_shell_gate_blocks_a_tag_push(self):
+    def test_shell_gates_block_tag_push(self):
         for hook_name, tool in SHELL_HOOKS:
             for command in ("git push origin --tags", "git tag -a v2.27.0 -m x"):
                 with self.subTest(hook=hook_name, command=command):
@@ -115,7 +115,7 @@ class ShellGateTagParityTest(unittest.TestCase):
                     self.assertEqual(result.returncode, BLOCKING_EXIT_CODE, result.stdout)
                     self.assertIn("tag", result.stderr)
 
-    def test_every_shell_gate_passes_a_tag_listing(self):
+    def test_shell_gates_pass_tag_listing(self):
         for hook_name, tool in SHELL_HOOKS:
             with self.subTest(hook=hook_name):
                 result = run_shell_hook(hook_name, tool, "git tag -l")

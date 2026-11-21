@@ -144,7 +144,7 @@ class SafeDirectoryTest(unittest.TestCase):
                           return_value=str(self.repository)):
             return module._safe_directory(self.repository, executable)
 
-    def test_github_cli_uses_working_directory_second(self):
+    def test_github_cli_directory_order(self):
         selected = self.select(trusted_gh, self.outside_executable, self.outside_cwd)
         self.assertEqual(selected, self.outside_cwd)
 
@@ -152,7 +152,7 @@ class SafeDirectoryTest(unittest.TestCase):
         selected = self.select(trusted_git, self.outside_executable, self.outside_cwd)
         self.assertEqual(selected, self.outside_executable.parent)
 
-    def test_github_cli_message_without_safe_directory(self):
+    def test_github_cli_missing_safe_directory(self):
         with self.assertRaises(OSError) as caught:
             self.select(trusted_gh, self.inside_executable, self.repository)
         self.assertEqual(

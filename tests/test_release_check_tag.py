@@ -49,13 +49,13 @@ class CheckTagTest(unittest.TestCase):
         problems = self.release.tag_problems("2.27.0", self.root)
         self.assertTrue(any("does not start with 'v'" in item for item in problems))
 
-    def test_tag_with_a_suffix_or_bad_shape_is_rejected(self):
+    def test_malformed_tag_rejected(self):
         for tag in ("v2.27.0-rc.1", "v2.27", "v02.27.0", "v2.27.0.1", "v"):
             with self.subTest(tag=tag):
                 problems = self.release.tag_problems(tag, self.root)
                 self.assertTrue(any("X.Y.Z" in item for item in problems), problems)
 
-    def test_tag_that_differs_from_the_changelog_is_rejected(self):
+    def test_changelog_mismatch_rejected(self):
         problems = self.release.tag_problems("v2.26.2", self.root)
         self.assertTrue(any("CHANGELOG.md" in item and "2.27.0" in item
                             for item in problems), problems)
@@ -72,7 +72,7 @@ class CheckTagTest(unittest.TestCase):
         self.assertTrue(any("CHANGELOG.md" in item for item in problems), problems)
         self.assertTrue(any("policy-digests.json" in item for item in problems), problems)
 
-    def test_main_returns_failure_for_a_bad_tag(self):
+    def test_main_bad_tag_fails(self):
         self.assertEqual(self.release.main(["check-tag", "v2.27.0"], root=self.root), 0)
         self.assertEqual(self.release.main(["check-tag", "v9.9.9"], root=self.root), 1)
 

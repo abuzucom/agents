@@ -27,7 +27,7 @@ class QualityReviewWiringTest(unittest.TestCase):
         self.assertTrue(WORKFLOW_PATH.is_file())
         self.assertIsInstance(self.workflow, dict)
 
-    def test_upstream_workflow_names_exist_in_this_repository(self):
+    def test_upstream_workflow_names_exist(self):
         # A workflow_run trigger naming a missing workflow never fires.
         names = set()
         for path in (ROOT / ".github" / "workflows").glob("*.yml"):
@@ -46,7 +46,7 @@ class QualityReviewWiringTest(unittest.TestCase):
         )
         self.assertIn("types: [completed]", self.text)
 
-    def test_review_waits_for_both_upstream_workflows(self):
+    def test_review_waits_for_upstream(self):
         review_if = self.jobs["review"]["if"]
         self.assertIn("needs.resolve.outputs.tests_passed == 'true'", review_if)
         self.assertIn(
@@ -57,24 +57,24 @@ class QualityReviewWiringTest(unittest.TestCase):
         for upstream in UPSTREAM_WORKFLOWS:
             self.assertIn(f"'{upstream}'", script)
 
-    def test_review_job_pins_workflow_and_quality_ref_to_one_commit(self):
+    def test_review_job_single_commit_pin(self):
         review_job = self.jobs["review"]
         self.assertEqual(
             review_job["uses"], f"{REUSABLE_WORKFLOW}@{PINNED_COMMIT}")
         self.assertEqual(review_job["with"]["quality_ref"], PINNED_COMMIT)
         self.assertTrue(FULL_SHA.fullmatch(PINNED_COMMIT))
 
-    def test_review_job_maps_only_the_provider_secret(self):
+    def test_review_job_secret_mapping(self):
         self.assertEqual(
             self.jobs["review"]["secrets"],
             {"MODEL_API_KEY": "${{ secrets.OLLAMA_API_KEY }}"},
         )
         self.assertNotIn("secrets: inherit", self.text)
 
-    def test_review_job_fails_closed_on_block_or_needs_human(self):
+    def test_review_job_fails_closed(self):
         self.assertTrue(self.jobs["review"]["with"]["fail_on_block"])
 
-    def test_only_same_repository_pull_requests_reach_the_review(self):
+    def test_same_repository_gating(self):
         self.assertIn(
             "needs.resolve.outputs.same_repository == 'true'",
             self.jobs["review"]["if"],
@@ -85,7 +85,7 @@ class QualityReviewWiringTest(unittest.TestCase):
         ]
         self.assertEqual(reusable_calls, ["review"])
 
-    def test_fork_pull_requests_receive_a_skip_check_and_no_secret(self):
+    def test_fork_pull_request_skip(self):
         fork_job = self.jobs["fork-review-skipped"]
         self.assertNotIn("secrets", fork_job)
         self.assertIn(
@@ -101,7 +101,7 @@ class QualityReviewWiringTest(unittest.TestCase):
             {"checks": "write"},
         )
 
-    def test_github_script_actions_are_pinned_to_full_commit_shas(self):
+    def test_github_script_actions_pinned(self):
         for job_name in ("resolve", "fork-review-skipped"):
             step = self.jobs[job_name]["steps"][0]
             action, _, revision = step["uses"].partition("@")

@@ -14,7 +14,16 @@ into the entry. Dates never decrease. Ask the active human when a date is in
 doubt.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.32.4] (2026-11-21)
+## [2.32.5] (2026-11-21)
+
+### Changed
+- 968 test functions in 160 files under `tests/` now use at most five
+  words after `test_`. The renames change no test body, assertion, or
+  docstring. `tests/test_check_conflict_markers.py` updates the three
+  test names its direct execution test lists.
+- `shared-files.json` records new digests for the ten renamed shared test
+  files. Each repository holding copies takes the new digests at its
+  next sync.
 
 ### Added
 - `scripts/check_test_names.py` fails on test functions under `tests/`

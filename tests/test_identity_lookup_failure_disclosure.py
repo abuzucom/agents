@@ -45,13 +45,13 @@ class LookupFailureDisclosureTest(unittest.TestCase):
                                  return_value=candidates):
                 return self.checker.bootstrap_identity_advisory(temporary)
 
-    def test_timeout_is_named_before_unavailable_notice(self):
+    def test_timeout_named_first(self):
         error = subprocess.TimeoutExpired(["gh"], LOOKUP_TIMEOUT_SECONDS)
         advisory = self.advisory(error, [])
         self.assertTrue(advisory.startswith(FAILURE_PREFIX.format("TimeoutExpired")))
         self.assertIn("identity candidate unavailable", advisory)
 
-    def test_failure_is_named_before_history_candidates(self):
+    def test_failure_named_before_candidates(self):
         advisory = self.advisory(OSError("network down"), [HISTORY_CANDIDATE])
         self.assertTrue(advisory.startswith(FAILURE_PREFIX.format("OSError")))
         self.assertIn("never auto-select", advisory)

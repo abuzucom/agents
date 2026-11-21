@@ -104,21 +104,21 @@ class ProfileSelectionTest(unittest.TestCase):
                           return_value=_config(large=large)):
             return call_model.select_profile(tokens)
 
-    def test_input_within_active_budget_uses_active_provider(self) -> None:
+    def test_within_budget_uses_active(self) -> None:
         """An estimate at the active budget stays on the active model."""
         self.assertEqual(self._select(ACTIVE_BUDGET_TOKENS)["model"], "review-model")
 
-    def test_input_over_active_budget_uses_large_provider(self) -> None:
+    def test_over_budget_uses_large(self) -> None:
         """An estimate above the active budget routes to the large model."""
         self.assertEqual(
             self._select(ACTIVE_BUDGET_TOKENS + 1)["model"], "large-model")
 
-    def test_input_over_every_budget_is_capacity_error(self) -> None:
+    def test_budget_exceeded_capacity_error(self) -> None:
         """An estimate above every budget raises the capacity error."""
         with self.assertRaises(call_model.InputTooLargeError):
             self._select(LARGE_BUDGET_TOKENS + 1)
 
-    def test_missing_large_provider_is_capacity_error(self) -> None:
+    def test_missing_large_provider(self) -> None:
         """Without a large model an oversized estimate has no target."""
         with self.assertRaises(call_model.InputTooLargeError):
             self._select(ACTIVE_BUDGET_TOKENS + 1, large=False)
@@ -127,7 +127,7 @@ class ProfileSelectionTest(unittest.TestCase):
 class HttpRejectionRoutingTest(unittest.TestCase):
     """Only a context rejection retries on the large-input model."""
 
-    def test_http_400_with_overflow_body_retries_on_large_model(self) -> None:
+    def test_http_400_overflow_reroutes(self) -> None:
         """A 400 that names the context limit reroutes once."""
         models: list[str] = []
         text = _call_with_responses(
@@ -147,20 +147,20 @@ class HttpRejectionRoutingTest(unittest.TestCase):
             str(raised.exception), "provider request failed with HTTP 400")
         self.assertEqual(models, ["review-model"])
 
-    def test_http_400_with_unrelated_body_fails_without_reroute(self) -> None:
+    def test_http_400_unrelated_body_fails(self) -> None:
         """A 400 for any other reason fails on the active model."""
         self._assert_plain_rejection(UNRELATED_BODY)
 
-    def test_http_400_with_empty_body_fails_without_reroute(self) -> None:
+    def test_http_400_empty_body_fails(self) -> None:
         """A 400 without a body carries no overflow evidence."""
         self._assert_plain_rejection(b"")
 
-    def test_http_400_naming_a_token_count_field_fails_without_reroute(
+    def test_http_400_token_field_fails(
             self) -> None:
         """A malformed token count parameter is not a context limit."""
         self._assert_plain_rejection(b'{"error": "invalid token count parameter"}')
 
-    def test_http_400_with_ollama_context_size_wording_reroutes(self) -> None:
+    def test_http_400_ollama_wording_reroutes(self) -> None:
         """Ollama and llama.cpp report overflow as the context size."""
         body = (b'{"error": "the request exceeds the available context size, '
                 b'try increasing it"}')
@@ -170,26 +170,26 @@ class HttpRejectionRoutingTest(unittest.TestCase):
         self.assertEqual(text, "large reply")
         self.assertEqual(models, ["review-model", "large-model"])
 
-    def test_http_400_overflow_marker_matches_case_insensitively(self) -> None:
+    def test_overflow_marker_case_insensitive(self) -> None:
         """Provider wording varies in letter case."""
         body = b'{"error": {"message": "Maximum Context length is 8192"}}'
         text = _call_with_responses(
             [_http_error(400, body), _FakeResponse("large reply")])
         self.assertEqual(text, "large reply")
 
-    def test_http_400_overflow_body_without_large_model_is_capacity_error(
+    def test_overflow_without_large_model(
             self) -> None:
         """A context rejection with no larger model is a capacity failure."""
         with self.assertRaises(call_model.InputTooLargeError):
             _call_with_responses([_http_error(400, OVERFLOW_BODY)], large=False)
 
-    def test_http_413_retries_without_body_evidence(self) -> None:
+    def test_http_413_reroutes(self) -> None:
         """413 always means the request was too large."""
         text = _call_with_responses(
             [_http_error(413), _FakeResponse("large reply")])
         self.assertEqual(text, "large reply")
 
-    def test_rejection_message_omits_the_provider_body(self) -> None:
+    def test_rejection_message_omits_body(self) -> None:
         """Provider bodies stay out of error messages and logs."""
         with self.assertRaises(call_model.ProviderError) as raised:
             _call_with_responses([_http_error(400, UNRELATED_BODY)])
@@ -199,7 +199,7 @@ class HttpRejectionRoutingTest(unittest.TestCase):
 class CapacityExitCodeTest(unittest.TestCase):
     """main returns the capacity exit code when no model can hold the input."""
 
-    def test_capacity_error_returns_capacity_exit_code(self) -> None:
+    def test_capacity_error_exit_code(self) -> None:
         """The workflow reads exit code 3 as a NEEDS-HUMAN capacity verdict."""
         with tempfile.TemporaryDirectory() as directory:
             prompt_path = Path(directory) / "prompt.txt"
@@ -237,7 +237,7 @@ class BoundedDiffReadTest(unittest.TestCase):
             timeout=SUBPROCESS_TIMEOUT_SECONDS)
         self.assertEqual(output, "x" * BOUNDED_READ_LIMIT_BYTES)
 
-    def test_output_over_bound_raises_diff_too_large(self) -> None:
+    def test_output_over_bound_raises(self) -> None:
         """One byte over the bound is rejected."""
         with self.assertRaises(build_pr_case.DiffTooLargeError):
             build_pr_case._read_bounded_stdout(
@@ -252,7 +252,7 @@ class BoundedDiffReadTest(unittest.TestCase):
                 command, BOUNDED_READ_LIMIT_BYTES,
                 timeout=SUBPROCESS_TIMEOUT_SECONDS)
 
-    def test_command_past_timeout_raises_runtime_error(self) -> None:
+    def test_command_timeout_raises(self) -> None:
         """A command that outlives the timeout is killed and reported."""
         command = [sys.executable, "-c", "import time; time.sleep(30)"]
         with self.assertRaisesRegex(RuntimeError, "timed out"):

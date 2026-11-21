@@ -51,12 +51,12 @@ class PrAuthorshipDeduplicationTest(unittest.TestCase):
     def setUp(self):
         self.job = load_job(SYNC_WORKFLOW, "pr-authorship")
 
-    def test_job_omits_checkers_that_pr_checks_runs(self):
+    def test_job_omits_duplicate_checkers(self):
         for command in AUTHORSHIP_COMMANDS:
             with self.subTest(command=command):
                 self.assertFalse(job_runs_command(self.job, command))
 
-    def test_job_keeps_commit_range_reference_check(self):
+    def test_job_keeps_range_reference_check(self):
         commands = collect_run_commands(self.job)
         self.assertTrue(any(
             COMMIT_REFERENCE_COMMAND in text and "--base" in text

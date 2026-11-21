@@ -93,7 +93,7 @@ class HashPinTest(unittest.TestCase):
                         with self.subTest(workflow=workflow.name):
                             self.assertTrue(" ".join(run.split()).endswith("--only-binary :all:"))
 
-    def test_checker_installs_use_wheels_on_a_pinned_python(self):
+    def test_checker_installs_use_wheels(self):
         """No install may build an sdist. The sdist build backend skips hash checks."""
         installs = 0
         for workflow in sorted(WORKFLOWS.glob("*.yml")):
@@ -111,7 +111,7 @@ class HashPinTest(unittest.TestCase):
                     self.assertIn(PINNED_PYTHON, setup[-1])
         self.assertEqual(installs, CHECKER_INSTALL_COUNT)
 
-    def test_pre_commit_pins_match_the_requirements_version(self):
+    def test_pre_commit_pins_match(self):
         name, version = PINNED_REQUIREMENT.match(requirement_blocks()[0][0]).groups()
         pins = re.findall(re.escape(name) + r"==([0-9][0-9A-Za-z.]*)",
                           read_text(ROOT / ".pre-commit-config.yaml"))

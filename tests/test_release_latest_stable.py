@@ -16,14 +16,14 @@ class SelectLatestStableTest(unittest.TestCase):
     def setUpClass(cls):
         cls.release = load_release()
 
-    def test_highest_version_wins_over_listing_order(self):
+    def test_highest_version_wins(self):
         tags = ["v2.20.0", "v2.27.0", "v2.9.10", "v2.27.1"]
         self.assertEqual(self.release.select_latest_stable(tags), "v2.27.1")
 
     def test_numeric_order_beats_text_order(self):
         self.assertEqual(self.release.select_latest_stable(["v2.9.0", "v2.10.0"]), "v2.10.0")
 
-    def test_names_outside_the_version_form_are_ignored(self):
+    def test_non_version_names_ignored(self):
         tags = ["latest", "v3.0.0-rc.1", "release-9", "v2.1.0", " ", "v02.0.0"]
         self.assertEqual(self.release.select_latest_stable(tags), "v2.1.0")
 
@@ -45,14 +45,14 @@ class LatestStableCommandTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(result.stdout, "v2.27.0\n")
 
-    def test_command_prints_nothing_without_a_stable_tag(self):
+    def test_command_empty_without_stable(self):
         result = self.run_command("")
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(result.stdout, "")
 
 
 class NotesStepTest(unittest.TestCase):
-    def test_notes_step_selects_the_floor_through_the_helper(self):
+    def test_notes_step_uses_helper(self):
         job = load_workflow()["jobs"]["release"]
         text = find_step(job, "Write checksums and release notes")["run"]
         self.assertIn("python scripts/release.py latest-stable", text)

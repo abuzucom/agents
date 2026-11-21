@@ -45,14 +45,14 @@ def _run_main(argv: list) -> tuple:
 
 
 class AssembledPartsTests(unittest.TestCase):
-    def test_parts_join_to_the_assembled_policy(self):
+    def test_parts_join_to_policy(self):
         parts = sync.read_assembled_policy_parts(ROOT)
         self.assertEqual(parts[0][0], sync.SOURCE)
         self.assertEqual(
             b"".join(content for _, content in parts),
             sync.assemble_policy_bytes(ROOT))
 
-    def test_ranking_sorts_descending_and_caps_at_ten(self):
+    def test_ranking_order_and_cap(self):
         sizes = [(f"file{index}.md", index * 10)
                  for index in range(SYNTHETIC_FILE_COUNT)]
         ranked = check_policy_size.rank_largest_files(sizes)
@@ -75,7 +75,7 @@ class ReportFilesTests(unittest.TestCase):
         self.addCleanup(self.temporary_directory.cleanup)
         self.root = Path(self.temporary_directory.name)
 
-    def test_json_report_lists_files_largest_first(self):
+    def test_json_report_file_order(self):
         _write_fixture(self.root, SUPPORTING_FIXTURE_SIZES)
         exit_code, stdout, _ = _run_main([str(self.root / "AGENTS.md"), "--json"])
         self.assertEqual(exit_code, 0)
@@ -119,7 +119,7 @@ class RenderFilesTests(unittest.TestCase):
         self.report_path.write_text(json.dumps(report), encoding="ascii")
         return _run_main(["--render-markdown", str(self.report_path)])
 
-    def test_render_lists_files_with_share_of_assembled_policy(self):
+    def test_render_file_shares(self):
         files = [
             {"path": "AGENTS.md", "bytes": 32602},
             {"path": "docs/agent-policy/enforcement.md", "bytes": 10095},

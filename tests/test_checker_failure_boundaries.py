@@ -71,12 +71,12 @@ class CheckerBoundaryCase:
     def setUpClass(cls):
         cls.module = load_script(cls.module_name)
 
-    def test_malformed_input_is_reported_as_malformed(self):
+    def test_malformed_input_reported(self):
         findings = self.module.find_violations(self.malformed_text, self.file_name)
         self.assertEqual(len(findings), 1)
         self.assertIn(self.malformed_marker, findings[0])
 
-    def test_analysis_defect_is_not_reported_as_malformed(self):
+    def test_analysis_defect_not_malformed(self):
         with patch.object(self.module, self.defect_target, raise_defect):
             with self.assertRaises(AttributeError):
                 self.module.find_violations(self.valid_text, self.file_name)
@@ -130,7 +130,7 @@ class ComplianceTreeWorkflowYamlTest(unittest.TestCase):
             MALFORMED_YAML, "w.yml", self.persist)
         self.assertEqual(findings, ["w.yml: malformed workflow YAML cannot be checked"])
 
-    def test_loader_defect_is_not_reported_as_malformed(self):
+    def test_loader_defect_not_malformed(self):
         broken = SimpleNamespace(
             load_documents=raise_defect,
             yaml=SimpleNamespace(YAMLError=self.persist.yaml.YAMLError))

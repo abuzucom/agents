@@ -52,7 +52,7 @@ class CommitCapTest(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, f"{CAP}-commit scan limit"):
                 check_commit_message.load_unpushed_messages(".")
 
-    def test_reference_checker_exits_1_past_cap(self):
+    def test_reference_checker_past_cap(self):
         stderr = io.StringIO()
         # The reference checker may import check_commit_message through the
         # scripts package, so patch the module object it actually holds.

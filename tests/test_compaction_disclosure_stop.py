@@ -144,12 +144,12 @@ class CompactionDisclosureStopTest(TranscriptCase):
         path = self.transcript([BOUNDARY, summary(), disclosure(closing="")])
         self.assertBlocks(run_stop(path))
 
-    def test_longer_fence_holds_a_summary_with_inner_fences(self):
+    def test_longer_fence_holds_inner_fences(self):
         path = self.transcript([BOUNDARY, summary(FENCED_SUMMARY_TEXT),
                                 disclosure(body=FENCED_SUMMARY_TEXT, fence=LONG_FENCE)])
         self.assertPasses(run_stop(path))
 
-    def test_inner_fence_closes_a_short_fence_early(self):
+    def test_inner_fence_closes_short_fence(self):
         path = self.transcript([BOUNDARY, summary(FENCED_SUMMARY_TEXT),
                                 disclosure(body=FENCED_SUMMARY_TEXT)])
         self.assertBlocks(run_stop(path))
@@ -158,12 +158,12 @@ class CompactionDisclosureStopTest(TranscriptCase):
         path = self.transcript([BOUNDARY, summary(), assistant("resumed")])
         self.assertPasses(run_stop(path, stop_hook_active=True))
 
-    def test_newer_boundary_needs_its_own_disclosure(self):
+    def test_newer_boundary_needs_disclosure(self):
         path = self.transcript([BOUNDARY, summary(), disclosure(),
                                 BOUNDARY, summary("Second summary."), assistant("resumed")])
         self.assertBlocks(run_stop(path))
 
-    def test_missing_summary_entry_passes_with_notice(self):
+    def test_missing_summary_passes_with_notice(self):
         output = run_stop(self.transcript([BOUNDARY, assistant("resumed")]))
         self.assertPasses(output)
         self.assertIn("systemMessage", output)
@@ -197,20 +197,20 @@ class TranscriptScanTest(TranscriptCase):
         entry_count = byte_count // len(json.dumps(entry)) + 1
         return [entry] * entry_count
 
-    def test_boundary_beyond_one_chunk_still_blocks(self):
+    def test_boundary_past_chunk_blocks(self):
         entries = [BOUNDARY, summary(), assistant("resumed")] + self.padding(SMALL_CHUNK_BYTES)
         transcript, complete = self.hook.read_transcript_from_last_boundary(
             self.transcript(entries))
         self.assertTrue(complete)
         self.assertIsNotNone(self.hook.compaction_verdict(transcript))
 
-    def test_boundary_beyond_the_scan_cap_reports_an_incomplete_scan(self):
+    def test_boundary_past_cap_incomplete(self):
         entries = [BOUNDARY, summary()] + self.padding(SMALL_SCAN_CAP_BYTES * 2)
         _transcript, complete = self.hook.read_transcript_from_last_boundary(
             self.transcript(entries))
         self.assertFalse(complete)
 
-    def test_small_file_without_boundary_scans_completely(self):
+    def test_small_file_scans_completely(self):
         transcript, complete = self.hook.read_transcript_from_last_boundary(
             self.transcript([assistant("plain")]))
         self.assertTrue(complete)
@@ -235,12 +235,12 @@ class BoundaryTextTest(TranscriptCase):
     def test_decoy_holds_the_raw_token(self):
         self.assertIn('"compact_boundary"', json.dumps(tool_call_decoy()))
 
-    def test_boundary_token_in_a_later_tool_call_still_blocks(self):
+    def test_later_tool_call_token_blocks(self):
         path = self.transcript([BOUNDARY, summary(), assistant("resumed"),
                                 tool_call_decoy()])
         self.assertBlocks(run_stop(path))
 
-    def test_boundary_token_without_a_real_boundary_passes(self):
+    def test_token_without_boundary_passes(self):
         self.assertPasses(run_stop(self.transcript([tool_call_decoy()])))
 
 
@@ -252,22 +252,22 @@ class BoundaryLineTest(unittest.TestCase):
         cls.hook = load_hook()
         cls.boundary_line = json.dumps(BOUNDARY).encode("utf-8")
 
-    def test_token_on_invalid_json_line_is_skipped(self):
+    def test_invalid_json_line_skipped(self):
         data = self.boundary_line + b'\n"compact_boundary" broken\n'
         self.assertEqual(self.hook._boundary_line_start(data, 0), 0)
 
-    def test_token_on_invalid_utf8_line_is_skipped(self):
+    def test_invalid_utf8_line_skipped(self):
         self.assertFalse(self.hook._is_boundary_line(b'"compact_boundary" \xff'))
 
-    def test_boundary_on_the_last_line_without_newline_counts(self):
+    def test_final_line_without_newline(self):
         data = b"{}\n" + self.boundary_line
         self.assertEqual(self.hook._boundary_line_start(data, 0), len(b"{}\n"))
 
-    def test_line_that_may_start_earlier_asks_for_more_bytes(self):
+    def test_partial_line_requests_more(self):
         self.assertEqual(self.hook._boundary_line_start(self.boundary_line, 1),
                          self.hook.NEED_EARLIER_BYTES)
 
-    def test_data_without_a_token_reports_no_boundary(self):
+    def test_no_token_no_boundary(self):
         self.assertEqual(self.hook._boundary_line_start(b"{}\n", 0),
                          self.hook.NO_BOUNDARY)
 
@@ -279,7 +279,7 @@ class StopHelperTest(TranscriptCase):
         super().setUp()
         self.hook = load_hook()
 
-    def test_open_rejects_a_missing_path_value(self):
+    def test_open_rejects_missing_path(self):
         for value in (None, ""):
             with self.subTest(value=value), self.assertRaises(ValueError):
                 self.hook._open_transcript(value)
@@ -308,7 +308,7 @@ class StopHelperTest(TranscriptCase):
         entry = {"type": "assistant", "message": {"role": "assistant", "content": 5}}
         self.assertEqual(self.hook._entry_text(entry), "")
 
-    def test_incomplete_scan_ends_the_turn_with_a_notice(self):
+    def test_incomplete_scan_notice(self):
         path = self.transcript([assistant("plain")])
         printed = []
         with patch.object(self.hook, "read_transcript_from_last_boundary",
@@ -324,7 +324,7 @@ class StopHelperTest(TranscriptCase):
 class StopRegistrationTest(unittest.TestCase):
     """Both Claude settings files run the reinjection hook on Stop."""
 
-    def test_claude_settings_register_the_stop_check(self):
+    def test_stop_check_registered(self):
         for relative_path in (".claude/settings.json",
                               "hooks/claude-code-settings.example.json"):
             with self.subTest(path=relative_path):

@@ -27,14 +27,14 @@ def render_report_text(text: str) -> tuple:
 
 
 class ReportNestingTests(unittest.TestCase):
-    def test_deep_array_nesting_is_rejected_without_recursion_error(self):
+    def test_deep_array_nesting_rejected(self):
         exit_code, stdout, stderr = render_report_text("[" * DEEP_NESTING)
         self.assertEqual(exit_code, 1)
         self.assertEqual(stdout, "")
         self.assertIn("invalid size report", stderr)
         self.assertIn("nesting", stderr)
 
-    def test_deep_balanced_nesting_is_rejected_before_parsing(self):
+    def test_deep_balanced_nesting_rejected(self):
         half = DEEP_NESTING // 2
         exit_code, _, stderr = render_report_text("[" * half + "]" * half)
         self.assertEqual(exit_code, 1)
@@ -45,7 +45,7 @@ class ReportNestingTests(unittest.TestCase):
         self.assertEqual(exit_code, 1)
         self.assertIn("nesting", stderr)
 
-    def test_brackets_inside_strings_do_not_count(self):
+    def test_string_brackets_ignored(self):
         text = ('{"schema": 1, "note": "' + "[" * 50 + '", "targets": ['
                 '{"name": "AGENTS.md", "bytes": 1, "limit": %d}, '
                 '{"name": "assembled policy", "bytes": 1, "limit": %d}]}'
@@ -54,7 +54,7 @@ class ReportNestingTests(unittest.TestCase):
         self.assertEqual(exit_code, 0)
         self.assertIn("Within limits", stdout)
 
-    def test_escaped_quote_does_not_end_a_string(self):
+    def test_escaped_quote_handling(self):
         text = ('{"schema": 1, "note": "\\"' + "[" * 50 + '", "targets": ['
                 '{"name": "AGENTS.md", "bytes": 1, "limit": %d}, '
                 '{"name": "assembled policy", "bytes": 1, "limit": %d}]}'
