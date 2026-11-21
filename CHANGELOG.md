@@ -14,17 +14,23 @@ into the entry. Dates never decrease. Ask the active human when a date is in
 doubt.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.30.0] (2026-11-21)
+## [2.31.0] (2026-11-21)
 
 ### Added
 - `AGENTS.md` adds a Numbers rule to the Style section. Prose, comments,
   commits, and PRs spell out zero through ten and use digits above. No check
   enforces the rule.
+- `AGENTS.md` adds a Test names rule to the Style section. A test name
+  holds at most five words after `test_`. Test comments state what the code
+  does. No check enforces the rule.
 - `scripts/prose_bans.txt` adds four banned phrases to the global scope.
 
 ### Removed
 - `docs/agent-policy/adoption.md` drops the retry variations paragraph.
   The Retry discipline rule in `AGENTS.md` keeps the requirement.
+- Rule 9 in `AGENTS.md` drops the sentence on proposing each new dependency.
+  The rule still requires authorization before any dependency change.
+- The Line length rule in `AGENTS.md` drops its line-break hint.
 
 ## [2.29.9] (2026-11-20)
 
