@@ -34,6 +34,14 @@ NESTED_TEST = """class Outer:
 """
 BROKEN_TEST = """def test_x(:
 """
+CLASS_A_LONG_TEST = """class First:
+    def test_rows_are_twenty_px_at_standard_size(self):
+        pass
+"""
+CLASS_B_LONG_TEST = """class Second:
+    def test_rows_are_twenty_px_at_standard_size(self):
+        pass
+"""
 # One byte over the checker cap of 4 MiB.
 OVERSIZE_BYTES = 4 * 1024 * 1024 + 1
 
@@ -109,6 +117,13 @@ class RangeCheckTest(unittest.TestCase):
         result = self._run_checker()
         self.assertEqual(result.returncode, 1)
         self.assertIn("tests/test_broken.py", result.stderr)
+
+    def test_moved_long_name_passes(self):
+        self._commit("tests/test_moved.py", CLASS_A_LONG_TEST)
+        self.base = self._git("rev-parse", "HEAD")
+        self._commit("tests/test_moved.py", CLASS_B_LONG_TEST)
+        result = self._run_checker()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
     def test_oversize_blob_fails(self):
         oversize = "#" * OVERSIZE_BYTES

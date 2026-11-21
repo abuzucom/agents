@@ -14,7 +14,7 @@ into the entry. Dates never decrease. Ask the active human when a date is in
 doubt.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.32.1] (2026-11-21)
+## [2.32.2] (2026-11-21)
 
 ### Added
 - `scripts/check_test_names.py` fails on test functions under `tests/`
@@ -36,6 +36,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - `scripts/check_test_names.py` queries each blob size with
   `git cat-file -s` before reading the blob. A test file over the 4 MiB
   cap exits 1 and never enters memory.
+- `scripts/check_test_names.py` matches base tests by bare name. A long
+  test moved to another class or under a renamed class passes.
 
 ### Removed
 - `docs/agent-policy/adoption.md` drops the retry variations paragraph.

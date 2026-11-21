@@ -119,16 +119,21 @@ def collect_test_names(source: str, path: str) -> dict[str, tuple[str, int]]:
 
 
 def find_file_violations(repo: str, base: str, head: str, pair: tuple[str, str]) -> list[str]:
-    """Return findings for new long test names in one changed file."""
+    """Return findings for new long test names in one changed file.
+
+    The base comparison uses bare names. A test moved to another class or
+    under a renamed class keeps its exemption.
+    """
     base_path, head_path = pair
     head_names = collect_test_names(read_blob(repo, head, head_path), head_path)
-    base_names = {}
+    base_bare_names = set()
     if base_path:
-        base_names = collect_test_names(read_blob(repo, base, base_path), base_path)
+        base_entries = collect_test_names(read_blob(repo, base, base_path), base_path)
+        base_bare_names = {name for name, _line in base_entries.values()}
     findings = []
-    for key, (name, line) in sorted(head_names.items(), key=lambda item: item[1][1]):
+    for name, line in sorted(head_names.values(), key=lambda entry: entry[1]):
         word_count = count_name_words(name)
-        if key in base_names or word_count <= MAX_TEST_NAME_WORDS:
+        if name in base_bare_names or word_count <= MAX_TEST_NAME_WORDS:
             continue
         findings.append(
             f"{head_path}:{line}: {name} has {word_count} words after {TEST_PREFIX}"
