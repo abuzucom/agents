@@ -76,11 +76,23 @@ def list_changed_tests(repo: str, base: str, head: str) -> list[tuple[str, str]]
     return parse_name_status(result.stdout)
 
 
+def read_blob_size(repo: str, commit: str, path: str) -> int:
+    """Return one blob's size in bytes without reading its content."""
+    result = run_git(repo, ["cat-file", "-s", f"{commit}:{path}"], check=True, runner=subprocess.run)
+    return int(result.stdout.strip())
+
+
 def read_blob(repo: str, commit: str, path: str) -> str:
-    """Return one file's text at a commit. Reject blobs over the size cap."""
+    """Return one file's text at a commit.
+
+    The size query runs first. An oversize blob never enters memory.
+    """
+    blob_size = read_blob_size(repo, commit, path)
+    if blob_size > MAX_BLOB_BYTES:
+        raise ValueError(f"file {path} holds {blob_size} bytes over the {MAX_BLOB_BYTES} byte cap")
     result = run_git(repo, ["cat-file", "blob", f"{commit}:{path}"], check=True, runner=subprocess.run)
     if len(result.stdout.encode("utf-8")) > MAX_BLOB_BYTES:
-        raise ValueError(f"file {path} exceeds {MAX_BLOB_BYTES} bytes")
+        raise ValueError(f"file {path} grew past the {MAX_BLOB_BYTES} byte cap during the read")
     return result.stdout
 
 

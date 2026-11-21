@@ -34,6 +34,8 @@ NESTED_TEST = """class Outer:
 """
 BROKEN_TEST = """def test_x(:
 """
+# One byte over the checker cap of 4 MiB.
+OVERSIZE_BYTES = 4 * 1024 * 1024 + 1
 
 
 class RangeCheckTest(unittest.TestCase):
@@ -107,6 +109,14 @@ class RangeCheckTest(unittest.TestCase):
         result = self._run_checker()
         self.assertEqual(result.returncode, 1)
         self.assertIn("tests/test_broken.py", result.stderr)
+
+    def test_oversize_blob_fails(self):
+        oversize = "#" * OVERSIZE_BYTES
+        self._commit("tests/test_huge.py", oversize)
+        result = self._run_checker()
+        self.assertEqual(result.returncode, 1)
+        self.assertIn(f"holds {OVERSIZE_BYTES} bytes", result.stderr)
+        self.assertIn("byte cap", result.stderr)
 
     def test_outside_tests_ignored(self):
         self._commit("scripts/helper.py", LONG_TEST)

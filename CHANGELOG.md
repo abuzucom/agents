@@ -14,7 +14,7 @@ into the entry. Dates never decrease. Ask the active human when a date is in
 doubt.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.32.0] (2026-11-21)
+## [2.32.1] (2026-11-21)
 
 ### Added
 - `scripts/check_test_names.py` fails on test functions under `tests/`
@@ -31,6 +31,11 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   holds at most five words after `test_`. The rule text names that limit. Test comments state what the code
   does. No check enforces the rule.
 - `scripts/prose_bans.txt` adds four banned phrases to the global scope.
+
+### Fixed
+- `scripts/check_test_names.py` queries each blob size with
+  `git cat-file -s` before reading the blob. A test file over the 4 MiB
+  cap exits 1 and never enters memory.
 
 ### Removed
 - `docs/agent-policy/adoption.md` drops the retry variations paragraph.
