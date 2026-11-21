@@ -25,8 +25,10 @@ from collections import Counter
 from pathlib import Path
 
 try:
+    from scripts.prose_policy import PERSONAL_PRONOUNS
     from scripts.trusted_git import run_git
 except ModuleNotFoundError:
+    from prose_policy import PERSONAL_PRONOUNS
     from trusted_git import run_git
 
 MAX_TEST_NAME_WORDS = 5
@@ -39,8 +41,11 @@ MAX_BLOB_BYTES = 4 * 1024 * 1024
 CHANGED_STATUSES = ("A", "M", "R")
 TESTS_FOLDER = "tests"
 PYTHON_GLOB = "*.py"
+# The repository prose policy owns the pronoun list. Longer forms come
+# first so that a contraction matches whole.
+NARRATION_WORDS = sorted((*PERSONAL_PRONOUNS, "let's", "let me"), key=len, reverse=True)
 NARRATION_PRONOUN = re.compile(
-    r"\b(?:i|me|my|mine|myself|we|us|our|ours|ourselves|you|your|yours|let's|let me)\b",
+    r"\b(?:" + "|".join(re.escape(word) for word in NARRATION_WORDS) + r")\b",
     re.IGNORECASE,
 )
 NARRATION_OPENER = re.compile(r"^#+\s*(?:now|first|next|then|finally)\b", re.IGNORECASE)
