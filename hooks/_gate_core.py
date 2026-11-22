@@ -1233,14 +1233,23 @@ def prohibited_command_verdict(program: str, args: list) -> tuple:
     return "", ""
 
 
-@lru_cache(maxsize=None)
-def _infrastructure_manifest_text(path: str) -> str:
-    """Return a bounded manifest prefix without exposing it to the caller.
+def _manifest_file_token(path: str) -> tuple:
+    """Return the file state that decides whether a cached prefix stays valid.
 
-    The result is cached for one hook run. A sweep over a large repository
-    reaches the same file through several paths, and the cache keeps the
-    sweep to one read per file.
+    The token carries the device, the inode, the size, and the modification
+    time. A file that another process replaces within one hook run then
+    carries a new token, and the gate reads the file again.
     """
+    try:
+        details = os.stat(path)
+    except OSError:
+        return ()
+    return (details.st_dev, details.st_ino, details.st_size, details.st_mtime_ns)
+
+
+@lru_cache(maxsize=None)
+def _cached_manifest_text(path: str, token: tuple) -> str:
+    """Return the bounded manifest prefix of one file state."""
     try:
         details = os.stat(path)
         if not os.path.isfile(path) or details.st_size > MAX_INFRASTRUCTURE_FILE_BYTES:
@@ -1249,6 +1258,20 @@ def _infrastructure_manifest_text(path: str) -> str:
             return handle.read(MAX_INFRASTRUCTURE_FILE_BYTES)
     except (OSError, UnicodeError):
         return ""
+
+
+def _infrastructure_manifest_text(path: str) -> str:
+    """Return a bounded manifest prefix without exposing it to the caller.
+
+    The result is cached for one file state. A sweep over a large repository
+    reaches the same file through several paths, and the cache keeps the
+    sweep to one read per file. A file that changes within one hook run
+    carries a new token, and the gate reads the file again.
+    """
+    token = _manifest_file_token(path)
+    if not token:
+        return ""
+    return _cached_manifest_text(path, token)
 
 
 def strip_windows_drive(normalized: str) -> str:
@@ -3803,7 +3826,7 @@ def reset_invocation_caches() -> None:
     """
     _origin_owner.cache_clear()
     infrastructure_scan_status.cache_clear()
-    _infrastructure_manifest_text.cache_clear()
+    _cached_manifest_text.cache_clear()
 
 
 @lru_cache(maxsize=None)

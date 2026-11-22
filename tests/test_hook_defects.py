@@ -170,21 +170,29 @@ class UnreadableDescendantTest(unittest.TestCase):
 
 
 class ManifestReadCacheTest(unittest.TestCase):
-    """The manifest prefix is read once per hook run."""
+    """The manifest prefix is read once per file state."""
 
     def setUp(self):
         core.reset_invocation_caches()
         self.addCleanup(core.reset_invocation_caches)
 
-    def test_manifest_text_is_cached(self):
+    def test_unchanged_file_is_read_once(self):
         with tempfile.TemporaryDirectory() as root:
             path = Path(root, "manifest.yaml")
             path.write_text("apiVersion: v1\nkind: ConfigMap\n", encoding="utf-8")
             self.assertTrue(core.is_protected_infrastructure_path(str(path), root))
-            path.write_text("plain: value\n", encoding="utf-8")
             self.assertTrue(core.is_protected_infrastructure_path(str(path), root))
-            core.reset_invocation_caches()
+            info = core._cached_manifest_text.cache_info()
+            self.assertEqual(info.misses, 1)
+            self.assertEqual(info.hits, 1)
+
+    def test_replaced_file_is_read_again(self):
+        with tempfile.TemporaryDirectory() as root:
+            path = Path(root, "manifest.yaml")
+            path.write_text("plain: value\n", encoding="utf-8")
             self.assertFalse(core.is_protected_infrastructure_path(str(path), root))
+            path.write_text("apiVersion: v1\nkind: ConfigMap\n", encoding="utf-8")
+            self.assertTrue(core.is_protected_infrastructure_path(str(path), root))
 
 
 class FileToolScanReasonTest(unittest.TestCase):
