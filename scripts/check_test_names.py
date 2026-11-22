@@ -26,9 +26,11 @@ from pathlib import Path
 
 try:
     from scripts.prose_policy import PERSONAL_PRONOUNS
+    from scripts.read_git_state import sanitize_text
     from scripts.trusted_git import run_git
 except ModuleNotFoundError:
     from prose_policy import PERSONAL_PRONOUNS
+    from read_git_state import sanitize_text
     from trusted_git import run_git
 
 MAX_TEST_NAME_WORDS = 5
@@ -48,6 +50,10 @@ NARRATION_PRONOUN = re.compile(
     r"\b(?:" + "|".join(re.escape(word) for word in NARRATION_WORDS) + r")\b",
     re.IGNORECASE,
 )
+# One --all scan reads at most this many files and bytes. The budget
+# bounds CI time and memory for a single run.
+MAX_TREE_FILES = 2000
+MAX_TREE_BYTES = 64 * 1024 * 1024
 # A finding quotes at most this many comment characters to keep one line short.
 MAX_COMMENT_EXCERPT_CHARS = 60
 NARRATION_OPENER = re.compile(r"^#+\s*(?:now|first|next|then|finally)\b", re.IGNORECASE)
@@ -242,12 +248,11 @@ def read_tree_file(file_path: Path, display_path: str) -> str:
     return file_path.read_text(encoding="utf-8")
 
 
-def find_tree_violations(repo: str) -> list[str]:
-    """Return name and comment findings for every test file in a tree.
+def resolve_tests_root(repo: str) -> Path:
+    """Return the resolved tests folder of a repository tree.
 
-    A symbolic link as the tests folder, or a tests folder that resolves
-    outside the repository, fails the check. Symbolic links and files that
-    resolve outside the tests folder stay unread.
+    A missing repository, a missing tests folder, a symbolic link as the
+    tests folder, or a tests folder outside the repository fails.
     """
     repo_root = Path(repo)
     if not repo_root.is_dir():
@@ -255,18 +260,42 @@ def find_tree_violations(repo: str) -> list[str]:
     tests_link = repo_root / TESTS_FOLDER
     if tests_link.is_symlink():
         raise ValueError(f"repository {repo} has a tests folder that is a symbolic link")
-    resolved_repo = repo_root.resolve()
     tests_root = tests_link.resolve()
     if not tests_root.is_dir():
         raise ValueError(f"repository {repo} holds no tests folder")
-    if not tests_root.is_relative_to(resolved_repo):
+    if not tests_root.is_relative_to(repo_root.resolve()):
         raise ValueError(f"repository {repo} has a tests folder outside the repository")
-    findings = []
+    return tests_root
+
+
+def list_tree_files(tests_root: Path) -> list[Path]:
+    """Return the regular test files below a tests folder within budget.
+
+    Symbolic links and files that resolve outside the tests folder stay
+    unlisted. The file count and the summed size must stay within
+    MAX_TREE_FILES and MAX_TREE_BYTES before any file is read.
+    """
+    files = []
+    total_bytes = 0
     for file_path in sorted(tests_root.rglob(PYTHON_GLOB)):
         if file_path.is_symlink() or not file_path.is_file():
             continue
         if not file_path.resolve().is_relative_to(tests_root):
             continue
+        files.append(file_path)
+        if len(files) > MAX_TREE_FILES:
+            raise ValueError(f"tests folder holds more than the {MAX_TREE_FILES} file limit")
+        total_bytes += file_path.stat().st_size
+        if total_bytes > MAX_TREE_BYTES:
+            raise ValueError(f"tests folder holds more than the {MAX_TREE_BYTES} byte limit")
+    return files
+
+
+def find_tree_violations(repo: str) -> list[str]:
+    """Return name and comment findings for every test file in a tree."""
+    tests_root = resolve_tests_root(repo)
+    findings = []
+    for file_path in list_tree_files(tests_root):
         display_path = f"{TESTS_FOLDER}/{file_path.relative_to(tests_root).as_posix()}"
         source = read_tree_file(file_path, display_path)
         tree = parse_test_source(source, display_path)
@@ -283,7 +312,7 @@ def check_tree(repo: str) -> int:
     """Print findings for every test file. Return 1 on any finding, else 0."""
     findings = find_tree_violations(repo)
     for finding in findings:
-        print(finding)
+        print(sanitize_text(finding))
     if not findings:
         return 0
     print(
@@ -302,7 +331,7 @@ def check(base: str, head: str, repo: str) -> int:
     for pair in list_changed_tests(repo, base_commit, head_commit):
         findings.extend(find_file_violations(repo, base_commit, head_commit, pair))
     for finding in findings:
-        print(finding)
+        print(sanitize_text(finding))
     if not findings:
         return 0
     print(f"Rename each listed test to {TEST_PREFIX} plus at most {MAX_TEST_NAME_WORDS} words.", file=sys.stderr)
@@ -326,7 +355,7 @@ def main() -> int:
             return check_tree(args.repo)
         return check(args.base, args.head, args.repo)
     except (OSError, subprocess.CalledProcessError, UnicodeError, ValueError, IndexError) as error:
-        print(f"Test name check failed ({error}). Fix the cause and rerun.", file=sys.stderr)
+        print(sanitize_text(f"Test name check failed ({error}). Fix the cause and rerun."), file=sys.stderr)
         return 1
 
 

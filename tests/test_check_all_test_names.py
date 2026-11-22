@@ -4,6 +4,7 @@
 Each case writes files into a throwaway tree and runs the checker as a
 process over that tree.
 """
+import importlib.util
 import subprocess
 import sys
 import tempfile
@@ -52,8 +53,21 @@ HASH_IN_STRING_TEST = """def test_row_height():
     marker = "# we keep this text"
     assert marker
 """
+ESCAPE_CHARACTER = chr(27)
+CONTROL_COMMENT_TEST = f"""def test_row_height():
+    # We check {ESCAPE_CHARACTER}[31m red text.
+    pass
+"""
 # One byte over the checker cap of 4 MiB.
 OVERSIZE_BYTES = 4 * 1024 * 1024 + 1
+
+
+def load_checker():
+    """Import the checker by path, since scripts/ is not a package here."""
+    spec = importlib.util.spec_from_file_location("check_test_names", CHECKER_PATH)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 
 class AllModeTest(unittest.TestCase):
@@ -153,6 +167,29 @@ class AllModeTest(unittest.TestCase):
         result = self._run_checker()
         self.assertEqual(result.returncode, 1)
         self.assertIn("symbolic link", result.stderr)
+
+    def test_control_characters_escaped(self):
+        self._write("tests/test_rows.py", CONTROL_COMMENT_TEST)
+        result = self._run_checker()
+        self.assertEqual(result.returncode, 1)
+        self.assertNotIn(ESCAPE_CHARACTER, result.stdout)
+        self.assertIn("\\x1b", result.stdout)
+
+    def test_file_budget_enforced(self):
+        self._write("tests/test_one.py", SHORT_TEST)
+        self._write("tests/test_two.py", SHORT_TEST)
+        checker = load_checker()
+        checker.MAX_TREE_FILES = 1
+        with self.assertRaisesRegex(ValueError, "file limit"):
+            checker.find_tree_violations(str(self.root))
+
+    def test_byte_budget_enforced(self):
+        self._write("tests/test_one.py", SHORT_TEST)
+        self._write("tests/test_two.py", SHORT_TEST)
+        checker = load_checker()
+        checker.MAX_TREE_BYTES = len(SHORT_TEST.encode("utf-8")) + 1
+        with self.assertRaisesRegex(ValueError, "byte limit"):
+            checker.find_tree_violations(str(self.root))
 
     def test_outside_tests_ignored(self):
         self._write("tests/test_rows.py", SHORT_TEST)

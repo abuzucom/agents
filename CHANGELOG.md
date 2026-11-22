@@ -14,9 +14,14 @@ into the entry. Dates never decrease. Ask the active human when a date is in
 doubt.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.33.5] (2026-11-22)
+## [2.33.6] (2026-11-22)
 
 ### Fixed
+- `scripts/check_test_names.py` escapes control characters in every
+  printed finding and error through `sanitize_text` from
+  `scripts/read_git_state.py`.
+- `scripts/check_test_names.py --all` stops before reading when the tests
+  folder holds more than 2000 files or 64 MiB.
 - `scripts/check_test_names.py --all` exits 1 when the `tests` folder is a
   symbolic link or resolves outside the repository.
 - `scripts/check_test_names.py --all` parses each test file once and
