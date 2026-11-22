@@ -142,7 +142,7 @@ def _expected_bot_id(author: str, events: LazyEventAuthor) -> int | None:
 
 
 def _bot_email_problem(email: str, author: str, events: LazyEventAuthor) -> str | None:
-    """Return why a bot-suffixed email is invalid for this pull request."""
+    """Return why a bot email is invalid for this pull request."""
     match = BOT_NOREPLY_PATTERN.fullmatch(email)
     if match is None:
         return f"'{email}' names a bot without the numbered <id>+<login>[bot] form"

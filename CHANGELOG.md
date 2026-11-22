@@ -14,7 +14,11 @@ into the entry. Dates never decrease. Ask the active human when a date is in
 doubt.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.33.6] (2026-11-22)
+## [2.33.7] (2026-11-22)
+
+### Added
+- `scripts/prose_bans.txt` adds six banned words and phrases to the global
+  scope. Two requested entries already existed.
 
 ### Fixed
 - `scripts/check_test_names.py` escapes control characters in every
