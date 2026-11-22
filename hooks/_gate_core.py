@@ -1060,6 +1060,8 @@ KUBERNETES_VALUE_SUFFIXES = (".yaml", ".yml")
 INFRASTRUCTURE_SCAN_SKIP = frozenset({".git", ".venv", "node_modules", "__pycache__"})
 MAX_INFRASTRUCTURE_FILE_BYTES = 65536
 MAX_INFRASTRUCTURE_SCAN_FILES = 20000
+IGNORED_PATH_QUERY_TIMEOUT_SECONDS = 10
+MAX_IGNORED_PATH_BYTES = 1048576
 SCAN_CLEAR = "clear"
 SCAN_PROTECTED = "protected"
 SCAN_LIMIT = "limit"
@@ -1233,8 +1235,14 @@ def prohibited_command_verdict(program: str, args: list) -> tuple:
     return "", ""
 
 
+@lru_cache(maxsize=None)
 def _infrastructure_manifest_text(path: str) -> str:
-    """Return a bounded manifest prefix without exposing it to the caller."""
+    """Return a bounded manifest prefix without exposing it to the caller.
+
+    The result is cached for one hook run. A sweep over a large repository
+    reaches the same file through several paths, and the cache keeps the
+    sweep to one read per file.
+    """
     try:
         details = os.stat(path)
         if not os.path.isfile(path) or details.st_size > MAX_INFRASTRUCTURE_FILE_BYTES:
@@ -1329,6 +1337,134 @@ def _raise_walk_error(error: OSError) -> None:
     raise error
 
 
+def _collect_ignored_path_output(process, result: list) -> None:
+    """Bound pipe consumption before retaining the ignored path answer."""
+    try:
+        output = process.stdout.read(MAX_IGNORED_PATH_BYTES + 1)
+        if len(output) > MAX_IGNORED_PATH_BYTES:
+            process.kill()
+            result.append(None)
+        else:
+            result.append(output)
+    except OSError:
+        result.append(None)
+
+
+def _run_ignored_path_query(command: list, cwd: str, environment: dict) -> bytes:
+    """Read a bounded answer from one fixed Git query."""
+    with subprocess.Popen(
+        command, cwd=cwd, env=environment,
+        stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+    ) as process:
+        output = []
+        reader = threading.Thread(
+            target=_collect_ignored_path_output, args=(process, output))
+        reader.start()
+        try:
+            process.wait(timeout=IGNORED_PATH_QUERY_TIMEOUT_SECONDS)
+        except subprocess.TimeoutExpired as error:
+            raise OSError("the ignored path query timed out") from error
+        finally:
+            if process.poll() is None:
+                process.kill()
+            process.wait()
+            reader.join()
+        if process.returncode or not output or output[0] is None:
+            raise OSError("the ignored path query failed or exceeded the output limit")
+        return output[0]
+
+
+def _repository_top_level(executable: str, root: str, environment: dict) -> str:
+    """Return the repository root that holds the scan root, or an empty string."""
+    command = [executable, "-C", root, "rev-parse", "--show-toplevel"]
+    try:
+        output = _run_ignored_path_query(command, root, environment)
+    except OSError:
+        return ""
+    text = output.decode("utf-8", "replace").strip()
+    if not text:
+        return ""
+    return os.path.realpath(text)
+
+
+@lru_cache(maxsize=None)
+def _ignored_directory_paths(root: str) -> frozenset:
+    """Return the repository directories that the repository ignores.
+
+    The query runs once per hook run and per scan root. A missing Git, a
+    scan root outside a repository, a timeout, and an oversized answer all
+    return an empty set. The sweep then walks every directory, which is
+    slower and never weaker.
+    """
+    try:
+        executable = _trusted_config_executable(root)
+    except (OSError, ValueError, ImportError):
+        return frozenset()
+    environment = _config_read_environment(dict(os.environ))
+    top_level = _repository_top_level(executable, root, environment)
+    if not top_level:
+        return frozenset()
+    command = [executable, "-C", top_level, "ls-files", "--others", "--ignored",
+               "--exclude-standard", "--directory", "-z"]
+    try:
+        output = _run_ignored_path_query(command, top_level, environment)
+    except OSError:
+        return frozenset()
+    paths = set()
+    for entry in output.split(b"\0"):
+        if not entry:
+            continue
+        text = entry.decode("utf-8", "replace").strip()
+        if not text.endswith("/"):
+            continue
+        paths.add(os.path.normcase(os.path.join(top_level, text.rstrip("/"))))
+    return frozenset(paths)
+
+
+def _carries_protected_marker(path: str) -> bool:
+    """Return whether a path reaches a protected infrastructure marker."""
+    normalized = "/" + path.replace("\\", "/").casefold().strip("/") + "/"
+    if any(marker in normalized for marker in INFRASTRUCTURE_PATH_MARKERS):
+        return True
+    return any(marker in normalized for marker in KUBERNETES_DIRECTORY_MARKERS)
+
+
+def _holds_protected_marker(path: str) -> bool:
+    """Return whether a directory holds a protected marker directory.
+
+    A directory the sweep cannot list holds something the sweep cannot see,
+    so the answer is yes and the sweep keeps walking.
+    """
+    try:
+        with os.scandir(path) as entries:
+            for entry in entries:
+                if entry.is_dir(follow_symlinks=False) and _carries_protected_marker(entry.path):
+                    return True
+    except OSError:
+        return True
+    return False
+
+
+def _skip_scan_directory(name: str, path: str, ignored: frozenset) -> bool:
+    """Return whether the sweep skips one directory.
+
+    A repository ignored directory holds build output and dependency trees,
+    and reading every file in one costs a sweep seconds. A directory that
+    carries a protected marker is never skipped, and a directory that holds
+    one is never skipped either, so an ignore rule cannot hide a credential
+    directory from the sweep at the first level below it.
+    """
+    if name in INFRASTRUCTURE_SCAN_SKIP:
+        return True
+    if not ignored:
+        return False
+    if os.path.normcase(path) not in ignored:
+        return False
+    if _carries_protected_marker(path):
+        return False
+    return not _holds_protected_marker(path)
+
+
 @lru_cache(maxsize=None)
 def infrastructure_scan_status(root: str, include: str = "") -> str:
     """Return how a bounded scan of `root` ended.
@@ -1342,13 +1478,15 @@ def infrastructure_scan_status(root: str, include: str = "") -> str:
     # that path itself before scanning.
     if not os.path.isdir(root):
         return SCAN_CLEAR
+    ignored = _ignored_directory_paths(root)
     seen = 0
     try:
         # os.walk skips a directory it cannot list unless onerror raises.
         # A skipped directory could hide protected files, so it fails closed.
         for current, directories, filenames in os.walk(root, onerror=_raise_walk_error):
             directories[:] = [name for name in directories
-                               if name not in INFRASTRUCTURE_SCAN_SKIP]
+                               if not _skip_scan_directory(
+                                   name, os.path.join(current, name), ignored)]
             status, seen = _scan_filenames(root, current, filenames, include, seen)
             if status != SCAN_CLEAR:
                 return status
@@ -3797,6 +3935,8 @@ def reset_invocation_caches() -> None:
     """
     _origin_owner.cache_clear()
     infrastructure_scan_status.cache_clear()
+    _ignored_directory_paths.cache_clear()
+    _infrastructure_manifest_text.cache_clear()
 
 
 @lru_cache(maxsize=None)

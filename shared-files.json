@@ -3,7 +3,7 @@
   "shared": {
     "hooks/_bash_parser.py": "e5d35b99bc21ea94ea3f0cbc5e83da71359420fa60eeb0f1e7007259b6721f85",
     "hooks/_cmd_parser.py": "246febca4007230c77f0980bec98ee94e14e14b21d5dddf5567101a38c7d80b3",
-    "hooks/_gate_core.py": "510e64bf99f28c943964d7b9b6273626e300b8d8556cb72801d8c002d4986ff3",
+    "hooks/_gate_core.py": "a4a2b63130652d7c8c772fee21e7fa085322831c2870e94095b91f4313bd9ec2",
     "hooks/_platform_policy.py": "c307db1286f61fa987bf898e9ec0843b33188ea56538a24d62fa0e98a968b24e",
     "hooks/block_destructive_bash.py": "a0d5a963b369472a6de4848c2c59a94f3da9b38983e29716cb1b89e36cd50868",
     "hooks/block_destructive_cmd.py": "8b14f372cf2ba876777746b0c35a258f666edfdd22f1fbfe991f198a30b1f9fa",
@@ -18,7 +18,7 @@
     "scripts/check_hook_launchers.py": "4ab5d8a4e1c796512f4a21ec945feca5101caafd6e56bf1d7d1a3b530a3b51d1",
     "scripts/check_local_paths.py": "9b12d12d3da1f44ca6756f331b22586ba32bf907af1e1703c0f91cace0f9db11",
     "scripts/complete_gate_adoption.py": "d179d011be09d29ac2ba85879f2362518bb6084500cd3740c884e1e392d344f4",
-    "tests/gate_corpus.py": "edb8d544ef7e402ad174b57e780166730cd6b86137c7d77c4293c06fd211161f",
+    "tests/gate_corpus.py": "640ba1f426ef213b6fa7a0aa4cf8e38b9be4cceea6fe8b0e6257c17e0f027e80",
     "tests/json_line_worker.py": "57cbf9ed4c57506201e9c9e4ae57d6b8a330d5ede2f8fb76f0c4f72dae55fc0b",
     "tests/json_line_worker_child.py": "4a6c64a70264aebe350a83dc2908963adc87b421b0ab3648631371e6b1c6c45d",
     "tests/test_block_destructive_bash.py": "0c129ffdd43caf5cda0f630a9c9129fe3113ce7997f5ab0f40f2daccfb29a985",
