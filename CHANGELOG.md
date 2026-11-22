@@ -14,9 +14,11 @@ into the entry. Dates never decrease. Ask the active human when a date is in
 doubt.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.33.3] (2026-11-22)
+## [2.33.4] (2026-11-22)
 
 ### Fixed
+- `scripts/check_test_names.py --all` parses each test file once and
+  shares the tree between the name and comment scans.
 - `scripts/check_test_names.py --all` exits 1 when `--repo` names a
   missing directory or a tree without a `tests` folder.
 - `scripts/check_test_names.py` routes every parse through one helper.
