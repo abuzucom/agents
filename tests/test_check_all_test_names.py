@@ -135,7 +135,18 @@ class AllModeTest(unittest.TestCase):
         result = self._run_checker()
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
+    def test_missing_repo_fails(self):
+        result = self._run_checker(repo=self.root / "absent")
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("does not exist", result.stderr)
+
+    def test_missing_tests_folder_fails(self):
+        result = self._run_checker()
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("no tests folder", result.stderr)
+
     def test_outside_tests_ignored(self):
+        self._write("tests/test_rows.py", SHORT_TEST)
         self._write("scripts/helper.py", LONG_TEST + PRONOUN_COMMENT_TEST)
         result = self._run_checker()
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
