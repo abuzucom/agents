@@ -48,6 +48,8 @@ NARRATION_PRONOUN = re.compile(
     r"\b(?:" + "|".join(re.escape(word) for word in NARRATION_WORDS) + r")\b",
     re.IGNORECASE,
 )
+# A finding quotes at most this many comment characters to keep one line short.
+MAX_COMMENT_EXCERPT_CHARS = 60
 NARRATION_OPENER = re.compile(r"^#+\s*(?:now|first|next|then|finally)\b", re.IGNORECASE)
 
 
@@ -124,16 +126,21 @@ def read_blob(repo: str, commit: str, path: str) -> str:
     return result.stdout
 
 
+def parse_test_source(source: str, path: str) -> ast.Module:
+    """Parse one test file. Report a syntax error as a ValueError."""
+    try:
+        return ast.parse(source, filename=path)
+    except SyntaxError as error:
+        raise ValueError(f"syntax error in {path} at line {error.lineno} ({error.msg})") from error
+
+
 def collect_test_names(source: str, path: str) -> dict[str, tuple[str, int]]:
     """Map each class-qualified test name to its bare name and line.
 
     Module and class bodies hold test functions. An explicit stack walks
     nested classes without recursion.
     """
-    try:
-        tree = ast.parse(source, filename=path)
-    except SyntaxError as error:
-        raise ValueError(f"syntax error in {path} at line {error.lineno} ({error.msg})") from error
+    tree = parse_test_source(source, path)
     names = {}
     stack = [(tree.body, "")]
     while stack:
@@ -212,14 +219,14 @@ def find_line_comment(line: bytes, ranges: list[tuple[int, float]]) -> str:
 
 def find_comment_violations(source: str, path: str) -> list[str]:
     """Return findings for narration in the comments of one source file."""
-    spans = collect_string_spans(ast.parse(source, filename=path))
+    spans = collect_string_spans(parse_test_source(source, path))
     findings = []
     for line_number, line in enumerate(source.splitlines(), start=1):
         comment = find_line_comment(line.encode("utf-8"), spans.get(line_number, []))
         if not comment or comment.startswith("#!"):
             continue
         if NARRATION_OPENER.match(comment) or NARRATION_PRONOUN.search(comment):
-            findings.append(f"{path}:{line_number}: comment narration ({comment.strip()[:60]})")
+            findings.append(f"{path}:{line_number}: comment narration ({comment.strip()[:MAX_COMMENT_EXCERPT_CHARS]})")
     return findings
 
 
