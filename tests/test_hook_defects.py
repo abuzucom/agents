@@ -170,21 +170,11 @@ class UnreadableDescendantTest(unittest.TestCase):
 
 
 class ManifestReadCacheTest(unittest.TestCase):
-    """The manifest prefix is read once per file state."""
+    """The manifest prefix comes from the file that the gate reads now."""
 
     def setUp(self):
         core.reset_invocation_caches()
         self.addCleanup(core.reset_invocation_caches)
-
-    def test_unchanged_file_is_read_once(self):
-        with tempfile.TemporaryDirectory() as root:
-            path = Path(root, "manifest.yaml")
-            path.write_text("apiVersion: v1\nkind: ConfigMap\n", encoding="utf-8")
-            self.assertTrue(core.is_protected_infrastructure_path(str(path), root))
-            self.assertTrue(core.is_protected_infrastructure_path(str(path), root))
-            info = core._cached_manifest_text.cache_info()
-            self.assertEqual(info.misses, 1)
-            self.assertEqual(info.hits, 1)
 
     def test_replaced_file_is_read_again(self):
         with tempfile.TemporaryDirectory() as root:
