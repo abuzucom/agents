@@ -14,7 +14,7 @@ into the entry. Dates never decrease. Ask the active human when a date is in
 doubt.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.33.9] (2026-11-22)
+## [2.33.10] (2026-11-22)
 
 ### Added
 - `scripts/prose_bans.txt` adds six banned words and phrases to the global
@@ -43,6 +43,9 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   file size, and the modification time. A file that changes within one
   hook run then reads again, and the gate never classifies a file by
   content that the file no longer holds.
+- `tests/test_hook_defects.py` covers the manifest cache hit, a manifest
+  file that another process replaces, and a manifest file that holds
+  invalid text.
 - `tests/gate_corpus.py` raises the worker request budget from five
   seconds to thirty seconds. A gate that sweeps a large repository reads
   thousands of files before it answers.

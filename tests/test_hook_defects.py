@@ -194,6 +194,12 @@ class ManifestReadCacheTest(unittest.TestCase):
             path.write_text("apiVersion: v1\nkind: ConfigMap\n", encoding="utf-8")
             self.assertTrue(core.is_protected_infrastructure_path(str(path), root))
 
+    def test_binary_manifest_is_not_read(self):
+        with tempfile.TemporaryDirectory() as root:
+            path = Path(root, "manifest.yaml")
+            path.write_bytes(b"\xff\xfe\x00binary")
+            self.assertFalse(core.is_protected_infrastructure_path(str(path), root))
+
 
 class FileToolScanReasonTest(unittest.TestCase):
     """The file-tool gate names the scan outcome it denies on (H2)."""
