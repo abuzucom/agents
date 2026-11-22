@@ -16,6 +16,10 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [2.33.7] (2026-11-22)
 
+### Added
+- `scripts/prose_bans.txt` adds six banned words and phrases to the global
+  scope. Two requested entries already existed.
+
 ### Fixed
 - `scripts/check_test_names.py` escapes control characters in every
   printed finding and error through `sanitize_text` from
@@ -35,10 +39,6 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - `hooks/_gate_core.py` reads each manifest prefix once per hook run.
   A sweep over a large repository reaches the same file through several
   paths, and the cache keeps the sweep to one read per file.
-- `hooks/_gate_core.py` skips a directory the repository ignores during a
-  sweep. A directory that carries a protected marker is never skipped, and
-  a directory that holds one at the first level below it is never skipped
-  either.
 - `tests/gate_corpus.py` raises the worker request budget from five
   seconds to thirty seconds. A gate that sweeps a large repository reads
   thousands of files before it answers.
