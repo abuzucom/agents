@@ -145,6 +145,15 @@ class AllModeTest(unittest.TestCase):
         self.assertEqual(result.returncode, 1)
         self.assertIn("no tests folder", result.stderr)
 
+    def test_symlinked_tests_folder_fails(self):
+        outside = tempfile.TemporaryDirectory()
+        self.addCleanup(outside.cleanup)
+        Path(outside.name, "test_rows.py").write_text(SHORT_TEST, encoding="utf-8")
+        (self.root / "tests").symlink_to(outside.name, target_is_directory=True)
+        result = self._run_checker()
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("symbolic link", result.stderr)
+
     def test_outside_tests_ignored(self):
         self._write("tests/test_rows.py", SHORT_TEST)
         self._write("scripts/helper.py", LONG_TEST + PRONOUN_COMMENT_TEST)

@@ -245,15 +245,22 @@ def read_tree_file(file_path: Path, display_path: str) -> str:
 def find_tree_violations(repo: str) -> list[str]:
     """Return name and comment findings for every test file in a tree.
 
-    Symbolic links and files that resolve outside the tests folder stay
-    unread.
+    A symbolic link as the tests folder, or a tests folder that resolves
+    outside the repository, fails the check. Symbolic links and files that
+    resolve outside the tests folder stay unread.
     """
     repo_root = Path(repo)
     if not repo_root.is_dir():
         raise ValueError(f"repository {repo} does not exist")
-    tests_root = (repo_root / TESTS_FOLDER).resolve()
+    tests_link = repo_root / TESTS_FOLDER
+    if tests_link.is_symlink():
+        raise ValueError(f"repository {repo} has a tests folder that is a symbolic link")
+    resolved_repo = repo_root.resolve()
+    tests_root = tests_link.resolve()
     if not tests_root.is_dir():
         raise ValueError(f"repository {repo} holds no tests folder")
+    if not tests_root.is_relative_to(resolved_repo):
+        raise ValueError(f"repository {repo} has a tests folder outside the repository")
     findings = []
     for file_path in sorted(tests_root.rglob(PYTHON_GLOB)):
         if file_path.is_symlink() or not file_path.is_file():
