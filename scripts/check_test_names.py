@@ -135,12 +135,16 @@ def parse_test_source(source: str, path: str) -> ast.Module:
 
 
 def collect_test_names(source: str, path: str) -> dict[str, tuple[str, int]]:
+    """Parse one test file and map its test names to bare name and line."""
+    return collect_tree_names(parse_test_source(source, path))
+
+
+def collect_tree_names(tree: ast.Module) -> dict[str, tuple[str, int]]:
     """Map each class-qualified test name to its bare name and line.
 
     Module and class bodies hold test functions. An explicit stack walks
     nested classes without recursion.
     """
-    tree = parse_test_source(source, path)
     names = {}
     stack = [(tree.body, "")]
     while stack:
@@ -217,9 +221,9 @@ def find_line_comment(line: bytes, ranges: list[tuple[int, float]]) -> str:
     return ""
 
 
-def find_comment_violations(source: str, path: str) -> list[str]:
-    """Return findings for narration in the comments of one source file."""
-    spans = collect_string_spans(parse_test_source(source, path))
+def find_comment_violations(source: str, tree: ast.Module, path: str) -> list[str]:
+    """Return findings for narration in the comments of one parsed file."""
+    spans = collect_string_spans(tree)
     findings = []
     for line_number, line in enumerate(source.splitlines(), start=1):
         comment = find_line_comment(line.encode("utf-8"), spans.get(line_number, []))
@@ -258,12 +262,13 @@ def find_tree_violations(repo: str) -> list[str]:
             continue
         display_path = f"{TESTS_FOLDER}/{file_path.relative_to(tests_root).as_posix()}"
         source = read_tree_file(file_path, display_path)
-        names = collect_test_names(source, display_path)
+        tree = parse_test_source(source, display_path)
+        names = collect_tree_names(tree)
         for name, line in sorted(names.values(), key=lambda entry: entry[1]):
             violation = describe_name_violation(name)
             if violation:
                 findings.append(f"{display_path}:{line}: {violation}")
-        findings.extend(find_comment_violations(source, display_path))
+        findings.extend(find_comment_violations(source, tree, display_path))
     return findings
 
 
