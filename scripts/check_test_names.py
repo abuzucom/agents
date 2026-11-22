@@ -244,10 +244,13 @@ def find_tree_violations(repo: str) -> list[str]:
     Symbolic links and files that resolve outside the tests folder stay
     unread.
     """
-    tests_root = (Path(repo) / TESTS_FOLDER).resolve()
-    findings = []
+    repo_root = Path(repo)
+    if not repo_root.is_dir():
+        raise ValueError(f"repository {repo} does not exist")
+    tests_root = (repo_root / TESTS_FOLDER).resolve()
     if not tests_root.is_dir():
-        return findings
+        raise ValueError(f"repository {repo} holds no tests folder")
+    findings = []
     for file_path in sorted(tests_root.rglob(PYTHON_GLOB)):
         if file_path.is_symlink() or not file_path.is_file():
             continue
