@@ -14,7 +14,7 @@ into the entry. Dates never decrease. Ask the active human when a date is in
 doubt.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.34.2] (2026-11-23)
+## [2.34.3] (2026-11-23)
 
 ### Added
 - `AGENTS.md` forbids agent prose that calls a version bump a `release`
