@@ -104,6 +104,7 @@ SHARED_FILES = [
     "tests/test_check_shared_neutrality.py",
     "tests/test_skill_adoption_required.py",
     "tests/test_skill_command_forms.py",
+    "tests/test_skill_module_not_executed.py",
     "tests/test_skill_path_protection.py",
     "tests/test_sync_skill_copy.py",
 ]

@@ -68,8 +68,10 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   source orientation markers. It reports unmatched and nested markers.
 - `scripts/check_handoff_content.py` accepts list items only under
   `- pending consents:`.
-- `scripts/check_gate_adoption.py` reads the required skill list from the
-  checked tree's `scripts/_skill_sync.py`. A missing module fails closed.
+- `scripts/check_gate_adoption.py` reads the required skill list from its
+  own `scripts/_skill_sync.py`. A candidate tree under `--root` must hold
+  that module as a regular file. The checker executes only its own
+  copy. A missing module fails closed.
 - `scripts/check_gate_adoption.py`, `--fast` included, rejects a skill file
   that is a symbolic link or sits below one.
 - The full skill check reports any folder under `skills/`,

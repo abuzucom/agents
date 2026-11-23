@@ -21,6 +21,7 @@ another route.
 """
 import argparse
 import ast
+import functools
 import importlib.util
 import json
 import sys
@@ -70,7 +71,8 @@ REQUIRED_CHECKERS = (
 # Requiring both makes either one alone an incomplete adoption.
 REQUIRED_POLICY = ("AGENTS.md", SHARED_MANIFEST, ".local-path-allowlist")
 # scripts/_skill_sync.py SKILLS names every required skill. The checker
-# loads that module from the checked tree, so one list stays authoritative.
+# loads that module only from its own tree. A candidate under --root has
+# not passed validation yet. Its copy must exist and stays unexecuted.
 SKILL_MODULE = "scripts/_skill_sync.py"
 CHECKER_ROOT = Path(__file__).resolve().parent.parent
 SKILL_ROOTS = ("skills", ".claude/skills", ".agents/skills")
@@ -152,12 +154,13 @@ def check_required_files(root: Path) -> list[str]:
     return findings
 
 
-def _load_skill_module(root: Path):
-    """Load the skill module from the checked tree, or return None."""
-    path = root / SKILL_MODULE
+@functools.lru_cache(maxsize=1)
+def _load_skill_module():
+    """Load the skill module from the checker's own tree, or return None."""
+    path = CHECKER_ROOT / SKILL_MODULE
     if path.is_symlink() or not path.is_file():
         return None
-    spec = importlib.util.spec_from_file_location("_adopted_skill_sync", path)
+    spec = importlib.util.spec_from_file_location("_checker_skill_sync", path)
     module = importlib.util.module_from_spec(spec)
     try:
         spec.loader.exec_module(module)
@@ -172,8 +175,12 @@ def _load_skill_module(root: Path):
 
 
 def required_skill_files(root: Path = CHECKER_ROOT) -> tuple:
-    """Return every canonical skill and client copy the tree needs, or () without the module."""
-    module = _load_skill_module(root)
+    """Return every canonical skill and client copy the tree needs, or () without the module.
+
+    The list comes from the checker's own skill module. The root parameter
+    stays for callers and does not change the result.
+    """
+    module = _load_skill_module()
     if module is None:
         return ()
     return tuple(f"{skill_root}/{name}/{SKILL_FILE}"
@@ -182,9 +189,10 @@ def required_skill_files(root: Path = CHECKER_ROOT) -> tuple:
 
 def check_skill_files(root: Path, present=None) -> list[str]:
     """Report a missing skill module or any required skill file that is absent or not regular."""
-    module = _load_skill_module(root)
-    if module is None:
-        return [f"{SKILL_MODULE} is absent or lacks SKILLS, skill_problems, and is_regular_file"]
+    module = _load_skill_module()
+    if module is None or not module.is_regular_file(root, SKILL_MODULE):
+        return [f"{SKILL_MODULE} is absent, not a regular file, or lacks SKILLS, "
+                "skill_problems, and is_regular_file"]
     if present is None:
         present = lambda relative: module.is_regular_file(root, relative)
     return [f"{relative} is absent from the adopted tree or is not a regular file"
@@ -192,8 +200,8 @@ def check_skill_files(root: Path, present=None) -> list[str]:
 
 
 def check_skill_content(root: Path) -> list[str]:
-    """Report frontmatter and stale-copy findings through the tree's skill module."""
-    module = _load_skill_module(root)
+    """Report frontmatter and stale-copy findings through the checker's skill module."""
+    module = _load_skill_module()
     if module is None:
         return []
     return module.skill_problems(root, module.SKILLS)
