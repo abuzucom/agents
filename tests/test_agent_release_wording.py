@@ -151,6 +151,20 @@ class CheckReleaseWordingTest(unittest.TestCase):
         result = self.run_check([agent_commit], "chore: bump version", "")
         self.assertEqual(result, 0)
 
+    def test_human_release_pr_passes(self):
+        human_commit = build_commit("chore: release 2.34.0\n")
+        result = self.run_check(
+            [human_commit], "chore: release 2.34.0", "Ship the 2.34.0 release.",
+        )
+        self.assertEqual(result, 0)
+
+    def test_disclosed_release_pr_blocks(self):
+        human_commit = build_commit("chore: bump version\n")
+        result = self.run_check(
+            [human_commit], "chore: release 2.34.0", "Assisted-by: Claude Sonnet 5",
+        )
+        self.assertEqual(result, 1)
+
 
 if __name__ == "__main__":
     unittest.main()

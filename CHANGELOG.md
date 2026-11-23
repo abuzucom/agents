@@ -14,7 +14,7 @@ into the entry. Dates never decrease. Ask the active human when a date is in
 doubt.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.34.0] (2026-11-23)
+## [2.34.1] (2026-11-23)
 
 ### Added
 - `AGENTS.md` forbids agent prose that calls a version bump a `release`
@@ -22,7 +22,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - `scripts/check_agent_prose_gate.py` flags `release` words outside
   Markdown code in agent-labeled commit messages and agent-disclosed pull
   request titles and bodies. `tests/test_agent_release_wording.py` covers
-  the check.
+  the check. Regression tests confirm that a human pull request with
+  `release` wording passes and an agent-disclosed one fails.
 
 ### Changed
 - `AGENTS.md` drops two sentences that repeat Non-negotiable rules 5 and
