@@ -59,7 +59,7 @@ Adopter commit `83d3713` mirrors template commit `d5e040e`.
 ## Declined wiring assertions
 
 Two suites carried assertions that hold only inside this repository. The
-adopter removed those assertions under recorded active-human sign-off.
+adopter removed those assertions under recorded active human sign-off.
 The adopter's `docs/template-drift.md` itemizes each one.
 
 - `tests/test_check_conflict_markers.py`, class `WiringTest`. Five
@@ -85,7 +85,7 @@ repository's policy.
   `evanpurkhiser/prolink-go`. Adopter pull request 6 cross-referenced upstream
   pull request 16 and notified an unmaintained upstream. The checker blocks that
   reference form. The checker compares the pull request event owner. It needs
-  no adopter-specific configuration. Taking it requires the checker, its test,
+  no configuration specific to the adopter. Taking it requires the checker, its test,
   and a workflow step on a job that pull request events trigger.
 - The command execution gate allow verdict from template version 2.16.0.
   Inspecting checkers, unittest runs, Ruff checking forms, and `&&` chains run
