@@ -66,18 +66,39 @@ def _line_references(line: str) -> list:
     return found
 
 
-def owner_references(text: str) -> list:
-    """Return (line number, reference) pairs outside source orientation blocks."""
-    findings = []
-    inside_source = False
-    for number, line in enumerate(text.splitlines(), 1):
+def _marker_scan(lines: list) -> tuple:
+    """Return (line numbers inside matched marker pairs, marker problems)."""
+    skipped = set()
+    problems = []
+    open_line = None
+    for number, line in enumerate(lines, 1):
         if SOURCE_START in line:
-            inside_source = True
-        if not inside_source:
-            findings.extend((number, reference) for reference in _line_references(line))
-        if SOURCE_END in line:
-            inside_source = False
-    return findings
+            if open_line is not None:
+                problems.append((number, "nested source orientation start marker"))
+                continue
+            open_line = number
+        elif SOURCE_END in line:
+            if open_line is None:
+                problems.append((number, "source orientation end marker without a start"))
+                continue
+            skipped.update(range(open_line, number + 1))
+            open_line = None
+    if open_line is not None:
+        problems.append((open_line, "source orientation start marker without an end"))
+    return skipped, problems
+
+
+def marker_problems(text: str) -> list:
+    """Return (line number, reason) for every unmatched or nested marker."""
+    return _marker_scan(text.splitlines())[1]
+
+
+def owner_references(text: str) -> list:
+    """Return (line number, reference) pairs outside matched source orientation blocks."""
+    lines = text.splitlines()
+    skipped = _marker_scan(lines)[0]
+    return [(number, reference) for number, line in enumerate(lines, 1)
+            if number not in skipped for reference in _line_references(line)]
 
 
 def shared_files(root: Path) -> list:
@@ -99,6 +120,9 @@ def main(argv: list) -> int:
             print(f"{relative}: exceeds the {MAX_FILE_BYTES}-byte size cap", file=sys.stderr)
             continue
         text = path.read_bytes().decode("utf-8", "replace")
+        for number, reason in marker_problems(text):
+            failed = True
+            print(f"{relative}:{number}: {reason}", file=sys.stderr)
         for number, reference in owner_references(text):
             failed = True
             print(f"{relative}:{number}: names `{reference}`. Use `<owner>/<repo>` or move "

@@ -43,6 +43,19 @@ class NeutralityRuleTest(unittest.TestCase):
         text = "Use `<owner>/<repo>` and `actions/checkout` and `OWNER/REPOSITORY`.\n"
         self.assertEqual(check_shared_neutrality.owner_references(text), [])
 
+    def test_unmatched_markers_reported(self):
+        start = "<!-- source orientation:start -->\n"
+        end = "<!-- source orientation:end -->\n"
+        for text in (start + "Clone `exampleorg/widgets`.\n", end + "x\n",
+                     start + start + "x\n" + end):
+            with self.subTest(text=text):
+                problems = check_shared_neutrality.marker_problems(text)
+                self.assertTrue(problems)
+
+    def test_unmatched_start_still_scanned(self):
+        text = "<!-- source orientation:start -->\nClone `exampleorg/widgets`.\n"
+        self.assertTrue(check_shared_neutrality.owner_references(text))
+
     def test_source_orientation_block_skipped(self):
         text = ("<!-- source orientation:start -->\n`exampleorg/widgets`\n"
                 "<!-- source orientation:end -->\n")

@@ -54,6 +54,12 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   reject a file above the size cap and scan no truncated prefix.
 - `scripts/check_shared_neutrality.py` flags a bare `owner/repo` token in
   plain text, links, and lists. Code spans no longer bound the scan.
+- `scripts/check_shared_neutrality.py` skips text only between matched
+  source orientation markers. It reports unmatched and nested markers.
+- `scripts/check_handoff_content.py` accepts list items only under
+  `- pending consents:`.
+- `scripts/check_gate_adoption.py` reads the required skill list from the
+  checked tree's `scripts/_skill_sync.py`. A missing module fails closed.
 
 ## [2.33.7] (2026-11-22)
 

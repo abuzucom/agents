@@ -54,6 +54,11 @@ class HandoffRuleTest(unittest.TestCase):
                 text = f"# Handoff\n- prs: {url}\n"
                 self.assertTrue(check_handoff_content.content_problems(text))
 
+    def test_misplaced_list_items_rejected(self):
+        for text in ("# Handoff\n  - push x\n", "# Handoff\n- status: ok\n  - push x\n"):
+            with self.subTest(text=text):
+                self.assertTrue(check_handoff_content.content_problems(text))
+
     def test_missing_heading_rejected(self):
         self.assertTrue(check_handoff_content.content_problems("- branch: x\n"))
 

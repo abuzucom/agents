@@ -27,19 +27,23 @@ URL = re.compile(r"[A-Za-z][A-Za-z0-9+.-]{0,15}://[^\s`)>]{1,2000}")
 ALLOWED_URL_SCHEME = "https"
 ALLOWED_URL_HOST = "github.com"
 MAX_HANDOFF_BYTES = 64 * 1024
+# The template defines one list. Items under any other field break the template.
+LIST_FIELD = "pending consents"
 FINDING_EXIT_CODE = 1
 
 
-def _structure_problem(line: str) -> str:
-    """Return why one body line breaks the template, or an empty string."""
+def _structure_problem(line: str, current_field: str) -> tuple:
+    """Return (reason or empty string, field in effect after this line)."""
     if LIST_ITEM.fullmatch(line):
-        return ""
+        if current_field != LIST_FIELD:
+            return f"list items belong only under - {LIST_FIELD}:", current_field
+        return "", current_field
     match = FIELD_LINE.fullmatch(line)
     if match is None:
-        return "line is not a template field or list item"
+        return "line is not a template field or list item", current_field
     if match.group(1) not in FIELDS:
-        return "field is outside the template"
-    return ""
+        return "field is outside the template", current_field
+    return "", match.group(1)
 
 
 def _allowed_url(url: str) -> bool:
@@ -70,10 +74,12 @@ def content_problems(text: str) -> list:
     if not lines or lines[0] != HEADING:
         return [(1, f"the first line must be {HEADING}")]
     findings = []
+    current_field = ""
     for number, line in enumerate(lines[1:], 2):
         if not line.strip():
             continue
-        reason = _structure_problem(line) or _value_problem(line)
+        structure, current_field = _structure_problem(line, current_field)
+        reason = structure or _value_problem(line)
         if reason:
             findings.append((number, reason))
     return findings

@@ -21,6 +21,7 @@ another route.
 """
 import argparse
 import ast
+import importlib.util
 import json
 import sys
 from pathlib import Path
@@ -68,22 +69,10 @@ REQUIRED_CHECKERS = (
 # The local-path checker and its approved allowlist form one gate (Rule 18).
 # Requiring both makes either one alone an incomplete adoption.
 REQUIRED_POLICY = ("AGENTS.md", SHARED_MANIFEST, ".local-path-allowlist")
-# Repeats scripts/_skill_sync.py SKILLS on purpose. A test compares the two,
-# so trimming one list without the other fails.
-REQUIRED_SKILLS = (
-    "pr-steward",
-    "session-branch-recovery",
-    "compaction-replan",
-    "git-identity-recovery",
-    "commit-and-draft-pr",
-    "test-defect-report",
-    "gate-denial-report",
-    "destructive-act-authorization",
-    "dependency-proposal",
-    "policy-change-proposal",
-    "gate-adoption",
-    "session-handoff",
-)
+# scripts/_skill_sync.py SKILLS names every required skill. The checker
+# loads that module from the checked tree, so one list stays authoritative.
+SKILL_MODULE = "scripts/_skill_sync.py"
+CHECKER_ROOT = Path(__file__).resolve().parent.parent
 SKILL_ROOTS = ("skills", ".claude/skills", ".agents/skills")
 SKILL_FILE = "SKILL.md"
 CONFIG_PATHS = (
@@ -163,30 +152,49 @@ def check_required_files(root: Path) -> list[str]:
     return findings
 
 
-def required_skill_files() -> tuple:
-    """Return every canonical skill and client copy the adopted tree needs."""
-    return tuple(f"{root}/{name}/{SKILL_FILE}"
-                 for name in REQUIRED_SKILLS for root in SKILL_ROOTS)
+def _load_skill_module(root: Path):
+    """Load the skill module from the checked tree, or return None."""
+    path = root / SKILL_MODULE
+    if path.is_symlink() or not path.is_file():
+        return None
+    spec = importlib.util.spec_from_file_location("_adopted_skill_sync", path)
+    module = importlib.util.module_from_spec(spec)
+    try:
+        spec.loader.exec_module(module)
+    except (ImportError, OSError, SyntaxError) as error:
+        print(f"{SKILL_MODULE} cannot be loaded: {error}", file=sys.stderr)
+        return None
+    skills = getattr(module, "SKILLS", None)
+    if not isinstance(skills, tuple) or not callable(getattr(module, "skill_problems", None)):
+        return None
+    return module
+
+
+def required_skill_files(root: Path = CHECKER_ROOT) -> tuple:
+    """Return every canonical skill and client copy the tree needs, or () without the module."""
+    module = _load_skill_module(root)
+    if module is None:
+        return ()
+    return tuple(f"{skill_root}/{name}/{SKILL_FILE}"
+                 for name in module.SKILLS for skill_root in SKILL_ROOTS)
 
 
 def check_skill_files(root: Path, present=None) -> list[str]:
-    """Report every required skill file absent from the tree."""
+    """Report a missing skill module or any required skill file absent from the tree."""
+    if _load_skill_module(root) is None:
+        return [f"{SKILL_MODULE} is absent or lacks SKILLS and skill_problems"]
     if present is None:
         present = lambda relative: (root / relative).is_file()
     return [f"{relative} is absent from the adopted tree"
-            for relative in required_skill_files() if not present(relative)]
+            for relative in required_skill_files(root) if not present(relative)]
 
 
 def check_skill_content(root: Path) -> list[str]:
-    """Report frontmatter and stale-copy findings through the skill module."""
-    scripts = Path(__file__).resolve().parent
-    if str(scripts) not in sys.path:
-        sys.path.insert(0, str(scripts))
-    try:
-        import _skill_sync
-    except ImportError:
-        return ["scripts/_skill_sync.py is absent or cannot be imported"]
-    return _skill_sync.skill_problems(root, REQUIRED_SKILLS)
+    """Report frontmatter and stale-copy findings through the tree's skill module."""
+    module = _load_skill_module(root)
+    if module is None:
+        return []
+    return module.skill_problems(root, module.SKILLS)
 
 
 def _sibling_imports(source: str) -> set:

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Test that gate adoption requires every skill and client copy."""
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -14,8 +15,10 @@ REPOSITORY_ROOT = Path(__file__).resolve().parent.parent
 class SkillRequirementTest(unittest.TestCase):
     """The adoption checker and the sync list name the same skills."""
 
-    def test_skill_tuples_match(self):
-        self.assertEqual(check_gate_adoption.REQUIRED_SKILLS, _skill_sync.SKILLS)
+    def test_missing_skill_module_fails_closed(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            findings = check_gate_adoption.check_skill_files(Path(temporary))
+        self.assertTrue(any("_skill_sync.py" in finding for finding in findings), findings)
 
     def test_required_files_list_skills(self):
         required = set(check_gate_adoption.required_skill_files())
