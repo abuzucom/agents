@@ -52,6 +52,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   host `github.com` and no credentials or port.
 - `scripts/check_handoff_content.py` and `scripts/check_shared_neutrality.py`
   reject a file above the size cap and scan no truncated prefix.
+- `scripts/check_shared_neutrality.py` flags a bare `owner/repo` token in
+  plain text, links, and lists. Code spans no longer bound the scan.
 
 ## [2.33.7] (2026-11-22)
 

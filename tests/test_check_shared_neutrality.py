@@ -20,6 +20,17 @@ class NeutralityRuleTest(unittest.TestCase):
         findings = check_shared_neutrality.owner_references("See `exampleorg/widgets`.\n")
         self.assertEqual(findings, [(1, "exampleorg/widgets")])
 
+    def test_plain_text_owner_flagged(self):
+        for text in ("Clone acme/widgets first.\n", "See [docs](acme/widgets).\n",
+                     "- acme/widgets\n"):
+            with self.subTest(text=text):
+                findings = check_shared_neutrality.owner_references(text)
+                self.assertEqual([reference for _line, reference in findings], ["acme/widgets"])
+
+    def test_nested_paths_not_flagged(self):
+        text = "Edit skills/pr-steward/SKILL.md and use MD5/SHA-1 for cache keys.\n"
+        self.assertEqual(check_shared_neutrality.owner_references(text), [])
+
     def test_github_url_flagged(self):
         findings = check_shared_neutrality.owner_references("https://github.com/exampleorg/x\n")
         self.assertEqual(findings, [(1, "github.com/exampleorg/")])

@@ -7,8 +7,12 @@ repository facts belong between the source orientation markers, which
 adoption strips, so this check skips those blocks.
 
 The check reads two forms:
-- a code span that holds exactly `owner/repository`
+- a bare `owner/repository` token in any text, code span, link, or list
 - a `github.com/<owner>/` URL
+
+A token counts only when no letter, digit, `.`, `/`, or `-` precedes it.
+Nested paths such as `skills/name/SKILL.md` therefore match only their
+first segment.
 
 A first segment that names a top-level entry of this repository, a branch
 type, a placeholder, or the public `actions` owner passes.
@@ -30,13 +34,15 @@ POLICY_FILES = (
 )
 SOURCE_START = "<!-- source orientation:start -->"
 SOURCE_END = "<!-- source orientation:end -->"
-CODE_SPAN_OWNER = re.compile(r"`([A-Za-z0-9][A-Za-z0-9-]{0,38})/[A-Za-z0-9._-]{1,100}`")
+BARE_OWNER = re.compile(r"(?<![A-Za-z0-9./-])([A-Za-z0-9][A-Za-z0-9-]{0,38})/[A-Za-z0-9][A-Za-z0-9._-]{0,99}")
 GITHUB_URL_OWNER = re.compile(r"github\.com/([A-Za-z0-9][A-Za-z0-9-]{0,38})/")
 BRANCH_TYPES = frozenset({"feat", "fix", "chore", "docs", "test", "ci", "release", "hotfix",
                           "claude"})
 # `actions/checkout` and similar name public GitHub actions, not an adopter.
 PUBLIC_OWNERS = frozenset({"actions"})
 PLACEHOLDER_OWNERS = frozenset({"owner"})
+# Prose such as "MD5/SHA-1" pairs algorithm names, not an owner and repository.
+ALGORITHM_PAIRS = frozenset({"md5"})
 REPOSITORY_ENTRIES = frozenset({
     "hooks", "scripts", "skills", "docs", "tests", "plan", "adopters", "origin", "refs",
 })
@@ -48,12 +54,12 @@ def _allowed_owner(owner: str) -> bool:
     """Return whether a first segment names no specific organization."""
     folded = owner.casefold()
     return (folded in BRANCH_TYPES or folded in PUBLIC_OWNERS or folded in PLACEHOLDER_OWNERS
-            or folded in REPOSITORY_ENTRIES)
+            or folded in REPOSITORY_ENTRIES or folded in ALGORITHM_PAIRS)
 
 
 def _line_references(line: str) -> list:
     """Return the owner references on one line."""
-    found = [match.group(0).strip("`") for match in CODE_SPAN_OWNER.finditer(line)
+    found = [match.group(0).rstrip(".") for match in BARE_OWNER.finditer(line)
              if not _allowed_owner(match.group(1))]
     found += [match.group(0) for match in GITHUB_URL_OWNER.finditer(line)
               if not _allowed_owner(match.group(1))]
