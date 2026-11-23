@@ -150,6 +150,31 @@ def _write_atomic(root: Path, relative: str, content: bytes) -> None:
         Path(temporary).unlink(missing_ok=True)
 
 
+def is_regular_file(root: Path, relative: str) -> bool:
+    """Return whether relative names a regular file reached through real directories."""
+    try:
+        parent = _parent_directory(root, relative, create=False)
+        if parent is None:
+            return False
+        return stat.S_ISREG((parent / Path(relative).name).lstat().st_mode)
+    except (OSError, ValueError):
+        return False
+
+
+def unexpected_skill_folders(root: Path, skills: tuple = SKILLS) -> list:
+    """Return a finding for every entry under a skill root that names no listed skill."""
+    expected = frozenset(skills)
+    findings = []
+    for skill_root in (SKILL_SOURCE_ROOT,) + SKILL_COPY_ROOTS:
+        directory = root / skill_root
+        if not directory.is_dir() or directory.is_symlink():
+            continue
+        for entry in sorted(os.listdir(directory)):
+            if entry not in expected:
+                findings.append(f"{skill_root}/{entry} names no listed skill; remove it or add it to SKILLS")
+    return findings
+
+
 def _canonical_bytes(root: Path, name: str) -> tuple:
     """Return (bytes or None, problems) for one canonical skill."""
     relative = canonical_path(name)
@@ -187,7 +212,7 @@ def skill_problems(root: Path, skills: tuple = SKILLS) -> list:
                 problems.extend(_copy_problems(root, name, content))
         except (OSError, ValueError) as error:
             problems.append(f"{name}: unsafe skill path ({error})")
-    return problems
+    return problems + unexpected_skill_folders(root, skills)
 
 
 def sync_skills(root: Path, skills: tuple = SKILLS) -> list:
@@ -203,4 +228,5 @@ def sync_skills(root: Path, skills: tuple = SKILLS) -> list:
                 _write_atomic(root, relative, content)
         except (OSError, ValueError) as error:
             problems.append(f"{name}: unsafe skill path ({error})")
-    return problems
+    # Sync reports stale folders and deletes nothing. Deletion stays a human act (Rule 2).
+    return problems + unexpected_skill_folders(root, skills)

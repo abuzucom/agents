@@ -60,6 +60,23 @@ class SkillCopySyncTest(unittest.TestCase):
         problems = _skill_sync.skill_problems(self.root, FIXTURE_SKILLS)
         self.assertTrue(any("stale" in problem for problem in problems), problems)
 
+    def test_unexpected_skill_folder_reported(self):
+        _skill_sync.sync_skills(self.root, FIXTURE_SKILLS)
+        for root in (_skill_sync.SKILL_SOURCE_ROOT,) + _skill_sync.SKILL_COPY_ROOTS:
+            with self.subTest(root=root):
+                stale = self.root / root / "stale-skill"
+                stale.mkdir(parents=True)
+                problems = _skill_sync.skill_problems(self.root, FIXTURE_SKILLS)
+                self.assertTrue(any(f"{root}/stale-skill" in p for p in problems), problems)
+                stale.rmdir()
+
+    def test_sync_keeps_unexpected_folder(self):
+        stale = self.root / ".claude" / "skills" / "stale-skill"
+        stale.mkdir(parents=True)
+        problems = _skill_sync.sync_skills(self.root, FIXTURE_SKILLS)
+        self.assertTrue(stale.is_dir())
+        self.assertTrue(any("stale-skill" in p for p in problems), problems)
+
     def test_symlinked_copy_parent_rejected(self):
         outside = tempfile.TemporaryDirectory()
         self.addCleanup(outside.cleanup)

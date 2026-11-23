@@ -70,6 +70,11 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `- pending consents:`.
 - `scripts/check_gate_adoption.py` reads the required skill list from the
   checked tree's `scripts/_skill_sync.py`. A missing module fails closed.
+- `scripts/check_gate_adoption.py`, `--fast` included, rejects a skill file
+  that is a symbolic link or sits below one.
+- The full skill check reports any folder under `skills/`,
+  `.claude/skills/`, or `.agents/skills/` that names no listed skill.
+  `scripts/sync.py` reports such a folder and deletes nothing.
 
 
 ## [2.33.7] (2026-11-22)

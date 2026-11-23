@@ -165,7 +165,8 @@ def _load_skill_module(root: Path):
         print(f"{SKILL_MODULE} cannot be loaded: {error}", file=sys.stderr)
         return None
     skills = getattr(module, "SKILLS", None)
-    if not isinstance(skills, tuple) or not callable(getattr(module, "skill_problems", None)):
+    if not isinstance(skills, tuple) or not all(
+            callable(getattr(module, name, None)) for name in ("skill_problems", "is_regular_file")):
         return None
     return module
 
@@ -180,12 +181,13 @@ def required_skill_files(root: Path = CHECKER_ROOT) -> tuple:
 
 
 def check_skill_files(root: Path, present=None) -> list[str]:
-    """Report a missing skill module or any required skill file absent from the tree."""
-    if _load_skill_module(root) is None:
-        return [f"{SKILL_MODULE} is absent or lacks SKILLS and skill_problems"]
+    """Report a missing skill module or any required skill file that is absent or not regular."""
+    module = _load_skill_module(root)
+    if module is None:
+        return [f"{SKILL_MODULE} is absent or lacks SKILLS, skill_problems, and is_regular_file"]
     if present is None:
-        present = lambda relative: (root / relative).is_file()
-    return [f"{relative} is absent from the adopted tree"
+        present = lambda relative: module.is_regular_file(root, relative)
+    return [f"{relative} is absent from the adopted tree or is not a regular file"
             for relative in required_skill_files(root) if not present(relative)]
 
 
