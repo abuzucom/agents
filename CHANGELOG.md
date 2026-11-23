@@ -17,9 +17,9 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ## [2.34.0] (2026-11-23)
 
 ### Added
-- `skills/` holds twelve canonical agent procedures, `pr-steward` among
-  them. `scripts/_skill_sync.py` validates them and writes byte-identical
-  copies to `.claude/skills/` and `.agents/skills/`.
+- `skills/` holds twelve canonical agent procedures. `pr-steward` is one
+  of the twelve. `scripts/_skill_sync.py` validates each skill and writes
+  byte-identical copies to `.claude/skills/` and `.agents/skills/`.
 - Skill frontmatter allows only `name` and `description`.
 - `scripts/check_forbidden_paths.py` fails when a staged change or pull
   request diff touches `.scratch/`. CI and pre-commit run it.
