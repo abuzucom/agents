@@ -15,7 +15,7 @@ A denial is a policy outcome. It is not a defect.
 
 ## Suspected defect
 
-Report a designed-denial defect only with these parts:
+Report a defect in a designed denial only with these parts:
 - the exact input
 - the contradictory policy text
 - a reproduction

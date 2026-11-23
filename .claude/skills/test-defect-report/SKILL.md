@@ -17,7 +17,7 @@ pass.
    - observed behavior
    - reason the specification looks wrong
    - proposed change
-3. Wait for an active-human decision.
+3. Wait for an active human decision.
 4. After approval, edit only the approved assertions. Confirm each file
    edit immediately before execution.
 

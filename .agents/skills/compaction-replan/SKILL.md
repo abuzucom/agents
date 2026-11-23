@@ -12,7 +12,7 @@ authorization, or approval.
 
 1. Show the complete compaction text to the human first.
 2. Stop execution. Enter plan mode where the client offers one.
-3. Re-read the canonical `AGENTS.md`.
+3. Reread the canonical `AGENTS.md`.
 4. Rebuild state from the repository:
    - `python scripts/read_git_state.py all`
    - `git log --oneline origin/<primary>..HEAD`

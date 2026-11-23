@@ -37,7 +37,7 @@ include the following actions:
   definition, shell profile writes, schedule destruction, and forge deletion.
 - The gates deny cloud, infrastructure-as-code, orchestration, direct SSH,
   file transfer, and firewall client families across Bash, PowerShell, and CMD.
-- The infrastructure file-tool gate denies direct reads and writes to protected
+- The infrastructure file tool gate denies direct reads and writes to protected
   credentials, Terraform files, and Kubernetes or Helm manifests. Broad Glob
   and Grep requests scan a bounded tree and deny when protected files appear.
 - Hosted GitHub operations require `scripts/trusted_gh.py`. The wrapper resolves
@@ -83,7 +83,7 @@ include the following actions:
   subcommand. Unavailable alias sources preserve that ambiguity.
 - Strict branch preflight reads bounded Git `HEAD` metadata without launching
   Git. The gate stops each observable ordinary tool on an invalid branch.
-  Active-human question tools remain available. The agent selects one compliant
+  Active human question tools remain available. The agent selects one compliant
   correction command. The client requests execution authorization for that
   command. Chaining, wrappers, substitutions, and redirects prevent correction
   clearance. Creation and publication of a `claude/` target also deny from a
@@ -248,7 +248,7 @@ enforce Constrained Language Mode.
   "N deletions in M minutes" and correlation with an anomalous login. Each gate
   reads one command shape.
 - The marked GitHub fallback asks for confirmation. The gate lacks persistent
-  cross-process state. Human review enforces the one-use limit after a failed
+  cross-process state. Human review enforces the limit of one use after a failed
   trusted wrapper operation.
 - Gate registration defines tool coverage. Unregistered tools bypass the gates.
 - Codex hosted tools bypass local `PreToolUse` hooks. Claude does not document

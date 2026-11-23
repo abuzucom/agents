@@ -23,7 +23,7 @@ Run:
 Copy the complete gate set. Include hooks, registrations, shared modules,
 tests, cited checkers, synchronization metadata, and policy copies.
 
-## Adopt the local-path gate whole
+## Adopt the local path gate whole
 `scripts/check_local_paths.py`, its test, the
 `.local-path-allowlist` that a human approved, and their hook and CI registrations form one gate.
 Adopt them in one transaction and one pull request. A checker without its
@@ -36,7 +36,7 @@ An empty allowlist records a disclosure with no approved entries. A missing
 allowlist means incomplete adoption. `check_gate_adoption.py` and
 `complete_gate_adoption.py` enforce the pair.
 
-### Local-path disclosure
+### Local path disclosure
 Run `--report` locally. Show every finding to the active human. Get a separate
 decision on each proposed `<file><TAB><name>` entry. Never allowlist a runtime
 identity match. Keep findings out of committed text and CI logs.
@@ -50,7 +50,7 @@ copies directly.
 Record the canonical revision in controlled adopters. Keep local policy changes
 separate from generated copies. Use a draft pull request for outbound
 changes.
-Create `docs/project-orientation.md` for adopter-specific commands, protected
+Create `docs/project-orientation.md` for the adopter's own commands, protected
 paths, architecture, entry points, and operational notes. Keep source repository
 facts out of that file. The synchronization and reinjection tools append it to
 the policy copies and adoptable output.
@@ -65,8 +65,7 @@ Supporting files must remain regular files within the repository. Keep them
 ASCII and below the policy size limit. Synchronization rejects missing,
 oversized, non-ASCII, or escaping supporting files.
 
-The source repository uses `scripts/sync.py` for copies and shared-file
-digests. `scripts/check_*.py` supplies portable checks. `hooks/` supplies
+The source repository uses `scripts/sync.py` for copies and digests of shared files. `scripts/check_*.py` supplies portable checks. `hooks/` supplies
 client enforcement. `tests/` covers checks, hooks, distribution, and wiring.
 Client settings live under `.agents/`, `.claude/`, `.codex/`, and `.gemini/`.
 Preserve checker flags, hook payloads, reusable workflows, and copied policy
@@ -96,7 +95,7 @@ Do not leave `TODO`, `FIXME`, `XXX`, `HACK`, `later`, stubbed bodies, bare
 
 Install `scripts/check_branch_name.py`. Register it in pre-push and supported
 client hooks. Run its tests in CI and pre-commit. Dependabot receives its
-documented branch and commit-message exemption through trusted metadata.
+documented exemption from branch and commit message rules through trusted metadata.
 Copy `scripts/trusted_bot_identities.py` with it. That registry lists every
 bot exempt from branch rules. A third-party bot also needs its account ID in the event.
 
@@ -114,7 +113,7 @@ uncontrolled mirrors to report usage or divergence to this repository.
 ## Workflow consent and published history
 Obtain consent before each workflow that the command execution gate routes to
 consent. Workflows the gate allows run without consent. Existing tests,
-hooks, and client settings require act-specific consent.
+hooks, and client settings require consent for each act.
 
 Never rewrite pushed history on a shared branch. Never force-push, rebase,
 amend, or reset published commits without explicit human consent. Add new
@@ -122,8 +121,7 @@ commits instead. `--force-with-lease` receives no exception. Branch age does
 not create an exception.
 
 ## Branch recovery
-Rebase metadata takes precedence over detached HEAD recovery. Permit only the
-approved rebase recovery commands. Block ordinary tools until strict preflight
+Block ordinary tools until strict preflight
 passes. Block `claude/` targets, aliases, and metadata writes.
 Detect rebase metadata before detached HEAD recovery. Permit only `git rebase
 --abort`, `git rebase --continue`, or `git rebase --skip`. Rerun strict
@@ -133,9 +131,6 @@ detached state, use `git switch -c <type>/<kebab-description>`. On `master`,
 use `git switch main` when `main` exists. Otherwise tell the active human that
 `master` is not allowed and the repository needs conversion to `main`. Run no
 chained command.
-`git -C <current-repository> branch -m <type>/<kebab-description>` receives the
-same native authorization request. Reject wrappers and foreign paths. A client
-mode restriction never authorizes delegation of the recovery command.
 
 ## Git identity recovery
 If either value remains unset, Git builds an identity from the machine account
@@ -158,15 +153,13 @@ checker as a pre-commit hook. Claude Code also copies
 `PreToolUse` on `Bash`. Required pull request CI runs the checker.
 
 When a commit already carries the wrong identity, report the defect and stop.
-Correcting the identity rewrites history. Never force-push, rebase, amend, or
-reset published commits without explicit human consent. A wrong author field
+Correcting the identity rewrites history. A wrong author field
 cannot provide consent. Git permits amendment before the first push.
 
-Agent-assisted commits and pull requests must disclose the active model with an
+Agent-assisted commits and pull requests must name the true active model in an
 `Assisted-by: <model>` trailer or PR description marker alongside
-`Co-authored-by: <tool>`. The trailer holds a name and no email. The disclosure must name the true active model.
-Agents must never hallucinate, disguise, or fabricate model names. Agents must
-never add an email to `Assisted-by:` or model disclosures.
+`Co-authored-by: <tool>`. Neither holds an email. Never hallucinate, disguise,
+or fabricate a model name.
 
 ## Handoff
 Use `scripts/read_git_state.py` after consent. Obtain
