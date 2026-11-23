@@ -36,7 +36,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   rule stated elsewhere. Each rule keeps one authoritative statement. No
   requirement or check changes.
 - The labels rule heading reads `23` to match the Non-negotiable list.
-- The SemVer paragraph cites SemVer 2.0.0 and keeps the bump mapping.
+- The SemVer paragraph and the `adoption.md` agent attribution paragraph
+  use shorter wording. Every condition stays.
 
 ## [2.33.7] (2026-11-22)
 
