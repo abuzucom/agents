@@ -71,6 +71,9 @@ def _frontmatter_lines(text: str) -> list | None:
 
 def frontmatter_problems(name: str, text: str) -> list:
     """Return every reason the skill text breaks the frontmatter rules."""
+    # A Windows checkout can convert line endings to CRLF. Copies compare as
+    # bytes against the same checkout, so only parsing needs the LF form.
+    text = text.replace("\r\n", "\n")
     if not text.isascii():
         return [f"{canonical_path(name)} holds non-ASCII text"]
     lines = _frontmatter_lines(text)

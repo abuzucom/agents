@@ -85,6 +85,10 @@ class SkillFrontmatterTest(unittest.TestCase):
         text = VALID_BODY.format(name="other-skill")
         self.assertTrue(_skill_sync.frontmatter_problems("alpha-skill", text))
 
+    def test_crlf_frontmatter_passes(self):
+        text = VALID_BODY.format(name="alpha-skill").replace("\n", "\r\n")
+        self.assertEqual(_skill_sync.frontmatter_problems("alpha-skill", text), [])
+
     def test_missing_frontmatter_rejected(self):
         self.assertTrue(_skill_sync.frontmatter_problems("alpha-skill", "Step one.\n"))
 

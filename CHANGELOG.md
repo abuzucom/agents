@@ -45,6 +45,14 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   Its consent and published-history paragraphs stay in adoption output.
 - `docs/agent-policy/clients.md` points every client at `skills/`.
 
+### Fixed
+- Skill frontmatter parsing accepts CRLF line endings from a Windows
+  checkout.
+- `scripts/check_handoff_content.py` accepts only https URLs with the exact
+  host `github.com` and no credentials or port.
+- `scripts/check_handoff_content.py` and `scripts/check_shared_neutrality.py`
+  reject a file above the size cap and scan no truncated prefix.
+
 ## [2.33.7] (2026-11-22)
 
 ### Added

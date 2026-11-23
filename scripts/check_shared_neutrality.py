@@ -87,8 +87,12 @@ def main(argv: list) -> int:
     root = Path(parser.parse_args(argv).root)
     failed = False
     for path in shared_files(root):
-        text = path.read_bytes()[:MAX_FILE_BYTES].decode("utf-8", "replace")
         relative = path.relative_to(root).as_posix()
+        if path.stat().st_size > MAX_FILE_BYTES:
+            failed = True
+            print(f"{relative}: exceeds the {MAX_FILE_BYTES}-byte size cap", file=sys.stderr)
+            continue
+        text = path.read_bytes().decode("utf-8", "replace")
         for number, reference in owner_references(text):
             failed = True
             print(f"{relative}:{number}: names `{reference}`. Use `<owner>/<repo>` or move "

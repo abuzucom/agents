@@ -46,6 +46,14 @@ class HandoffRuleTest(unittest.TestCase):
         text = "# Handoff\n- status: see https://pastebin.example/abc\n"
         self.assertTrue(check_handoff_content.content_problems(text))
 
+    def test_lookalike_github_hosts_rejected(self):
+        for url in ("https://github.com.evil.example/x", "https://github.com@evil.example/x",
+                    "https://user@github.com/x", "http://github.com/x",
+                    "https://github.com:8443/x"):
+            with self.subTest(url=url):
+                text = f"# Handoff\n- prs: {url}\n"
+                self.assertTrue(check_handoff_content.content_problems(text))
+
     def test_missing_heading_rejected(self):
         self.assertTrue(check_handoff_content.content_problems("- branch: x\n"))
 
@@ -62,6 +70,17 @@ class HandoffFileTest(unittest.TestCase):
                 code = check_handoff_content.main([str(path)])
         self.assertEqual(code, 1)
         self.assertNotIn("/root/secret", stderr.getvalue())
+
+    def test_oversized_file_fails(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "HANDOFF.md"
+            padding = "- status: ok\n" * (check_handoff_content.MAX_HANDOFF_BYTES // 13 + 1)
+            path.write_text(f"# Handoff\n{padding}- paths: /root/late\n", encoding="utf-8")
+            stderr = io.StringIO()
+            with contextlib.redirect_stderr(stderr):
+                code = check_handoff_content.main([str(path)])
+        self.assertEqual(code, 1)
+        self.assertIn("size", stderr.getvalue())
 
 
 if __name__ == "__main__":

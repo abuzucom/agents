@@ -59,6 +59,19 @@ class NeutralityTreeTest(unittest.TestCase):
         self.assertEqual(code, 1)
         self.assertIn("skills/pr-steward/SKILL.md:1", stderr.getvalue())
 
+    def test_oversized_shared_file_fails(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            skill = root / "skills" / "pr-steward" / "SKILL.md"
+            skill.parent.mkdir(parents=True)
+            padding = "x" * check_shared_neutrality.MAX_FILE_BYTES
+            skill.write_text(f"{padding}\nClone `exampleorg/widgets`.\n", encoding="utf-8")
+            stderr = io.StringIO()
+            with contextlib.redirect_stderr(stderr):
+                code = check_shared_neutrality.main(["--root", str(root)])
+        self.assertEqual(code, 1)
+        self.assertIn("size", stderr.getvalue())
+
 
 if __name__ == "__main__":
     unittest.main()
