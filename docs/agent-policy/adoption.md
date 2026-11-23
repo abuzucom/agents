@@ -167,7 +167,10 @@ When a commit already carries the wrong identity, report the defect and stop.
 Correcting the identity rewrites history. A wrong author field
 cannot provide consent. Git permits amendment before the first push.
 
-A pull request description marker can carry the `Assisted-by` disclosure.
+Agent-assisted commits and pull requests must name the true active model in an
+`Assisted-by: <model>` trailer or PR description marker alongside
+`Co-authored-by: <tool>`. Neither holds an email. Never hallucinate, disguise,
+or fabricate a model name.
 
 ## Handoff
 Use `scripts/read_git_state.py` after consent. Obtain

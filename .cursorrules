@@ -521,8 +521,10 @@ Do not run Git commands before consent. Require an active human request before
 inspecting changed handoff content.
 
 **Documentation and versioning.** Update README for substantial changes.
-Follow SemVer 2.0.0. Bump patch for fixes, minor for compatible API changes,
-and major for breaking changes.
+Follow SemVer 2.0.0. Use no leading zeros. Treat 0.y.z as unstable. Public API
+stability starts at 1.0.0. Bump patch for fixes. Bump minor for compatible API
+changes and reset patch. Bump major for breaking changes and reset minor and
+patch. Mark pre-releases with a hyphen and dot-separated identifiers.
 
 ## Correctness & safety
 
@@ -854,7 +856,10 @@ When a commit already carries the wrong identity, report the defect and stop.
 Correcting the identity rewrites history. A wrong author field
 cannot provide consent. Git permits amendment before the first push.
 
-A pull request description marker can carry the `Assisted-by` disclosure.
+Agent-assisted commits and pull requests must name the true active model in an
+`Assisted-by: <model>` trailer or PR description marker alongside
+`Co-authored-by: <tool>`. Neither holds an email. Never hallucinate, disguise,
+or fabricate a model name.
 
 ## Handoff
 Use `scripts/read_git_state.py` after consent. Obtain
