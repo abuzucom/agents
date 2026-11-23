@@ -34,6 +34,18 @@ repos:
         language: python
         pass_filenames: false
         always_run: true
+      - id: check-forbidden-paths
+        name: Keep session zones out of commits (Rule 8)
+        entry: python scripts/check_forbidden_paths.py --staged
+        language: python
+        pass_filenames: false
+        always_run: true
+      - id: check-shared-neutrality
+        name: Keep organization names out of shared files
+        entry: python scripts/check_shared_neutrality.py
+        language: python
+        files: ^(skills/.*/SKILL\.md|AGENTS\.md|docs/agent-policy/.*\.md)$
+        pass_filenames: false
       - id: check-persist-credentials
         name: Check persist-credentials on checkout steps (Rule 11)
         entry: python scripts/check_persist_credentials.py

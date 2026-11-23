@@ -60,10 +60,32 @@ REQUIRED_CHECKERS = (
     "scripts/_yaml_lines.py",
     "scripts/_commit_trailers.py",
     "scripts/_pr_event.py",
+    "scripts/_skill_sync.py",
+    "scripts/check_forbidden_paths.py",
+    "scripts/check_handoff_content.py",
+    "scripts/check_shared_neutrality.py",
 )
 # The local-path checker and its approved allowlist form one gate (Rule 18).
 # Requiring both makes either one alone an incomplete adoption.
 REQUIRED_POLICY = ("AGENTS.md", SHARED_MANIFEST, ".local-path-allowlist")
+# Repeats scripts/_skill_sync.py SKILLS on purpose. A test compares the two,
+# so trimming one list without the other fails.
+REQUIRED_SKILLS = (
+    "pr-steward",
+    "session-branch-recovery",
+    "compaction-replan",
+    "git-identity-recovery",
+    "commit-and-draft-pr",
+    "test-defect-report",
+    "gate-denial-report",
+    "destructive-act-authorization",
+    "dependency-proposal",
+    "policy-change-proposal",
+    "gate-adoption",
+    "session-handoff",
+)
+SKILL_ROOTS = ("skills", ".claude/skills", ".agents/skills")
+SKILL_FILE = "SKILL.md"
 CONFIG_PATHS = (
     ".claude/settings.json",
     "hooks/claude-code-settings.example.json",
@@ -139,6 +161,32 @@ def check_required_files(root: Path) -> list[str]:
         if not (root / relative).is_file():
             findings.append(f"{relative} is absent from the adopted tree")
     return findings
+
+
+def required_skill_files() -> tuple:
+    """Return every canonical skill and client copy the adopted tree needs."""
+    return tuple(f"{root}/{name}/{SKILL_FILE}"
+                 for name in REQUIRED_SKILLS for root in SKILL_ROOTS)
+
+
+def check_skill_files(root: Path, present=None) -> list[str]:
+    """Report every required skill file absent from the tree."""
+    if present is None:
+        present = lambda relative: (root / relative).is_file()
+    return [f"{relative} is absent from the adopted tree"
+            for relative in required_skill_files() if not present(relative)]
+
+
+def check_skill_content(root: Path) -> list[str]:
+    """Report frontmatter and stale-copy findings through the skill module."""
+    scripts = Path(__file__).resolve().parent
+    if str(scripts) not in sys.path:
+        sys.path.insert(0, str(scripts))
+    try:
+        import _skill_sync
+    except ImportError:
+        return ["scripts/_skill_sync.py is absent or cannot be imported"]
+    return _skill_sync.skill_problems(root, REQUIRED_SKILLS)
 
 
 def _sibling_imports(source: str) -> set:
@@ -299,12 +347,18 @@ def main(argv: list) -> int:
     """Check gate adoption completeness under one repository root."""
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--root", default=".", help="repository root path")
+    parser.add_argument(
+        "--fast", action="store_true",
+        help="skip skill content parsing for the per-call hook; CI runs the full check")
     options = parser.parse_args(argv)
     root = Path(options.root)
     findings = check_required_files(root)
     findings += check_hook_imports(root)
     findings += check_registrations(root)
     findings += check_transaction_registrations(root)
+    findings += check_skill_files(root)
+    if not options.fast:
+        findings += check_skill_content(root)
     if not findings:
         return 0
     for finding in findings:

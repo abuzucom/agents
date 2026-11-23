@@ -1,0 +1,85 @@
+#!/usr/bin/env python3
+"""Check an untracked session handoff for unsafe content before writing it.
+
+A handoff lives in `.scratch/<id>/HANDOFF.md` and never enters a commit, so
+no CI job reads it. The session-handoff skill runs this check locally. The
+file follows a fixed template: a `# Handoff` heading, then `- <field>: <value>`
+lines with allowlisted fields, and indented `  - ` list items under a field.
+
+Rejected content: unknown fields, absolute or home paths, email addresses,
+and URLs outside github.com. Findings name the line number only, so a
+rejected value never reaches the terminal or a log.
+"""
+import argparse
+import re
+import sys
+from pathlib import Path
+
+HEADING = "# Handoff"
+FIELDS = frozenset({"branch", "commits", "prs", "paths", "status", "pending consents",
+                    "verification"})
+FIELD_LINE = re.compile(r"- ([a-z ]{1,32}):(?: (.{1,400}))?")
+LIST_ITEM = re.compile(r"  - .{1,400}")
+ABSOLUTE_PATH = re.compile(r"(?:^|[\s`(])(?:/[A-Za-z]|~/|[A-Za-z]:\\)")
+EMAIL = re.compile(r"[A-Za-z0-9._%+-]{1,64}@[A-Za-z0-9-]{1,63}\.[A-Za-z0-9.-]{1,190}")
+URL = re.compile(r"[A-Za-z][A-Za-z0-9+.-]{0,15}://[^\s/]{1,253}")
+ALLOWED_URL_PREFIX = "https://github.com"
+MAX_HANDOFF_BYTES = 64 * 1024
+FINDING_EXIT_CODE = 1
+
+
+def _structure_problem(line: str) -> str:
+    """Return why one body line breaks the template, or an empty string."""
+    if LIST_ITEM.fullmatch(line):
+        return ""
+    match = FIELD_LINE.fullmatch(line)
+    if match is None:
+        return "line is not a template field or list item"
+    if match.group(1) not in FIELDS:
+        return "field is outside the template"
+    return ""
+
+
+def _value_problem(line: str) -> str:
+    """Return why one line holds unsafe content, or an empty string."""
+    if ABSOLUTE_PATH.search(line):
+        return "holds an absolute or home path; use a repository-relative path"
+    if EMAIL.search(line):
+        return "holds an email address"
+    if any(not match.group(0).startswith(ALLOWED_URL_PREFIX) for match in URL.finditer(line)):
+        return "holds a URL outside github.com"
+    return ""
+
+
+def content_problems(text: str) -> list:
+    """Return (line number, reason) findings for one handoff text."""
+    lines = text.splitlines()
+    if not lines or lines[0] != HEADING:
+        return [(1, f"the first line must be {HEADING}")]
+    findings = []
+    for number, line in enumerate(lines[1:], 2):
+        if not line.strip():
+            continue
+        reason = _structure_problem(line) or _value_problem(line)
+        if reason:
+            findings.append((number, reason))
+    return findings
+
+
+def main(argv: list) -> int:
+    """Check one handoff file and return a process exit code."""
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument("path")
+    path = Path(parser.parse_args(argv).path)
+    if path.is_symlink() or not path.is_file():
+        print("error: the handoff must be a regular file", file=sys.stderr)
+        return FINDING_EXIT_CODE
+    text = path.read_bytes()[:MAX_HANDOFF_BYTES].decode("utf-8", "replace")
+    findings = content_problems(text)
+    for number, reason in findings:
+        print(f"{path.name}:{number}: {reason}", file=sys.stderr)
+    return FINDING_EXIT_CODE if findings else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

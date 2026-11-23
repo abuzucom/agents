@@ -14,6 +14,37 @@ into the entry. Dates never decrease. Ask the active human when a date is in
 doubt.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.34.0] (2026-11-23)
+
+### Added
+- `skills/` holds twelve canonical agent procedures, `pr-steward` among
+  them. `scripts/_skill_sync.py` validates them and writes byte-identical
+  copies to `.claude/skills/` and `.agents/skills/`.
+- Skill frontmatter allows only `name` and `description`.
+- `scripts/check_forbidden_paths.py` fails when a staged change or pull
+  request diff touches `.scratch/`. CI and pre-commit run it.
+- `scripts/check_shared_neutrality.py` fails when a shared skill or
+  adoptable policy file names a specific owner. CI and pre-commit run it.
+- `scripts/check_handoff_content.py` checks an untracked handoff before a
+  session writes it. It runs locally only.
+- `docs/enforcement-matrix.md` lists the enforcement tier of every skill
+  rule.
+- `.gitignore` ignores `.scratch/`.
+
+### Changed
+- `scripts/check_gate_adoption.py` requires every skill, every copy, and
+  the new checkers. `--fast` skips skill content parsing. The adoption
+  hook passes `--fast`. CI and pre-commit run the full check.
+- The file-tool and shell consent gates route writes below `skills/` to
+  consent. `scripts/check_gate_pr_integrity.py` requires the
+  `gate-change-approved` label for skill edits.
+- `scripts/sync.py` writes `shared-files.json` through a temporary file
+  and `os.replace`. It syncs skill copies when `skills/` exists.
+- The source repository orientation section moved from
+  `docs/agent-policy/adoption.md` into the source orientation markers.
+  Its consent and published-history paragraphs stay in adoption output.
+- `docs/agent-policy/clients.md` points every client at `skills/`.
+
 ## [2.33.7] (2026-11-22)
 
 ### Added

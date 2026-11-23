@@ -27,6 +27,7 @@ PROTECTED_PREFIXES = (
     ".gemini/",
     ".github/workflows/",
     "docs/agent-policy/",
+    "skills/",
 )
 PROTECTED_FILES = frozenset({
     ".github/CODEOWNERS",
