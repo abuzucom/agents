@@ -14,9 +14,16 @@ into the entry. Dates never decrease. Ask the active human when a date is in
 doubt.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.34.0] (2026-11-23)
+## [2.35.0] (2026-11-23)
 
 ### Added
+- `AGENTS.md` forbids agent prose that calls a version bump a `release`
+  without active-human consent. Humans publish every `release` manually.
+- `scripts/check_agent_prose_gate.py` flags `release` words outside
+  Markdown code in agent-labeled commit messages and agent-disclosed pull
+  request titles and bodies. `tests/test_agent_release_wording.py` covers
+  the check. Regression tests confirm that a human pull request with
+  `release` wording passes and an agent-disclosed one fails.
 - `skills/` holds twelve canonical agent procedures. `pr-steward` is one
   of the twelve. `scripts/_skill_sync.py` validates each skill and writes
   byte-identical copies to `.claude/skills/` and `.agents/skills/`.
@@ -32,6 +39,9 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - `.gitignore` ignores `.scratch/`.
 
 ### Changed
+- `AGENTS.md` drops two sentences that repeat Non-negotiable rules 5 and
+  10 inside Critical rules 5 and 10. Both requirements stay in the
+  Non-negotiable list. The change keeps `AGENTS.md` within its size limit.
 - `scripts/check_gate_adoption.py` requires every skill, every copy, and
   the new checkers. `--fast` skips skill content parsing. The adoption
   hook passes `--fast`. CI and pre-commit run the full check.
@@ -60,6 +70,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `- pending consents:`.
 - `scripts/check_gate_adoption.py` reads the required skill list from the
   checked tree's `scripts/_skill_sync.py`. A missing module fails closed.
+
 
 ## [2.33.7] (2026-11-22)
 
