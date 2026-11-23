@@ -42,14 +42,14 @@ cause beside the effect.
 Keep each field in the owning file. Cross-reference records with stable
 locations.
 
-## The shared-file manifest
+## The shared file manifest
 
 `SHARED_FILES` in `scripts/sync.py` lists files that must retain the same
 content after line ending normalization. The list includes `hooks/_gate_core.py`, both
 shell gates, `hooks/require_consent.py`, `tests/gate_corpus.py`, and both shell
 gate suites.
 
-Coordinate each shared-file change across every repository holding the file.
+Coordinate each shared file change across every repository holding the file.
 Run `scripts/sync.py --write-shared` in each repository. Commit each local
 manifest. Update the required drift records for intended differences.
 Hashing normalizes line endings before comparison. A Windows checkout therefore

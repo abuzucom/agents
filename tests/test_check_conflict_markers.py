@@ -755,7 +755,7 @@ class WiringTest(unittest.TestCase):
             content = path.read_text(encoding="utf-8")
             with self.subTest(path=path.name):
                 self.assertNotIn("acknowledged digest", content)
-                self.assertIn("active-user request", content)
+                self.assertIn("active human request", content)
                 self.assertNotIn("git --no-pager branch", content)
                 self.assertIn("scripts/read_git_state.py", content)
 

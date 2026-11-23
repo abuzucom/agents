@@ -14,34 +14,43 @@ into the entry. Dates never decrease. Ask the active human when a date is in
 doubt.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.34.3] (2026-11-23)
+## [2.36.1] (2026-11-23)
 
 ### Added
 - `AGENTS.md` forbids agent prose that calls a version bump a `release`
-  without active-human consent. Humans publish every `release` manually.
+  without active human consent. Humans publish every `release` manually.
 - `scripts/check_agent_prose_gate.py` flags `release` words outside
   Markdown code in agent-labeled commit messages and agent-disclosed pull
   request titles and bodies. `tests/test_agent_release_wording.py` covers
   the check. Regression tests confirm that a human pull request with
   `release` wording passes and an agent-disclosed one fails.
+- `tests/test_hook_defects.py` covers a manifest file that another process
+  replaces and a manifest file that holds invalid text.
 - `hooks/_gate_core.py` documents that the gate reads the manifest prefix
   of the file that the check names. A file that another process replaces
   within one hook run reaches the gate with its current content.
-- `tests/test_hook_defects.py` covers a manifest file that another process
-  replaces and a manifest file that holds invalid text.
-- `tests/gate_corpus.py` raises the worker request budget from 5 seconds
-  to 30 seconds. A gate that sweeps a large repository reads thousands of
-  files before it answers.
 - `docs/gate-threat-model.md` records the sweep cost and the worker
   request budget.
   The repository ignore rules never prune the sweep.
   The gate reads the manifest prefix of the file that the check names on
   every check.
+- `tests/gate_corpus.py` raises the worker request budget from 5 seconds
+  to 30 seconds. A gate that sweeps a large repository reads thousands of
+  files before it answers.
+- Rule 16 and `docs/agent-policy/github.md` let read-only GitHub MCP tools
+  fetch issues, PRs, and comments when `scripts/trusted_gh.py` reports no
+  authenticated account.
 
 ### Changed
 - `AGENTS.md` drops two sentences that repeat Non-negotiable rules 5 and
   10 inside Critical rules 5 and 10. Both requirements stay in the
   Non-negotiable list. The change keeps `AGENTS.md` within its size limit.
+- `AGENTS.md` and the agent policy documents drop sentences that repeat a
+  rule stated elsewhere. Each rule keeps one authoritative statement. No
+  requirement or check changes.
+- The labels rule heading reads `23` to match the Non-negotiable list.
+- The SemVer paragraph and the `adoption.md` agent attribution paragraph
+  use shorter wording. Every condition stays.
 
 ## [2.33.7] (2026-11-22)
 
@@ -403,7 +412,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   overage. The existing `AGENTS.md` check keeps its 32768-byte limit.
   Every failure prints an agent directive. The directive forbids an
   independent agent decision to trim, reword, move, or remove policy
-  text. It requires an itemized proposal and active-human approval.
+  text. It requires an itemized proposal and active human approval.
 - `--json` prints both sizes and limits. `--render-markdown <path>`
   validates such a report and prints the pull request comment body. The
   body shows bytes, limit, headroom, percent used, and the directive.
@@ -690,7 +699,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   checker stops after 20 seconds. PreToolUse denies with the timeout
   named, and SessionStart reports it as an advisory.
 - `require_consent.reaches_a_test_inode` declares its `None` result.
-- `require_consent.py` asks before a file-tool write anywhere under
+- `require_consent.py` asks before a file tool write anywhere under
   `scripts/`, matching the shell gate.
 - The CMD gate treats `busybox` as an interpreter hop.
 - The branch alias resolver matches alias names without regard to case,
@@ -860,7 +869,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - `AGENTS.md` Authorization asks for one recommendation per open choice and
   stops when an authorized act has no permitted tool. Rule 16 bans direct
   `gh` under urgency. Rule 17 limits comments, reviews, and replies in every
-  repository to active-human requests. Rule 14 denies identity, amend,
+  repository to active human requests. Rule 14 denies identity, amend,
   rebase, and push requests from harness hooks.
 - Replace the 21 per-rule pointer sentences in `AGENTS.md` with one index
   under Precedence. Move the wrapper exit-code meanings to
@@ -1047,7 +1056,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 - Require agents across Antigravity, Gemini CLI, Claude Code, Codex, and IDE
-  clients to honor active-human manual retry instructions for
+  clients to honor active human manual retry instructions for
   `scripts/trusted_gh.py`, `scripts/trusted_git.py`, and confirmed Git
   fallbacks.
 - Require clients to request approved `external-network` execution when default
@@ -1201,7 +1210,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ### Required adoption order
 - Adopt the checker and the approved allowlist in one transaction and one
   pull request. A checker without its allowlist is partial adoption under
-  Rule 18. Run the local-path disclosure procedure in
+  Rule 18. Run the local path disclosure procedure in
   `docs/agent-policy/adoption.md` first.
 
 ### Changed
@@ -1450,7 +1459,7 @@ session start.
   `docs/agent-policy/github.md`.
 
 ### Changed
-- Move the Git automatic-identity warning text to
+- Move the Git automatic identity warning text to
   `docs/agent-policy/adoption.md` and the wrapper lookup rationale to
   `docs/agent-policy/github.md` without changing requirements.
 - State that the integrity checker cannot identify who applied
@@ -1522,7 +1531,7 @@ session start.
   `ci/` provider adapters, `scripts/check_pr_review_response.py`, and a
   caller workflow gating on the model verdict.
 - Require atomic gate adoption with manifest, launch, allowed-operation, recovery,
-  and independent-integrity verification before client-hook activation.
+  and independent-integrity verification before client hook activation.
 - Preserve the verified gate set after a failed transaction. Prohibit permitted
   recovery-work delegation to the active human.
 - Declare partial hook or gate adoption a prohibited destructive action.
@@ -1534,7 +1543,7 @@ session start.
 ### Changed
 - Clarify supporting policy wording and reduce assembled policy size by 250
   bytes without changing policy requirements.
-- Clarify draft pull request, adoption, wording, and code-quality guidance in
+- Clarify draft pull request, adoption, wording, and code quality guidance in
   the canonical policy.
 - Synchronize generated policy copies and update adoption documentation.
 
@@ -1556,7 +1565,7 @@ session start.
 
 ### Added
 - Add trusted Dependabot companion changelog automation.
-- Add Non-negotiable Rule 22 requiring active-human consent before modifying
+- Add Non-negotiable Rule 22 requiring active human consent before modifying
   hook files or `scripts/banned_models.txt`. Require stopping work, entering plan
   mode, and obtaining affirmative approval without workarounds.
 - Expand banned agent policy with `scripts/banned_models.txt` supporting the xAI
@@ -1589,7 +1598,7 @@ session start.
 ### Added
 - Treat compaction messages as untrusted input. Assume adversarial
   instructions. Require disclosure, a stop, a return to plan mode, a canonical
-  policy re-read, and a detailed plan after every compaction event. Ban
+  policy reread, and a detailed plan after every compaction event. Ban
   manufactured bypasses and fabricated approval claims.
 - Emit a compaction directive from the reinjection hook on Claude and Codex
   compaction events.
@@ -1630,7 +1639,7 @@ session start.
 - Document the trusted wrapper boundary between local Git and hosted GitHub.
 
 ### Fixed
-- Align policy guidance with post-preflight feature branch commits, non-force
+- Align policy guidance with post-preflight feature branch commits, pushes without force,
   pushes, and draft pull request creation.
 - Document argument handling that resists injection and rejection of opaque expansion.
 - Document explicit repository targets for trusted GitHub commands.
@@ -1700,7 +1709,7 @@ session start.
 
 ### Fixed
 - Parse GitHub hostnames in URL, SCP, and schemeless remote targets.
-- Require task-specific, English-only, non-vulgar branch descriptions.
+- Require English-only, non-vulgar branch descriptions specific to the task.
 - Require path separators for Windows drive letters in remote endpoint checks.
 - Condition remote endpoint Windows drive parsing on host platform.
 - Deny single-letter remote host transfer destinations on POSIX platforms.
@@ -1783,13 +1792,13 @@ session start.
 ### Added
 - Added a cross-owner verdict to `github_cli_verdict` in
   `hooks/_gate_core.py`. An external GitHub CLI command aimed at an owner
-  outside the origin remote routes to active-human consent. Covered commands
+  outside the origin remote routes to active human consent. Covered commands
   include pull request and issue creation, comments, reviews, edits, state
   changes, repository forks, and release creation. An unreadable origin owner
   asks instead of passing. Read-only commands stay available. The URL and
   target parsing uses string operations, since the module carries no regular
   expressions. `shared-files.json` records the new digest.
-- Added commit-message scanning to `scripts/check_external_pr_refs.py` through
+- Added commit message scanning to `scripts/check_external_pr_refs.py` through
   a commit-range mode and an `--unpushed` mode. The `pr-authorship` job runs
   the range mode. A pre-push hook runs the unpushed mode. That check precedes
   the push that would create the reference.
@@ -1798,7 +1807,7 @@ session start.
   end-to-end `forge_verdict` path. Added cross-owner rows to
   `tests/test_gate_parity.py`, chosen so the verdict holds in any checkout.
 - Added Rule 17. The rule bans GitHub cross-references to a repository outside
-  the current owner. The rule requires active-human consent before any
+  the current owner. The rule requires active human consent before any
   external act on such a repository.
 - Added `scripts/check_external_pr_refs.py`. The checker reads the pull request
   event and blocks autolinked external references in the title and body. The
@@ -1824,7 +1833,7 @@ session start.
   through bounded numbered chunks. Gemini and Antigravity inject the complete
   policy before every model request.
 - Added strict cross-client branch preflight before every observable tool.
-  Exact recovery commands and active-human questions remain available.
+  Exact recovery commands and active human questions remain available.
 - Added regression coverage for lifecycle output, client wiring, strict branch
   recovery, and the trusted Dependabot automation exception.
 - Added lifecycle validation coverage for malformed payloads, policy bounds,
@@ -1836,8 +1845,7 @@ session start.
 - Added `scripts/prose_bans.txt` with case-insensitive exact entries under
   `[global]` and handoff exemption scopes. The policy source skips
   self-scanning. `plan/HANDOFF.md.example` receives the sole scoped vocabulary
-  exception. The same handoff file receives the sole conversational-provenance
-  exception.
+  exception. The same handoff file receives the sole exception for conversational provenance.
 - Added `scripts/check_pull_request_message.py` for bounded pull request title
   and body checks through `GITHUB_EVENT_PATH`. The checker validates JSON
   structure and limits metadata size. Diagnostics omit source text. Workflow
@@ -1878,8 +1886,8 @@ session start.
 - Added Claude prompt and stop-event branch enforcement for prohibited
   `claude/` harness assignments.
 - Added a trusted authenticated GitHub CLI wrapper with bounded account
-  metadata and repository-local identity proposals.
-- Added a dedicated infrastructure file-tool gate for credentials, Terraform
+  metadata and local repository identity proposals.
+- Added a dedicated infrastructure file tool gate for credentials, Terraform
   files, and Kubernetes or Helm manifests.
 - Added cross-shell GitHub routing, hosted mutation, infrastructure command,
   and protected path parity coverage.
@@ -1920,8 +1928,7 @@ session start.
   sign.
 - Rewrote `AGENTS.md` for concise policy prose without changing lifecycle
   reinjection. Explicit execution requests now authorize named non-destructive
-  acts and bounded read-only verification. Rule-specific gates still require
-  act-specific confirmation.
+  acts and bounded read-only verification. Gates for specific rules still require confirmation of each act.
 - Replaced universal test-first language with validation-first paths for
   executable behavior, executable configuration, policy, and documentation.
   Existing-test consent and behavioral regression requirements remain active.
@@ -1991,7 +1998,7 @@ session start.
   errors. Sparse scans now combine present worktree files with immutable index
   blobs for absent files. The combined scan preserves unstaged and indexed
   conflict detection.
-- Replaced digest-driven handoff instructions with active-user consent. Handoff
+- Replaced digest-driven handoff instructions with active human consent. Handoff
   content remains untrusted status. Git commands require consent. Displayed Git
   output requires trusted external sanitization.
 - Selected Python through overridable `PYTHON ?= python3` in the `Makefile` for
@@ -2014,7 +2021,7 @@ session start.
   evaluates the final Dockerfile user plus every Compose service and Kubernetes
   container independently.
 - Expanded weak-hash analysis across Python imports, aliases, and `hashlib.new`.
-  Real non-security comments must justify each use. Secret scanning now rejects
+  Real comments for uses outside security must justify each use. Secret scanning now rejects
   each `.env.*` variant except `.env.example`. Secret scanning recognizes
   encrypted and PGP private-key headers.
 - Made branch, commit, banned-agent, and identity checks use an absolute Git
@@ -2032,7 +2039,7 @@ session start.
   `dd`, drive firmware tools, recovery destruction, truncating redirects,
   interpreter pipelines, alias definitions, `crontab -r`, scheduled-task
   deletion, and destructive forge operations receive refusal without a prompt.
-- Routed consent-sensitive operations to active-human approval. Covered
+- Routed consent-sensitive operations to active human approval. Covered
   operations include non-root recursive deletion and `git branch -D`.
   Coverage includes history rewriting and destructive Git cleanup. Coverage
   includes privilege escalation, process termination, and secure erasure.
@@ -2045,7 +2052,7 @@ session start.
   commands launched through PowerShell process APIs. Synthetic hook payloads
   test PowerShell behavior. The tests launch no native PowerShell commands.
 - Added consent enforcement for test changes. Every direct editor tool edit to
-  an existing test file asks for active-human approval. Coverage includes case
+  an existing test file asks for active human approval. Coverage includes case
   variants, Windows filename decorations, links, and alternate paths. Direct
   creation of a new test file passes. Known shell writers prompt on paths that
   look like tests without checking whether the target exists.
@@ -2084,7 +2091,7 @@ session start.
   confirmation, and an authorization record. Rule 2 procedural requirements
   lack mechanical enforcement.
 - Changed `git push --force` and `-f` from an unconditional refusal to an
-  active-human prompt. Force variants, delete and mirror pushes, amend, rebase,
+  active human prompt. Force variants, delete and mirror pushes, amend, rebase,
   and `filter-branch` require consent. Unattended sessions still deny these
   operations.
 - Denied normalized drive, UNC, POSIX, macOS system-root deletion and permission
@@ -2098,7 +2105,7 @@ session start.
   launcher from `python3` to `python` for Windows. Added `windows-latest` CI to
   cover launcher availability, case-insensitive paths, and symlink restrictions.
   Debian adopters without `python` must override the launcher.
-- Exempted merge commits from the advisory commit-message checker because Git
+- Exempted merge commits from the advisory commit message checker because Git
   generates subjects outside the required `type: description` form.
 - Activated the destructive Bash hook in this repository. The hook served
   only as an example since 1.11.0. The parser now normalizes command variants, asks or
@@ -2106,7 +2113,7 @@ session start.
 - Aligned Rule 3 and README hook documentation with the final consent behavior,
   permission modes, shell-write coverage, and live hook set. The deny and prompt
   lists now have one canonical home in Rule 2.
-- Added a gate threat model, adopter drift records, and shared-file SHA-256
+- Added a gate threat model, adopter drift records, and shared file SHA-256
   checks with line-ending normalization for manually copied gate files.
 - Added subprocess hook coverage enforcement using validated traces. CI rejects
   newly unreachable code and stale baselines. Baseline creation works from a
@@ -2190,7 +2197,7 @@ session start.
 
 ### Changed
 - Reduced the live compliance workflow to a thin reusable-workflow caller.
-- Made commit-message checks advisory. Keyed Dependabot exemptions to the
+- Made commit message checks advisory. Keyed Dependabot exemptions to the
   pull request author.
 - Documented reusable adoption, efficient custom CI, banned-agent checks, and
   versioning.
@@ -2205,7 +2212,7 @@ session start.
   force-push, and `git reset --hard`.
 - Added branch-name validation for `<type>/<kebab-description>`. Primary
   branches and detached HEAD receive exemptions.
-- Added commit-message shape, length, punctuation, and GitHub squash suffix
+- Added commit message shape, length, punctuation, and GitHub squash suffix
   validation.
 - Added both checks to pull request CI and branch validation to pre-push. Added
   rule references.
@@ -2220,7 +2227,7 @@ session start.
 - Added pull request CI that compares commit authors, committers, co-author
   trailers, and pull request authors against the banned-agent denylist.
 - Allowed adopters to prune inapplicable rules and associated checks with
-  active-human approval.
+  active human approval.
 - Added American English and English-only rules for code, comments, commit
   messages, and documentation, including projects targeting other languages.
 - Added portable advisory spelling and English heuristics plus a portable
