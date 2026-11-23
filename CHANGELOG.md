@@ -14,7 +14,7 @@ into the entry. Dates never decrease. Ask the active human when a date is in
 doubt.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.33.11] (2026-11-22)
+## [2.33.12] (2026-11-22)
 
 ### Added
 - `scripts/prose_bans.txt` adds six banned words and phrases to the global
@@ -44,6 +44,11 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - `tests/gate_corpus.py` raises the worker request budget from 5 seconds
   to 30 seconds. A gate that sweeps a large repository reads thousands of
   files before it answers.
+- `docs/gate-threat-model.md` records the sweep cost and the worker
+  request budget.
+  The repository ignore rules never prune the sweep.
+  The gate reads the manifest prefix of the file that the check names on
+  every check.
 
 ## [2.33.1] (2026-11-21)
 
