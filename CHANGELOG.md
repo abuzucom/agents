@@ -14,7 +14,36 @@ into the entry. Dates never decrease. Ask the active human when a date is in
 doubt.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.33.12] (2026-11-22)
+## [2.34.2] (2026-11-23)
+
+### Added
+- `AGENTS.md` forbids agent prose that calls a version bump a `release`
+  without active-human consent. Humans publish every `release` manually.
+- `scripts/check_agent_prose_gate.py` flags `release` words outside
+  Markdown code in agent-labeled commit messages and agent-disclosed pull
+  request titles and bodies. `tests/test_agent_release_wording.py` covers
+  the check. Regression tests confirm that a human pull request with
+  `release` wording passes and an agent-disclosed one fails.
+- `hooks/_gate_core.py` documents that the gate reads the manifest prefix
+  of the file that the check names. A file that another process replaces
+  within one hook run reaches the gate with its current content.
+- `tests/test_hook_defects.py` covers a manifest file that another process
+  replaces and a manifest file that holds invalid text.
+- `tests/gate_corpus.py` raises the worker request budget from 5 seconds
+  to 30 seconds. A gate that sweeps a large repository reads thousands of
+  files before it answers.
+- `docs/gate-threat-model.md` records the sweep cost and the worker
+  request budget.
+  The repository ignore rules never prune the sweep.
+  The gate reads the manifest prefix of the file that the check names on
+  every check.
+
+### Changed
+- `AGENTS.md` drops two sentences that repeat Non-negotiable rules 5 and
+  10 inside Critical rules 5 and 10. Both requirements stay in the
+  Non-negotiable list. The change keeps `AGENTS.md` within its size limit.
+
+## [2.33.7] (2026-11-22)
 
 ### Added
 - `scripts/prose_bans.txt` adds six banned words and phrases to the global
@@ -36,19 +65,6 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   A syntax error in any scan reports the file and line without a
   traceback. `MAX_COMMENT_EXCERPT_CHARS` names the comment excerpt
   limit.
-- `hooks/_gate_core.py` documents that the gate reads the manifest prefix
-  of the file that the check names. A file that another process replaces
-  within one hook run reaches the gate with its current content.
-- `tests/test_hook_defects.py` covers a manifest file that another process
-  replaces and a manifest file that holds invalid text.
-- `tests/gate_corpus.py` raises the worker request budget from 5 seconds
-  to 30 seconds. A gate that sweeps a large repository reads thousands of
-  files before it answers.
-- `docs/gate-threat-model.md` records the sweep cost and the worker
-  request budget.
-  The repository ignore rules never prune the sweep.
-  The gate reads the manifest prefix of the file that the check names on
-  every check.
 
 ## [2.33.1] (2026-11-21)
 
