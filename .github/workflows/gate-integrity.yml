@@ -2,8 +2,8 @@ name: Gate Integrity
 
 on:
   pull_request:
-    # Stable branches. develop is the staging branch. Absent branches never match.
-    branches: [main, test, develop]
+    # No branch filter. A filter cannot read hooks/primary-branch.txt. Gate
+    # integrity rejects a base outside the stable set.
     types: [opened, synchronize, reopened, labeled, unlabeled]
 
 permissions:
@@ -83,6 +83,19 @@ jobs:
               path.join(process.env.RUNNER_TEMP, "gate-timeline.json"),
               JSON.stringify(document),
             );
+      - name: Check pull request base
+        working-directory: trusted-base
+        env:
+          PR_BASE_REF: ${{ github.event.pull_request.base.ref }}
+          PR_LABELS_JSON: ${{ toJSON(github.event.pull_request.labels.*.name) }}
+        # The base checkout defines the stable set. Without a base copy of the
+        # script, the first adoption passes only with the approval label.
+        run: |
+          if [ -f scripts/check_pr_base.py ]; then
+            python scripts/check_pr_base.py --base "$PR_BASE_REF"
+          else
+            python -c 'import json, os, sys; sys.exit(0 if "gate-change-approved" in json.loads(os.environ["PR_LABELS_JSON"]) else "first base check adoption requires the gate-change-approved label")'
+          fi
       - name: Verify protected gate changes
         working-directory: trusted-base
         env:

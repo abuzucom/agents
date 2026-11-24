@@ -2,8 +2,8 @@ name: AGENTS.md Compliance
 
 on:
   pull_request:
-    # Stable branches. develop is the staging branch. Absent branches never match.
-    branches: [ main, test, develop ]
+    # No branch filter. A filter cannot read hooks/primary-branch.txt. Gate
+    # integrity rejects a base outside the stable set.
     # The reusable pr-checks job runs on drafts. ready_for_review reruns it
     # when a draft pull request becomes ready.
     types: [opened, synchronize, reopened, ready_for_review]

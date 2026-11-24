@@ -71,8 +71,9 @@ checker, the job requires the label.
 It runs the base branch copy of `scripts/check_gate_pr_integrity.py` against the pull request
 diff. Protected gate changes require the `gate-change-approved` label from a
 person after the latest push. Case variants of protected paths also count.
-Configure GitHub branch protection to require this job. Repository files cannot
-enforce the branch rule.
+The same job runs the base copy of `scripts/check_pr_base.py`. It fails a
+base outside the stable branches. Configure GitHub branch protection to
+require this job. Repository files cannot enforce the branch rule.
 
 The gates refuse destructive commands, unsafe infrastructure access, direct
 GitHub CLI lookup, unsafe GitHub HTTP substitutes, credential manager access,
