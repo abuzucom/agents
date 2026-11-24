@@ -51,6 +51,17 @@ include the following actions:
   pull request tools. Other clients expose no MCP tool calls to repository
   hooks. A session that loads no repository hooks keeps only the wrapper
   check.
+- `pnpm test`, `yarn test`, `go test`, and `cargo test` follow the trusted
+  owner rule. Other owners keep the consent prompt. A trusted owner's
+  `.cargo/config.toml`, `build.rs`, and go toolchain downloads run without
+  a prompt. A project `.npmrc` denies pnpm. A project `.yarnrc` or
+  `.yarnrc.yml` denies yarn, since `yarnPath` runs a repository file. A
+  missing lockfile, a missing `test` script, a missing or linked go or
+  cargo manifest, and a runner PATH resolves inside the repository deny
+  or stay unmatched.
+- `hooks/workflow-scripts.local.txt` adds adopter script entries. It stays
+  out of the shared set. An entry that repeats a shared entry, a malformed
+  line, or an oversized file denies every repository script call.
 - The infrastructure file tool gate denies direct reads and writes to protected
   credentials, Terraform files, and Kubernetes or Helm manifests. Broad Glob
   and Grep requests scan a bounded tree and deny when protected files appear.

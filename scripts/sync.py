@@ -65,6 +65,7 @@ SHARED_FILES = [
     "hooks/require_consent.py",
     "hooks/_trust.py",
     "hooks/enforce_pr_base.py",
+    "hooks/_test_runners.py",
     "scripts/check_gate_adoption.py",
     "scripts/complete_gate_adoption.py",
     "scripts/check_gate_pr_integrity.py",
@@ -109,6 +110,7 @@ SHARED_FILES = [
     "tests/test_skill_module_not_executed.py",
     "tests/test_trusted_test_runners.py",
     "tests/test_primary_pr_base.py",
+    "tests/test_more_test_runners.py",
     "tests/test_skill_path_protection.py",
     "tests/test_sync_skill_copy.py",
 ]
