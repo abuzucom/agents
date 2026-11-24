@@ -187,7 +187,8 @@ request a draft. The `ready_for_review` activity reruns the job when a draft
 becomes ready. The `edited` activity reruns it after a base change or a body
 edit. `gate-integrity.yml` runs the base branch copy of
 `scripts/check_pr_base.py`. It fails a pull request base outside the stable
-branches. The stable branches are the primary branch, `test`, and `develop`. A push to `main` after a merge reruns neither `sync-check.yml`
+branches. The stable branches are the primary branch, `test`, and `develop`.
+A push to the primary branch after a merge reruns neither `sync-check.yml`
 nor `agents-md-compliance.yml`.
 
 `sync-check.yml` also runs
