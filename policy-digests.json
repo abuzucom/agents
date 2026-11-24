@@ -4416,7 +4416,7 @@
         "tests/test_complete_gate_adoption.py": "ffef0224e0e196b179a35b9af2bef95a29b77ed6a8a2898294a1c28f1e3b5599",
         "tests/test_enforce_gate_adoption.py": "782e8b9afe8ee7848bffefddca74e23bf311f858c24bb0c62b9153ecc178b884",
         "tests/test_gate_adoption_transaction.py": "fe03b777db0daabfe094d023bad97bb6cbf7d09b69a770f411bcab2e9100ec9e",
-        "tests/test_more_test_runners.py": "8a4e566321db98b6b070b97c2efa1bfd4f81ab14f99b1669a4a36cf75525aa6d",
+        "tests/test_more_test_runners.py": "5364c6e25dc104e1e3381e88b84fc077bfdb56af3563f9b1dfd9715903a81380",
         "tests/test_platform_policy.py": "fbe7041fc3a884b1277d2bdbc9dc76bb64116c262adf76bda94c28907b95880c",
         "tests/test_primary_pr_base.py": "10b00f92ac2bfd7dc2046313e67bd5b0dda6f96d55d09febc4c6d06cf35e5b3c",
         "tests/test_skill_adoption_required.py": "6dee848a84220ddaad80b7f9f12c910266558e58debc1680a951945209c09c0d",

@@ -143,6 +143,22 @@ class JsRunnerTest(RunnerFixture):
         (self.root / ".yarnrc.yml").unlink()
         self.assertEqual(self.decide("yarn test", True)[0], "deny")
 
+    def test_unusable_inputs_deny(self) -> None:
+        self.write("pnpm-lock.yaml")
+        decision, reason = self.decide("pnpm test", True)
+        self.assertEqual(decision, "deny")
+        self.assertIn("package.json", reason)
+        self.write_manifest({"test": "vitest run\u0007"})
+        self.assertEqual(self.decide("pnpm test", True)[0], "deny")
+
+    def test_runner_off_path_denies(self) -> None:
+        self.write_manifest({"test": "vitest run"})
+        self.write("yarn.lock")
+        with patch.dict(os.environ, {"PATH": str(self.base / "empty")}):
+            decision, reason = self.decide("yarn test", True)
+        self.assertEqual(decision, "deny")
+        self.assertIn("not on PATH", reason)
+
     def test_other_subcommands_unmatched(self) -> None:
         self.write_manifest({"test": "vitest run"})
         for command in ("pnpm install", "yarn test --watch", "yarn add x"):
