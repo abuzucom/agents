@@ -164,13 +164,18 @@ def find_violations(
     branch: str,
     prefixes: tuple[str, ...] = DEFAULT_PREFIXES,
     strict: bool = False,
+    primary: str = "",
 ) -> list[str]:
-    """Return a violation message if `branch` breaks the naming convention."""
+    """Return a violation message if `branch` breaks the naming convention.
+
+    `primary` names the branch from hooks/primary-branch.txt. Outside strict
+    mode it joins the exempt stable branches.
+    """
     if branch.casefold().startswith(PROHIBITED_AGENT_PREFIX):
         return [
             f"branch '{branch}' uses the prohibited claude/ agent prefix"
         ]
-    if not strict and (not branch or branch in EXEMPT_BRANCHES):
+    if not strict and (not branch or branch in EXEMPT_BRANCHES or branch == primary):
         return []
     if _pattern(prefixes).match(branch):
         return _description_violations(branch)
@@ -247,7 +252,39 @@ def _apply_bot_exemption(branch: str, violations: list[str]) -> list[str]:
     return violations
 
 
+def _import_primary_reader():
+    """Import the override reader on demand.
+
+    Hooks import this module for find_violations only, so a copy without
+    trusted_gh keeps the branch gate working.
+    """
+    try:
+        from scripts.trusted_gh import primary_branch_name
+    except ModuleNotFoundError:
+        from trusted_gh import primary_branch_name
+    return primary_branch_name
+
+
+def read_primary_branch(repo: str) -> str:
+    """Return the override primary branch for repo, or an empty string.
+
+    A missing trusted_gh copy leaves only the fixed exemptions. An unusable
+    override file raises ValueError, so the caller fails closed.
+    """
+    try:
+        reader = _import_primary_reader()
+    except ModuleNotFoundError as error:
+        print(
+            f"error: primary branch reader missing ({error.name}); fixed exemptions "
+            "apply. Copy scripts/trusted_gh.py from the policy source.",
+            file=sys.stderr,
+        )
+        return ""
+    return reader(Path(repo))
+
+
 def main() -> int:
+    """Check one branch name and report each violation."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("branch", nargs="?", help="branch to check (default: current branch)")
     parser.add_argument("--repo", default=os.getcwd(), help="repository to inspect (default: cwd)")
@@ -271,11 +308,20 @@ def main() -> int:
         )
         return 1
     prefixes = tuple(prefix.strip() for prefix in args.prefixes.split(",") if prefix.strip())
+    try:
+        primary = "" if args.strict_agent_preflight else read_primary_branch(args.repo)
+    except (OSError, ValueError) as error:
+        print(
+            f"Error. {error}. Repair hooks/primary-branch.txt and retry.",
+            file=sys.stderr,
+        )
+        return 1
 
     violations = find_violations(
         branch,
         prefixes,
         strict=args.strict_agent_preflight,
+        primary=primary,
     )
     if violations and not args.branch:
         violations = _apply_bot_exemption(branch, violations)
