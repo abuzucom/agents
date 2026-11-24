@@ -20,7 +20,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Deletes inside the session's own `.scratch/<id>/` or `.worktrees/<id>/`
   route to consent instead of the opaque program denial.
   `hooks/_zones.py` checks every operand. `hooks/_git_probe.py` rejects
-  tracked files with a hardened `git ls-files`.
+  tracked files with a hardened `git ls-files`. The probe streams Git
+  output under a fixed cap and discards stderr.
 - `hooks/prepare_session_workspace.py` creates both zone folders at
   `SessionStart` in Claude Code, Codex, and Gemini.
 - `.gitignore` and `scripts/check_forbidden_paths.py` cover `.worktrees/`.

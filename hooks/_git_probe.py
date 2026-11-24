@@ -9,6 +9,7 @@ This module uses only the standard library and imports no gate module.
 """
 import os
 import subprocess
+import threading
 
 GIT_TIMEOUT_SECONDS = 5
 MAX_OUTPUT_BYTES = 256 * 1024
@@ -25,6 +26,50 @@ def _environment() -> dict:
     return environment
 
 
+def _collect_output(process, result: list) -> None:
+    """Read at most one byte past the cap and kill Git when output exceeds it."""
+    try:
+        output = process.stdout.read(MAX_OUTPUT_BYTES + 1)
+    except OSError:
+        result.append(None)
+        return
+    if len(output) > MAX_OUTPUT_BYTES:
+        process.kill()
+        result.append(None)
+        return
+    result.append(output)
+
+
+def _run_bounded(command: list):
+    """Run Git with bounded stdout, discarded stderr, and a supervised reader.
+
+    Returns the stdout bytes, or None on a launch failure, timeout, nonzero
+    exit, or output over the cap.
+    """
+    try:
+        process = subprocess.Popen(command, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                                   stderr=subprocess.DEVNULL, env=_environment())
+    except OSError:
+        return None
+    output = []
+    timed_out = False
+    with process:
+        reader = threading.Thread(target=_collect_output, args=(process, output))
+        reader.start()
+        try:
+            process.wait(timeout=GIT_TIMEOUT_SECONDS)
+        except subprocess.TimeoutExpired:
+            timed_out = True
+        finally:
+            if process.poll() is None:
+                process.kill()
+            process.wait()
+            reader.join()
+    if timed_out or process.returncode != 0 or not output:
+        return None
+    return output[0]
+
+
 def tracked_paths(project_dir: str, paths: list):
     """Return the tracked files at or below the given repository-relative paths.
 
@@ -32,15 +77,11 @@ def tracked_paths(project_dir: str, paths: list):
     """
     command = ["git", "-C", project_dir, "-c", "core.fsmonitor=false", "ls-files", "-z",
                "--", *paths]
-    try:
-        result = subprocess.run(command, capture_output=True, check=False,
-                                timeout=GIT_TIMEOUT_SECONDS, env=_environment())
-    except (OSError, subprocess.TimeoutExpired):
-        return None
-    if result.returncode != 0 or len(result.stdout) > MAX_OUTPUT_BYTES:
+    stdout = _run_bounded(command)
+    if stdout is None:
         return None
     try:
-        text = result.stdout.decode("utf-8")
+        text = stdout.decode("utf-8")
     except UnicodeDecodeError:
         return None
     return frozenset(name for name in text.split("\0") if name)

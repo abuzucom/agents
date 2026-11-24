@@ -11,6 +11,55 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "hooks"))
 import _git_probe
 
 GIT_TIMEOUT_SECONDS = 15
+KILLED_RETURN_CODE = -9
+
+
+class FakeStream:
+    """Serve stdout bytes on request and record each requested size."""
+
+    def __init__(self, payload: bytes, endless: bool = False) -> None:
+        self.payload = payload
+        self.endless = endless
+        self.requested = []
+
+    def read(self, size: int) -> bytes:
+        """Return up to size bytes, or exactly size bytes when endless."""
+        self.requested.append(size)
+        if self.endless:
+            return b"a" * size
+        chunk, self.payload = self.payload[:size], self.payload[size:]
+        return chunk
+
+
+class FakeProcess:
+    """Stand in for a Git child process with fixed output and exit behavior."""
+
+    def __init__(self, stream: FakeStream, hang: bool = False) -> None:
+        self.stdout = stream
+        self.hang = hang
+        self.returncode = None
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc_info) -> None:
+        return None
+
+    def poll(self):
+        """Report the exit code, or None while the process still runs."""
+        return self.returncode
+
+    def kill(self) -> None:
+        """Record a kill as a nonzero exit."""
+        self.returncode = KILLED_RETURN_CODE
+
+    def wait(self, timeout=None) -> int:
+        """Finish at once, or time out first when the process hangs."""
+        if self.hang and timeout is not None and self.returncode is None:
+            raise subprocess.TimeoutExpired(["git"], timeout)
+        if self.returncode is None:
+            self.returncode = 0
+        return self.returncode
 
 
 class TrackedPathsTest(unittest.TestCase):
@@ -43,23 +92,36 @@ class TrackedPathsTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as other:
             self.assertIsNone(_git_probe.tracked_paths(other, ["x"]))
 
+    def test_output_read_stays_bounded(self) -> None:
+        stream = FakeStream(b"", endless=True)
+        with patch.object(_git_probe.subprocess, "Popen", return_value=FakeProcess(stream)):
+            self.assertIsNone(_git_probe.tracked_paths(str(self.root), ["tracked.txt"]))
+        self.assertTrue(stream.requested)
+        self.assertLessEqual(sum(stream.requested), _git_probe.MAX_OUTPUT_BYTES + 1)
+
+    def test_read_error_fails(self) -> None:
+        stream = FakeStream(b"")
+        with patch.object(stream, "read", side_effect=OSError("pipe")), \
+                patch.object(_git_probe.subprocess, "Popen", return_value=FakeProcess(stream)):
+            self.assertIsNone(_git_probe.tracked_paths(str(self.root), ["tracked.txt"]))
+
     def test_timeout_fails(self) -> None:
-        error = subprocess.TimeoutExpired(["git"], 1)
-        with patch.object(_git_probe.subprocess, "run", side_effect=error):
+        hanging = FakeProcess(FakeStream(b"tracked.txt\0"), hang=True)
+        with patch.object(_git_probe.subprocess, "Popen", return_value=hanging):
             self.assertIsNone(_git_probe.tracked_paths(str(self.root), ["tracked.txt"]))
 
     def test_missing_git_fails(self) -> None:
-        with patch.object(_git_probe.subprocess, "run", side_effect=FileNotFoundError("git")):
+        with patch.object(_git_probe.subprocess, "Popen", side_effect=FileNotFoundError("git")):
             self.assertIsNone(_git_probe.tracked_paths(str(self.root), ["tracked.txt"]))
 
     def test_undecodable_output_fails(self) -> None:
-        undecodable = subprocess.CompletedProcess([], 0, b"caf\xe9\0", b"")
-        with patch.object(_git_probe.subprocess, "run", return_value=undecodable):
+        undecodable = FakeProcess(FakeStream(b"caf\xe9\0"))
+        with patch.object(_git_probe.subprocess, "Popen", return_value=undecodable):
             self.assertIsNone(_git_probe.tracked_paths(str(self.root), ["tracked.txt"]))
 
     def test_oversized_output_fails(self) -> None:
-        large = subprocess.CompletedProcess([], 0, b"a\0" * _git_probe.MAX_OUTPUT_BYTES, b"")
-        with patch.object(_git_probe.subprocess, "run", return_value=large):
+        large = FakeProcess(FakeStream(b"a\0" * _git_probe.MAX_OUTPUT_BYTES))
+        with patch.object(_git_probe.subprocess, "Popen", return_value=large):
             self.assertIsNone(_git_probe.tracked_paths(str(self.root), ["tracked.txt"]))
 
 
