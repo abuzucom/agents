@@ -17,8 +17,10 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ## [2.41.0] (2026-11-24)
 
 ### Added
-- Deletes inside the session's own `.scratch/<id>/` or `.worktrees/<id>/`
-  route to consent instead of the opaque program denial.
+- `scripts/delete_zone_path.py` deletes inside the session's own
+  `.scratch/<id>/` or `.worktrees/<id>/` after a consent prompt. The
+  helper walks every path component through descriptors and follows no
+  link. Shell `rm` keeps the opaque program denial.
   `hooks/_zones.py` checks every operand. `hooks/_git_probe.py` rejects
   tracked files with a hardened `git ls-files`. The probe streams Git
   output under a fixed cap and discards stderr.

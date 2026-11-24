@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Deletes inside a session's own .scratch and .worktrees folders route to consent."""
+"""Zone deletes route to consent through the descriptor helper only."""
 import json
 import os
 import subprocess
@@ -14,15 +14,23 @@ SESSION = "session-abc_123"
 OTHER_SESSION = "session-other"
 GIT_TIMEOUT_SECONDS = 15
 FEATURE_BRANCH = "feat/zone-test"
+HELPER = "scripts/delete_zone_path.py"
 
 
 def _init_repository(root: Path) -> None:
-    """Create a real Git repository so tracked-file checks can run."""
+    """Create a real Git repository with the helper script in place."""
     subprocess.run(["git", "init", "-q", str(root)], check=True, timeout=GIT_TIMEOUT_SECONDS)
+    (root / "scripts").mkdir()
+    (root / HELPER).write_text("", encoding="utf-8")
+
+
+def helper_command(operands: str, session_id: str = SESSION) -> str:
+    """Return the helper command line for the given operands."""
+    return f"python {HELPER} --session {session_id} {operands}"
 
 
 class ZoneVerdictTest(unittest.TestCase):
-    """workflow_decision asks for own-zone deletes and leaves every other rm unmatched."""
+    """workflow_decision asks for own-zone helper deletes and leaves every rm unmatched."""
 
     @classmethod
     def setUpClass(cls) -> None:
@@ -41,25 +49,37 @@ class ZoneVerdictTest(unittest.TestCase):
     def decide(self, command: str, session_id: str = SESSION) -> str:
         return self.gate.workflow_decision(command, str(self.root), session_id=session_id)[0]
 
-    def test_own_zone_deletes_ask(self) -> None:
+    def test_own_zone_helper_asks(self) -> None:
+        for operands in (f".scratch/{SESSION}/a.txt", f".scratch/{SESSION}/run1",
+                         f".worktrees/{SESSION}/run1", f".worktrees/{SESSION}/a.txt",
+                         f".scratch/{SESSION}/run1 .worktrees/{SESSION}/run1"):
+            with self.subTest(operands=operands):
+                self.assertEqual(self.decide(helper_command(operands)), "ask")
+
+    def test_shell_rm_unmatched(self) -> None:
         for command in (f"rm .scratch/{SESSION}/a.txt", f"rm -rf .scratch/{SESSION}/run1",
-                        f"rm -r .worktrees/{SESSION}/run1", f"rm -f .worktrees/{SESSION}/a.txt",
-                        f"rm -rf .scratch/{SESSION}/run1 .worktrees/{SESSION}/run1"):
+                        f"rm -r .worktrees/{SESSION}/run1", f"rm -f .worktrees/{SESSION}/a.txt"):
             with self.subTest(command=command):
-                self.assertEqual(self.decide(command), "ask")
+                self.assertEqual(self.decide(command), "")
 
     def test_other_targets_unmatched(self) -> None:
-        for command in ("rm -rf .scratch", f"rm -rf .scratch/{SESSION}",
-                        f"rm -rf .scratch/{SESSION}/", f"rm -rf .scratch/{OTHER_SESSION}/x",
-                        f"rm -rf .scratch/{SESSION}/../{OTHER_SESSION}",
-                        f"rm -rf .scratch/{SESSION}/*", "rm -rf hooks",
-                        f"rm -rf .scratch/{SESSION}/run1 hooks", f"rm -v .scratch/{SESSION}/a.txt",
-                        f"rm -rf /tmp/{SESSION}", "rm"):
+        for operands in (".scratch", f".scratch/{SESSION}", f".scratch/{SESSION}/run1/",
+                         f".scratch/{OTHER_SESSION}/x", f".scratch/{SESSION}/../{OTHER_SESSION}",
+                         f".scratch/{SESSION}/*", "hooks", f".scratch/{SESSION}/run1 hooks",
+                         f"-v .scratch/{SESSION}/a.txt", f"/tmp/{SESSION}", ""):
+            with self.subTest(operands=operands):
+                self.assertEqual(self.decide(helper_command(operands)), "")
+
+    def test_session_argument_must_match(self) -> None:
+        operands = f".scratch/{SESSION}/run1"
+        for command in (helper_command(f".scratch/{OTHER_SESSION}/x", OTHER_SESSION),
+                        f"python {HELPER} {operands}",
+                        f"python {HELPER} --session {operands}"):
             with self.subTest(command=command):
                 self.assertEqual(self.decide(command), "")
 
     def test_missing_or_bad_session_unmatched(self) -> None:
-        command = f"rm -rf .scratch/{SESSION}/run1"
+        command = helper_command(f".scratch/{SESSION}/run1")
         for session_id in ("", "../x", "a b", "x" * 129):
             with self.subTest(session_id=session_id):
                 self.assertEqual(self.decide(command, session_id), "")
@@ -70,20 +90,25 @@ class ZoneVerdictTest(unittest.TestCase):
         outside = self.root / "outside"
         outside.mkdir()
         (self.root / ".scratch" / SESSION / "link").symlink_to(outside)
-        self.assertEqual(self.decide(f"rm -rf .scratch/{SESSION}/link/x"), "")
+        self.assertEqual(self.decide(helper_command(f".scratch/{SESSION}/link/x")), "")
 
     def test_tracked_file_unmatched(self) -> None:
         subprocess.run(["git", "-C", str(self.root), "add", "-f", f".scratch/{SESSION}/a.txt"],
                        check=True, timeout=GIT_TIMEOUT_SECONDS)
-        self.assertEqual(self.decide(f"rm .scratch/{SESSION}/a.txt"), "")
+        self.assertEqual(self.decide(helper_command(f".scratch/{SESSION}/a.txt")), "")
+
+    def test_zone_check_refuses_empty_input(self) -> None:
+        check = self.gate._zones.zone_delete_allowed
+        self.assertFalse(check([], str(self.root), SESSION))
+        self.assertFalse(check([f".scratch/{SESSION}/a.txt"], str(self.root), "../x"))
 
     def test_zone_delete_not_read_only(self) -> None:
-        self.assertFalse(self.gate.read_only_workflow(f"rm .scratch/{SESSION}/a.txt",
-                                                      str(self.root)))
+        command = helper_command(f".scratch/{SESSION}/a.txt")
+        self.assertFalse(self.gate.read_only_workflow(command, str(self.root)))
 
 
 class ZoneBranchHookTest(unittest.TestCase):
-    """The branch hook asks for an own-zone delete and denies other rm calls."""
+    """The branch hook asks for an own-zone helper delete and denies every rm."""
 
     def setUp(self) -> None:
         temporary = tempfile.TemporaryDirectory()
@@ -92,28 +117,30 @@ class ZoneBranchHookTest(unittest.TestCase):
         _init_repository(self.root)
         (self.root / ".scratch" / SESSION / "run1").mkdir(parents=True)
 
-    def run_rm(self, command: str, branch: str = FEATURE_BRANCH, session_id=SESSION):
+    def run_command(self, command: str, branch: str = FEATURE_BRANCH, session_id=SESSION):
         payload = bash_payload(command)
         if session_id is not None:
             payload["session_id"] = session_id
         result = run_hook(payload, branch, project_dir=self.root)
         return result, json.loads(result.stdout or "{}")
 
-    def test_own_zone_asks(self) -> None:
-        result, output = self.run_rm(f"rm -rf .scratch/{SESSION}/run1")
+    def test_own_zone_helper_asks(self) -> None:
+        result, output = self.run_command(helper_command(f".scratch/{SESSION}/run1"))
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(output["hookSpecificOutput"]["permissionDecision"], "ask")
         self.assertIn("zone", output["hookSpecificOutput"]["permissionDecisionReason"])
 
-    def test_other_rm_denies(self) -> None:
-        for command, session_id in ((f"rm -rf .scratch/{OTHER_SESSION}", SESSION),
-                                    (f"rm -rf .scratch/{SESSION}/run1", None)):
+    def test_other_deletes_deny(self) -> None:
+        for command, session_id in ((helper_command(f".scratch/{OTHER_SESSION}"), SESSION),
+                                    (helper_command(f".scratch/{SESSION}/run1"), None),
+                                    (f"rm -rf .scratch/{SESSION}/run1", SESSION)):
             with self.subTest(command=command, session_id=session_id):
-                result, _output = self.run_rm(command, session_id=session_id)
+                result, _output = self.run_command(command, session_id=session_id)
                 self.assertEqual(result.returncode, 2, result.stdout)
 
     def test_primary_branch_denies(self) -> None:
-        result, _output = self.run_rm(f"rm -rf .scratch/{SESSION}/run1", branch="main")
+        command = helper_command(f".scratch/{SESSION}/run1")
+        result, _output = self.run_command(command, branch="main")
         self.assertEqual(result.returncode, 2, result.stdout)
 
 

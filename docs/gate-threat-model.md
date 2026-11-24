@@ -62,14 +62,15 @@ include the following actions:
 - `hooks/workflow-scripts.local.txt` adds adopter script entries. It stays
   out of the shared set. An entry that repeats a shared entry, a malformed
   line, or an oversized file denies every repository script call.
-- An `rm` with only `-r`, `-R`, or `-f` flags asks when every operand sits
+- `scripts/delete_zone_path.py --session <id>` asks when every operand sits
   strictly below the session's own `.scratch/<id>/` or `.worktrees/<id>/`.
-  The id comes from the hook payload `session_id`. Every other `rm` keeps
-  the opaque denial. The check refuses the zone root, the session folder
+  The id must equal the hook payload `session_id`. Every shell `rm` and
+  every other helper call keep the opaque denial. The check refuses the zone root, the session folder
   itself, another session's folder, a `..` escape, a glob, a trailing
   slash, a link out of the zone, a tracked file, and an unknown Git state.
-  A swap to a link after the check and before `rm` runs stays possible.
-  The consent prompt is the remaining control for that window.
+  The helper opens every component through its parent descriptor with no
+  link follow and deletes descriptor-relative. A swap after the gate check
+  refuses the delete. Platforms without `dir_fd` support refuse the helper.
 - `hooks/prepare_session_workspace.py` creates both zone folders at
   session start through parent descriptors that follow no link. It
   creates nothing on a platform without `dir_fd` support.

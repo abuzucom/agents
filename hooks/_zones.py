@@ -1,8 +1,9 @@
 """Per-session deletion zones under .scratch and .worktrees.
 
 Each session owns `.scratch/<session id>/` and `.worktrees/<session id>/`.
-A delete whose every operand sits strictly below one of those folders
-routes to consent. Every other delete keeps its gate verdict. The check
+A delete through scripts/delete_zone_path.py whose every operand sits
+strictly below one of those folders routes to consent. The helper repeats
+the path checks through descriptors at delete time. Every other delete keeps its gate verdict. The check
 fails closed: any doubt about an operand, the session id, or tracked
 state leaves the delete unrecognized.
 
@@ -24,7 +25,7 @@ def valid_session_id(session_id) -> bool:
     return isinstance(session_id, str) and bool(SESSION_ID_PATTERN.fullmatch(session_id))
 
 
-def _literal_operand(operand: str) -> bool:
+def literal_operand(operand: str) -> bool:
     """Return whether an operand is a plain relative path with no expansion or escape."""
     return (bool(operand) and not operand.startswith(("-", "/", "\\", "~"))
             and not GLOB_CHARACTERS.intersection(operand)
@@ -48,7 +49,7 @@ def zone_delete_allowed(operands: list, project_dir: str, session_id) -> bool:
     """Return whether every operand names an untracked path inside this session's zones."""
     if not valid_session_id(session_id) or not operands:
         return False
-    if not all(_literal_operand(operand) for operand in operands):
+    if not all(literal_operand(operand) for operand in operands):
         return False
     base = os.path.realpath(project_dir)
     roots = _zone_roots(project_dir, session_id)

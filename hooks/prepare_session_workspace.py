@@ -33,8 +33,8 @@ def _open_child(parent: int, name: str) -> int:
     try:
         os.mkdir(name, PRIVATE_MODE, dir_fd=parent)
     except FileExistsError:
-        # An existing directory is the idempotent case. The open below rejects anything else.
-        pass
+        # An existing directory is the idempotent case. The open rejects anything else.
+        return os.open(name, NO_FOLLOW_FLAGS, dir_fd=parent)
     return os.open(name, NO_FOLLOW_FLAGS, dir_fd=parent)
 
 

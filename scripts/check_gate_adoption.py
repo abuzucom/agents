@@ -65,6 +65,7 @@ REQUIRED_CHECKERS = (
     "scripts/_pr_event.py",
     "scripts/_skill_sync.py",
     "scripts/check_forbidden_paths.py",
+    "scripts/delete_zone_path.py",
     "scripts/check_handoff_content.py",
     "scripts/check_shared_neutrality.py",
 )
