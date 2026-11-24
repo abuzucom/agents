@@ -91,6 +91,11 @@ class GateIntegrityStepTest(unittest.TestCase):
         self.assertEqual(step["working-directory"], "trusted-base")
         self.assertIn("scripts/check_pr_base.py", step["run"])
 
+    def test_base_change_reruns_check(self):
+        # A base branch change fires the edited activity.
+        triggers = workflow_triggers(load_workflow("gate-integrity.yml"))
+        self.assertIn("edited", triggers["pull_request"]["types"])
+
     def test_base_ref_stays_in_env(self):
         step = self.base_check_step()
         self.assertEqual(step["env"]["PR_BASE_REF"], "${{ github.event.pull_request.base.ref }}")

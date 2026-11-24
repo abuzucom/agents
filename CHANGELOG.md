@@ -23,6 +23,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   branches. `scripts/check_branch_name.py` exempts the override primary
   branch outside strict preflight. An unusable override file fails the
   check. `tests/test_custom_primary_coverage.py` covers both.
+- `gate-integrity.yml` reruns on the `edited` activity. A base branch
+  change fires that activity. The base check then runs again.
 - Stable branches are the primary branch, `test`, and `develop`. `develop`
   is the staging branch. Pull requests may target any stable branch. Agents
   treat every stable branch as read-only. CI workflows filter pull requests

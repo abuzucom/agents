@@ -4,7 +4,8 @@ on:
   pull_request:
     # No branch filter. A filter cannot read hooks/primary-branch.txt. Gate
     # integrity rejects a base outside the stable set.
-    types: [opened, synchronize, reopened, labeled, unlabeled]
+    # A base branch change fires edited. The base check then reruns.
+    types: [opened, synchronize, reopened, edited, labeled, unlabeled]
 
 permissions:
   checks: read
