@@ -37,6 +37,14 @@
               "${CLAUDE_PROJECT_DIR}/hooks/require_consent.py"
             ],
             "timeout": 30
+          },
+          {
+            "type": "command",
+            "command": "python",
+            "args": [
+              "${CLAUDE_PROJECT_DIR}/hooks/prepare_session_workspace.py"
+            ],
+            "timeout": 30
           }
         ]
       }

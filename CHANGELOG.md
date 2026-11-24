@@ -14,9 +14,16 @@ into the entry. Dates never decrease. Ask the active human when a date is in
 doubt.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.40.0] (2026-11-24)
+## [2.41.0] (2026-11-24)
 
 ### Added
+- Deletes inside the session's own `.scratch/<id>/` or `.worktrees/<id>/`
+  route to consent instead of the opaque program denial.
+  `hooks/_zones.py` checks every operand. `hooks/_git_probe.py` rejects
+  tracked files with a hardened `git ls-files`.
+- `hooks/prepare_session_workspace.py` creates both zone folders at
+  `SessionStart` in Claude Code, Codex, and Gemini.
+- `.gitignore` and `scripts/check_forbidden_paths.py` cover `.worktrees/`.
 - `pnpm test`, `yarn test`, `go test`, and `cargo test` run without a
   prompt for a trusted `origin` owner and ask otherwise.
   `hooks/_test_runners.py` defines the accepted go and cargo shapes. pnpm

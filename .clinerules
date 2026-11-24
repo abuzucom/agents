@@ -136,7 +136,8 @@ each act. The gate covers every target. Covered targets include:
 
 Follow the authorization procedure in `docs/agent-policy/enforcement.md`.
 Restate the exact command and every target. Wait for confirmation. Record the
-authorization, command, and execution time.
+authorization, command, and execution time. Deletes inside the session's own
+`.scratch/<id>/` or `.worktrees/<id>/` route to consent.
 
 **Refuse without a prompt.** The hooks refuse the targets and command families
 listed in `docs/agent-policy/enforcement.md`.
@@ -1031,7 +1032,8 @@ The protected inventory covers:
   `hooks/require_consent.py`, `hooks/github-command-denylist.txt`,
   `hooks/primary-branch.txt`, `hooks/workflow-scripts.txt`, `hooks/_trust.py`,
   `hooks/trusted-owners.txt`, `hooks/enforce_pr_base.py`,
-  `hooks/_test_runners.py`, `hooks/workflow-scripts.local.txt`, and
+  `hooks/_test_runners.py`, `hooks/workflow-scripts.local.txt`,
+  `hooks/_git_probe.py`, `hooks/_zones.py`, `hooks/prepare_session_workspace.py`, and
   `hooks/claude-code-settings.example.json`.
 - Hook configurations:
   `.claude/settings.json`, `.agents/`, `.codex/hooks.json`,
@@ -1078,6 +1080,12 @@ no repository hooks. The rule reaches it only through the synchronized policy
 copies. Agents there run the branch checker manually. A setup script running
 `pre-commit install --hook-type pre-push` restores the pre-push check. Start
 each cloud session inside one repository. Its hooks then load natively.
+
+Claude Code, Codex, and Gemini pass `session_id` to hooks. Their
+`SessionStart` creates `.scratch/<id>/` and `.worktrees/<id>/`. Codex has
+no native consent prompt. Its zone deletes still deny. Antigravity
+passes no session id. Its `rm` stays denied. Clients without hooks
+create the folders with `mkdir -p`.
 
 ## Compaction events
 Claude and Codex report compaction through the session payload `source`

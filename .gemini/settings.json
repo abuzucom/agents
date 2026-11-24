@@ -15,6 +15,12 @@
             "type": "command",
             "command": "python $GEMINI_PROJECT_DIR/hooks/enforce_anti_delegation.py --client gemini",
             "timeout": 30000
+          },
+          {
+            "name": "session-workspace",
+            "type": "command",
+            "command": "python $GEMINI_PROJECT_DIR/hooks/prepare_session_workspace.py",
+            "timeout": 30000
           }
         ]
       }

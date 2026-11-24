@@ -15,7 +15,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-FORBIDDEN_PREFIXES = (".scratch/",)
+FORBIDDEN_PREFIXES = (".scratch/", ".worktrees/")
 # A leading letter or digit keeps a revision from reading as a git option.
 REVISION_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9._/~^-]{0,199}")
 PARENT_DIRECTORY = ".."

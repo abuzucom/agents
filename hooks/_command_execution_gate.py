@@ -16,6 +16,7 @@ import _gate_core as core
 import _bash_parser as bash_parser
 import _test_runners
 import _trust
+import _zones
 
 GATE = "_command_execution_gate.py"
 INSPECTABLE_PROGRAMS = frozenset({
@@ -188,6 +189,10 @@ JS_RUNNER_LOCKFILES = {"pnpm": "pnpm-lock.yaml", "yarn": "yarn.lock"}
 JS_RUNNER_CONFIGS = {"pnpm": (".npmrc",), "yarn": (".yarnrc", ".yarnrc.yml")}
 JS_TEST_SCRIPT = "test"
 JS_TEST_LIFECYCLE = ("pretest", "test", "posttest")
+RM_PROGRAM = "rm"
+RM_FLAGS = frozenset({"-r", "-R", "-f", "-rf", "-fr", "-Rf", "-fR"})
+ZONE_DELETE_REASON = ("Repository workflow requires execution consent. The command deletes inside "
+                      "this session's own zone folder.")
 
 
 def segment_program_reason(segment: list) -> str:
@@ -1007,9 +1012,23 @@ def _compiled_test_verdict(tokens: list, project_dir: str) -> tuple:
     return (ALLOW if _trusted_project(project_dir) else ASK), "", False
 
 
-def _program_verdict(tokens: list, project_dir: str) -> tuple:
+def _zone_delete_verdict(tokens: list, project_dir: str, session_id: str) -> tuple:
+    """Return (decision, reason, read-only) for rm inside this session's own zone folders."""
+    arguments = tokens[1:]
+    operands = [token for token in arguments if token not in RM_FLAGS]
+    # An unknown flag leaves the command unrecognized, so the opaque denial still applies.
+    if any(token.startswith("-") for token in operands):
+        return "", "", False
+    if not _zones.zone_delete_allowed(operands, project_dir, session_id):
+        return "", "", False
+    return ASK, ZONE_DELETE_REASON, False
+
+
+def _program_verdict(tokens: list, project_dir: str, session_id: str = "") -> tuple:
     """Return (decision, reason, read-only) for one literal command by program."""
     program = tokens[0]
+    if program == RM_PROGRAM:
+        return _zone_delete_verdict(tokens, project_dir, session_id)
     if program == "npm":
         decision, reason = _npm_decision(tokens, project_dir)
         return decision, reason, False
@@ -1036,9 +1055,9 @@ def _program_verdict(tokens: list, project_dir: str) -> tuple:
     return "", "", False
 
 
-def _part_verdict(tokens: list, project_dir: str) -> tuple:
+def _part_verdict(tokens: list, project_dir: str, session_id: str = "") -> tuple:
     """Return (decision, reason, read-only) with consent text and PATH disclosure applied."""
-    decision, reason, read_only = _program_verdict(tokens, project_dir)
+    decision, reason, read_only = _program_verdict(tokens, project_dir, session_id)
     # Repository writers control a program that PATH resolves inside the repository.
     if decision == ALLOW and _repository_program_path(tokens[0], project_dir):
         decision = ASK
@@ -1047,10 +1066,10 @@ def _part_verdict(tokens: list, project_dir: str) -> tuple:
     return decision, reason, read_only
 
 
-def _workflow_verdict(command: str, project_dir: str) -> tuple:
+def _workflow_verdict(command: str, project_dir: str, session_id: str = "") -> tuple:
     """Return (decision, reason, read-only) for one command or an && chain."""
     parts = _command_parts(command)
-    verdicts = [_part_verdict(part, project_dir) for part in parts]
+    verdicts = [_part_verdict(part, project_dir, session_id) for part in parts]
     decisions = [verdict[0] for verdict in verdicts]
     if not verdicts:
         return "", "", False
@@ -1065,13 +1084,14 @@ def _workflow_verdict(command: str, project_dir: str) -> tuple:
     return ALLOW, "", read_only
 
 
-def workflow_decision(command: str, project_dir: str) -> tuple:
+def workflow_decision(command: str, project_dir: str, session_id: str = "") -> tuple:
     """Return ("allow", ""), ("ask", prompt), ("deny", reason), or ("", "").
 
     The command holds one literal workflow or an && chain of them. A chain
-    takes the strictest decision of its parts.
+    takes the strictest decision of its parts. `session_id` names the
+    caller's zone folders. Without it no delete is recognized.
     """
-    decision, reason, _read_only = _workflow_verdict(command, project_dir)
+    decision, reason, _read_only = _workflow_verdict(command, project_dir, session_id)
     return decision, reason
 
 

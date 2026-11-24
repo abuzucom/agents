@@ -1212,7 +1212,9 @@ def _handle_pre_tool_use(payload: dict, project_dir: str, client: str) -> int:
     command_text = _command_text(tool_input)
     if _valid_bootstrap(command_text, project_dir):
         return 0
-    decision, reason = command_gate.workflow_decision(command_text, project_dir)
+    session_id = payload.get("session_id")
+    decision, reason = command_gate.workflow_decision(
+        command_text, project_dir, session_id=session_id if isinstance(session_id, str) else "")
     if decision == command_gate.ALLOW:
         return 0
     if decision == "ask":

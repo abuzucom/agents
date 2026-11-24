@@ -136,7 +136,8 @@ each act. The gate covers every target. Covered targets include:
 
 Follow the authorization procedure in `docs/agent-policy/enforcement.md`.
 Restate the exact command and every target. Wait for confirmation. Record the
-authorization, command, and execution time.
+authorization, command, and execution time. Deletes inside the session's own
+`.scratch/<id>/` or `.worktrees/<id>/` route to consent.
 
 **Refuse without a prompt.** The hooks refuse the targets and command families
 listed in `docs/agent-policy/enforcement.md`.
