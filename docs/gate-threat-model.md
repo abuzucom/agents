@@ -37,6 +37,14 @@ include the following actions:
   definition, shell profile writes, schedule destruction, and forge deletion.
 - The gates deny cloud, infrastructure-as-code, orchestration, direct SSH,
   file transfer, and firewall client families across Bash, PowerShell, and CMD.
+- Test runners allow without a prompt only when `hooks/trusted-owners.txt`
+  names the `origin` owner. Covered forms include `pytest`,
+  `python -m pytest`, `scripts/run_tests.py`, `make test`, and `npm test`.
+  Each runs repository code such as `conftest.py`, a Makefile, or package
+  scripts. Every other owner keeps the consent prompt. A missing, oversized,
+  non-ASCII, or malformed list trusts nobody. The shadow module, repository
+  PATH, `.npmrc`, missing script, and pytest argument file denials still
+  apply to trusted owners.
 - The infrastructure file tool gate denies direct reads and writes to protected
   credentials, Terraform files, and Kubernetes or Helm manifests. Broad Glob
   and Grep requests scan a bounded tree and deny when protected files appear.

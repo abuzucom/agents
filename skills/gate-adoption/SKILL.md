@@ -19,7 +19,8 @@ Rule 18 makes adoption atomic across every client.
 7. Fill adopter files:
    - `docs/project-orientation.md` with the canonical revision
    - `hooks/primary-branch.txt` when the primary branch is not `main`
-   - `hooks/trusted-owners.txt`, asking for each owner in its own prompt
+   - `hooks/trusted-owners.txt`, asking for each owner in its own prompt.
+     An empty or absent list keeps every test runner at ask.
 8. Run `python scripts/check_local_paths.py --report`. Show each finding.
    Get a separate decision per proposed allowlist entry.
 9. Run the verification list:

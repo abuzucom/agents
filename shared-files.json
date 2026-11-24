@@ -6,6 +6,7 @@
     "hooks/_cmd_parser.py": "246febca4007230c77f0980bec98ee94e14e14b21d5dddf5567101a38c7d80b3",
     "hooks/_gate_core.py": "216df162548a65c3834a047f230c240520d3da5f4e21197a357a1ec6530c9193",
     "hooks/_platform_policy.py": "c307db1286f61fa987bf898e9ec0843b33188ea56538a24d62fa0e98a968b24e",
+    "hooks/_trust.py": "a2596c6bcea06033dd9df413a3b35aa57dc630953edfb32b277107d26662c4be",
     "hooks/block_destructive_bash.py": "a0d5a963b369472a6de4848c2c59a94f3da9b38983e29716cb1b89e36cd50868",
     "hooks/block_destructive_cmd.py": "8b14f372cf2ba876777746b0c35a258f666edfdd22f1fbfe991f198a30b1f9fa",
     "hooks/block_destructive_powershell.py": "e1d2ae15b2cea91a227745220d9e3b47bd488800f95eba13e99f0f8220fea3a8",
@@ -27,7 +28,7 @@
     "skills/compaction-replan/SKILL.md": "e1a1306a8337d7eec56fc374d797d3a639b150123af0d69e1cbd96db6f1461de",
     "skills/dependency-proposal/SKILL.md": "e29ca3587f96a0d19005b70fbe30dc390c1b20354672ea026742116394695f9a",
     "skills/destructive-act-authorization/SKILL.md": "0d763af8ec34d8bf47e60bcd83ff73f845f6a5769c3b164b87af548425d9a219",
-    "skills/gate-adoption/SKILL.md": "cfbfbc5051cc8a050a73614f751980228829e5fb6bff540e1c8aadd684136acc",
+    "skills/gate-adoption/SKILL.md": "6fba5e534a21b566ab203e3097c9afbc0e72239573c357ba9f170d1faa5e325b",
     "skills/gate-denial-report/SKILL.md": "61ffafa62c6c926893488a4825f37976e7721d4924a432061271f68a6b4da0fb",
     "skills/git-identity-recovery/SKILL.md": "cce674a52cded9a8e7cc42647c537b6c2fc857fc05077f26f850ea78cff78516",
     "skills/policy-change-proposal/SKILL.md": "c15b61949b79e74e1ea2713b72d5a05c8be6641c035bf3cd024f6e67ffbdf8bf",
@@ -56,6 +57,7 @@
     "tests/test_skill_command_forms.py": "bfe62a6a85a119111b1726aef67c54b4af37aead123506997fded6f236263b22",
     "tests/test_skill_module_not_executed.py": "41f9f933a731f2ce773268fa128268e990e22f6ff340ffb0f7c979f4d07cf193",
     "tests/test_skill_path_protection.py": "e536a11ba85941fa401b10a1b4770ac9e28c14460cbe3a8dda1c2e774c740feb",
-    "tests/test_sync_skill_copy.py": "a711ca430a6291d44961aa336e22e5b4ebc3125549c4484866b0f76b75ad2a8e"
+    "tests/test_sync_skill_copy.py": "a711ca430a6291d44961aa336e22e5b4ebc3125549c4484866b0f76b75ad2a8e",
+    "tests/test_trusted_test_runners.py": "387b02e8651531b6a5a1e1820d2e4b7182b213a627be87ef828efa6ee9c010ef"
   }
 }

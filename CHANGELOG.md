@@ -14,9 +14,21 @@ into the entry. Dates never decrease. Ask the active human when a date is in
 doubt.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.37.1] (2026-11-24)
+## [2.38.0] (2026-11-24)
+
+### Added
+- `hooks/_trust.py` reads `hooks/trusted-owners.txt`. For a listed `origin`
+  owner, `pytest`, `python -m pytest`, `scripts/run_tests.py`, `make test`,
+  and `npm test` run without a prompt. Other owners keep the consent
+  prompt. A missing or unusable list trusts nobody.
+- `hooks/workflow-scripts.txt` accepts the `trusted-read` verdict.
+  `scripts/run_tests.py` uses it.
+- `tests/test_trusted_test_runners.py` covers owner list parsing, both
+  verdicts, the origin lookup, and the denials that stay.
 
 ### Changed
+- The command gate rejects pytest arguments that start with `@`. pytest
+  reads such an argument as a file of further options.
 - `scripts/_skill_sync.py` reads frontmatter fields through named regex
   groups. `scripts/check_handoff_content.py` names its first body line
   number. Behavior stays the same.

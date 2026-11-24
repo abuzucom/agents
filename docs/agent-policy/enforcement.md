@@ -170,8 +170,8 @@ The protected inventory covers:
   `hooks/enforce_branch_name.py`, `hooks/enforce_gate_adoption.py`,
   `hooks/enforce_git_identity.py`, `hooks/reinject_agents_policy.py`,
   `hooks/require_consent.py`, `hooks/github-command-denylist.txt`,
-  `hooks/primary-branch.txt`, `hooks/workflow-scripts.txt`, and
-  `hooks/claude-code-settings.example.json`.
+  `hooks/primary-branch.txt`, `hooks/workflow-scripts.txt`, `hooks/_trust.py`,
+  `hooks/trusted-owners.txt`, and `hooks/claude-code-settings.example.json`.
 - Hook configurations:
   `.claude/settings.json`, `.agents/`, `.codex/hooks.json`,
   `.gemini/settings.json`, and `.git/hooks/`.
