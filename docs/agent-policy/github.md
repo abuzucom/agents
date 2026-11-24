@@ -93,7 +93,7 @@ unchanged. A refused draft exits 2. The PR base defaults to the primary
 branch.
 
 ## Pull request base
-Every CI workflow filters pull requests on the primary branch. A pull
+Every CI workflow filters pull requests on the stable branches. A pull
 request into another base runs no CI. `forge_verdict` in
 `hooks/_gate_core.py` denies `gh pr create` and `gh pr edit` with any other
 `--base` or `-B` value. It reads `hooks/primary-branch.txt` and fails

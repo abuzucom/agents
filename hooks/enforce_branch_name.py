@@ -74,7 +74,8 @@ INSPECTABLE_PROGRAMS = command_gate.INSPECTABLE_PROGRAMS
 WORKFLOW_SCRIPT_ARGUMENTS = command_gate.WORKFLOW_SCRIPT_ARGUMENTS
 SEARCH_FLAGS = command_gate.SEARCH_FLAGS
 MAX_WORKFLOW_ARGUMENTS = command_gate.MAX_WORKFLOW_ARGUMENTS
-# The primary branch and a detached HEAD permit inspection and planning only.
+# Stable branches and a detached HEAD permit inspection and planning only.
+# The stable branches are the primary branch, test, and develop.
 DEFAULT_PRIMARY_BRANCH = "main"
 PRIMARY_BRANCH_FILE = "hooks/primary-branch.txt"
 MAX_PRIMARY_BRANCH_BYTES = 256
@@ -703,12 +704,12 @@ _python_workflow = command_gate._python_workflow
 def recovery_command(branch_name: str, rebase_active: bool) -> str:
     """Return the recovery command family for one failed preflight.
 
-    A rebase allows only its own continuation commands. The primary branch
+    A rebase allows only its own continuation commands. A stable branch
     and a detached HEAD need a new branch. Any other name needs a rename.
     """
     if rebase_active:
         return "git rebase --abort, git rebase --continue, or git rebase --skip"
-    if branch_name in ("main", "master", "HEAD"):
+    if branch_name in ("main", "master", "HEAD", *core.EXTRA_STABLE_BRANCHES):
         return "git switch -c"
     return "git branch -m"
 
@@ -809,7 +810,7 @@ def branch_state(branch_name: str, project_dir: str, rebase_state: tuple = None)
     primary = primary_branch_name(project_dir)
     if branch_name == "master":
         return "master"
-    if branch_name in (primary, "HEAD"):
+    if branch_name in (primary, "HEAD", *core.EXTRA_STABLE_BRANCHES):
         return "read-only"
     return "invalid"
 

@@ -21,7 +21,7 @@ recovery uniform.
 5. Ask once. Name the exact recovery command and the push target. Use only
    the approved recovery forms:
    - `git branch -m <name>` on an invalid branch
-   - `git switch -c <name>` on the primary branch or a detached HEAD
+   - `git switch -c <name>` on a stable branch or a detached HEAD
    - `git rebase --abort`, `--continue`, or `--skip` during a rebase
 6. Rerun step 2 after recovery.
 7. When the branch carries unrelated inherited commits, propose a fresh

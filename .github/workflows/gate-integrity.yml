@@ -2,7 +2,8 @@ name: Gate Integrity
 
 on:
   pull_request:
-    branches: [main]
+    # Stable branches. develop is the staging branch. Absent branches never match.
+    branches: [main, test, develop]
     types: [opened, synchronize, reopened, labeled, unlabeled]
 
 permissions:

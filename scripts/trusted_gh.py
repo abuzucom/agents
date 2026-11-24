@@ -377,7 +377,8 @@ def _with_default_pull_base(repository: Path, arguments: list[str]) -> list[str]
     """Add the primary branch as base to a pull request create that names none.
 
     gh otherwise targets the GitHub default branch. CI runs only for pull
-    requests into the primary branch, and the two can differ.
+    requests into a stable branch, and the default branch can differ. An
+    explicit base may name any stable branch: primary, test, or develop.
     """
     position = _command_position(arguments)
     delimiter = arguments.index("--") if "--" in arguments else len(arguments)
