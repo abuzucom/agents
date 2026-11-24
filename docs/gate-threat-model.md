@@ -71,6 +71,11 @@ include the following actions:
   The helper opens every component through its parent descriptor with no
   link follow and deletes descriptor-relative. A swap after the gate check
   refuses the delete. Platforms without `dir_fd` support refuse the helper.
+  The tracked check and the delete stay separate steps. A file that
+  `git add -f` stages inside that window loses its working copy only.
+  Git keeps the staged content. `git checkout` restores the file.
+  The helper takes no index lock. A long delete would otherwise block
+  every other session's commits.
 - `hooks/prepare_session_workspace.py` creates both zone folders at
   session start through parent descriptors that follow no link. It
   creates nothing on a platform without `dir_fd` support.
