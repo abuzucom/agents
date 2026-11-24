@@ -60,6 +60,7 @@
     "tests/test_deletion_zones.py": "74a724ec2231c12802ff426578bd092d92e7182ba54f894f3abf7cdd090f94e8",
     "tests/test_enforce_gate_adoption.py": "782e8b9afe8ee7848bffefddca74e23bf311f858c24bb0c62b9153ecc178b884",
     "tests/test_gate_adoption_transaction.py": "fe03b777db0daabfe094d023bad97bb6cbf7d09b69a770f411bcab2e9100ec9e",
+    "tests/test_gemini_command_quoting.py": "d4972e4833c364ffa019302f070613f66a0846127c711a4048c8ad213cd3b9a0",
     "tests/test_git_probe.py": "5c0e0f92685d98430e043651a9855bbeee207bf8d10c7cf3584ea5a08bfb0f06",
     "tests/test_more_test_runners.py": "5364c6e25dc104e1e3381e88b84fc077bfdb56af3563f9b1dfd9715903a81380",
     "tests/test_platform_policy.py": "fbe7041fc3a884b1277d2bdbc9dc76bb64116c262adf76bda94c28907b95880c",

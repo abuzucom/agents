@@ -117,6 +117,7 @@ SHARED_FILES = [
     "tests/test_more_test_runners.py",
     "tests/test_delete_zone_path.py",
     "tests/test_deletion_zones.py",
+    "tests/test_gemini_command_quoting.py",
     "tests/test_git_probe.py",
     "tests/test_prepare_session_workspace.py",
     "tests/test_worktree_zone_paths.py",

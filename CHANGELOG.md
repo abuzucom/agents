@@ -100,6 +100,11 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - `tests/test_primary_pr_base.py` shows that a direct `gh pr create`
   without a base denies. Every direct gh call routes to the wrapper.
 
+### Fixed
+- `.gemini/settings.json` quotes `$GEMINI_PROJECT_DIR` in every hook
+  command. A project path with a space no longer splits into several
+  arguments. `tests/test_gemini_command_quoting.py` covers each command.
+
 ## [2.37.0] (2026-11-23)
 
 ### Added
