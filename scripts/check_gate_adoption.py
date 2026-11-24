@@ -91,6 +91,8 @@ SESSION_START_MATCHER = "startup|resume|clear|compact|fork"
 SUBAGENT_MATCHER = "Explore|Plan"
 EDIT_MATCHER = "Edit|Write|MultiEdit|NotebookEdit"
 FILE_TOOL_MATCHER = "Edit|Write|MultiEdit|NotebookEdit|Read|Glob|Grep"
+# Every MCP server prefixes its tools with mcp__, so one matcher covers each GitHub server.
+MCP_TOOL_MATCHER = "mcp__.*"
 REQUIRED_REGISTRATIONS = {
     "enforce_anti_delegation.py": {
         "Stop": {""},
@@ -120,6 +122,7 @@ REQUIRED_REGISTRATIONS = {
     "block_destructive_powershell.py": {"PreToolUse": {"PowerShell"}},
     "block_destructive_cmd.py": {"PreToolUse": {"Cmd|CMD|CommandPrompt"}},
     "block_infrastructure_access.py": {"PreToolUse": {FILE_TOOL_MATCHER}},
+    "enforce_pr_base.py": {"PreToolUse": {MCP_TOOL_MATCHER}},
 }
 
 

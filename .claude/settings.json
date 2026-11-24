@@ -262,6 +262,19 @@
         ]
       },
       {
+        "matcher": "mcp__.*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python",
+            "args": [
+              "${CLAUDE_PROJECT_DIR}/hooks/enforce_pr_base.py"
+            ],
+            "timeout": 30
+          }
+        ]
+      },
+      {
         "matcher": "Cmd|CMD|CommandPrompt",
         "hooks": [
           {

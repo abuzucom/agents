@@ -92,6 +92,20 @@ Sessions without GraphQL run these wrapper forms over REST. Each asks:
 unchanged. A refused draft exits 2. The PR base defaults to the primary
 branch.
 
+## Pull request base
+Every CI workflow filters pull requests on the primary branch. A pull
+request into another base runs no CI. `forge_verdict` in
+`hooks/_gate_core.py` denies `gh pr create` and `gh pr edit` with any other
+`--base` or `-B` value. It reads `hooks/primary-branch.txt` and fails
+closed on an unusable file. Coverage:
+- `scripts/trusted_gh.py` runs the check on every call in every client.
+  It exits 2.
+- The Bash, PowerShell, and CMD gates run it for each client that
+  registers them.
+- `hooks/enforce_pr_base.py` checks the `base` of GitHub MCP
+  `create_pull_request` and `update_pull_request` calls in Claude Code.
+  Other clients expose no MCP tool calls to repository hooks.
+
 ## Git fallback
 After a failed wrapper operation, one semantically equivalent Git fallback may
 run after active human confirmation. Mark it with

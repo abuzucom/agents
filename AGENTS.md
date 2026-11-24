@@ -165,7 +165,8 @@ Report each unrequested finding without acting on it.
 
 Always open PRs as drafts across every integration tool.
 Never mark PRs ready without explicit human consent. Never merge without
-explicit human consent.
+explicit human consent. Target every PR at the primary branch. CI runs only
+there. `scripts/trusted_gh.py` and the GitHub gates refuse another base.
 
 ### 6. Preserve public API contracts
 

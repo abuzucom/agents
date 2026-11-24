@@ -30,6 +30,7 @@ import ntpath
 import os
 import posixpath
 import shlex
+import stat
 import subprocess
 import sys
 import threading
@@ -3556,6 +3557,18 @@ def filesystem_repair_verdict(program: str, args: list) -> tuple:
 # Deleting a repository, a release, or a tag on the forge destroys work
 # that is not in any local clone.
 FORGE_PROGRAMS = frozenset({"gh", "glab", "hub", "tea"})
+# Every CI workflow filters pull requests on the primary branch. A pull
+# request into any other base runs no CI, so the gates deny that base.
+PRIMARY_BRANCH_FILE_PARTS = ("hooks", "primary-branch.txt")
+DEFAULT_PRIMARY_BRANCH = "main"
+MAX_PRIMARY_BRANCH_BYTES = 256
+MAX_BRANCH_NAME_LENGTH = 200
+REJECTED_PRIMARY_BRANCHES = frozenset({"master", "HEAD"})
+BRANCH_NAME_CHARACTERS = frozenset(
+    "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._/-")
+GH_PULL_BASE_OPTIONS = frozenset({"--base", "-B"})
+GH_PULL_BASE_COMMANDS = frozenset({("pr", "create"), ("pr", "edit")})
+PRIMARY_READ_FLAGS = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0)
 FORGE_DELETE_NOUNS = frozenset({"repo", "repository", "release", "project",
                                  "org", "organization", "gist", "secret",
                                  "environment", "cache", "run", "variable",
@@ -4015,6 +4028,60 @@ def github_routing_verdict(program: str, args: list, cwd: str) -> tuple:
     return "", ""
 
 
+def is_primary_branch_name(name: str) -> bool:
+    """Return whether a name can serve as the primary branch."""
+    return (0 < len(name) <= MAX_BRANCH_NAME_LENGTH and name[0].isalnum() and name.isascii()
+            and set(name) <= BRANCH_NAME_CHARACTERS and name not in REJECTED_PRIMARY_BRANCHES
+            and not any(part in ("", ".", "..") for part in name.split("/")))
+
+
+def primary_branch(repository: str) -> str:
+    """Return the branch in hooks/primary-branch.txt, or main when the file is absent.
+
+    The read follows no link and accepts only a regular file. An unusable
+    file raises ValueError, so callers fail closed.
+    """
+    path = os.path.join(repository, *PRIMARY_BRANCH_FILE_PARTS)
+    try:
+        descriptor = os.open(path, PRIMARY_READ_FLAGS)
+    except FileNotFoundError:
+        return DEFAULT_PRIMARY_BRANCH
+    except OSError as error:
+        raise ValueError(
+            f"hooks/primary-branch.txt cannot be opened ({type(error).__name__})") from error
+    # fdopen rejects a directory descriptor, so the type check runs on the raw descriptor first.
+    if not stat.S_ISREG(os.fstat(descriptor).st_mode):
+        os.close(descriptor)
+        raise ValueError("hooks/primary-branch.txt is not a regular file")
+    with os.fdopen(descriptor, "rb") as handle:
+        content = handle.read(MAX_PRIMARY_BRANCH_BYTES + 1)
+    lines = content.splitlines()
+    name = lines[0].decode("ascii", errors="replace") if len(lines) == 1 else ""
+    if len(content) > MAX_PRIMARY_BRANCH_BYTES or not is_primary_branch_name(name):
+        raise ValueError("hooks/primary-branch.txt must hold one valid branch name")
+    return name
+
+
+def pull_request_base_verdict(args: list, repository: str) -> tuple:
+    """Deny gh pr create or gh pr edit with a base other than the primary branch."""
+    command = _github_command_args(args)
+    if tuple(_github_command_path(command)[:GH_COMMAND_PATH_WORDS]) not in GH_PULL_BASE_COMMANDS:
+        return "", ""
+    bases = _option_values(command, GH_PULL_BASE_OPTIONS)
+    if not bases:
+        return "", ""
+    try:
+        primary = primary_branch(repository)
+    except ValueError as error:
+        return "deny", f"{error}, so the gate cannot check the pull request base"
+    other = next((base for base in bases if base != primary), None)
+    if other is None:
+        return "", ""
+    return "deny", (f"pull request base `{sanitize(other)}` is not the primary branch "
+                    f"`{primary}`. CI workflows run only for pull requests into `{primary}`. "
+                    f"Open the pull request against `{primary}`")
+
+
 def forge_verdict(program: str, args: list, cwd: str = "") -> tuple:
     """Return (decision, reason) for a destructive forge command."""
     name = os.path.basename(program).lower().removesuffix(".exe")
@@ -4030,6 +4097,9 @@ def forge_verdict(program: str, args: list, cwd: str = "") -> tuple:
         name = "gh"
         args = wrapped
     if name == "gh":
+        decision, reason = pull_request_base_verdict(args, repository)
+        if decision:
+            return decision, reason
         decision, reason = github_cli_verdict(args, repo_owner=owner)
         if decision:
             return decision, reason
