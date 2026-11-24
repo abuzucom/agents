@@ -14,7 +14,7 @@ into the entry. Dates never decrease. Ask the active human when a date is in
 doubt.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.42.0] (2026-11-24)
+## [2.42.1] (2026-11-24)
 
 ### Added
 - CI workflows run on every pull request base. A static branch filter
@@ -78,6 +78,10 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   verdicts, the origin lookup, and the denials that stay.
 
 ### Changed
+- `README.md`, `docs/gate-threat-model.md`, and the `pr-steward` skill
+  describe the stable branches. The README names the base check in
+  `gate-integrity.yml` and lists `check_pr_base.py`. The `pr-steward` skill
+  syncs a pull request with its own base.
 - The command gate rejects pytest arguments that start with `@`. pytest
   reads such an argument as a file of further options.
 - `scripts/_skill_sync.py` reads frontmatter fields through named regex

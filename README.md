@@ -179,12 +179,15 @@ must enforce client output claims when the client API hides those claims.
 runs tests and authored pull request checks on `pull_request` only.
 `immutable-conflict-check.yml` uses trusted base code to inspect the
 immutable pull request tree and commit metadata.
-`agents-md-compliance.yml` runs compliance on pull requests to `main`
+`agents-md-compliance.yml` runs compliance on pull requests to every base
 through the reusable `agents-compliance.yml` workflow. The `static-checks`
 job runs before merge on every listed pull request activity. The
 `pr-checks` job runs on draft pull requests. Rule 5 makes every agent pull
 request a draft. The `ready_for_review` activity reruns the job when a draft
-becomes ready. A push to `main` after a merge reruns neither `sync-check.yml`
+becomes ready. The `edited` activity reruns it after a base change or a body
+edit. `gate-integrity.yml` runs the base branch copy of
+`scripts/check_pr_base.py`. It fails a pull request base outside the stable
+branches. The stable branches are the primary branch, `test`, and `develop`. A push to `main` after a merge reruns neither `sync-check.yml`
 nor `agents-md-compliance.yml`.
 
 `sync-check.yml` also runs
@@ -514,6 +517,7 @@ blocking checkers fail after a violation or an incomplete required check.
 | `check_hedging.py` | Shared file prose policy | 0 for findings, 1 for infrastructure errors |
 | `check_hook_coverage.py` | Hook function coverage against a baseline | 1, blocking |
 | `check_persist_credentials.py` | Rule 11 workflow checkout configuration | 1, blocking |
+| `check_pr_base.py` | Pull request base inside the stable branches, read from the trusted base checkout | 1, blocking |
 | `check_policy_size.py` | `AGENTS.md` and assembled policy size limits, LF endings, ASCII, required headings | 1, blocking; `--json` and `--render-markdown` exit 0 on a report |
 | `check_pull_request_message.py` | Pull request title format plus title and body prose from `GITHUB_EVENT_PATH` | 0 for findings, 1 for infrastructure errors |
 | `check_secrets_heuristic.py` | Rule 8 likely-secret heuristic | 1, blocking |
@@ -791,9 +795,10 @@ launching Git. Session startup injects recovery guidance on strict failure.
 Wildcard pre-tool registration stops each observable ordinary tool until
 strict preflight passes. The agent selects a compliant replacement from task
 intent. The exact recovery command receives a native authorization prompt.
-Invalid named branches use `git branch -m`. The primary branch `main`, or the
-name in `hooks/primary-branch.txt`, and a detached HEAD permit read-only
-inspection and planning. Read tools, plan and task tools, and an inspection
+Invalid named branches use `git branch -m`. The stable branches and a
+detached HEAD permit read-only inspection and planning. The stable branches
+are the primary branch, `test`, and `develop`. The primary branch is `main`
+or the name in `hooks/primary-branch.txt`. Read tools, plan and task tools, and an inspection
 shell allowlist stay available there. Plan writes reach only per-client roots
 outside the repository. Branch creation through `git switch -c` and read-only
 workflows receive a consent prompt. Other writes receive a denial. `master`
