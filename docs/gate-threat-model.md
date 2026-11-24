@@ -360,6 +360,17 @@ prevents write clearance.
 The Python classifiers receive synthetic hook payloads for PowerShell and CMD
 coverage. Coverage lacks exercised live PowerShell and CMD tool calls.
 
+The infrastructure sweep reads the manifest prefix of the file that the
+check names, on every check.
+A cached prefix would classify a file by content the file no longer holds.
+The gate reads the file each time.
+The cost falls on the corpus worker instead.
+`tests/gate_corpus.py` allows thirty seconds for one request, because a
+sweep over a large repository reads thousands of files before it answers.
+The repository ignore rules never prune the sweep.
+A repository author controls those rules, and the rules must not decide
+which files the sweep reads.
+
 ## Coverage baseline
 
 The suites run each gate as a subprocess. Tracing uses a `sitecustomize` module

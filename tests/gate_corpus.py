@@ -20,7 +20,10 @@ try:
 except ImportError:
     from json_line_worker import JsonLineWorkerProcess
 
-DEFAULT_REQUEST_TIMEOUT_SECONDS = 5.0
+# A gate that sweeps a large repository reads thousands of files before it
+# answers. The budget leaves room for a sweep on a slow host while a stuck
+# worker still fails within the shard timeout.
+DEFAULT_REQUEST_TIMEOUT_SECONDS = 30.0
 
 
 class HookWorker:
