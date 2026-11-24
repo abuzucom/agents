@@ -14,9 +14,18 @@ into the entry. Dates never decrease. Ask the active human when a date is in
 doubt.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.39.0] (2026-11-24)
+## [2.40.0] (2026-11-24)
 
 ### Added
+- `pnpm test`, `yarn test`, `go test`, and `cargo test` run without a
+  prompt for a trusted `origin` owner and ask otherwise.
+  `hooks/_test_runners.py` defines the accepted go and cargo shapes. pnpm
+  and yarn require the matching lockfile and a `test` script. Project runner
+  configuration and a runner inside the repository deny.
+- `hooks/workflow-scripts.local.txt` lists adopter scripts in the shared
+  list format. An entry that repeats a shared entry fails the list load.
+- `tests/test_more_test_runners.py` covers both runner families and the
+  local list.
 - The gates deny `gh pr create` and `gh pr edit` with a base other than the
   primary branch. CI workflows run only for pull requests into the primary
   branch. `scripts/trusted_gh.py` and the Bash, PowerShell, and CMD gates
