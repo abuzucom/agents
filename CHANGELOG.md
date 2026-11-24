@@ -14,9 +14,24 @@ into the entry. Dates never decrease. Ask the active human when a date is in
 doubt.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.38.0] (2026-11-24)
+## [2.39.0] (2026-11-24)
 
 ### Added
+- The gates deny `gh pr create` and `gh pr edit` with a base other than the
+  primary branch. CI workflows run only for pull requests into the primary
+  branch. `scripts/trusted_gh.py` and the Bash, PowerShell, and CMD gates
+  share the check in `hooks/_gate_core.py`.
+- `hooks/enforce_pr_base.py` applies the same rule to GitHub MCP
+  `create_pull_request` and `update_pull_request` calls in Claude Code.
+- `AGENTS.md` Rule 5 requires every PR to target the primary branch.
+- The primary branch reader rejects a link or Windows reparse point through
+  `lstat` before the open. The opened file must match the checked one.
+  Windows lacks `O_NOFOLLOW`. The open alone would follow a link there.
+- `scripts/trusted_gh.py` adds `--base <primary>` to a `pr create` that
+  names no base. gh otherwise targets the GitHub default branch. An
+  unusable `hooks/primary-branch.txt` refuses the call with exit 2.
+- `tests/test_primary_pr_base.py` covers every base option spelling, the
+  override file, an unusable file, and the MCP hook.
 - `hooks/_trust.py` reads `hooks/trusted-owners.txt`. For a listed `origin`
   owner, `pytest`, `python -m pytest`, `scripts/run_tests.py`, `make test`,
   and `npm test` run without a prompt. Other owners keep the consent
@@ -32,6 +47,12 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - `scripts/_skill_sync.py` reads frontmatter fields through named regex
   groups. `scripts/check_handoff_content.py` names its first body line
   number. Behavior stays the same.
+- `tests/test_trusted_gh_rest_write_forms.py` expects the wrapper to refuse
+  a non-primary `--base`.
+- `tests/test_primary_pr_base.py` raises the unreadable override error
+  directly. Windows reports a file in place of the `hooks` folder as absent.
+- `tests/test_primary_pr_base.py` shows that a direct `gh pr create`
+  without a base denies. Every direct gh call routes to the wrapper.
 
 ## [2.37.0] (2026-11-23)
 

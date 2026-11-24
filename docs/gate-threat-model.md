@@ -45,6 +45,12 @@ include the following actions:
   non-ASCII, or malformed list trusts nobody. The shadow module, repository
   PATH, `.npmrc`, missing script, and pytest argument file denials still
   apply to trusted owners.
+- The gates deny `gh pr create` and `gh pr edit` with a base other than the
+  primary branch. The trusted wrapper and the shell gates share that
+  verdict. In Claude Code, `hooks/enforce_pr_base.py` also checks GitHub MCP
+  pull request tools. Other clients expose no MCP tool calls to repository
+  hooks. A session that loads no repository hooks keeps only the wrapper
+  check.
 - The infrastructure file tool gate denies direct reads and writes to protected
   credentials, Terraform files, and Kubernetes or Helm manifests. Broad Glob
   and Grep requests scan a bounded tree and deny when protected files appear.

@@ -121,9 +121,7 @@ class DraftPullCreateTest(RestWriteHarness):
         self.assertEqual(stdout, PULL_URL + "\n")
 
     def test_explicit_base_is_used(self):
-        code, _stdout, _stderr = self.run_wrapper([*PR_CREATE, "--base", "release-line"])
-        self.assertEqual(code, 0)
-        self.assertEqual(self.sent_payloads()[0]["base"], "release-line")
+        self.assert_refused([*PR_CREATE, "--base", "release-line"])
 
     def test_option_order_does_not_matter(self):
         argv = ["pr", "create", "--body-file", DRAFT_ARGUMENT, "--base", "main",
