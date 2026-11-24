@@ -156,9 +156,9 @@ class GateBaseTest(unittest.TestCase):
         self.assertEqual(self.verdict([*PR_EDIT, "--base", "main"]), "deny")
 
     def test_unreadable_override_denies(self):
-        # A file named hooks makes the override path unreadable without being absent.
-        (self.root / "hooks").write_text("", encoding="utf-8")
-        self.assertEqual(self.verdict([*PR_EDIT, "--base", "main"]), "deny")
+        # The patched lstat raises an error other than an absent file on every platform.
+        with patch.object(CORE.os, "lstat", side_effect=PermissionError("denied")):
+            self.assertEqual(self.verdict([*PR_EDIT, "--base", "main"]), "deny")
 
     def test_failed_open_denies(self):
         hooks = self.root / "hooks"

@@ -49,6 +49,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   number. Behavior stays the same.
 - `tests/test_trusted_gh_rest_write_forms.py` expects the wrapper to refuse
   a non-primary `--base`.
+- `tests/test_primary_pr_base.py` raises the unreadable override error
+  directly. Windows reports a file in place of the `hooks` folder as absent.
 
 ## [2.37.0] (2026-11-23)
 
