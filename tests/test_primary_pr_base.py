@@ -69,6 +69,38 @@ class WrapperBaseTest(forms.RestWriteHarness):
         self.assertEqual(len(self.calls), 1)
 
 
+class WrapperDefaultBaseTest(forms.RestWriteHarness):
+    """A pull request create without a base gets the primary branch before gh runs."""
+
+    def context(self, argv: list) -> list:
+        with patch.object(forms.trusted_gh, "repository_target", return_value=forms.REPOSITORY):
+            return forms.trusted_gh.with_repository_context(self.root, argv)
+
+    def test_missing_base_gets_primary(self):
+        arguments = self.context(["pr", "create", "--draft", "--title", "T"])
+        self.assertEqual(arguments[arguments.index("--base") + 1], "main")
+
+    def test_override_names_default_base(self):
+        self.write_primary_branch("trunk\n")
+        arguments = self.context(["pr", "create", "--draft", "--title", "T"])
+        self.assertEqual(arguments[arguments.index("--base") + 1], "trunk")
+
+    def test_explicit_base_kept(self):
+        for spelling in (["--base", "main"], ["--base=main"], ["-B", "main"], ["-Bmain"]):
+            with self.subTest(spelling=spelling):
+                arguments = self.context(["pr", "create", "--draft", *spelling])
+                self.assertEqual(arguments.count("--base"), spelling.count("--base"))
+
+    def test_other_commands_unchanged(self):
+        self.assertNotIn("--base", self.context(["pr", "edit", "7", "--title", "T"]))
+
+    def test_unusable_override_refuses(self):
+        self.write_primary_branch("a b\nc\n")
+        code, _stdout, stderr = self.run_wrapper(["pr", "create", "--draft", "--title", "T"])
+        self.assertEqual(code, forms.USAGE_EXIT_CODE, stderr)
+        self.assertEqual(self.calls, [])
+
+
 class GateBaseTest(unittest.TestCase):
     """The shell gates deny a pull request command with a non-primary base."""
 

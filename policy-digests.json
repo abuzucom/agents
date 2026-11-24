@@ -4247,7 +4247,7 @@
         "docs/agent-policy/adoption.md": "59ee92caf52345412f80498b4bfadd928e91e111d8044059a96f354a3be47a53",
         "docs/agent-policy/clients.md": "d4f0378afd0f3930222dd5ddb8a95b870594e72310583163fdf6097ea07cf397",
         "docs/agent-policy/enforcement.md": "4fca84c7fd9d1e72d3a6d1bd4b43c0806c1768a888234088c2aa828d49d80092",
-        "docs/agent-policy/github.md": "50fafa89165a1bd33116be0571735180f8f2c87071fd9dff56f52723262bc425",
+        "docs/agent-policy/github.md": "22a4a22fa1ef7e60b52d54de1c11989d36b45f7b917263d3471c948d07a172d2",
         "docs/agent-policy/security.md": "c85886e5ff8ad0b758fd27e59b34a9952bbb22152b784e532ca7afcfcb028441"
       },
       "shared": {
@@ -4304,7 +4304,7 @@
         "tests/test_enforce_gate_adoption.py": "782e8b9afe8ee7848bffefddca74e23bf311f858c24bb0c62b9153ecc178b884",
         "tests/test_gate_adoption_transaction.py": "fe03b777db0daabfe094d023bad97bb6cbf7d09b69a770f411bcab2e9100ec9e",
         "tests/test_platform_policy.py": "fbe7041fc3a884b1277d2bdbc9dc76bb64116c262adf76bda94c28907b95880c",
-        "tests/test_primary_pr_base.py": "2774ef41581d6e11f2ec5b3d6390a206d3029bcb477a728eaf7d88eb89b5126c",
+        "tests/test_primary_pr_base.py": "def369f0b9ea5d207031b54dffca6d49739d87e33bf253c5d2cb03624b9422e6",
         "tests/test_skill_adoption_required.py": "6dee848a84220ddaad80b7f9f12c910266558e58debc1680a951945209c09c0d",
         "tests/test_skill_command_forms.py": "bfe62a6a85a119111b1726aef67c54b4af37aead123506997fded6f236263b22",
         "tests/test_skill_module_not_executed.py": "41f9f933a731f2ce773268fa128268e990e22f6ff340ffb0f7c979f4d07cf193",

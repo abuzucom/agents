@@ -312,7 +312,7 @@ class RepositoryContextTest(unittest.TestCase):
                 with patch.object(trusted_gh, "run_gh", side_effect=run_gh):
                     trusted_gh._run_requested_command(root, ["pr", "create"])
         self.assertEqual(captured["arguments"], [
-            "pr", "create", "--head", "owner:feature/test", "--repo", "owner/repo"
+            "pr", "create", "--base", "main", "--head", "owner:feature/test", "--repo", "owner/repo"
         ])
 
     def test_explicit_repo_argument_is_preserved(self):

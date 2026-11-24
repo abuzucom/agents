@@ -99,7 +99,8 @@ request into another base runs no CI. `forge_verdict` in
 `--base` or `-B` value. It reads `hooks/primary-branch.txt` and fails
 closed on an unusable file. Coverage:
 - `scripts/trusted_gh.py` runs the check on every call in every client.
-  It exits 2.
+  It exits 2. A `pr create` without a base gets `--base <primary>`, since
+  gh otherwise targets the GitHub default branch.
 - The Bash, PowerShell, and CMD gates run it for each client that
   registers them.
 - `hooks/enforce_pr_base.py` checks the `base` of GitHub MCP

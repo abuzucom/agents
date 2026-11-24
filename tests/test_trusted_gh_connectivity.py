@@ -148,6 +148,8 @@ class ProxySanitizationTest(unittest.TestCase):
                 [
                     "pr",
                     "create",
+                    "--base",
+                    "main",
                     "--head",
                     "owner:fix/retry-test",
                     "--repo",
