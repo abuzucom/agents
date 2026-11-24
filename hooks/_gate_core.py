@@ -1235,7 +1235,13 @@ def prohibited_command_verdict(program: str, args: list) -> tuple:
 
 
 def _infrastructure_manifest_text(path: str) -> str:
-    """Return a bounded manifest prefix without exposing it to the caller."""
+    """Return a bounded manifest prefix without exposing it to the caller.
+
+    The gate reads the file on every check, so a file that another process
+    replaces within one hook run reaches the gate with its current
+    content. A cached prefix would classify the file by content that the
+    file no longer holds.
+    """
     try:
         details = os.stat(path)
         if not os.path.isfile(path) or details.st_size > MAX_INFRASTRUCTURE_FILE_BYTES:

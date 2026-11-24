@@ -25,6 +25,19 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - `hooks/prepare_session_workspace.py` creates both zone folders at
   `SessionStart` in Claude Code, Codex, and Gemini.
 - `.gitignore` and `scripts/check_forbidden_paths.py` cover `.worktrees/`.
+- `tests/test_hook_defects.py` covers a manifest file that another process
+  replaces and a manifest file that holds invalid text.
+- `hooks/_gate_core.py` documents that the gate reads the manifest prefix
+  of the file that the check names. A file that another process replaces
+  within one hook run reaches the gate with its current content.
+- `docs/gate-threat-model.md` records the sweep cost and the worker
+  request budget.
+  The repository ignore rules never prune the sweep.
+  The gate reads the manifest prefix of the file that the check names on
+  every check.
+- `tests/gate_corpus.py` raises the worker request budget from 5 seconds
+  to 30 seconds. A gate that sweeps a large repository reads thousands of
+  files before it answers.
 - `pnpm test`, `yarn test`, `go test`, and `cargo test` run without a
   prompt for a trusted `origin` owner and ask otherwise.
   `hooks/_test_runners.py` defines the accepted go and cargo shapes. pnpm
