@@ -15,6 +15,7 @@ Exit codes:
 - 2: the input, the tracked state, or the platform refused the call.
 """
 import functools
+import inspect
 import os
 import shutil
 import stat
@@ -31,6 +32,8 @@ MINIMUM_ARGUMENTS = 3
 MINIMUM_COMPONENTS = 3
 CURRENT_DIRECTORY = "."
 DESCRIPTOR_FUNCTIONS = (os.open, os.stat, os.unlink, os.rmdir)
+# shutil.rmtree accepts dir_fd from Python 3.11 on.
+RMTREE_DIR_FD_PARAMETER = "dir_fd"
 USAGE = "usage: delete_zone_path.py --session <id> <path> [<path> ...]"
 
 
@@ -48,7 +51,19 @@ def safe_deletion_supported() -> bool:
     return (hasattr(os, "O_NOFOLLOW") and hasattr(os, "O_DIRECTORY")
             and all(function in os.supports_dir_fd for function in DESCRIPTOR_FUNCTIONS)
             and os.stat in os.supports_follow_symlinks
-            and bool(getattr(shutil.rmtree, "avoids_symlink_attacks", False)))
+            and bool(getattr(shutil.rmtree, "avoids_symlink_attacks", False))
+            and _rmtree_accepts_dir_fd())
+
+
+def _rmtree_accepts_dir_fd() -> bool:
+    """Return whether shutil.rmtree takes a dir_fd argument on this Python."""
+    try:
+        parameters = inspect.signature(shutil.rmtree).parameters
+    except (TypeError, ValueError) as error:
+        print(f"delete_zone_path: rmtree signature unreadable ({type(error).__name__}).",
+              file=sys.stderr)
+        return False
+    return RMTREE_DIR_FD_PARAMETER in parameters
 
 
 def _directory_flags() -> int:

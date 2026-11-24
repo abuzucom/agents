@@ -108,6 +108,19 @@ class SupportTest(unittest.TestCase):
             code = delete_zone_path.delete_zone_paths(".", SESSION, [f".scratch/{SESSION}/a"])
         self.assertEqual(code, EXIT_INPUT_REFUSED)
 
+    def test_rmtree_without_dir_fd_refuses(self) -> None:
+        def legacy_rmtree(path, ignore_errors=False, onerror=None):
+            raise AssertionError("legacy rmtree must never run")
+        legacy_rmtree.avoids_symlink_attacks = True
+        with patch.object(delete_zone_path.shutil, "rmtree", legacy_rmtree):
+            self.assertFalse(delete_zone_path.safe_deletion_supported())
+            code = delete_zone_path.delete_zone_paths(".", SESSION, [f".scratch/{SESSION}/a"])
+        self.assertEqual(code, EXIT_INPUT_REFUSED)
+
+    def test_unreadable_rmtree_signature_refuses(self) -> None:
+        with patch.object(delete_zone_path.inspect, "signature", side_effect=ValueError("opaque")):
+            self.assertFalse(delete_zone_path.safe_deletion_supported())
+
     def test_cli_requires_session_option(self) -> None:
         self.assertEqual(delete_zone_path.main([f".scratch/{SESSION}/a"]), EXIT_INPUT_REFUSED)
         self.assertEqual(delete_zone_path.main(["--session"]), EXIT_INPUT_REFUSED)
