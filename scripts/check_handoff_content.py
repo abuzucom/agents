@@ -25,6 +25,8 @@ ABSOLUTE_PATH = re.compile(r"(?:^|[\s`(])(?:/[A-Za-z]|~/|[A-Za-z]:\\)")
 EMAIL = re.compile(r"[A-Za-z0-9._%+-]{1,64}@[A-Za-z0-9-]{1,63}\.[A-Za-z0-9.-]{1,190}")
 URL = re.compile(r"[A-Za-z][A-Za-z0-9+.-]{0,15}://[^\s`)>]{1,2000}")
 ALLOWED_URL_SCHEME = "https"
+# Line 1 holds the heading. Field lines start on line 2.
+FIRST_BODY_LINE_NUMBER = 2
 ALLOWED_URL_HOST = "github.com"
 MAX_HANDOFF_BYTES = 64 * 1024
 # The template defines one list. Items under any other field break the template.
@@ -75,7 +77,7 @@ def content_problems(text: str) -> list:
         return [(1, f"the first line must be {HEADING}")]
     findings = []
     current_field = ""
-    for number, line in enumerate(lines[1:], 2):
+    for number, line in enumerate(lines[1:], FIRST_BODY_LINE_NUMBER):
         if not line.strip():
             continue
         structure, current_field = _structure_problem(line, current_field)

@@ -38,7 +38,7 @@ SKILL_FILE = "SKILL.md"
 SKILL_NAME_PATTERN = re.compile(r"[a-z0-9-]{1,64}")
 ALLOWED_FRONTMATTER_KEYS = ("name", "description")
 FRONTMATTER_FENCE = "---"
-FRONTMATTER_LINE = re.compile(r"([a-z-]{1,32}): ([^\s|>][^\r\n]{0,299})")
+FRONTMATTER_LINE = re.compile(r"(?P<key>[a-z-]{1,32}): (?P<value>[^\s|>][^\r\n]{0,299})")
 # Real skills stay far below this. The cap bounds every read of repository data.
 MAX_SKILL_BYTES = 64 * 1024
 
@@ -82,9 +82,9 @@ def frontmatter_problems(name: str, text: str) -> list:
     fields = {}
     for line in lines:
         match = FRONTMATTER_LINE.fullmatch(line)
-        if match is None or match.group(1) in fields:
+        if match is None or match.group("key") in fields:
             return [f"{canonical_path(name)} frontmatter line is not one single-line key"]
-        fields[match.group(1)] = match.group(2)
+        fields[match.group("key")] = match.group("value")
     if tuple(sorted(fields)) != tuple(sorted(ALLOWED_FRONTMATTER_KEYS)):
         return [f"{canonical_path(name)} frontmatter keys must be exactly name and description"]
     if fields["name"] != name:

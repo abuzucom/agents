@@ -14,6 +14,13 @@ into the entry. Dates never decrease. Ask the active human when a date is in
 doubt.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.37.1] (2026-11-24)
+
+### Changed
+- `scripts/_skill_sync.py` reads frontmatter fields through named regex
+  groups. `scripts/check_handoff_content.py` names its first body line
+  number. Behavior stays the same.
+
 ## [2.37.0] (2026-11-23)
 
 ### Added
