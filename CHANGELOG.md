@@ -24,6 +24,9 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - `hooks/enforce_pr_base.py` applies the same rule to GitHub MCP
   `create_pull_request` and `update_pull_request` calls in Claude Code.
 - `AGENTS.md` Rule 5 requires every PR to target the primary branch.
+- The primary branch reader rejects a link or Windows reparse point through
+  `lstat` before the open. The opened file must match the checked one.
+  Windows lacks `O_NOFOLLOW`. The open alone would follow a link there.
 - `tests/test_primary_pr_base.py` covers every base option spelling, the
   override file, an unusable file, and the MCP hook.
 - `hooks/_trust.py` reads `hooks/trusted-owners.txt`. For a listed `origin`

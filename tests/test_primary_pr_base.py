@@ -7,6 +7,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 import tests.test_trusted_gh_rest_write_forms as forms
 from tests.test_command_execution_gate import _load_gate_module
@@ -121,6 +122,30 @@ class GateBaseTest(unittest.TestCase):
         target.write_text("main\n", encoding="utf-8")
         (hooks / "primary-branch.txt").symlink_to(target)
         self.assertEqual(self.verdict([*PR_EDIT, "--base", "main"]), "deny")
+
+    def test_unreadable_override_denies(self):
+        # A file named hooks makes the override path unreadable without being absent.
+        (self.root / "hooks").write_text("", encoding="utf-8")
+        self.assertEqual(self.verdict([*PR_EDIT, "--base", "main"]), "deny")
+
+    def test_failed_open_denies(self):
+        hooks = self.root / "hooks"
+        hooks.mkdir()
+        (hooks / "primary-branch.txt").write_text("main\n", encoding="utf-8")
+        # The patched open raises the error a mode 000 file gives an ordinary user.
+        with patch.object(CORE.os, "open", side_effect=PermissionError("denied")):
+            self.assertEqual(self.verdict([*PR_EDIT, "--base", "main"]), "deny")
+
+    @unittest.skipIf(os.name == "nt", "Symlink creation needs privileges on Windows")
+    def test_link_denies_without_nofollow(self):
+        hooks = self.root / "hooks"
+        hooks.mkdir()
+        target = self.root / "elsewhere.txt"
+        target.write_text("main\n", encoding="utf-8")
+        (hooks / "primary-branch.txt").symlink_to(target)
+        # Windows lacks O_NOFOLLOW. Plain flags reproduce its open behavior here.
+        with patch.object(CORE, "PRIMARY_READ_FLAGS", os.O_RDONLY):
+            self.assertEqual(self.verdict([*PR_EDIT, "--base", "main"]), "deny")
 
 
 def _run_hook(payload, project_dir: Path) -> subprocess.CompletedProcess:

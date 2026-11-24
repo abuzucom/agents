@@ -4035,6 +4035,12 @@ def is_primary_branch_name(name: str) -> bool:
             and not any(part in ("", ".", "..") for part in name.split("/")))
 
 
+def _is_reparse_point(details: os.stat_result) -> bool:
+    """Return whether Windows file attributes mark a reparse point such as a junction."""
+    attributes = getattr(details, "st_file_attributes", 0)
+    return bool(attributes & getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0))
+
+
 def primary_branch(repository: str) -> str:
     """Return the branch in hooks/primary-branch.txt, or main when the file is absent.
 
@@ -4043,16 +4049,28 @@ def primary_branch(repository: str) -> str:
     """
     path = os.path.join(repository, *PRIMARY_BRANCH_FILE_PARTS)
     try:
-        descriptor = os.open(path, PRIMARY_READ_FLAGS)
+        link_details = os.lstat(path)
     except FileNotFoundError:
         return DEFAULT_PRIMARY_BRANCH
     except OSError as error:
         raise ValueError(
+            f"hooks/primary-branch.txt cannot be read ({type(error).__name__})") from error
+    # Windows lacks O_NOFOLLOW, so lstat rejects a link or reparse point before the open.
+    if stat.S_ISLNK(link_details.st_mode) or _is_reparse_point(link_details):
+        raise ValueError("hooks/primary-branch.txt is a link")
+    try:
+        descriptor = os.open(path, PRIMARY_READ_FLAGS)
+    except OSError as error:
+        raise ValueError(
             f"hooks/primary-branch.txt cannot be opened ({type(error).__name__})") from error
-    # fdopen rejects a directory descriptor, so the type check runs on the raw descriptor first.
-    if not stat.S_ISREG(os.fstat(descriptor).st_mode):
+    opened_details = os.fstat(descriptor)
+    # A swap between lstat and open changes the file identity. fdopen rejects a
+    # directory descriptor, so these checks run on the raw descriptor first.
+    if (not stat.S_ISREG(opened_details.st_mode)
+            or (opened_details.st_dev, opened_details.st_ino)
+            != (link_details.st_dev, link_details.st_ino)):
         os.close(descriptor)
-        raise ValueError("hooks/primary-branch.txt is not a regular file")
+        raise ValueError("hooks/primary-branch.txt is not the regular file it named")
     with os.fdopen(descriptor, "rb") as handle:
         content = handle.read(MAX_PRIMARY_BRANCH_BYTES + 1)
     lines = content.splitlines()
