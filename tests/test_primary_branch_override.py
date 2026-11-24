@@ -60,10 +60,12 @@ class PrimaryBranchOverrideTest(unittest.TestCase):
         self.assertEqual(decision(fixture.shell("git switch -c feat/new-work")), "ask")
 
     def test_develop_is_strict_without_override(self):
+        # develop is a stable branch without the override, so it stays read-only.
         fixture = BranchFixture(self, "develop")
-        result = read_readme(fixture)
-        self.assertEqual(decision(result), "deny")
-        self.assertIn("git branch -m", result.stderr)
+        self.assertEqual(decision(read_readme(fixture)), "allow")
+        denied = fixture.shell("touch notes.txt")
+        self.assertEqual(decision(denied), "deny")
+        self.assertIn("`develop` permits read-only inspection", denied.stderr)
 
 
 class UnusableOverrideFileTest(unittest.TestCase):

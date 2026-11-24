@@ -14,7 +14,7 @@ into the entry. Dates never decrease. Ask the active human when a date is in
 doubt.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.41.0] (2026-11-24)
+## [2.42.0] (2026-11-24)
 
 ### Added
 - `scripts/delete_zone_path.py` deletes inside the session's own
@@ -27,6 +27,11 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - `hooks/prepare_session_workspace.py` creates both zone folders at
   `SessionStart` in Claude Code, Codex, and Gemini.
 - `.gitignore` and `scripts/check_forbidden_paths.py` cover `.worktrees/`.
+- Stable branches are the primary branch, `test`, and `develop`. `develop`
+  is the staging branch. Pull requests may target any stable branch. Agents
+  treat every stable branch as read-only. CI workflows filter pull requests
+  on all three. `scripts/check_branch_name.py` exempts stable branches
+  outside strict preflight. `tests/test_stable_branches.py` covers the set.
 - `tests/test_hook_defects.py` covers a manifest file that another process
   replaces and a manifest file that holds invalid text.
 - `hooks/_gate_core.py` documents that the gate reads the manifest prefix

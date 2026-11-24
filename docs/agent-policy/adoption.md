@@ -126,7 +126,7 @@ passes. Block `claude/` targets, aliases, and metadata writes.
 Detect rebase metadata before detached HEAD recovery. Permit only `git rebase
 --abort`, `git rebase --continue`, or `git rebase --skip`. Rerun strict
 preflight after recovery. For an invalid branch, use the exact approved
-`git branch -m <type>/<kebab-description>` command. On the primary branch or a
+`git branch -m <type>/<kebab-description>` command. On a stable branch or a
 detached state, use `git switch -c <type>/<kebab-description>`. On `master`,
 use `git switch main` when `main` exists. Otherwise tell the active human that
 `master` is not allowed and the repository needs conversion to `main`. Run no

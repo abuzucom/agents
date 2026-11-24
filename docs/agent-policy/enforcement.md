@@ -80,6 +80,8 @@ browser token recovery, and incomplete policy loading.
 
 The gates route acts that need consent to the active human. Unattended sessions
 refuse those acts.
+Delete inside the session's own `.scratch/<id>/` or `.worktrees/<id>/` only
+through `scripts/delete_zone_path.py`. The helper routes to consent.
 
 Shell gates allow repeated `scripts/trusted_gh.py` calls and route
 `-c agents.githubFallback=confirmed` commands to consent without cross-process

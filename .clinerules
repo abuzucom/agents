@@ -136,9 +136,8 @@ each act. The gate covers every target. Covered targets include:
 
 Follow the authorization procedure in `docs/agent-policy/enforcement.md`.
 Restate the exact command and every target. Wait for confirmation. Record the
-authorization, command, and execution time. Delete inside the session's own
-`.scratch/<id>/` or `.worktrees/<id>/` only through
-`scripts/delete_zone_path.py`. The helper routes to consent.
+authorization, command, and execution time. Zone deletes use
+`scripts/delete_zone_path.py`. It asks.
 
 **Refuse without a prompt.** The hooks refuse the targets and command families
 listed in `docs/agent-policy/enforcement.md`.
@@ -167,7 +166,7 @@ Report each unrequested finding without acting on it.
 
 Always open PRs as drafts across every integration tool.
 Never mark PRs ready without explicit human consent. Never merge without
-explicit human consent. Target every PR at the primary branch. CI runs only
+explicit human consent. Target every PR at a stable branch. CI runs only
 there. `scripts/trusted_gh.py` and the GitHub gates refuse another base.
 
 ### 6. Preserve public API contracts
@@ -409,8 +408,10 @@ Invalid branches block every ordinary repository action. Only the exact
 compliant recovery command remains available for authorization. Read-only
 inspection does not bypass branch correction.
 
-The primary branch `main`, or the name in `hooks/primary-branch.txt`, and a
-detached HEAD permit read-only inspection and planning. Create and switch to a
+Stable branches are the primary branch, `test`, and `develop`. The primary
+branch is `main` or the name in `hooks/primary-branch.txt`. `develop` is the
+staging branch. Stable branches and a detached HEAD permit read-only inspection
+and planning. Create and switch to a
 feature branch before any write. `master` is not allowed. Tell the active human
 to convert the repository to `main`. Never perform the conversion.
 
@@ -818,7 +819,7 @@ passes. Block `claude/` targets, aliases, and metadata writes.
 Detect rebase metadata before detached HEAD recovery. Permit only `git rebase
 --abort`, `git rebase --continue`, or `git rebase --skip`. Rerun strict
 preflight after recovery. For an invalid branch, use the exact approved
-`git branch -m <type>/<kebab-description>` command. On the primary branch or a
+`git branch -m <type>/<kebab-description>` command. On a stable branch or a
 detached state, use `git switch -c <type>/<kebab-description>`. On `master`,
 use `git switch main` when `main` exists. Otherwise tell the active human that
 `master` is not allowed and the repository needs conversion to `main`. Run no
@@ -941,6 +942,8 @@ browser token recovery, and incomplete policy loading.
 
 The gates route acts that need consent to the active human. Unattended sessions
 refuse those acts.
+Delete inside the session's own `.scratch/<id>/` or `.worktrees/<id>/` only
+through `scripts/delete_zone_path.py`. The helper routes to consent.
 
 Shell gates allow repeated `scripts/trusted_gh.py` calls and route
 `-c agents.githubFallback=confirmed` commands to consent without cross-process
@@ -1194,7 +1197,7 @@ unchanged. A refused draft exits 2. The PR base defaults to the primary
 branch.
 
 ## Pull request base
-Every CI workflow filters pull requests on the primary branch. A pull
+Every CI workflow filters pull requests on the stable branches. A pull
 request into another base runs no CI. `forge_verdict` in
 `hooks/_gate_core.py` denies `gh pr create` and `gh pr edit` with any other
 `--base` or `-B` value. It reads `hooks/primary-branch.txt` and fails

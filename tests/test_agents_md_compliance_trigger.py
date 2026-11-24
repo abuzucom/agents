@@ -7,7 +7,7 @@ import yaml
 
 ROOT = Path(__file__).resolve().parent.parent
 WORKFLOW_PATH = ROOT / ".github" / "workflows" / "agents-md-compliance.yml"
-EXPECTED_BRANCHES = ["main"]
+EXPECTED_BRANCHES = ["main", "test", "develop"]
 # The reusable workflow runs pr-checks on drafts. ready_for_review reruns it
 # when a draft becomes ready.
 EXPECTED_TYPES = ["opened", "synchronize", "reopened", "ready_for_review"]
