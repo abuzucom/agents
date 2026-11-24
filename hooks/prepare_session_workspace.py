@@ -6,9 +6,10 @@ The command gate routes deletes inside them to consent. Every path
 component opens through its parent descriptor without following a link,
 so a planted link cannot redirect the folders outside the repository.
 
-The hook never blocks a session. A missing or invalid session id, a link,
-or a platform without `dir_fd` support creates nothing and exits 0 with a
-note on stderr.
+The hook never blocks a session. A missing or invalid session id or a
+platform without `dir_fd` support creates nothing. A link or another
+failure stops creation at that component. Folders created before it stay
+in place. Each case exits 0 with a note on stderr.
 """
 import os
 import sys

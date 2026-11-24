@@ -17,7 +17,7 @@
     "hooks/enforce_gate_adoption.py": "4e398aea23a017988e9c4a196794796a0c00eb2c2064aa7c1493f6c09a80ff8d",
     "hooks/enforce_pr_base.py": "e1dddf415789b401577829516cb83fbc7a5468fc6b6836465bb69c9cc0113943",
     "hooks/github-command-denylist.txt": "0b043edb1beaa5c37d38137e5b958fad35b5fbdad045063ed30fa8c19ee13a13",
-    "hooks/prepare_session_workspace.py": "faeb2df6d7a8a621b85f9940e15781982a40f511b5afb5a36829588bc9240f06",
+    "hooks/prepare_session_workspace.py": "14a314adacaba070e87ad26e2adaf8a7df2996ffd0b6efe157ac2b072842a555",
     "hooks/reinject_agents_policy.py": "fdb77594df566e6bc59254b04b7dfc510b3b8e7617f40991af379257b7ce005d",
     "hooks/require_consent.py": "395c53ad5779ecdda4b0c0e974afc12ddbdc1a7ea7dd52daab887cc96b938788",
     "scripts/_skill_sync.py": "65f143af864f2ff899b77d776fc21ad7cc4d2f8285aee95ed13dd341b694e588",
