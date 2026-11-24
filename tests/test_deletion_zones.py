@@ -6,6 +6,7 @@ import subprocess
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from tests.test_command_execution_gate import _load_gate_module
 from tests.test_enforce_branch_name import bash_payload, run_hook
@@ -96,6 +97,20 @@ class ZoneVerdictTest(unittest.TestCase):
         subprocess.run(["git", "-C", str(self.root), "add", "-f", f".scratch/{SESSION}/a.txt"],
                        check=True, timeout=GIT_TIMEOUT_SECONDS)
         self.assertEqual(self.decide(helper_command(f".scratch/{SESSION}/a.txt")), "")
+
+    def test_git_tree_unmatched(self) -> None:
+        (self.root / ".scratch" / SESSION / "run1" / "sub" / ".git").mkdir(parents=True)
+        for operands in (f".scratch/{SESSION}/run1", f".scratch/{SESSION}/run1/sub/.git"):
+            with self.subTest(operands=operands):
+                self.assertEqual(self.decide(helper_command(operands)), "")
+
+    def test_git_entry_check_fails_closed(self) -> None:
+        zones = self.gate._zones
+        self.assertTrue(zones.holds_git_entry(str(self.root / ".git")))
+        target = str(self.root / ".scratch" / SESSION / "run1")
+        with patch.object(zones.os, "scandir", side_effect=PermissionError("denied")):
+            self.assertTrue(zones.holds_git_entry(target))
+        self.assertFalse(zones.holds_git_entry(target))
 
     def test_zone_check_refuses_empty_input(self) -> None:
         check = self.gate._zones.zone_delete_allowed

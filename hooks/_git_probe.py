@@ -13,6 +13,7 @@ import threading
 
 GIT_TIMEOUT_SECONDS = 5
 MAX_OUTPUT_BYTES = 256 * 1024
+READ_CHUNK_BYTES = 64 * 1024
 # Only these variables reach Git. GIT_OPTIONAL_LOCKS=0 keeps a read from
 # contending for the index lock with another session's commit.
 ENVIRONMENT_KEYS = ("PATH", "SYSTEMROOT", "HOME", "USERPROFILE", "TMPDIR", "TEMP", "TMP")
@@ -27,17 +28,28 @@ def _environment() -> dict:
 
 
 def _collect_output(process, result: list) -> None:
-    """Read at most one byte past the cap and kill Git when output exceeds it."""
+    """Read until end of output, at most one byte past the cap, and kill Git past it.
+
+    A pipe read can return fewer bytes than requested. The loop keeps
+    reading until an empty read marks the end of the output.
+    """
+    chunks = []
+    total = 0
     try:
-        output = process.stdout.read(MAX_OUTPUT_BYTES + 1)
+        while True:
+            chunk = process.stdout.read(min(READ_CHUNK_BYTES, MAX_OUTPUT_BYTES + 1 - total))
+            if not chunk:
+                break
+            chunks.append(chunk)
+            total += len(chunk)
+            if total > MAX_OUTPUT_BYTES:
+                process.kill()
+                result.append(None)
+                return
     except OSError:
         result.append(None)
         return
-    if len(output) > MAX_OUTPUT_BYTES:
-        process.kill()
-        result.append(None)
-        return
-    result.append(output)
+    result.append(b"".join(chunks))
 
 
 def _run_bounded(command: list):

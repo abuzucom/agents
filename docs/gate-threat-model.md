@@ -71,6 +71,9 @@ include the following actions:
   The helper opens every component through its parent descriptor with no
   link follow and deletes descriptor-relative. A swap after the gate check
   refuses the delete. Platforms without `dir_fd` support refuse the helper.
+  A target that holds a `.git` entry refuses. A linked worktree keeps its
+  own index. `git worktree remove` handles worktrees and refuses a dirty
+  tree.
   The tracked check and the delete stay separate steps. A file that
   `git add -f` stages inside that window loses its working copy only.
   Git keeps the staged content. `git checkout` restores the file.

@@ -84,14 +84,81 @@ def _components(operand: str, session_id: str):
     return parts
 
 
+def _open_parent(root_descriptor: int, parts: list, descriptors: list) -> int:
+    """Open every component above the last one through descriptors and return the parent.
+
+    Each opened descriptor joins `descriptors`. The caller closes them.
+    """
+    current = root_descriptor
+    for name in parts[:-1]:
+        current = os.open(name, _directory_flags(), dir_fd=current)
+        descriptors.append(current)
+    return current
+
+
+def _scan_descriptor(directory: int, pending: list, seen: int, limit: int, git_entry: str):
+    """Scan one open directory, queue child directory descriptors, and return the entry count.
+
+    Returns None when the directory holds a Git entry or the walk passes its bound.
+    """
+    with os.scandir(directory) as entries:
+        for entry in entries:
+            seen += 1
+            if entry.name == git_entry or seen > limit:
+                return None
+            if entry.is_dir(follow_symlinks=False):
+                pending.append(os.open(entry.name, _directory_flags(), dir_fd=directory))
+    return seen
+
+
+def _tree_holds_git(parent: int, name: str) -> bool:
+    """Return whether the named directory holds a `.git` entry anywhere below it."""
+    zones, _probe = _zone_modules()
+    status = os.stat(name, dir_fd=parent, follow_symlinks=False)
+    if not stat.S_ISDIR(status.st_mode):
+        return False
+    pending = [os.open(name, _directory_flags(), dir_fd=parent)]
+    seen = 0
+    try:
+        while pending:
+            directory = pending.pop()
+            try:
+                seen = _scan_descriptor(directory, pending, seen, zones.MAX_WALK_ENTRIES,
+                                        zones.GIT_ENTRY)
+            finally:
+                os.close(directory)
+            if seen is None:
+                return True
+    finally:
+        for directory in pending:
+            os.close(directory)
+    return False
+
+
+def _git_tree_verdict(root_descriptor: int, parts: list):
+    """Return an exit code that refuses the operand, or None when no Git tree sits below it."""
+    descriptors = []
+    try:
+        parent = _open_parent(root_descriptor, parts, descriptors)
+        if _tree_holds_git(parent, parts[-1]):
+            print("delete_zone_path: the target holds a .git entry. Remove a worktree with "
+                  "git worktree remove. Nothing got deleted.", file=sys.stderr)
+            return EXIT_INPUT_REFUSED
+        return None
+    except OSError as error:
+        print(f"delete_zone_path: the Git tree check failed ({type(error).__name__}). "
+              "Check that the path exists and holds no link.", file=sys.stderr)
+        return EXIT_WALK_REFUSED
+    finally:
+        for descriptor in descriptors:
+            os.close(descriptor)
+
+
 def _delete_one(root_descriptor: int, parts: list) -> bool:
     """Walk to the parent of the last component through descriptors and delete it."""
     descriptors = []
     try:
-        current = root_descriptor
-        for name in parts[:-1]:
-            current = os.open(name, _directory_flags(), dir_fd=current)
-            descriptors.append(current)
+        current = _open_parent(root_descriptor, parts, descriptors)
         last = parts[-1]
         status = os.stat(last, dir_fd=current, follow_symlinks=False)
         if stat.S_ISDIR(status.st_mode):
@@ -140,12 +207,21 @@ def delete_zone_paths(root: str, session_id: str, operands: list) -> int:
               file=sys.stderr)
         return EXIT_WALK_REFUSED
     try:
-        for index, parts in enumerate(components, 1):
-            if not _delete_one(root_descriptor, parts):
-                print(f"delete_zone_path: operand {index} refused.", file=sys.stderr)
-                return EXIT_WALK_REFUSED
+        return _delete_all(root_descriptor, components)
     finally:
         os.close(root_descriptor)
+
+
+def _delete_all(root_descriptor: int, components: list) -> int:
+    """Refuse every operand that holds a Git tree, then delete each operand in order."""
+    for parts in components:
+        verdict = _git_tree_verdict(root_descriptor, parts)
+        if verdict is not None:
+            return verdict
+    for index, parts in enumerate(components, 1):
+        if not _delete_one(root_descriptor, parts):
+            print(f"delete_zone_path: operand {index} refused.", file=sys.stderr)
+            return EXIT_WALK_REFUSED
     return EXIT_DELETED
 
 

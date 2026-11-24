@@ -95,6 +95,28 @@ class DeleteZonePathTest(unittest.TestCase):
         self.assertEqual(self.delete(f".scratch/{SESSION}/a.txt"), EXIT_INPUT_REFUSED)
         self.assertTrue((self.session_dir / "a.txt").exists())
 
+    def test_linked_worktree_refuses(self) -> None:
+        git = ["git", "-C", str(self.root), "-c", "user.name=t", "-c", "user.email=t@example.invalid"]
+        subprocess.run([*git, "commit", "-q", "--allow-empty", "-m", "base"], check=True,
+                       timeout=GIT_TIMEOUT_SECONDS)
+        worktree = self.root / ".worktrees" / SESSION / "feat"
+        subprocess.run([*git, "worktree", "add", "-q", "-b", "feat", str(worktree)], check=True,
+                       timeout=GIT_TIMEOUT_SECONDS)
+        (worktree / "work.txt").write_text("uncommitted", encoding="utf-8")
+        self.assertEqual(self.delete(f".worktrees/{SESSION}/feat"), EXIT_INPUT_REFUSED)
+        self.assertTrue((worktree / "work.txt").exists())
+
+    def test_nested_git_dir_refuses(self) -> None:
+        (self.session_dir / "run1" / "nested" / ".git").mkdir()
+        self.assertEqual(self.delete(f".scratch/{SESSION}/run1"), EXIT_INPUT_REFUSED)
+        self.assertTrue((self.session_dir / "run1" / "nested" / "file.txt").exists())
+
+    def test_git_component_refuses(self) -> None:
+        (self.session_dir / "run1" / ".git").mkdir()
+        (self.session_dir / "run1" / ".git" / "x").write_text("x", encoding="utf-8")
+        self.assertEqual(self.delete(f".scratch/{SESSION}/run1/.git/x"), EXIT_INPUT_REFUSED)
+        self.assertTrue((self.session_dir / "run1" / ".git" / "x").exists())
+
     def test_missing_target_refuses(self) -> None:
         self.assertEqual(self.delete(f".scratch/{SESSION}/absent"), EXIT_WALK_REFUSED)
 

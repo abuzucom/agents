@@ -21,6 +21,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `.scratch/<id>/` or `.worktrees/<id>/` after a consent prompt. The
   helper walks every path component through descriptors and follows no
   link. Shell `rm` keeps the opaque program denial.
+  A target that holds a `.git` entry refuses. `git worktree remove`
+  handles linked worktrees.
   `hooks/_zones.py` checks every operand. `hooks/_git_probe.py` rejects
   tracked files with a hardened `git ls-files`. The probe streams Git
   output under a fixed cap and discards stderr.

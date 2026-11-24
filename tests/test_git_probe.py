@@ -12,14 +12,16 @@ import _git_probe
 
 GIT_TIMEOUT_SECONDS = 15
 KILLED_RETURN_CODE = -9
+SHORT_READ_BYTES = 3
 
 
 class FakeStream:
     """Serve stdout bytes on request and record each requested size."""
 
-    def __init__(self, payload: bytes, endless: bool = False) -> None:
+    def __init__(self, payload: bytes, endless: bool = False, chunk_limit=None) -> None:
         self.payload = payload
         self.endless = endless
+        self.chunk_limit = chunk_limit
         self.requested = []
 
     def read(self, size: int) -> bytes:
@@ -27,6 +29,8 @@ class FakeStream:
         self.requested.append(size)
         if self.endless:
             return b"a" * size
+        if self.chunk_limit is not None:
+            size = min(size, self.chunk_limit)
         chunk, self.payload = self.payload[:size], self.payload[size:]
         return chunk
 
@@ -104,6 +108,12 @@ class TrackedPathsTest(unittest.TestCase):
         with patch.object(stream, "read", side_effect=OSError("pipe")), \
                 patch.object(_git_probe.subprocess, "Popen", return_value=FakeProcess(stream)):
             self.assertIsNone(_git_probe.tracked_paths(str(self.root), ["tracked.txt"]))
+
+    def test_short_reads_collect_all(self) -> None:
+        stream = FakeStream(b"a.txt\0b.txt\0", chunk_limit=SHORT_READ_BYTES)
+        with patch.object(_git_probe.subprocess, "Popen", return_value=FakeProcess(stream)):
+            tracked = _git_probe.tracked_paths(str(self.root), ["a.txt", "b.txt"])
+        self.assertEqual(tracked, frozenset({"a.txt", "b.txt"}))
 
     def test_timeout_fails(self) -> None:
         hanging = FakeProcess(FakeStream(b"tracked.txt\0"), hang=True)
