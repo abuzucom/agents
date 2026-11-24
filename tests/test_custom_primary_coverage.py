@@ -68,6 +68,14 @@ def run_base_check(root: Path, base: str) -> subprocess.CompletedProcess:
 class WorkflowFilterTest(unittest.TestCase):
     """The four workflows run on every pull request base."""
 
+    def test_base_change_reruns_workflows(self):
+        # A base branch change fires the edited activity on the pull request.
+        for name in FILTERED_WORKFLOWS:
+            triggers = workflow_triggers(load_workflow(name))
+            event = next(event for event in PR_EVENTS if event in triggers)
+            with self.subTest(workflow=name):
+                self.assertIn("edited", triggers[event]["types"])
+
     def test_workflows_lack_branch_filter(self):
         for name in FILTERED_WORKFLOWS:
             triggers = workflow_triggers(load_workflow(name))

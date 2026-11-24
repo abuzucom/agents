@@ -5,8 +5,9 @@ on:
     # No branch filter. A filter cannot read hooks/primary-branch.txt. Gate
     # integrity rejects a base outside the stable set.
     # The reusable pr-checks job runs on drafts. ready_for_review reruns it
-    # when a draft pull request becomes ready.
-    types: [opened, synchronize, reopened, ready_for_review]
+    # when a draft pull request becomes ready. A base change or a body edit
+    # fires edited.
+    types: [opened, synchronize, reopened, ready_for_review, edited]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}

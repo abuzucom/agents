@@ -8,11 +8,11 @@ import yaml
 ROOT = Path(__file__).resolve().parent.parent
 WORKFLOW_PATH = ROOT / ".github" / "workflows" / "agents-md-compliance.yml"
 # The reusable workflow runs pr-checks on drafts. ready_for_review reruns it
-# when a draft becomes ready.
-EXPECTED_TYPES = ["opened", "synchronize", "reopened", "ready_for_review"]
+# when a draft becomes ready. edited reruns it after a base change.
+EXPECTED_TYPES = ["opened", "synchronize", "reopened", "ready_for_review", "edited"]
 SYNC_WORKFLOW_PATH = ROOT / ".github" / "workflows" / "sync-check.yml"
 # The edited activity reruns the pull request message checks.
-SYNC_EXPECTED_TYPES = EXPECTED_TYPES + ["edited"]
+SYNC_EXPECTED_TYPES = ["opened", "synchronize", "reopened", "ready_for_review", "edited"]
 
 
 def load_trigger_block(text: str) -> dict:
