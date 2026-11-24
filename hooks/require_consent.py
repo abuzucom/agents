@@ -79,7 +79,7 @@ GATED_TOOLS = frozenset({"Edit", "Write", "MultiEdit", "NotebookEdit"})
 PATH_KEYS = ("file_path", "notebook_path")
 # Matches _gate_core.PROTECTED_PATH_PARTS, so a file-tool write and a shell
 # write to the same path meet the same gate.
-PROTECTED_PARTS = ("hooks", ".claude", ".git", ".agents", ".codex", ".gemini", "scripts")
+PROTECTED_PARTS = ("hooks", ".claude", ".git", ".agents", ".codex", ".gemini", "scripts", "skills")
 POLICY_REASON = "rewrites agent policy text that later sessions load as instructions"
 OUTSIDE_ROOT_REASON = ("creates a file outside the project root, which the "
                        "gate cannot vouch for")

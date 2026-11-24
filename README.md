@@ -52,6 +52,8 @@ Each checker covers only its inspected files and behavior.
 | `scripts/prose_policy.py` | Shared advisory prose analysis for files and metadata |
 | `scripts/prose_bans.txt` | Scoped exact vocabulary entries for prose analysis |
 | `scripts/check_pull_request_message.py` | Safe advisory pull request title and body checks |
+| `skills/` | Canonical agent procedures. `scripts/sync.py` copies each one to `.claude/skills/` and `.agents/skills/` |
+| `docs/enforcement-matrix.md` | Enforcement tier of every skill rule |
 | `hooks/` | Agent lifecycle, consent, and command gates |
 | `.claude/settings.json` | Live hook registrations for this repository |
 | `hooks/claude-code-settings.example.json` | Hook registrations for adopters |

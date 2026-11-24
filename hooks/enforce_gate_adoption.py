@@ -106,7 +106,7 @@ def _check_complete_set() -> str:
         return "the gate-adoption checker is missing"
     try:
         result = subprocess.run(
-            [sys.executable, "-E", "-s", checker, "--root", root],
+            [sys.executable, "-E", "-s", checker, "--root", root, "--fast"],
             cwd=root,
             capture_output=True,
             text=True,

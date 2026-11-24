@@ -14,7 +14,26 @@ into the entry. Dates never decrease. Ask the active human when a date is in
 doubt.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.36.0] (2026-11-23)
+## [2.38.0] (2026-11-24)
+
+### Added
+- `hooks/_trust.py` reads `hooks/trusted-owners.txt`. For a listed `origin`
+  owner, `pytest`, `python -m pytest`, `scripts/run_tests.py`, `make test`,
+  and `npm test` run without a prompt. Other owners keep the consent
+  prompt. A missing or unusable list trusts nobody.
+- `hooks/workflow-scripts.txt` accepts the `trusted-read` verdict.
+  `scripts/run_tests.py` uses it.
+- `tests/test_trusted_test_runners.py` covers owner list parsing, both
+  verdicts, the origin lookup, and the denials that stay.
+
+### Changed
+- The command gate rejects pytest arguments that start with `@`. pytest
+  reads such an argument as a file of further options.
+- `scripts/_skill_sync.py` reads frontmatter fields through named regex
+  groups. `scripts/check_handoff_content.py` names its first body line
+  number. Behavior stays the same.
+
+## [2.37.0] (2026-11-23)
 
 ### Added
 - `AGENTS.md` forbids agent prose that calls a version bump a `release`
@@ -27,6 +46,19 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Rule 16 and `docs/agent-policy/github.md` let read-only GitHub MCP tools
   fetch issues, PRs, and comments when `scripts/trusted_gh.py` reports no
   authenticated account.
+- `skills/` holds twelve canonical agent procedures. `pr-steward` is one
+  of the twelve. `scripts/_skill_sync.py` validates each skill and writes
+  byte-identical copies to `.claude/skills/` and `.agents/skills/`.
+- Skill frontmatter allows only `name` and `description`.
+- `scripts/check_forbidden_paths.py` fails when a staged change or pull
+  request diff touches `.scratch/`. CI and pre-commit run it.
+- `scripts/check_shared_neutrality.py` fails when a shared skill or
+  adoptable policy file names a specific owner. CI and pre-commit run it.
+- `scripts/check_handoff_content.py` checks an untracked handoff before a
+  session writes it. It runs locally only.
+- `docs/enforcement-matrix.md` lists the enforcement tier of every skill
+  rule.
+- `.gitignore` ignores `.scratch/`.
 
 ### Changed
 - `AGENTS.md` drops two sentences that repeat Non-negotiable rules 5 and
@@ -38,6 +70,41 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - The labels rule heading reads `23` to match the Non-negotiable list.
 - The SemVer paragraph and the `adoption.md` agent attribution paragraph
   use shorter wording. Every condition stays.
+- `scripts/check_gate_adoption.py` requires every skill, every copy, and
+  the new checkers. `--fast` skips skill content parsing. The adoption
+  hook passes `--fast`. CI and pre-commit run the full check.
+- The file tool and shell consent gates route writes below `skills/` to
+  consent. `scripts/check_gate_pr_integrity.py` requires the
+  `gate-change-approved` label for skill edits.
+- `scripts/sync.py` writes `shared-files.json` through a temporary file
+  and `os.replace`. It syncs skill copies when `skills/` exists.
+- The source repository orientation section moved from
+  `docs/agent-policy/adoption.md` into the source orientation markers.
+  Its consent and published-history paragraphs stay in adoption output.
+- `docs/agent-policy/clients.md` points every client at `skills/`.
+
+### Fixed
+- Skill frontmatter parsing accepts CRLF line endings from a Windows
+  checkout.
+- `scripts/check_handoff_content.py` accepts only https URLs with the exact
+  host `github.com` and no credentials or port.
+- `scripts/check_handoff_content.py` and `scripts/check_shared_neutrality.py`
+  reject a file above the size cap and scan no truncated prefix.
+- `scripts/check_shared_neutrality.py` flags a bare `owner/repo` token in
+  plain text, links, and lists. Code spans no longer bound the scan.
+- `scripts/check_shared_neutrality.py` skips text only between matched
+  source orientation markers. It reports unmatched and nested markers.
+- `scripts/check_handoff_content.py` accepts list items only under
+  `- pending consents:`.
+- `scripts/check_gate_adoption.py` reads the required skill list from its
+  own `scripts/_skill_sync.py`. A candidate tree under `--root` must hold
+  that module as a regular file. The checker executes only its own
+  copy. A missing module fails closed.
+- `scripts/check_gate_adoption.py`, `--fast` included, rejects a skill file
+  that is a symbolic link or sits below one.
+- The full skill check reports any folder under `skills/`,
+  `.claude/skills/`, or `.agents/skills/` that names no listed skill.
+  `scripts/sync.py` reports such a folder and deletes nothing.
 
 ## [2.33.7] (2026-11-22)
 

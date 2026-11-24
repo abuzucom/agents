@@ -14,6 +14,7 @@ import stat
 # The importing hook puts hooks/ on sys.path and fails closed when these are absent.
 import _gate_core as core
 import _bash_parser as bash_parser
+import _trust
 
 GATE = "_command_execution_gate.py"
 INSPECTABLE_PROGRAMS = frozenset({
@@ -34,8 +35,11 @@ DENY = "deny"
 ALLOW_VERDICT = "allow"
 CONSENT_READ_VERDICT = "consent-read"
 CONSENT_WRITE_VERDICT = "consent-write"
-SCRIPT_VERDICTS = frozenset({ALLOW_VERDICT, CONSENT_READ_VERDICT, CONSENT_WRITE_VERDICT})
-INSPECTING_SCRIPT_VERDICTS = frozenset({ALLOW_VERDICT, CONSENT_READ_VERDICT})
+# A trusted-read script allows for a trusted origin owner and asks elsewhere.
+TRUSTED_READ_VERDICT = "trusted-read"
+SCRIPT_VERDICTS = frozenset({ALLOW_VERDICT, CONSENT_READ_VERDICT, CONSENT_WRITE_VERDICT,
+                             TRUSTED_READ_VERDICT})
+INSPECTING_SCRIPT_VERDICTS = frozenset({ALLOW_VERDICT, CONSENT_READ_VERDICT, TRUSTED_READ_VERDICT})
 REVISION_PLACEHOLDER = "<revision>"
 PATH_PLACEHOLDER = "<path>"
 PATHS_PLACEHOLDER = "<paths>"
@@ -54,6 +58,9 @@ SEARCH_FLAGS = frozenset({
 # tokens. The room above that serves path lists.
 MAX_WORKFLOW_ARGUMENTS = 64
 MAKE_TARGETS = ("lint", "test", "check", "sync", "identity")
+MAKE_TEST_TARGET = "test"
+# pytest reads extra arguments from a file named after a leading @.
+ARGUMENT_FILE_PREFIX = "@"
 MAKE_ARGUMENTS = ([], ["PYTHON=python"], ["PYTHON=python3"])
 PYTHON_PROGRAMS = ("python", "python3", "python.exe", "python3.exe", "py", "py.exe")
 VERSIONED_PYTHON_PATTERN = re.compile(r"python3\.[0-9]{1,2}(?:\.exe)?")
@@ -412,8 +419,16 @@ def _pytest_keyword_accepted(expression: str) -> bool:
                for word in words)
 
 
+def _trusted_project(project_dir: str) -> bool:
+    """Return whether hooks/trusted-owners.txt names the origin owner of the project."""
+    return _trust.owner_trusted(core._origin_owner(project_dir))
+
+
 def _pytest_arguments_accepted(arguments: list) -> bool:
     """Return whether pytest arguments use only fixed flags, -k, and inert paths."""
+    # An argument file could carry any option past the flag list.
+    if any(argument.startswith(ARGUMENT_FILE_PREFIX) for argument in arguments):
+        return False
     index = 0
     while index < len(arguments):
         argument = arguments[index]
@@ -434,6 +449,8 @@ def _pytest_verdict(arguments: list, project_dir: str, launcher: str) -> tuple:
     error = _program_lookup_error(PYTEST_PROGRAM, PYTEST_SHADOW_NAMES, launcher, project_dir)
     if error:
         return DENY, error, False
+    if _trusted_project(project_dir):
+        return ALLOW, "", True
     return ASK, PYTEST_CONSENT, True
 
 
@@ -572,7 +589,7 @@ def _python_verdict(tokens: list, project_dir: str) -> tuple:
     verdict, error = _script_verdict(script, arguments)
     if error:
         return DENY, error, False
-    if verdict == ALLOW_VERDICT:
+    if verdict == ALLOW_VERDICT or (verdict == TRUSTED_READ_VERDICT and _trusted_project(project_dir)):
         return ALLOW, "", True
     return (ASK if verdict else ""), "", verdict in INSPECTING_SCRIPT_VERDICTS
 
@@ -873,6 +890,8 @@ def _npm_decision(tokens: list, project_dir: str) -> tuple:
         error = _script_display_error(name, scripts[name])
         if error:
             return "deny", error
+    if main == MAKE_TEST_TARGET and _trusted_project(project_dir):
+        return "allow", ""
     listed = "; ".join(f'{name}="{core.sanitize(scripts[name])}"' for name in executed) or "none"
     return "ask", f"{WORKFLOW_CONSENT}. {UNTRUSTED_SCRIPTS_LABEL}: {listed}. {UNSHOWN_CODE_NOTE}"
 
@@ -905,6 +924,8 @@ def _program_verdict(tokens: list, project_dir: str) -> tuple:
         return _python_verdict(tokens, project_dir)
     if program == "make":
         matched = tokens[1] in MAKE_TARGETS and tokens[SUBCOMMAND_ARGUMENTS_INDEX:] in MAKE_ARGUMENTS
+        if matched and tokens[1] == MAKE_TEST_TARGET and _trusted_project(project_dir):
+            return ALLOW, "", False
         return (ASK if matched else ""), "", False
     if program == "rg":
         return _search_verdict(tokens)

@@ -5,6 +5,8 @@
 # Verdicts:
 #   allow          runs without a prompt and only inspects the repository
 #   consent-read   routes to consent and only inspects the repository
+#   trusted-read   runs without a prompt for an origin owner in
+#                  trusted-owners.txt, otherwise acts as consent-read
 #   consent-write  routes to consent and writes files
 #
 # Arguments match literally except these placeholders:
@@ -21,7 +23,7 @@ allow scripts/read_git_state.py remote
 allow scripts/read_git_state.py revision
 allow scripts/read_git_state.py all
 
-consent-read scripts/run_tests.py
+trusted-read scripts/run_tests.py
 consent-read scripts/sync.py --check
 consent-read scripts/sync.py --check-shared
 consent-read scripts/sync.py --print-adoptable

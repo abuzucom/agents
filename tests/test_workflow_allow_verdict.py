@@ -122,8 +122,9 @@ class AllowVerdictModuleTest(unittest.TestCase):
         cls.gate = _load_gate_module()
 
     def decide(self, command: str, project_dir: str = PROJECT_DIR) -> tuple:
-        """Return the gate decision for one command."""
-        return self.gate.workflow_decision(command, project_dir)
+        """Return the untrusted gate decision for one command."""
+        with patch.object(self.gate, "_trusted_project", return_value=False):
+            return self.gate.workflow_decision(command, project_dir)
 
     def test_inspecting_forms_pass_without_consent(self) -> None:
         for command in ALLOWED_COMMANDS:
@@ -169,8 +170,9 @@ class ChainVerdictTest(unittest.TestCase):
         cls.gate = _load_gate_module()
 
     def decision(self, command: str) -> str:
-        """Return only the decision word for one command."""
-        return self.gate.workflow_decision(command, PROJECT_DIR)[0]
+        """Return only the untrusted decision word for one command."""
+        with patch.object(self.gate, "_trusted_project", return_value=False):
+            return self.gate.workflow_decision(command, PROJECT_DIR)[0]
 
     def test_allowed_chain_allowed(self) -> None:
         self.assertEqual(

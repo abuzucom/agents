@@ -22,6 +22,7 @@ import sync
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SYNC = REPO_ROOT / "scripts" / "sync.py"
+SKILL_SYNC = REPO_ROOT / "scripts" / "_skill_sync.py"
 INDEX_NAME = "policy-digests.json"
 # Only the source repository holds this file. Adopters copy this test and
 # hold no digest index.
@@ -61,6 +62,14 @@ def build_index_tree(root: Path) -> None:
         path = root / name
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(f"# {name}\nbody = 1\n", encoding="utf-8")
+    # sync.py validates skills and loads the skill module, so those shared
+    # paths hold working content instead of inert text.
+    (root / "scripts" / "_skill_sync.py").write_text(
+        SKILL_SYNC.read_text(encoding="utf-8"), encoding="utf-8")
+    for path in root.glob("skills/*/SKILL.md"):
+        path.write_text(
+            f"---\nname: {path.parent.name}\ndescription: Fixture skill.\n---\n",
+            encoding="utf-8")
     write_changelog(root, FIRST_VERSION)
     (root / INDEX_NAME).write_text(
         json.dumps({"versions": {}}) + "\n", encoding="utf-8")
