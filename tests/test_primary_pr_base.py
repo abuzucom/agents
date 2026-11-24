@@ -124,6 +124,13 @@ class GateBaseTest(unittest.TestCase):
         self.assertNotEqual(self.verdict(["pr", "create", "--draft", "--base", "main"]), "deny")
         self.assertNotEqual(self.verdict([*PR_EDIT, "--base", "main"]), "deny")
 
+    def test_direct_gh_without_base_denies(self):
+        # The shell gates route every direct gh call to the wrapper, which adds the primary base.
+        decision, reason = CORE.github_routing_verdict(
+            "gh", ["pr", "create", "--draft", "--title", "T"], str(self.root))
+        self.assertEqual(decision, "deny", reason)
+        self.assertIn("trusted_gh.py", reason)
+
     def test_wrapper_form_denies(self):
         arguments = ["scripts/trusted_gh.py", "run", *PR_EDIT, "--base", OTHER_BASE]
         decision, reason = CORE.forge_verdict("python", arguments, str(self.root))

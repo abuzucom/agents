@@ -51,6 +51,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   a non-primary `--base`.
 - `tests/test_primary_pr_base.py` raises the unreadable override error
   directly. Windows reports a file in place of the `hooks` folder as absent.
+- `tests/test_primary_pr_base.py` shows that a direct `gh pr create`
+  without a base denies. Every direct gh call routes to the wrapper.
 
 ## [2.37.0] (2026-11-23)
 
