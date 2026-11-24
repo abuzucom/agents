@@ -2,7 +2,8 @@ name: Immutable Compliance
 
 on:
   pull_request_target:
-    branches: [main]
+    # Stable branches. develop is the staging branch. Absent branches never match.
+    branches: [main, test, develop]
     types: [opened, synchronize, reopened, ready_for_review, edited]
 
 concurrency:

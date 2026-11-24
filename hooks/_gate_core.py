@@ -3563,10 +3563,13 @@ def filesystem_repair_verdict(program: str, args: list) -> tuple:
 # Deleting a repository, a release, or a tag on the forge destroys work
 # that is not in any local clone.
 FORGE_PROGRAMS = frozenset({"gh", "glab", "hub", "tea"})
-# Every CI workflow filters pull requests on the primary branch. A pull
+# Every CI workflow filters pull requests on the stable branches. A pull
 # request into any other base runs no CI, so the gates deny that base.
 PRIMARY_BRANCH_FILE_PARTS = ("hooks", "primary-branch.txt")
 DEFAULT_PRIMARY_BRANCH = "main"
+# The develop branch is the staging branch. Not every repository has these
+# branches. A pull request into an absent branch fails on the forge.
+EXTRA_STABLE_BRANCHES = ("test", "develop")
 MAX_PRIMARY_BRANCH_BYTES = 256
 MAX_BRANCH_NAME_LENGTH = 200
 REJECTED_PRIMARY_BRANCHES = frozenset({"master", "HEAD"})
@@ -4086,8 +4089,22 @@ def primary_branch(repository: str) -> str:
     return name
 
 
+def stable_branches(repository: str) -> frozenset:
+    """Return the primary branch plus test and develop.
+
+    An unusable primary branch file raises ValueError, so callers fail closed.
+    """
+    return frozenset((primary_branch(repository), *EXTRA_STABLE_BRANCHES))
+
+
+def _stable_branch_list(primary: str, stable: frozenset) -> str:
+    """Name the stable branches with the primary branch first."""
+    ordered = [primary, *sorted(stable - {primary})]
+    return ", ".join(f"`{name}`" for name in ordered)
+
+
 def pull_request_base_verdict(args: list, repository: str) -> tuple:
-    """Deny gh pr create or gh pr edit with a base other than the primary branch."""
+    """Deny gh pr create or gh pr edit with a base outside the stable branches."""
     command = _github_command_args(args)
     if tuple(_github_command_path(command)[:GH_COMMAND_PATH_WORDS]) not in GH_PULL_BASE_COMMANDS:
         return "", ""
@@ -4098,12 +4115,14 @@ def pull_request_base_verdict(args: list, repository: str) -> tuple:
         primary = primary_branch(repository)
     except ValueError as error:
         return "deny", f"{error}, so the gate cannot check the pull request base"
-    other = next((base for base in bases if base != primary), None)
+    stable = frozenset((primary, *EXTRA_STABLE_BRANCHES))
+    other = next((base for base in bases if base not in stable), None)
     if other is None:
         return "", ""
-    return "deny", (f"pull request base `{sanitize(other)}` is not the primary branch "
-                    f"`{primary}`. CI workflows run only for pull requests into `{primary}`. "
-                    f"Open the pull request against `{primary}`")
+    return "deny", (f"pull request base `{sanitize(other)}` is not a stable branch "
+                    f"({_stable_branch_list(primary, stable)}). The primary branch is "
+                    f"`{primary}`. CI workflows run only for pull requests into a stable "
+                    f"branch. Open the pull request against a stable branch")
 
 
 def forge_verdict(program: str, args: list, cwd: str = "") -> tuple:

@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
-"""Deny GitHub MCP pull request tools that target a non-primary base.
+"""Deny GitHub MCP pull request tools that target a base outside the stable branches.
 
-Every CI workflow filters pull requests on the primary branch. A pull
+The stable branches are the primary branch, test, and develop. Every CI
+workflow filters pull requests on those branches. A pull
 request into another base runs no CI. The shell gates check gh and the
 trusted wrapper. This hook covers GitHub MCP tools, which bypass both.
 Claude Code registers it on PreToolUse for every MCP tool. Other clients

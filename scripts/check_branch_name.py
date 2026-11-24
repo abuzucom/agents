@@ -2,8 +2,9 @@
 """Enforce the <type>/<kebab-description> branch naming convention.
 
 Copy this portable checker into any repository. Use it as a pre-push hook or
-CI step on `pull_request` events. Default checks exempt `main`, `master`, and a
-detached HEAD. Strict agent preflight rejects those states. A mismatch exits 1.
+CI step on `pull_request` events. Default checks exempt the stable branches
+`main`, `test`, and `develop`, plus `master` and a detached HEAD. Strict agent
+preflight rejects those states. A mismatch exits 1.
 """
 import argparse
 import os
@@ -18,7 +19,8 @@ except ModuleNotFoundError:
     from trusted_git import run_git
 
 DEFAULT_PREFIXES = ("feat", "fix", "chore", "docs", "test")
-EXEMPT_BRANCHES = ("main", "master", "HEAD")
+# The develop branch is the staging branch. The stable set matches the hooks.
+EXEMPT_BRANCHES = ("main", "test", "develop", "master", "HEAD")
 PROHIBITED_AGENT_PREFIX = "claude/"
 BRANCH_BANNED_TOKENS_PATH = Path(__file__).resolve().with_name(
     "branch_name_bans.txt"

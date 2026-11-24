@@ -165,7 +165,7 @@ Report each unrequested finding without acting on it.
 
 Always open PRs as drafts across every integration tool.
 Never mark PRs ready without explicit human consent. Never merge without
-explicit human consent. Target every PR at the primary branch. CI runs only
+explicit human consent. Target every PR at a stable branch. CI runs only
 there. `scripts/trusted_gh.py` and the GitHub gates refuse another base.
 
 ### 6. Preserve public API contracts
@@ -407,8 +407,10 @@ Invalid branches block every ordinary repository action. Only the exact
 compliant recovery command remains available for authorization. Read-only
 inspection does not bypass branch correction.
 
-The primary branch `main`, or the name in `hooks/primary-branch.txt`, and a
-detached HEAD permit read-only inspection and planning. Create and switch to a
+Stable branches are the primary branch, `test`, and `develop`. The primary
+branch is `main` or the name in `hooks/primary-branch.txt`. `develop` is the
+staging branch. Stable branches and a detached HEAD permit read-only inspection
+and planning. Create and switch to a
 feature branch before any write. `master` is not allowed. Tell the active human
 to convert the repository to `main`. Never perform the conversion.
 
