@@ -58,8 +58,9 @@ class PytestFormTest(unittest.TestCase):
         cls.gate = _load_gate_module()
 
     def decide(self, command: str, project_dir: str = PROJECT_DIR) -> tuple:
-        """Return the gate decision with PATH lookup held outside the repository."""
-        with patch.object(self.gate, "_repository_program_path", return_value=""):
+        """Return the untrusted gate decision with PATH lookup held outside the repository."""
+        with patch.object(self.gate, "_repository_program_path", return_value=""), \
+                patch.object(self.gate, "_trusted_project", return_value=False):
             return self.gate.workflow_decision(command, project_dir)
 
     def test_accepted_forms_ask(self) -> None:
@@ -75,7 +76,8 @@ class PytestFormTest(unittest.TestCase):
                 self.assertIn(self.decide(command)[0], ("", "deny"))
 
     def test_accepted_form_is_read_only(self) -> None:
-        with patch.object(self.gate, "_repository_program_path", return_value=""):
+        with patch.object(self.gate, "_repository_program_path", return_value=""), \
+                patch.object(self.gate, "_trusted_project", return_value=False):
             self.assertTrue(self.gate.read_only_workflow("pytest -q tests", PROJECT_DIR))
 
     def test_chain_with_ruff_asks(self) -> None:

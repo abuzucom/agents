@@ -2,6 +2,8 @@
 Inject complete policy context before every Gemini and Antigravity model
 request. Keep client output within the client limit.
 
+Every client follows the matching skill in `skills/`.
+
 Claude loads `CLAUDE.md` natively. Built-in Explore and Plan agents skip that
 file. Preserve both agents. Inject numbered chunks through `SubagentStart`.
 

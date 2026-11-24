@@ -50,8 +50,10 @@ class PartialAdoptionTest(unittest.TestCase):
     def _copy_full_tree(self) -> Path:
         """Copy the live gate set into the temporary adopter root."""
         for relative in (
+            "docs",
             "hooks",
             "scripts",
+            "skills",
             "tests",
             ".claude",
             ".codex",

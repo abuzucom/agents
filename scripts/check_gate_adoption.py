@@ -21,6 +21,8 @@ another route.
 """
 import argparse
 import ast
+import functools
+import importlib.util
 import json
 import sys
 from pathlib import Path
@@ -60,10 +62,21 @@ REQUIRED_CHECKERS = (
     "scripts/_yaml_lines.py",
     "scripts/_commit_trailers.py",
     "scripts/_pr_event.py",
+    "scripts/_skill_sync.py",
+    "scripts/check_forbidden_paths.py",
+    "scripts/check_handoff_content.py",
+    "scripts/check_shared_neutrality.py",
 )
 # The local-path checker and its approved allowlist form one gate (Rule 18).
 # Requiring both makes either one alone an incomplete adoption.
 REQUIRED_POLICY = ("AGENTS.md", SHARED_MANIFEST, ".local-path-allowlist")
+# scripts/_skill_sync.py SKILLS names every required skill. The checker
+# loads that module only from its own tree. A candidate under --root has
+# not passed validation yet. Its copy must exist and stays unexecuted.
+SKILL_MODULE = "scripts/_skill_sync.py"
+CHECKER_ROOT = Path(__file__).resolve().parent.parent
+SKILL_ROOTS = ("skills", ".claude/skills", ".agents/skills")
+SKILL_FILE = "SKILL.md"
 CONFIG_PATHS = (
     ".claude/settings.json",
     "hooks/claude-code-settings.example.json",
@@ -78,6 +91,8 @@ SESSION_START_MATCHER = "startup|resume|clear|compact|fork"
 SUBAGENT_MATCHER = "Explore|Plan"
 EDIT_MATCHER = "Edit|Write|MultiEdit|NotebookEdit"
 FILE_TOOL_MATCHER = "Edit|Write|MultiEdit|NotebookEdit|Read|Glob|Grep"
+# Every MCP server prefixes its tools with mcp__, so one matcher covers each GitHub server.
+MCP_TOOL_MATCHER = "mcp__.*"
 REQUIRED_REGISTRATIONS = {
     "enforce_anti_delegation.py": {
         "Stop": {""},
@@ -107,6 +122,7 @@ REQUIRED_REGISTRATIONS = {
     "block_destructive_powershell.py": {"PreToolUse": {"PowerShell"}},
     "block_destructive_cmd.py": {"PreToolUse": {"Cmd|CMD|CommandPrompt"}},
     "block_infrastructure_access.py": {"PreToolUse": {FILE_TOOL_MATCHER}},
+    "enforce_pr_base.py": {"PreToolUse": {MCP_TOOL_MATCHER}},
 }
 
 
@@ -139,6 +155,59 @@ def check_required_files(root: Path) -> list[str]:
         if not (root / relative).is_file():
             findings.append(f"{relative} is absent from the adopted tree")
     return findings
+
+
+@functools.lru_cache(maxsize=1)
+def _load_skill_module():
+    """Load the skill module from the checker's own tree, or return None."""
+    path = CHECKER_ROOT / SKILL_MODULE
+    if path.is_symlink() or not path.is_file():
+        return None
+    spec = importlib.util.spec_from_file_location("_checker_skill_sync", path)
+    module = importlib.util.module_from_spec(spec)
+    try:
+        spec.loader.exec_module(module)
+    except (ImportError, OSError, SyntaxError) as error:
+        print(f"{SKILL_MODULE} cannot be loaded: {error}", file=sys.stderr)
+        return None
+    skills = getattr(module, "SKILLS", None)
+    if not isinstance(skills, tuple) or not all(
+            callable(getattr(module, name, None)) for name in ("skill_problems", "is_regular_file")):
+        return None
+    return module
+
+
+def required_skill_files(root: Path = CHECKER_ROOT) -> tuple:
+    """Return every canonical skill and client copy the tree needs, or () without the module.
+
+    The list comes from the checker's own skill module. The root parameter
+    stays for callers and does not change the result.
+    """
+    module = _load_skill_module()
+    if module is None:
+        return ()
+    return tuple(f"{skill_root}/{name}/{SKILL_FILE}"
+                 for name in module.SKILLS for skill_root in SKILL_ROOTS)
+
+
+def check_skill_files(root: Path, present=None) -> list[str]:
+    """Report a missing skill module or any required skill file that is absent or not regular."""
+    module = _load_skill_module()
+    if module is None or not module.is_regular_file(root, SKILL_MODULE):
+        return [f"{SKILL_MODULE} is absent, not a regular file, or lacks SKILLS, "
+                "skill_problems, and is_regular_file"]
+    if present is None:
+        present = lambda relative: module.is_regular_file(root, relative)
+    return [f"{relative} is absent from the adopted tree or is not a regular file"
+            for relative in required_skill_files(root) if not present(relative)]
+
+
+def check_skill_content(root: Path) -> list[str]:
+    """Report frontmatter and stale-copy findings through the checker's skill module."""
+    module = _load_skill_module()
+    if module is None:
+        return []
+    return module.skill_problems(root, module.SKILLS)
 
 
 def _sibling_imports(source: str) -> set:
@@ -299,12 +368,18 @@ def main(argv: list) -> int:
     """Check gate adoption completeness under one repository root."""
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--root", default=".", help="repository root path")
+    parser.add_argument(
+        "--fast", action="store_true",
+        help="skip skill content parsing for the per-call hook; CI runs the full check")
     options = parser.parse_args(argv)
     root = Path(options.root)
     findings = check_required_files(root)
     findings += check_hook_imports(root)
     findings += check_registrations(root)
     findings += check_transaction_registrations(root)
+    findings += check_skill_files(root)
+    if not options.fast:
+        findings += check_skill_content(root)
     if not findings:
         return 0
     for finding in findings:

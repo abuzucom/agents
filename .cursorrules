@@ -165,7 +165,8 @@ Report each unrequested finding without acting on it.
 
 Always open PRs as drafts across every integration tool.
 Never mark PRs ready without explicit human consent. Never merge without
-explicit human consent.
+explicit human consent. Target every PR at the primary branch. CI runs only
+there. `scripts/trusted_gh.py` and the GitHub gates refuse another base.
 
 ### 6. Preserve public API contracts
 
@@ -799,18 +800,7 @@ pre-commit. Agent hooks use `--strict-agent-preflight`.
 Preserve license attribution and source metadata. Do not require
 uncontrolled mirrors to report usage or divergence to this repository.
 
-## Source repository orientation
-This detail applies only to `abuzucom/agents`. Adoption omits it.
-
-Run:
-
-- `python scripts/sync.py --print-adoptable`
-- `python -m pip install --requirement requirements-checkers.txt`
-- `python scripts/run_tests.py`
-- `make lint PYTHON=python`
-- `python scripts/sync.py --check`
-- `python scripts/sync.py`
-
+## Workflow consent and published history
 Obtain consent before each workflow that the command execution gate routes to
 consent. Workflows the gate allows run without consent. Existing tests,
 hooks, and client settings require consent for each act.
@@ -1039,7 +1029,9 @@ The protected inventory covers:
   `hooks/enforce_branch_name.py`, `hooks/enforce_gate_adoption.py`,
   `hooks/enforce_git_identity.py`, `hooks/reinject_agents_policy.py`,
   `hooks/require_consent.py`, `hooks/github-command-denylist.txt`,
-  `hooks/primary-branch.txt`, `hooks/workflow-scripts.txt`, and
+  `hooks/primary-branch.txt`, `hooks/workflow-scripts.txt`, `hooks/_trust.py`,
+  `hooks/trusted-owners.txt`, `hooks/enforce_pr_base.py`,
+  `hooks/_test_runners.py`, `hooks/workflow-scripts.local.txt`, and
   `hooks/claude-code-settings.example.json`.
 - Hook configurations:
   `.claude/settings.json`, `.agents/`, `.codex/hooks.json`,
@@ -1059,6 +1051,8 @@ adopt one gate without the other.
 # Client lifecycle
 Inject complete policy context before every Gemini and Antigravity model
 request. Keep client output within the client limit.
+
+Every client follows the matching skill in `skills/`.
 
 Claude loads `CLAUDE.md` natively. Built-in Explore and Plan agents skip that
 file. Preserve both agents. Inject numbered chunks through `SubagentStart`.
@@ -1190,6 +1184,21 @@ Sessions without GraphQL run these wrapper forms over REST. Each asks:
 unchanged. A refused draft exits 2. The PR base defaults to the primary
 branch.
 
+## Pull request base
+Every CI workflow filters pull requests on the primary branch. A pull
+request into another base runs no CI. `forge_verdict` in
+`hooks/_gate_core.py` denies `gh pr create` and `gh pr edit` with any other
+`--base` or `-B` value. It reads `hooks/primary-branch.txt` and fails
+closed on an unusable file. Coverage:
+- `scripts/trusted_gh.py` runs the check on every call in every client.
+  It exits 2. A `pr create` without a base gets `--base <primary>`, since
+  gh otherwise targets the GitHub default branch.
+- The Bash, PowerShell, and CMD gates run it for each client that
+  registers them.
+- `hooks/enforce_pr_base.py` checks the `base` of GitHub MCP
+  `create_pull_request` and `update_pull_request` calls in Claude Code.
+  Other clients expose no MCP tool calls to repository hooks.
+
 ## Git fallback
 After a failed wrapper operation, one semantically equivalent Git fallback may
 run after active human confirmation. Mark it with
@@ -1315,4 +1324,16 @@ and project directories.
 Replace this file with verified project facts. Keep source repository facts out.
 <!-- source orientation:start -->
 Source policy repository: `abuzucom/agents`.
+
+## Source repository orientation
+This detail applies only to `abuzucom/agents`. Adoption omits it.
+
+Run:
+
+- `python scripts/sync.py --print-adoptable`
+- `python -m pip install --requirement requirements-checkers.txt`
+- `python scripts/run_tests.py`
+- `make lint PYTHON=python`
+- `python scripts/sync.py --check`
+- `python scripts/sync.py`
 <!-- source orientation:end -->

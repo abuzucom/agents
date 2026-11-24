@@ -137,6 +137,7 @@ ISSUE_CREATE_PREFIX_LENGTH = 2
 # draft pull requests, so the create shape requires `--draft`.
 PR_DRAFT_FLAG = "--draft"
 PR_BASE_OPTION = "--base"
+PR_BASE_SHORT_OPTION = "-B"
 PR_CREATE_OPTIONS = frozenset((COMMENT_BODY_OPTION, ISSUE_TITLE_OPTION, PR_BASE_OPTION))
 ISSUE_CLOSE_REASON_OPTION = "--reason"
 ISSUE_CLOSE_REASONS = frozenset(("completed", "not_planned"))
@@ -366,8 +367,35 @@ def _command_position(arguments: list[str]) -> int | None:
     return None
 
 
+def _has_base_option(option_tokens: list[str]) -> bool:
+    """Return whether option tokens name a pull request base in any gh spelling."""
+    return any(token == PR_BASE_OPTION or token.startswith(PR_BASE_OPTION + "=")
+               or token.startswith(PR_BASE_SHORT_OPTION) for token in option_tokens)
+
+
+def _with_default_pull_base(repository: Path, arguments: list[str]) -> list[str]:
+    """Add the primary branch as base to a pull request create that names none.
+
+    gh otherwise targets the GitHub default branch. CI runs only for pull
+    requests into the primary branch, and the two can differ.
+    """
+    position = _command_position(arguments)
+    delimiter = arguments.index("--") if "--" in arguments else len(arguments)
+    option_tokens = arguments[:delimiter]
+    if position is None or option_tokens[position:position + COMMAND_PATH_LENGTH] != ["pr", "create"]:
+        return list(arguments)
+    if _has_base_option(option_tokens):
+        return list(arguments)
+    try:
+        primary = primary_branch_name(_find_git_entry(Path(repository)).parent)
+    except (OSError, ValueError) as error:
+        raise RestWriteError(f"pull request base cannot default to the primary branch: {error}") from error
+    return [*option_tokens, PR_BASE_OPTION, primary, *arguments[delimiter:]]
+
+
 def with_repository_context(repository: Path, arguments: list[str]) -> list[str]:
     """Add validated repository context to a repository-bound command."""
+    arguments = _with_default_pull_base(repository, arguments)
     position = _command_position(arguments)
     if position is None or _has_repository_option(arguments):
         return list(arguments)

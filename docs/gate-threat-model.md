@@ -37,6 +37,31 @@ include the following actions:
   definition, shell profile writes, schedule destruction, and forge deletion.
 - The gates deny cloud, infrastructure-as-code, orchestration, direct SSH,
   file transfer, and firewall client families across Bash, PowerShell, and CMD.
+- Test runners allow without a prompt only when `hooks/trusted-owners.txt`
+  names the `origin` owner. Covered forms include `pytest`,
+  `python -m pytest`, `scripts/run_tests.py`, `make test`, and `npm test`.
+  Each runs repository code such as `conftest.py`, a Makefile, or package
+  scripts. Every other owner keeps the consent prompt. A missing, oversized,
+  non-ASCII, or malformed list trusts nobody. The shadow module, repository
+  PATH, `.npmrc`, missing script, and pytest argument file denials still
+  apply to trusted owners.
+- The gates deny `gh pr create` and `gh pr edit` with a base other than the
+  primary branch. The trusted wrapper and the shell gates share that
+  verdict. In Claude Code, `hooks/enforce_pr_base.py` also checks GitHub MCP
+  pull request tools. Other clients expose no MCP tool calls to repository
+  hooks. A session that loads no repository hooks keeps only the wrapper
+  check.
+- `pnpm test`, `yarn test`, `go test`, and `cargo test` follow the trusted
+  owner rule. Other owners keep the consent prompt. A trusted owner's
+  `.cargo/config.toml`, `build.rs`, and go toolchain downloads run without
+  a prompt. A project `.npmrc` denies pnpm. A project `.yarnrc` or
+  `.yarnrc.yml` denies yarn, since `yarnPath` runs a repository file. A
+  missing lockfile, a missing `test` script, a missing or linked go or
+  cargo manifest, and a runner PATH resolves inside the repository deny
+  or stay unmatched.
+- `hooks/workflow-scripts.local.txt` adds adopter script entries. It stays
+  out of the shared set. An entry that repeats a shared entry, a malformed
+  line, or an oversized file denies every repository script call.
 - The infrastructure file tool gate denies direct reads and writes to protected
   credentials, Terraform files, and Kubernetes or Helm manifests. Broad Glob
   and Grep requests scan a bounded tree and deny when protected files appear.

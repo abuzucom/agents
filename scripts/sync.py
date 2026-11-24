@@ -25,6 +25,7 @@ import tempfile
 from pathlib import Path
 
 SOURCE = "AGENTS.md"
+SKILL_SOURCE_DIRECTORY = "skills"
 SHARED_MANIFEST = "shared-files.json"
 LOCAL_POLICY_START = "<!-- local policy:start -->"
 LOCAL_POLICY_END = "<!-- local policy:end -->"
@@ -62,6 +63,9 @@ SHARED_FILES = [
     "hooks/enforce_gate_adoption.py",
     "hooks/reinject_agents_policy.py",
     "hooks/require_consent.py",
+    "hooks/_trust.py",
+    "hooks/enforce_pr_base.py",
+    "hooks/_test_runners.py",
     "scripts/check_gate_adoption.py",
     "scripts/complete_gate_adoption.py",
     "scripts/check_gate_pr_integrity.py",
@@ -81,6 +85,34 @@ SHARED_FILES = [
     "tests/test_enforce_gate_adoption.py",
     "tests/test_gate_adoption_transaction.py",
     "tests/test_platform_policy.py",
+    "docs/enforcement-matrix.md",
+    "scripts/_skill_sync.py",
+    "scripts/check_forbidden_paths.py",
+    "scripts/check_handoff_content.py",
+    "scripts/check_shared_neutrality.py",
+    "skills/commit-and-draft-pr/SKILL.md",
+    "skills/compaction-replan/SKILL.md",
+    "skills/dependency-proposal/SKILL.md",
+    "skills/destructive-act-authorization/SKILL.md",
+    "skills/gate-adoption/SKILL.md",
+    "skills/gate-denial-report/SKILL.md",
+    "skills/git-identity-recovery/SKILL.md",
+    "skills/policy-change-proposal/SKILL.md",
+    "skills/pr-steward/SKILL.md",
+    "skills/session-branch-recovery/SKILL.md",
+    "skills/session-handoff/SKILL.md",
+    "skills/test-defect-report/SKILL.md",
+    "tests/test_check_forbidden_paths.py",
+    "tests/test_check_handoff_content.py",
+    "tests/test_check_shared_neutrality.py",
+    "tests/test_skill_adoption_required.py",
+    "tests/test_skill_command_forms.py",
+    "tests/test_skill_module_not_executed.py",
+    "tests/test_trusted_test_runners.py",
+    "tests/test_primary_pr_base.py",
+    "tests/test_more_test_runners.py",
+    "tests/test_skill_path_protection.py",
+    "tests/test_sync_skill_copy.py",
 ]
 COPIES = [
     "CLAUDE.md",
@@ -502,10 +534,70 @@ def write_shared(root: Path) -> int:
                  "every one of them."),
         "shared": recorded,
     }
-    (root / SHARED_MANIFEST).write_text(
-        json.dumps(body, indent=MANIFEST_JSON_INDENT, sort_keys=True) + "\n", encoding="utf-8")
+    text = json.dumps(body, indent=MANIFEST_JSON_INDENT, sort_keys=True) + "\n"
+    write_text_atomic(root / SHARED_MANIFEST, text)
     print(f"recorded {len(recorded)} shared files in {SHARED_MANIFEST}")
     return 0
+
+
+def write_text_atomic(path: Path, text: str) -> None:
+    """Replace path with text so a concurrent reader never sees a partial file.
+
+    Concurrent runs over one tree compute identical bytes, so the last
+    os.replace wins without a lock.
+    """
+    descriptor, temporary = tempfile.mkstemp(prefix=".sync-", dir=path.parent)
+    try:
+        with os.fdopen(descriptor, "w", encoding="utf-8", newline="\n") as handle:
+            handle.write(text)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary, path)
+    finally:
+        Path(temporary).unlink(missing_ok=True)
+
+
+SKILL_SYNC_FUNCTIONS = ("skill_problems", "sync_skills")
+
+
+def _load_skill_sync():
+    """Import the skill module from beside this script, or return None.
+
+    A module without both entry points counts as absent, so an incomplete
+    copy fails closed with a named file and no traceback.
+    """
+    try:
+        from scripts import _skill_sync as skill_sync
+    except ImportError:
+        try:
+            import _skill_sync as skill_sync
+        except ImportError:
+            return None
+    if not all(callable(getattr(skill_sync, name, None)) for name in SKILL_SYNC_FUNCTIONS):
+        return None
+    return skill_sync
+
+
+def sync_skill_copies(root: Path, check_only: bool) -> int:
+    """Check or write every skill client copy and return a process exit code.
+
+    A tree without a skills folder has adopted no skills yet, so the step
+    does nothing there. A skills folder without the module fails closed.
+    """
+    if not (root / SKILL_SOURCE_DIRECTORY).is_dir():
+        return 0
+    skill_sync = _load_skill_sync()
+    if skill_sync is None:
+        print("error: skills/ exists but scripts/_skill_sync.py is missing or incomplete. "
+              "Copy it from the policy source.", file=sys.stderr)
+        return 1
+    if check_only:
+        problems = skill_sync.skill_problems(root)
+    else:
+        problems = skill_sync.sync_skills(root)
+    for problem in problems:
+        print(f"error: {problem}", file=sys.stderr)
+    return 1 if problems else 0
 
 
 def read_release_version(changelog_text: str) -> str | None:
@@ -716,7 +808,7 @@ def main(argv: list) -> int:
     if arguments.backfill_digests:
         return backfill_digest_index(root)
     check_only = arguments.check
-    copy_status = sync_copies(check_only)
+    copy_status = max(sync_copies(check_only), sync_skill_copies(root, check_only))
     # A check reports stale copies and a stale index together. A write stops
     # at a failed copy, so the index never records a half-synchronized tree.
     if copy_status != 0 and not check_only:

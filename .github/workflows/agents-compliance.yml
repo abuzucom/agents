@@ -90,6 +90,11 @@ jobs:
             --head "$PR_HEAD_SHA"
       - name: Check external repository references
         run: python scripts/check_external_pr_refs.py
+      - name: Check session zone paths
+        env:
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: python scripts/check_forbidden_paths.py --base "$PR_BASE_SHA" --head "$PR_HEAD_SHA"
 
   static-checks:
     runs-on: ubuntu-latest
@@ -109,6 +114,8 @@ jobs:
         run: python scripts/check_branch_name.py
       - name: Check gate adoption
         run: python scripts/check_gate_adoption.py
+      - name: Check shared file neutrality
+        run: python scripts/check_shared_neutrality.py
       - name: Probe configured hook launchers
         run: python scripts/check_hook_launchers.py
       - name: Check versioned changelog
