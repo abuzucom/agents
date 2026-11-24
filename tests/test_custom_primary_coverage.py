@@ -101,6 +101,28 @@ class GateIntegrityStepTest(unittest.TestCase):
         self.assertEqual(step["env"]["PR_BASE_REF"], "${{ github.event.pull_request.base.ref }}")
         self.assertNotIn("${{", step["run"])
 
+    def run_fallback(self, labels_json: str) -> subprocess.CompletedProcess:
+        """Run the step script in a base checkout that lacks check_pr_base.py."""
+        workspace = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, workspace)
+        # The step calls `python`. A link keeps the test independent of PATH names.
+        tools = Path(workspace) / "bin"
+        tools.mkdir()
+        (tools / "python").symlink_to(sys.executable)
+        base = Path(workspace) / "trusted-base"
+        base.mkdir()
+        environment = {"PATH": str(tools), "PR_BASE_REF": "main", "PR_LABELS_JSON": labels_json}
+        return subprocess.run(
+            ["/bin/bash", "-e", "-c", self.base_check_step()["run"]], cwd=base, env=environment,
+            capture_output=True, text=True, check=False, timeout=SCRIPT_TIMEOUT_SECONDS)
+
+    @unittest.skipIf(sys.platform == "win32", "The workflow step runs under bash on Linux")
+    def test_fallback_requires_approval_label(self):
+        self.assertEqual(self.run_fallback('["gate-change-approved"]').returncode, 0)
+        denied = self.run_fallback('["other"]')
+        self.assertNotEqual(denied.returncode, 0)
+        self.assertIn("gate-change-approved", denied.stderr)
+
 
 class BaseCheckScriptTest(unittest.TestCase):
     """check_pr_base.py accepts stable bases and rejects every other base."""
