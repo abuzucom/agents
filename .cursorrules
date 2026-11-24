@@ -932,8 +932,9 @@ checker, the job requires the label.
 It runs the base branch copy of `scripts/check_gate_pr_integrity.py` against the pull request
 diff. Protected gate changes require the `gate-change-approved` label from a
 person after the latest push. Case variants of protected paths also count.
-Configure GitHub branch protection to require this job. Repository files cannot
-enforce the branch rule.
+The same job runs the base copy of `scripts/check_pr_base.py`. It fails a
+base outside the stable branches. Configure GitHub branch protection to
+require this job. Repository files cannot enforce the branch rule.
 
 The gates refuse destructive commands, unsafe infrastructure access, direct
 GitHub CLI lookup, unsafe GitHub HTTP substitutes, credential manager access,
@@ -1187,8 +1188,9 @@ unchanged. A refused draft exits 2. The PR base defaults to the primary
 branch.
 
 ## Pull request base
-Every CI workflow filters pull requests on the stable branches. A pull
-request into another base runs no CI. `forge_verdict` in
+CI workflows run on every pull request base. Gate integrity runs the base
+branch copy of `scripts/check_pr_base.py`. It fails a base outside the
+stable branches. `forge_verdict` in
 `hooks/_gate_core.py` denies `gh pr create` and `gh pr edit` with any other
 `--base` or `-B` value. It reads `hooks/primary-branch.txt` and fails
 closed on an unusable file. Coverage:

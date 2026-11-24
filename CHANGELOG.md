@@ -14,13 +14,22 @@ into the entry. Dates never decrease. Ask the active human when a date is in
 doubt.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.41.0] (2026-11-24)
+## [2.42.0] (2026-11-24)
 
 ### Added
+- CI workflows run on every pull request base. A static branch filter
+  cannot read `hooks/primary-branch.txt`. Gate integrity runs the base
+  copy of `scripts/check_pr_base.py`. It fails a base outside the stable
+  branches. `scripts/check_branch_name.py` exempts the override primary
+  branch outside strict preflight. An unusable override file fails the
+  check. `tests/test_custom_primary_coverage.py` covers both.
+- `gate-integrity.yml` and `agents-md-compliance.yml` rerun on the
+  `edited` activity. A base branch change fires that activity. The base
+  check and the compliance checks then run again.
 - Stable branches are the primary branch, `test`, and `develop`. `develop`
   is the staging branch. Pull requests may target any stable branch. Agents
-  treat every stable branch as read-only. CI workflows filter pull requests
-  on all three. `scripts/check_branch_name.py` exempts stable branches
+  treat every stable branch as read-only. Gate integrity rejects a pull
+  request base outside the stable branches. `scripts/check_branch_name.py` exempts stable branches
   outside strict preflight. `tests/test_stable_branches.py` covers the set.
 - `tests/test_hook_defects.py` covers a manifest file that another process
   replaces and a manifest file that holds invalid text.
