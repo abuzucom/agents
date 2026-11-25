@@ -24,7 +24,9 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   set requires empty or `contents: read` top-level permissions. It refuses
   checkout steps and event data interpolated into a step. It allows only
   the secret names that the manifest lists for that path. It refuses
-  `secrets: inherit` and indexed secrets. Action pinning still applies.
+  `secrets: inherit` and indexed secrets. Every job-level `uses:` value
+  must match a listed `reusable_workflows` entry. Job-level `with:` values
+  refuse event data. Action pinning still applies.
   Listed `rule7_excluded_trees` patterns skip only the Rule 7 weak-hash
   scan. A malformed, symlinked, or non-ASCII manifest fails closed.
   `scripts/check_gate_pr_integrity.py` protects the manifest path.

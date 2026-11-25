@@ -104,7 +104,14 @@ EXEMPTIONS_FILE = ".compliance-tree-exemptions.json"
 MAX_EXEMPTIONS_BYTES = 64 * 1024
 EXEMPTIONS_VERSION = 1
 EXEMPTION_KEYS = frozenset(("version", "pull_request_target", "rule7_excluded_trees"))
-REVIEWED_ENTRY_KEYS = frozenset(("secrets",))
+REVIEWED_REQUIRED_KEYS = frozenset(("secrets",))
+REVIEWED_ENTRY_KEYS = frozenset(("secrets", "reusable_workflows"))
+# A bound reusable workflow is a local workflow file or a remote one pinned
+# to a full commit SHA, so a pull request cannot substitute its target.
+LOCAL_REUSABLE_PATTERN = re.compile(r"\./\.github/workflows/[A-Za-z0-9_-][A-Za-z0-9._-]*\.ya?ml\Z")
+REMOTE_REUSABLE_PATTERN = re.compile(
+    r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/\.github/workflows/[A-Za-z0-9_-][A-Za-z0-9._-]*\.ya?ml"
+    r"@[0-9a-fA-F]{40}\Z")
 REVIEWED_WORKFLOW_PATTERN = re.compile(r"\.github/workflows/[A-Za-z0-9_-][A-Za-z0-9._-]*\.ya?ml\Z")
 SECRET_NAME_PATTERN = re.compile(r"[A-Za-z_][A-Za-z0-9_]*\Z")
 # Segments that start with a dot are refused, which also refuses `.` and
@@ -119,6 +126,14 @@ SECRET_INDEX_PATTERN = re.compile(r"secrets\s*\[", re.IGNORECASE)
 # word boundary leaves github.event_name, which carries no such text.
 EVENT_EXPRESSION_PATTERN = re.compile(
     r"\$\{\{[^}]*\b(?:github\.event|github\.head_ref)\b", re.IGNORECASE)
+
+
+@dataclass(frozen=True)
+class ReviewedWorkflow:
+    """Secret names and reusable workflows that one reviewed caller may use."""
+
+    secrets: frozenset
+    reusable_workflows: frozenset
 
 
 @dataclass(frozen=True)
@@ -205,14 +220,34 @@ def _parse_reviewed_workflows(value: object) -> dict:
     for path, entry in value.items():
         if not REVIEWED_WORKFLOW_PATTERN.fullmatch(path):
             raise _manifest_error(f"{_sanitize(path)} is not a workflow path")
-        if not isinstance(entry, dict) or set(entry) != REVIEWED_ENTRY_KEYS:
-            raise _manifest_error(f"{_sanitize(path)} must hold only a secrets list")
-        secrets = entry["secrets"]
-        if not isinstance(secrets, list) or not all(
-                isinstance(name, str) and SECRET_NAME_PATTERN.fullmatch(name) for name in secrets):
-            raise _manifest_error(f"{_sanitize(path)} secrets must be secret names")
-        reviewed[path] = frozenset(name.upper() for name in secrets)
+        if (not isinstance(entry, dict) or not REVIEWED_REQUIRED_KEYS <= set(entry)
+                or not set(entry) <= REVIEWED_ENTRY_KEYS):
+            raise _manifest_error(
+                f"{_sanitize(path)} must hold a secrets list and an optional reusable_workflows list")
+        reviewed[path] = ReviewedWorkflow(
+            _parse_secret_names(path, entry["secrets"]),
+            _parse_reusable_workflows(path, entry.get("reusable_workflows", [])))
     return reviewed
+
+
+def _parse_secret_names(path: str, names: object) -> frozenset:
+    """Return the upper-case secret names one reviewed caller may reference."""
+    if not isinstance(names, list) or not all(
+            isinstance(name, str) and SECRET_NAME_PATTERN.fullmatch(name) for name in names):
+        raise _manifest_error(f"{_sanitize(path)} secrets must be secret names")
+    return frozenset(name.upper() for name in names)
+
+
+def _parse_reusable_workflows(path: str, targets: object) -> frozenset:
+    """Return the exact job-level `uses:` values one reviewed caller may call."""
+    if not isinstance(targets, list) or not all(
+            isinstance(target, str) and (LOCAL_REUSABLE_PATTERN.fullmatch(target)
+                                         or REMOTE_REUSABLE_PATTERN.fullmatch(target))
+            for target in targets):
+        raise _manifest_error(
+            f"{_sanitize(path)} reusable_workflows must be local workflow paths "
+            "or remote workflows pinned to a full commit SHA")
+    return frozenset(targets)
 
 
 def _parse_tree_pattern(pattern: object) -> tuple:
@@ -713,10 +748,26 @@ def _reviewed_step_messages(step: object) -> set:
     return messages
 
 
-def _reviewed_job_messages(jobs: dict) -> list[str]:
-    """Apply the reviewed step rules to every job."""
+def _reviewed_call_messages(job: dict, reusable_workflows: frozenset) -> set:
+    """Bind a job-level reusable workflow call and refuse event data in its inputs."""
+    messages = set()
+    target = job.get("uses")
+    if target is not None and not isinstance(target, str):
+        messages.add("has a non-text job uses value")
+    elif target is not None and target not in reusable_workflows:
+        messages.add(f"calls unbound reusable workflow {target}")
+    for value in _walk_values(job.get("with")):
+        if isinstance(value, str) and EVENT_EXPRESSION_PATTERN.search(value):
+            messages.add("interpolates event data in job inputs")
+    return messages
+
+
+def _reviewed_job_messages(jobs: dict, reusable_workflows: frozenset) -> list[str]:
+    """Apply the reviewed call and step rules to every job."""
     messages = set()
     for job in jobs.values():
+        if isinstance(job, dict):
+            messages.update(_reviewed_call_messages(job, reusable_workflows))
         steps = job.get("steps", []) if isinstance(job, dict) else []
         if not isinstance(steps, list):
             messages.add("has a non-list steps value")
@@ -727,7 +778,7 @@ def _reviewed_job_messages(jobs: dict) -> list[str]:
 
 
 def _reviewed_pull_target_violations(
-    document: dict, text: str, path: str, allowed: frozenset,
+    document: dict, text: str, path: str, reviewed: ReviewedWorkflow,
 ) -> list[str]:
     """Apply the documented rule set to a workflow the base manifest reviews."""
     messages = []
@@ -739,8 +790,8 @@ def _reviewed_pull_target_violations(
     if not isinstance(jobs, dict) or not jobs:
         messages.append("has no jobs mapping")
         jobs = {}
-    messages.extend(_reviewed_secret_messages(jobs, text, allowed))
-    messages.extend(_reviewed_job_messages(jobs))
+    messages.extend(_reviewed_secret_messages(jobs, text, reviewed.secrets))
+    messages.extend(_reviewed_job_messages(jobs, reviewed.reusable_workflows))
     return [f"{path}: reviewed pull_request_target {message}" for message in messages]
 
 
@@ -750,9 +801,9 @@ def _pull_target_violations(
     """Require the exact closed privileged workflow execution surface."""
     if not _pull_target_trigger(document):
         return []
-    allowed = (exemptions or NO_EXEMPTIONS).pull_target.get(path)
-    if allowed is not None:
-        return _reviewed_pull_target_violations(document, text, path, allowed)
+    reviewed = (exemptions or NO_EXEMPTIONS).pull_target.get(path)
+    if reviewed is not None:
+        return _reviewed_pull_target_violations(document, text, path, reviewed)
     raw_jobs = document.get("jobs")
     candidate_job = raw_jobs.get("immutable-compliance") if isinstance(raw_jobs, dict) else None
     install_command = _candidate_install_command(candidate_job)

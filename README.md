@@ -553,7 +553,10 @@ manifest exempts nothing. A malformed manifest fails the run.
 {
   "version": 1,
   "pull_request_target": {
-    ".github/workflows/persona-review-pr.yml": {"secrets": ["MODEL_KEY"]}
+    ".github/workflows/persona-review-pr.yml": {
+      "secrets": ["MODEL_KEY"],
+      "reusable_workflows": ["./.github/workflows/persona-review.yml"]
+    }
   },
   "rule7_excluded_trees": ["reviewers/*/eval/cases/"]
 }
@@ -566,14 +569,20 @@ template equality:
 - No step uses `actions/checkout`.
 - No step `run` or `with` value interpolates `github.event` or
   `github.head_ref` data.
+- Every job-level `uses:` value matches one listed `reusable_workflows`
+  entry exactly. An entry names a local `./.github/workflows/` file or a
+  remote workflow pinned to a full commit SHA.
+- No job-level `with:` value interpolates `github.event` or
+  `github.head_ref` data.
 - Every `secrets.<NAME>` reference names a listed secret.
 - No job uses `secrets: inherit`. No text indexes `secrets[...]`.
 - Every external action uses a full commit SHA.
 
 The rule set reads workflow structure only. It parses no shell text. A `run` step can still fetch pull request code through `git` or
-`gh`. A job-level `uses:` reusable workflow runs with the caller's
-privileges. The rule set does not inspect that reusable workflow. Review
-both before listing a caller.
+`gh`. A bound reusable workflow runs with the caller's privileges. The rule
+set fixes the call target but does not inspect a local target's content. A
+pull request can still edit a bound local reusable workflow. Review both
+before listing a caller.
 
 Each `rule7_excluded_trees` pattern ends with `/`. A `*` segment matches one
 directory name. The first segment must be a literal directory outside

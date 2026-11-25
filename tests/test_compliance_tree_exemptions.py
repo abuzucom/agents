@@ -79,7 +79,10 @@ def reviewed_manifest(secrets: list[str]) -> dict:
     return {
         "version": 1,
         "pull_request_target": {
-            CALLER_PATH: {"secrets": secrets},
+            CALLER_PATH: {
+                "secrets": secrets,
+                "reusable_workflows": ["./.github/workflows/persona-review.yml"],
+            },
             NOTICE_PATH: {"secrets": []},
         },
         "rule7_excluded_trees": ["reviewers/*/eval/cases/"],
