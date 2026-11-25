@@ -27,7 +27,9 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `secrets: inherit` and indexed secrets. Every job-level `uses:` value
   must match a listed `reusable_workflows` entry. Event data appears only
   in `if` conditions and `concurrency` groups. A job `write` scope needs
-  the entry's `permissions` map. Action pinning still applies.
+  the entry's `permissions` map. Each entry pins the SHA-256 of the listed
+  workflow and of every bound local reusable workflow. The tree scan fails
+  on a changed or absent pinned blob. Action pinning still applies.
   Listed `rule7_excluded_trees` patterns skip only the Rule 7 weak-hash
   scan. A malformed, symlinked, or non-ASCII manifest fails closed.
   `scripts/check_gate_pr_integrity.py` protects the manifest path.

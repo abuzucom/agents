@@ -20,6 +20,8 @@ NOTICE_PATH = ".github/workflows/stop-requested-notice.yml"
 FIXTURE_PATH = "reviewers/foucault/eval/cases/file/weak-hash/input.py"
 WEAK_HASH_SOURCE = "import hashlib\n\ndigest = hashlib.md5(b'x').hexdigest()\n"
 MALFORMED_SOURCE = "def partial(:\n"
+# A well-formed sha256 that the structural workflow checks never compare.
+PLACEHOLDER_DIGEST = "0" * 64
 CALLER = """\
 name: persona-review-pr
 "on":
@@ -81,10 +83,12 @@ def reviewed_manifest(secrets: list[str]) -> dict:
         "pull_request_target": {
             CALLER_PATH: {
                 "secrets": secrets,
-                "reusable_workflows": ["./.github/workflows/persona-review.yml"],
+                "sha256": PLACEHOLDER_DIGEST,
+                "reusable_workflows": {"./.github/workflows/persona-review.yml": PLACEHOLDER_DIGEST},
                 "permissions": {"pull-requests": "write"},
             },
-            NOTICE_PATH: {"secrets": [], "permissions": {"pull-requests": "write"}},
+            NOTICE_PATH: {"secrets": [], "sha256": PLACEHOLDER_DIGEST,
+                          "permissions": {"pull-requests": "write"}},
         },
         "rule7_excluded_trees": ["reviewers/*/eval/cases/"],
     }

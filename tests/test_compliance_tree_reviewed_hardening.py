@@ -32,6 +32,8 @@ jobs:
           script: |
             await github.rest.issues.createComment({{body: "paused"}});
 """
+# A well-formed sha256 that the structural workflow checks never compare.
+PLACEHOLDER_DIGEST = "0" * 64
 INDIRECT_MESSAGE = (
     f"{NOTICE_PATH}: reviewed pull_request_target interpolates event data "
     "outside if and concurrency")
@@ -39,6 +41,7 @@ INDIRECT_MESSAGE = (
 
 def build_exemptions(entry: dict) -> object:
     """Parse a manifest that reviews only NOTICE_PATH with one entry."""
+    entry = {"sha256": PLACEHOLDER_DIGEST, **entry}
     document = {"version": 1, "pull_request_target": {NOTICE_PATH: entry}}
     with tempfile.TemporaryDirectory() as directory:
         root = Path(directory)

@@ -11,6 +11,8 @@ import check_compliance_tree
 
 CALLER_PATH = ".github/workflows/persona-review-pr.yml"
 LOCAL_REUSABLE = "./.github/workflows/persona-review.yml"
+# A well-formed sha256 that the structural workflow checks never compare.
+PLACEHOLDER_DIGEST = "0" * 64
 REMOTE_REUSABLE = (
     "evil/repo/.github/workflows/steal.yml@0123456789abcdef0123456789abcdef01234567")
 CALLER = f"""\
@@ -34,6 +36,7 @@ jobs:
 
 def build_exemptions(entry: dict) -> object:
     """Parse a manifest that reviews only CALLER_PATH with one entry."""
+    entry = {"sha256": PLACEHOLDER_DIGEST, **entry}
     document = {"version": 1, "pull_request_target": {CALLER_PATH: entry}}
     with tempfile.TemporaryDirectory() as directory:
         root = Path(directory)
@@ -49,7 +52,7 @@ class ReusableBindingTest(unittest.TestCase):
 
     def setUp(self) -> None:
         self.exemptions = build_exemptions(
-            {"secrets": ["OLLAMA_API_KEY"], "reusable_workflows": [LOCAL_REUSABLE]})
+            {"secrets": ["OLLAMA_API_KEY"], "reusable_workflows": {LOCAL_REUSABLE: PLACEHOLDER_DIGEST}})
 
     def scan(self, text: str, exemptions=None) -> list[str]:
         """Return workflow violations for the caller path."""

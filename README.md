@@ -555,7 +555,10 @@ manifest exempts nothing. A malformed manifest fails the run.
   "pull_request_target": {
     ".github/workflows/persona-review-pr.yml": {
       "secrets": ["MODEL_KEY"],
-      "reusable_workflows": ["./.github/workflows/persona-review.yml"],
+      "sha256": "<sha256 of persona-review-pr.yml>",
+      "reusable_workflows": {
+        "./.github/workflows/persona-review.yml": "<sha256 of persona-review.yml>"
+      },
       "permissions": {"pull-requests": "write"}
     }
   },
@@ -563,8 +566,17 @@ manifest exempts nothing. A malformed manifest fails the run.
 }
 ```
 
-A listed `pull_request_target` workflow passes these rules in place of exact
-template equality:
+Each entry pins the exact reviewed content. `sha256` holds the SHA-256 of
+the listed workflow blob, the value `sha256sum` prints for the file. Each
+local `reusable_workflows` key maps to the SHA-256 of that workflow file. A
+remote key pins a full commit SHA in its reference and maps to `null`. A
+list form names remote targets only. The tree scan fails when a head blob
+differs from its pin or a bound local target is absent. Any edit to a pinned
+file needs a manifest update on the base branch first. The local-path
+allowlist follows the same order.
+
+A listed `pull_request_target` workflow also passes these rules in place of
+exact template equality:
 
 - Top-level `permissions` is `{}` or `contents: read`.
 - No step uses `actions/checkout`.
@@ -581,11 +593,11 @@ template equality:
 - No job uses `secrets: inherit`. No text indexes `secrets[...]`.
 - Every external action uses a full commit SHA.
 
-The rule set reads workflow structure only. It parses no shell text. A `run` step can still fetch pull request code through `git` or
-`gh`. A bound reusable workflow runs with the caller's privileges. The rule
-set fixes the call target but does not inspect a local target's content. A
-pull request can still edit a bound local reusable workflow. Review both
-before listing a caller.
+The rules read workflow structure only. The rules parse no shell or script
+text.
+The content pins carry that review. Review each pinned file before recording
+its digest. A remote reusable workflow can call further workflows that no
+pin covers. Review that chain before binding a remote target.
 
 Each `rule7_excluded_trees` pattern ends with `/`. A `*` segment matches one
 directory name. The first segment must be a literal directory outside

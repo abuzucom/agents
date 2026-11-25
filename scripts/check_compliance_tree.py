@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Run trusted compliance checks against one immutable Git tree."""
+import hashlib
 import importlib.util
 import json
 import os
@@ -104,8 +105,12 @@ EXEMPTIONS_FILE = ".compliance-tree-exemptions.json"
 MAX_EXEMPTIONS_BYTES = 64 * 1024
 EXEMPTIONS_VERSION = 1
 EXEMPTION_KEYS = frozenset(("version", "pull_request_target", "rule7_excluded_trees"))
-REVIEWED_REQUIRED_KEYS = frozenset(("secrets",))
-REVIEWED_ENTRY_KEYS = frozenset(("secrets", "reusable_workflows", "permissions"))
+REVIEWED_REQUIRED_KEYS = frozenset(("secrets", "sha256"))
+REVIEWED_ENTRY_KEYS = frozenset(("secrets", "sha256", "reusable_workflows", "permissions"))
+# Structural rules cannot judge script text, so each reviewed caller and
+# each local reusable target is pinned to the exact reviewed blob bytes.
+SHA256_PATTERN = re.compile(r"[0-9a-f]{64}\Z")
+LOCAL_TARGET_PREFIX = "./"
 # A bound reusable workflow is a local workflow file or a remote one pinned
 # to a full commit SHA, so a pull request cannot substitute its target.
 LOCAL_REUSABLE_PATTERN = re.compile(r"\./\.github/workflows/[A-Za-z0-9_-][A-Za-z0-9._-]*\.ya?ml\Z")
@@ -146,6 +151,8 @@ class ReviewedWorkflow:
     secrets: frozenset
     reusable_workflows: frozenset
     write_scopes: frozenset = frozenset()
+    caller_digest: str = ""
+    local_digests: tuple = ()
 
 
 @dataclass(frozen=True)
@@ -237,11 +244,20 @@ def _parse_reviewed_workflows(value: object) -> dict:
             raise _manifest_error(
                 f"{_sanitize(path)} must hold a secrets list and optional "
                 "reusable_workflows and permissions values")
+        targets, local_digests = _parse_reusable_workflows(
+            path, entry.get("reusable_workflows", []))
         reviewed[path] = ReviewedWorkflow(
-            _parse_secret_names(path, entry["secrets"]),
-            _parse_reusable_workflows(path, entry.get("reusable_workflows", [])),
-            _parse_write_scopes(path, entry.get("permissions", {})))
+            _parse_secret_names(path, entry["secrets"]), targets,
+            _parse_write_scopes(path, entry.get("permissions", {})),
+            _parse_digest(path, entry["sha256"]), local_digests)
     return reviewed
+
+
+def _parse_digest(path: str, digest: object) -> str:
+    """Return one lowercase SHA-256 hex digest from the manifest."""
+    if not isinstance(digest, str) or not SHA256_PATTERN.fullmatch(digest):
+        raise _manifest_error(f"{_sanitize(path)} needs a lowercase 64-character sha256")
+    return digest
 
 
 def _parse_write_scopes(path: str, permissions: object) -> frozenset:
@@ -262,16 +278,27 @@ def _parse_secret_names(path: str, names: object) -> frozenset:
     return frozenset(name.upper() for name in names)
 
 
-def _parse_reusable_workflows(path: str, targets: object) -> frozenset:
-    """Return the exact job-level `uses:` values one reviewed caller may call."""
-    if not isinstance(targets, list) or not all(
-            isinstance(target, str) and (LOCAL_REUSABLE_PATTERN.fullmatch(target)
-                                         or REMOTE_REUSABLE_PATTERN.fullmatch(target))
-            for target in targets):
+def _parse_reusable_workflows(path: str, targets: object) -> tuple:
+    """Return the allowed job-level `uses:` values and each local target's pin.
+
+    A list names remote targets only. An object maps each local target to its
+    sha256 and each remote target to null, since its commit SHA already pins it.
+    """
+    if isinstance(targets, list):
+        targets = dict.fromkeys(targets)
+    if not isinstance(targets, dict):
+        raise _manifest_error(f"{_sanitize(path)} reusable_workflows must be a list or an object")
+    local_digests = []
+    for target, digest in targets.items():
+        if isinstance(target, str) and REMOTE_REUSABLE_PATTERN.fullmatch(target) and digest is None:
+            continue
+        if isinstance(target, str) and LOCAL_REUSABLE_PATTERN.fullmatch(target):
+            local_digests.append((target, _parse_digest(path, digest)))
+            continue
         raise _manifest_error(
-            f"{_sanitize(path)} reusable_workflows must be local workflow paths "
-            "or remote workflows pinned to a full commit SHA")
-    return frozenset(targets)
+            f"{_sanitize(path)} reusable_workflows must map local workflow paths to a "
+            "sha256 and remote workflows pinned to a full commit SHA to null")
+    return frozenset(targets), tuple(local_digests)
 
 
 def _parse_tree_pattern(pattern: object) -> tuple:
@@ -307,6 +334,26 @@ def load_exemptions(root: Path) -> TreeExemptions:
     return TreeExemptions(
         _parse_reviewed_workflows(document.get("pull_request_target", {})),
         tuple(_parse_tree_pattern(pattern) for pattern in trees))
+
+
+def _pinned_digest_violations(exemptions: TreeExemptions | None, digests: dict) -> list[str]:
+    """Compare head blob digests with every caller and local target pin."""
+    violations = []
+    for path, reviewed in sorted((exemptions or NO_EXEMPTIONS).pull_target.items()):
+        if path not in digests:
+            continue
+        prefix = f"{path}: "
+        if digests[path] != reviewed.caller_digest:
+            violations.append(
+                prefix + "reviewed pull_request_target content does not match the manifest sha256")
+        for target, expected in reviewed.local_digests:
+            actual = digests.get(target[len(LOCAL_TARGET_PREFIX):])
+            if actual is None:
+                violations.append(f"{prefix}bound reusable workflow {target} is absent from the tree")
+            elif actual != expected:
+                violations.append(
+                    f"{prefix}bound reusable workflow {target} does not match the manifest sha256")
+    return violations
 
 
 def _tree_matches(segments: tuple, pattern: tuple) -> bool:
@@ -1039,11 +1086,14 @@ def _scan_tree(
     violations = []
     total_bytes = 0
     blobs = {}
+    workflow_digests = {}
     for path, blob_id, mode in entries:
         content = blobs.get(blob_id)
         if content is None:
             content = _read_blob(prefix, repo, environment, path, blob_id)
             blobs[blob_id] = content
+        if path.startswith(".github/workflows/") and mode != "120000":
+            workflow_digests[path] = hashlib.sha256(content).hexdigest()
         total_bytes += len(content)
         if total_bytes > MAX_TOTAL_BLOB_BYTES:
             raise RuntimeError(
@@ -1059,6 +1109,7 @@ def _scan_tree(
             violations.append(
                 f"reached violation limit ({MAX_VIOLATIONS}), stopping")
             return violations
+    violations.extend(_pinned_digest_violations(exemptions, workflow_digests))
     violations.extend(_scan_conflicts(
         checkers["check_conflict_markers"], repo, object_id,
         executable, safe_path))
