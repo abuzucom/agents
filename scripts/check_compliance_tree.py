@@ -129,9 +129,12 @@ SECRET_REFERENCE_PATTERN = re.compile(r"secrets\s*\.\s*([A-Za-z_][A-Za-z0-9_]*)"
 SECRET_INDEX_PATTERN = re.compile(r"secrets\s*\[", re.IGNORECASE)
 # Event fields such as titles and branch names carry attacker text. The
 # word boundary leaves github.event_name, which carries no such text.
-# Indexing or serializing the whole github context reaches the same fields.
-EVENT_EXPRESSION_PATTERN = re.compile(
-    r"\$\{\{[^}]*\bgithub(?:\.event\b|\.head_ref\b|\s*\[|\s*\))", re.IGNORECASE)
+# Any use of the whole github context, not followed by a property access,
+# reaches the same fields. The pattern runs on one expression body at a time.
+EVENT_CONTEXT_PATTERN = re.compile(
+    r"\bgithub(?:\.event\b|\.head_ref\b|\b(?!\s*\.))", re.IGNORECASE)
+EXPRESSION_OPEN = "${{"
+EXPRESSION_CLOSE = "}}"
 # A condition or a concurrency group evaluates event data without passing it
 # to a step, an action input, or the environment. Only these structural
 # fields qualify. A nested key with the same name gains no exemption.
@@ -695,6 +698,30 @@ def _decode_bomless_unicode(content: bytes) -> str | None:
     return None
 
 
+def _expression_bodies(value: str):
+    """Yield each `${{ ... }}` body in one linear pass.
+
+    An opening without a close extends to the end of the text. No later
+    close can exist after it, so the scan stops there.
+    """
+    position = value.find(EXPRESSION_OPEN)
+    while position != -1:
+        start = position + len(EXPRESSION_OPEN)
+        end = value.find(EXPRESSION_CLOSE, start)
+        if end == -1:
+            yield value[start:]
+            return
+        yield value[start:end]
+        position = value.find(EXPRESSION_OPEN, end + len(EXPRESSION_CLOSE))
+
+
+def _has_event_expression(value: object) -> bool:
+    """Return whether a text value interpolates event data or the whole github context."""
+    if not isinstance(value, str):
+        return False
+    return any(EVENT_CONTEXT_PATTERN.search(body) for body in _expression_bodies(value))
+
+
 def _walk_values(root: object):
     """Yield nested YAML values once, including alias graphs."""
     stack = [root]
@@ -817,7 +844,7 @@ def _reviewed_step_messages(step: object) -> set:
     if isinstance(uses, str) and uses.lower().startswith("actions/checkout"):
         messages.add("checks out code")
     for value in _walk_values([step.get("run"), step.get("with")]):
-        if isinstance(value, str) and EVENT_EXPRESSION_PATTERN.search(value):
+        if _has_event_expression(value):
             messages.add("interpolates event data in a step")
     return messages
 
@@ -831,7 +858,7 @@ def _reviewed_call_messages(job: dict, reusable_workflows: frozenset) -> set:
     elif target is not None and target not in reusable_workflows:
         messages.add(f"calls unbound reusable workflow {target}")
     for value in _walk_values(job.get("with")):
-        if isinstance(value, str) and EVENT_EXPRESSION_PATTERN.search(value):
+        if _has_event_expression(value):
             messages.add("interpolates event data in job inputs")
     return messages
 
@@ -861,8 +888,7 @@ def _event_scan_roots(document: dict) -> list:
 
 def _event_data_outside_safe_keys(document: dict) -> bool:
     """Return whether event data appears anywhere but a condition or concurrency group."""
-    return any(isinstance(value, str) and EVENT_EXPRESSION_PATTERN.search(value)
-               for value in _walk_values(_event_scan_roots(document)))
+    return any(_has_event_expression(value) for value in _walk_values(_event_scan_roots(document)))
 
 
 def _reviewed_permission_messages(name: object, job: dict, write_scopes: frozenset) -> set:
