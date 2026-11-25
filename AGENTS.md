@@ -423,11 +423,12 @@ branches. `scripts/check_branch_name.py` backs this rule. Its check for generate
 
 Ask for consent before the applicable exact recovery command.
 
-During recovery, allow questions and native recovery consent. Allow plan mode
-tools and plan file writes outside the repository. Accept
-`git -C <current-repository>` recovery. Reject foreign paths, wrappers, and
-chains. Mode limits forbid delegation. Never ask the active human to run
-recovery. Record rejection. Use one equivalent path.
+Until recovery succeeds, block ordinary tools. During recovery, allow
+questions and native recovery consent. Allow plan mode tools and plan file
+writes outside the repository. Accept `git -C <current-repository>` recovery.
+Reject foreign paths, wrappers, and chains. Mode limits forbid delegation.
+Never ask the active human to run recovery. Record rejection. Use one
+equivalent path.
 
 Install the branch checker and register it in required hooks and CI.
 
