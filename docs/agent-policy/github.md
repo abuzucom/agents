@@ -45,9 +45,7 @@ connectivity failures with exit code 1. Exit code 2 marks a policy denial.
 Exit code 1 marks a runtime, timeout, proxy placeholder, or network failure.
 Exit code 1 never proves an authentication failure. On a network or
 unclassified failure, report proxy variable names and retry the wrapper once
-before the Git fallback. Request the client's approved `external-network` path
-in every client. Do not
-change user proxy settings to bypass policy.
+before the Git fallback. Do not change user proxy settings to bypass policy.
 
 ## Comments
 Read and post issue and pull request comments over REST through these

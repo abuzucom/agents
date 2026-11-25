@@ -14,7 +14,7 @@ into the entry. Dates never decrease. Ask the active human when a date is in
 doubt.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.45.0] (2026-11-25)
+## [2.45.1] (2026-11-25)
 
 ### Added
 - `hooks/enforce_single_question.py` denies an `AskUserQuestion` call
@@ -35,6 +35,12 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   helper docstring and the threat model state that deletion is not atomic.
   Concurrent same-user writers inside the session zone fall outside the
   boundary.
+
+### Changed
+- `AGENTS.md` drops twelve sentences that restate other policy text. Two
+  checker descriptions move to `docs/agent-policy/enforcement.md`.
+  `github.md`, `adoption.md`, and `security.md` drop one sentence each
+  that repeats `AGENTS.md`. Every requirement stays stated once.
 
 ### Fixed
 - `hooks/_git_probe.py` also refuses when the trusted Git resolver fails to

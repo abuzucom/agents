@@ -72,7 +72,6 @@ Preserve checker flags, hook payloads, reusable workflows, and copied policy
 files.
 
 ## Scope decisions
-Report bugs and alternatives outside the request. Do not act on them.
 Keep helper functions and imports required by the request in scope.
 
 Public APIs include exported functions, exported classes, endpoints, CLI flags,
