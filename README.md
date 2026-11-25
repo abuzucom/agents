@@ -590,7 +590,8 @@ exact template equality:
   entry exactly. An entry names a local `./.github/workflows/` file or a
   remote workflow pinned to a full commit SHA.
 - Every `secrets.<NAME>` reference names a listed secret.
-- No job uses `secrets: inherit`. No text indexes `secrets[...]`.
+- No job uses `secrets: inherit`. No text indexes `secrets[...]`. No
+  expression uses the whole `secrets` context, such as `toJSON(secrets)`.
 - Every external action uses a full commit SHA.
 
 The rules read workflow structure only. The rules parse no shell or script

@@ -127,6 +127,9 @@ PROTECTED_TREE_ROOTS = frozenset(("scripts", "hooks"))
 REVIEWED_TOP_PERMISSIONS = ({}, {"contents": "read"})
 SECRET_REFERENCE_PATTERN = re.compile(r"secrets\s*\.\s*([A-Za-z_][A-Za-z0-9_]*)", re.IGNORECASE)
 SECRET_INDEX_PATTERN = re.compile(r"secrets\s*\[", re.IGNORECASE)
+# The whole secrets context, not followed by a property access, carries every
+# secret past the named allowlist. The pattern runs on one expression body.
+WHOLE_SECRETS_PATTERN = re.compile(r"\bsecrets\b(?!\s*\.)", re.IGNORECASE)
 # Event fields such as titles and branch names carry attacker text. The
 # word boundary leaves github.event_name, which carries no such text.
 # Any use of the whole github context, not followed by a property access,
@@ -830,6 +833,8 @@ def _reviewed_secret_messages(jobs: dict, text: str, allowed: frozenset) -> list
         messages.append("indexes secrets")
     if any(isinstance(job, dict) and job.get("secrets") == "inherit" for job in jobs.values()):
         messages.append("inherits secrets")
+    if any(WHOLE_SECRETS_PATTERN.search(body) for body in _expression_bodies(text)):
+        messages.append("references the whole secrets context")
     referenced = {match.group(1).upper() for match in SECRET_REFERENCE_PATTERN.finditer(text)}
     messages.extend(f"references unlisted secret {name}" for name in sorted(referenced - allowed))
     return messages

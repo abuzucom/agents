@@ -24,7 +24,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   set requires empty or `contents: read` top-level permissions. It refuses
   checkout steps and event data interpolated into a step. It allows only
   the secret names that the manifest lists for that path. It refuses
-  `secrets: inherit` and indexed secrets. Every job-level `uses:` value
+  `secrets: inherit`, indexed secrets, and the whole `secrets` context.
+  Every job-level `uses:` value
   must match a listed `reusable_workflows` entry. Event data appears only
   in `if` conditions and `concurrency` groups. A job `write` scope needs
   the entry's `permissions` map. Each entry pins the SHA-256 of the listed
