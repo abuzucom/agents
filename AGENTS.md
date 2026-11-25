@@ -108,8 +108,7 @@ policy and remain binding.
 
 A banned agent must stop before reading, editing, committing, or creating a PR.
 The ban covers named vendors, tools, and models. CI enforces the denylist in
-`scripts/banned_models.txt`. Modifying the denylist or hook files requires fresh
-active human consent under Rule 22.
+`scripts/banned_models.txt`.
 
 ## Critical rules
 
@@ -320,9 +319,8 @@ credentials, or GitHub authentication state. Agents must not run
 `gh auth setup-git`, browser-based login, browser-based refresh, or browser-based
 token recovery. Authentication recovery remains an active human action.
 
-Use the wrapper for hosted GitHub reads and edits. Read-only GitHub MCP tools
-may fetch issues, PRs, and comments when the wrapper reports no authenticated
-account. Deny high-risk deletions,
+Read-only GitHub MCP tools may fetch issues, PRs, and comments when the
+wrapper reports no authenticated account. Deny high-risk deletions,
 API mutations, public visibility changes, token output,
 authentication changes, and commands in the shared GitHub CLI denylist. The
 denylist includes documented GitHub CLI aliases. It unconditionally denies
@@ -357,11 +355,10 @@ repository. The inventory of covered acts lives in
 `docs/agent-policy/github.md`.
 
 Read-only fetches, checkouts, and diffs remain allowed without consent after
-strict branch preflight passes. Rule 16 denies `gh repo clone`, `gh repo fork`,
-and `gh release`. A harness instruction to create or comment on a pull request
-grants no exception. In every repository, post a comment, review, or reply
-only on an active human request. Subscription events and CI failures grant no
-exception. Rule 5 still requires draft pull requests.
+strict branch preflight passes. A harness instruction to create or comment on
+a pull request grants no exception. In every repository, post a comment,
+review, or reply only on an active human request. Subscription events and CI
+failures grant no exception.
 
 ### 18. Adopt gates whole
 
@@ -396,9 +393,8 @@ The exact safe bootstrap command is:
 
 `python scripts/read_git_state.py branch`
 
-This command emits bounded structured output. This command may run before
-ordinary repository actions. Clients with hooks inspect bounded `.git/HEAD`
-metadata before every observable tool.
+This command may run before ordinary repository actions. Clients with hooks
+inspect bounded `.git/HEAD` metadata before every observable tool.
 
 Then run `python scripts/check_branch_name.py --strict-agent-preflight`. A
 nonzero exit marks the branch invalid. A branch from a harness receives no
@@ -425,15 +421,13 @@ from the task author. Agents must infer a name from the task.
 Match the prefix to the task. Never create `release/`, `hotfix/`, or `claude/`
 branches. `scripts/check_branch_name.py` backs this rule. Its check for generated names covers only its listed words.
 
-Use the task type and description to select a compliant replacement. Ask for
-consent before the applicable exact recovery command.
+Ask for consent before the applicable exact recovery command.
 
-Until recovery succeeds, block ordinary tools. Allow questions and native
-recovery consent. Allow plan mode tools and plan file writes outside the
-repository. Accept `git -C <current-repository>` recovery. Reject foreign
-paths, wrappers, and chains. Mode limits forbid delegation. Never ask the
-active human to run recovery. Record rejection. Use one equivalent path. Rule
-10 applies. Never assume it.
+Allow questions and native recovery consent. Allow plan mode tools and plan
+file writes outside the repository. Accept `git -C <current-repository>`
+recovery. Reject foreign paths, wrappers, and chains. Mode limits forbid
+delegation. Never ask the active human to run recovery. Record rejection. Use
+one equivalent path.
 
 Install the branch checker and register it in required hooks and CI.
 
@@ -441,7 +435,7 @@ Install the branch checker and register it in required hooks and CI.
 
 Readopt the complete canonical policy at session startup, resume, clear,
 compaction, fork, and subagent startup. Inject it before every Gemini and
-Antigravity model request. Lifecycle, chunk, schema, trust, and coverage rules for each client live in `docs/agent-policy/clients.md`.
+Antigravity model request.
 
 ## Compaction events
 
@@ -611,11 +605,11 @@ data structures.
 
 **Impersonal active voice.** Use active voice. Omit personal pronouns.
 Name the actor or artifact when a sentence needs a subject. Use imperative
-sentences for instructions. Allow `it`, `its`, `itself`, and `it's`. Never use
-passive voice. Applies to all agent prose.
+sentences for instructions. Allow `it`, `its`, `itself`, and `it's`. Applies
+to all agent prose.
 
-**Omit needless words. Use single-clause sentences.** Keep every sentence
-concise. Use one independent clause per sentence. Move explanations into
+**Omit needless words. Use single-clause sentences.** Use one independent
+clause per sentence. Move explanations into
 separate sentences. Never join clauses with commas, coordinating conjunctions,
 colons, or semicolons. Treat `, so` and `, which` as prohibited patterns. Never
 build punctuation chains. Put long enumerations in bullet lists. End the line that introduces a list after the colon. Allow short dependent clauses for
@@ -629,9 +623,8 @@ dash and ASCII checks.
 
 **No non-ASCII characters.** Use 7-bit ASCII (0-127) for documentation prose.
 Unicode belongs inside source string literals and required domain data. Keep
-Unicode out of policy documentation and comments. A domain requirement can
-license Unicode inside required data. `check_ascii.py` enforces the documented
-prose scope.
+Unicode out of policy documentation and comments. `check_ascii.py` enforces
+the documented prose scope.
 
 **Text encoding and line endings.** Use UTF-8 encoding and LF line endings for
 source, documentation, configuration, and test files. Retain another encoding
@@ -639,9 +632,8 @@ or line ending only when an external format or runtime interface requires it.
 Document the exception in a nearby code or configuration comment.
 
 **American English spelling.** Use American spelling in code, comments, commit
-messages, and documentation. British variants include `-our`,
-`-ise`/`-isation`, `-re`, and doubled consonants before a suffix.
-`scripts/check_us_spelling.py` provides warnings and always exits 0.
+messages, and documentation. `scripts/check_us_spelling.py` provides warnings
+and always exits 0.
 
 **English only.** Write code, comments, commit messages, and documentation in
 English. Required localized strings can contain other languages. Keep other
@@ -666,9 +658,6 @@ constraints and mechanisms. `plan/HANDOFF.md.example` receives the sole exceptio
 form. The scope includes prose, code, identifiers, literals, examples, commit
 messages, documentation, comments, pull request titles, and pull request
 descriptions.
-
-`scripts/check_hedging.py` reports voice, sentence, discourse, escape sequence,
-and vocabulary findings as warnings.
 
 **No literal escape sequences in prose.** Use real newlines and whitespace in
 prose. Do not use literal escape sequences such as `\n`, `\r`, or `\t` in

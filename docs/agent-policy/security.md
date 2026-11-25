@@ -37,8 +37,6 @@ practices.
 Report vulnerabilities through the process in `SECURITY.md.example`. Do not
 use public issues or pull requests for private vulnerability details.
 
-Avoid nested quantifiers such as `(x+)+` and overlapping patterns.
-
 The Claude file tool gate also denies protected file operations and broad
 searches.
 

@@ -144,6 +144,11 @@ or phrase. Section headers define scope. Add entries without changing checker
 logic. The denylist source receives the sole exemption from scanning itself. The
 handoff exemption section skips matches only for `plan/HANDOFF.md.example`.
 
+`check_us_spelling.py` flags British variants such as `-our`,
+`-ise`/`-isation`, `-re`, and doubled consonants before a suffix.
+
+`scripts/check_hedging.py` reports voice, sentence, discourse, escape sequence,
+and vocabulary findings as warnings.
 `scripts/check_hedging.py` prose findings always return exit code 0. Unreadable
 policy data and unsafe metadata return exit code 1. Pattern checks provide
 advisory coverage. Human review covers semantic paraphrases and complex
