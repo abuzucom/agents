@@ -105,7 +105,7 @@ MAX_EXEMPTIONS_BYTES = 64 * 1024
 EXEMPTIONS_VERSION = 1
 EXEMPTION_KEYS = frozenset(("version", "pull_request_target", "rule7_excluded_trees"))
 REVIEWED_REQUIRED_KEYS = frozenset(("secrets",))
-REVIEWED_ENTRY_KEYS = frozenset(("secrets", "reusable_workflows"))
+REVIEWED_ENTRY_KEYS = frozenset(("secrets", "reusable_workflows", "permissions"))
 # A bound reusable workflow is a local workflow file or a remote one pinned
 # to a full commit SHA, so a pull request cannot substitute its target.
 LOCAL_REUSABLE_PATTERN = re.compile(r"\./\.github/workflows/[A-Za-z0-9_-][A-Za-z0-9._-]*\.ya?ml\Z")
@@ -124,8 +124,19 @@ SECRET_REFERENCE_PATTERN = re.compile(r"secrets\s*\.\s*([A-Za-z_][A-Za-z0-9_]*)"
 SECRET_INDEX_PATTERN = re.compile(r"secrets\s*\[", re.IGNORECASE)
 # Event fields such as titles and branch names carry attacker text. The
 # word boundary leaves github.event_name, which carries no such text.
+# Indexing or serializing the whole github context reaches the same fields.
 EVENT_EXPRESSION_PATTERN = re.compile(
-    r"\$\{\{[^}]*\b(?:github\.event|github\.head_ref)\b", re.IGNORECASE)
+    r"\$\{\{[^}]*\bgithub(?:\.event\b|\.head_ref\b|\s*\[|\s*\))", re.IGNORECASE)
+# A condition or a concurrency group evaluates event data without passing it
+# to a step, an action input, or the environment.
+EVENT_SAFE_KEYS = frozenset(("if", "concurrency"))
+PERMISSION_SCOPES = frozenset((
+    "actions", "attestations", "checks", "contents", "deployments", "discussions",
+    "id-token", "issues", "models", "packages", "pages", "pull-requests",
+    "repository-projects", "security-events", "statuses",
+))
+PERMISSION_LEVELS = frozenset(("none", "read", "write"))
+WRITE_LEVEL = "write"
 
 
 @dataclass(frozen=True)
@@ -134,6 +145,7 @@ class ReviewedWorkflow:
 
     secrets: frozenset
     reusable_workflows: frozenset
+    write_scopes: frozenset = frozenset()
 
 
 @dataclass(frozen=True)
@@ -223,11 +235,23 @@ def _parse_reviewed_workflows(value: object) -> dict:
         if (not isinstance(entry, dict) or not REVIEWED_REQUIRED_KEYS <= set(entry)
                 or not set(entry) <= REVIEWED_ENTRY_KEYS):
             raise _manifest_error(
-                f"{_sanitize(path)} must hold a secrets list and an optional reusable_workflows list")
+                f"{_sanitize(path)} must hold a secrets list and optional "
+                "reusable_workflows and permissions values")
         reviewed[path] = ReviewedWorkflow(
             _parse_secret_names(path, entry["secrets"]),
-            _parse_reusable_workflows(path, entry.get("reusable_workflows", [])))
+            _parse_reusable_workflows(path, entry.get("reusable_workflows", [])),
+            _parse_write_scopes(path, entry.get("permissions", {})))
     return reviewed
+
+
+def _parse_write_scopes(path: str, permissions: object) -> frozenset:
+    """Return the token scopes that a reviewed caller's jobs may set to write."""
+    if not isinstance(permissions, dict) or not all(
+            scope in PERMISSION_SCOPES and level == WRITE_LEVEL
+            for scope, level in permissions.items()):
+        raise _manifest_error(
+            f"{_sanitize(path)} permissions must map known scopes to write")
+    return frozenset(permissions)
 
 
 def _parse_secret_names(path: str, names: object) -> frozenset:
@@ -762,12 +786,50 @@ def _reviewed_call_messages(job: dict, reusable_workflows: frozenset) -> set:
     return messages
 
 
-def _reviewed_job_messages(jobs: dict, reusable_workflows: frozenset) -> list[str]:
-    """Apply the reviewed call and step rules to every job."""
+def _event_data_outside_safe_keys(document: dict) -> bool:
+    """Return whether event data appears anywhere but a condition or concurrency group."""
+    stack = [document]
+    visited = set()
+    while stack:
+        value = stack.pop()
+        if isinstance(value, str):
+            if EVENT_EXPRESSION_PATTERN.search(value):
+                return True
+            continue
+        if not isinstance(value, (dict, list)) or id(value) in visited:
+            continue
+        visited.add(id(value))
+        if isinstance(value, dict):
+            stack.extend(item for key, item in value.items() if key not in EVENT_SAFE_KEYS)
+        else:
+            stack.extend(value)
+    return False
+
+
+def _reviewed_permission_messages(name: object, job: dict, write_scopes: frozenset) -> set:
+    """Keep one job's token permissions within the manifest's write scopes."""
+    if "permissions" not in job:
+        return set()
+    permissions = job["permissions"]
+    label = f"job {_sanitize(name)}"
+    if not isinstance(permissions, dict):
+        return {f"{label} permissions are not a scope mapping"}
     messages = set()
-    for job in jobs.values():
+    for scope, level in permissions.items():
+        if level not in PERMISSION_LEVELS:
+            messages.add(f"{label} sets an invalid level for {_sanitize(scope)}")
+        elif level == WRITE_LEVEL and scope not in write_scopes:
+            messages.add(f"{label} grants unlisted write scope {_sanitize(scope)}")
+    return messages
+
+
+def _reviewed_job_messages(jobs: dict, reviewed: ReviewedWorkflow) -> list[str]:
+    """Apply the reviewed call, permission, and step rules to every job."""
+    messages = set()
+    for name, job in jobs.items():
         if isinstance(job, dict):
-            messages.update(_reviewed_call_messages(job, reusable_workflows))
+            messages.update(_reviewed_call_messages(job, reviewed.reusable_workflows))
+            messages.update(_reviewed_permission_messages(name, job, reviewed.write_scopes))
         steps = job.get("steps", []) if isinstance(job, dict) else []
         if not isinstance(steps, list):
             messages.add("has a non-list steps value")
@@ -791,7 +853,9 @@ def _reviewed_pull_target_violations(
         messages.append("has no jobs mapping")
         jobs = {}
     messages.extend(_reviewed_secret_messages(jobs, text, reviewed.secrets))
-    messages.extend(_reviewed_job_messages(jobs, reviewed.reusable_workflows))
+    messages.extend(_reviewed_job_messages(jobs, reviewed))
+    if _event_data_outside_safe_keys(document):
+        messages.append("interpolates event data outside if and concurrency")
     return [f"{path}: reviewed pull_request_target {message}" for message in messages]
 
 

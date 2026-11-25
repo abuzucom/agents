@@ -555,7 +555,8 @@ manifest exempts nothing. A malformed manifest fails the run.
   "pull_request_target": {
     ".github/workflows/persona-review-pr.yml": {
       "secrets": ["MODEL_KEY"],
-      "reusable_workflows": ["./.github/workflows/persona-review.yml"]
+      "reusable_workflows": ["./.github/workflows/persona-review.yml"],
+      "permissions": {"pull-requests": "write"}
     }
   },
   "rule7_excluded_trees": ["reviewers/*/eval/cases/"]
@@ -567,13 +568,15 @@ template equality:
 
 - Top-level `permissions` is `{}` or `contents: read`.
 - No step uses `actions/checkout`.
-- No step `run` or `with` value interpolates `github.event` or
-  `github.head_ref` data.
+- Event data appears only in `if` conditions and `concurrency` groups. An
+  event expression reads `github.event`, `github.head_ref`, an indexed
+  `github[...]` context, or the whole `github` context. Every other value
+  refuses it, `env`, `with`, `run`, and `strategy` included.
+- Every job `permissions` value is a scope mapping. A `write` level needs
+  the scope in the entry's `permissions` map. `write-all` fails.
 - Every job-level `uses:` value matches one listed `reusable_workflows`
   entry exactly. An entry names a local `./.github/workflows/` file or a
   remote workflow pinned to a full commit SHA.
-- No job-level `with:` value interpolates `github.event` or
-  `github.head_ref` data.
 - Every `secrets.<NAME>` reference names a listed secret.
 - No job uses `secrets: inherit`. No text indexes `secrets[...]`.
 - Every external action uses a full commit SHA.
