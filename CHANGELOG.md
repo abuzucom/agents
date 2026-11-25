@@ -29,7 +29,9 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   in `if` conditions and `concurrency` groups. A job `write` scope needs
   the entry's `permissions` map. Each entry pins the SHA-256 of the listed
   workflow and of every bound local reusable workflow. The tree scan fails
-  on a changed or absent pinned blob. Action pinning still applies.
+  on a changed pinned blob or an absent bound target. A deleted caller
+  runs no privileged job and needs no pin. A symlinked workflow fails the
+  existing symlink check. Action pinning still applies.
   Listed `rule7_excluded_trees` patterns skip only the Rule 7 weak-hash
   scan. A malformed, symlinked, or non-ASCII manifest fails closed.
   `scripts/check_gate_pr_integrity.py` protects the manifest path.
