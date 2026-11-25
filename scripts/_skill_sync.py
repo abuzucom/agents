@@ -31,6 +31,7 @@ SKILLS = (
     "policy-change-proposal",
     "gate-adoption",
     "session-handoff",
+    "interactive-decisions",
 )
 SKILL_SOURCE_ROOT = "skills"
 SKILL_COPY_ROOTS = (".claude/skills", ".agents/skills")

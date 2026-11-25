@@ -171,9 +171,9 @@ class LiveSkillTreeTest(unittest.TestCase):
     def test_live_skills_have_no_problems(self):
         self.assertEqual(_skill_sync.skill_problems(REPOSITORY_ROOT), [])
 
-    def test_live_list_holds_twelve_skills(self):
-        self.assertEqual(len(_skill_sync.SKILLS), 12)
-        self.assertEqual(len(set(_skill_sync.SKILLS)), 12)
+    def test_live_list_holds_thirteen_skills(self):
+        self.assertEqual(len(_skill_sync.SKILLS), 13)
+        self.assertEqual(len(set(_skill_sync.SKILLS)), 13)
 
 
 if __name__ == "__main__":

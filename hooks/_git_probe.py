@@ -106,7 +106,7 @@ def _trusted_git(project_dir: str) -> str:
     """Return an absolute Git executable outside the project, or "" when none qualifies."""
     try:
         return _load_resolver().resolve_git(project_dir)
-    except (OSError, ImportError) as error:
+    except (OSError, ImportError, SyntaxError, AttributeError) as error:
         print(f"_git_probe: no trusted Git ({type(error).__name__})", file=sys.stderr)
         return ""
 

@@ -176,7 +176,9 @@ The protected inventory covers:
   `hooks/primary-branch.txt`, `hooks/workflow-scripts.txt`, `hooks/_trust.py`,
   `hooks/trusted-owners.txt`, `hooks/enforce_pr_base.py`,
   `hooks/_test_runners.py`, `hooks/workflow-scripts.local.txt`,
-  `hooks/_git_probe.py`, `hooks/_zones.py`, `hooks/prepare_session_workspace.py`, and
+  `hooks/_git_probe.py`, `hooks/_zones.py`, `hooks/prepare_session_workspace.py`,
+  `hooks/enforce_single_question.py`, `hooks/deny_mcp_github_writes.py`,
+  `hooks/detect_prose_options.py`, and
   `hooks/claude-code-settings.example.json`.
 - Hook configurations:
   `.claude/settings.json`, `.agents/`, `.codex/hooks.json`,

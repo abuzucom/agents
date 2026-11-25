@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-"""Create this session's zone folders at session start.
+"""Create the session's zone folders at session start.
 
 Each session owns `.scratch/<session id>/` and `.worktrees/<session id>/`.
-The command gate routes deletes inside them to consent. Every path
-component opens through its parent descriptor without following a link,
-so a planted link cannot redirect the folders outside the repository.
+The command gate routes deletes inside those folders to consent. Every
+path component opens through its parent descriptor without following a
+link. A planted link then cannot redirect the folders outside the
+repository.
 
 The hook never blocks a session. A missing or invalid session id or a
 platform without `dir_fd` support creates nothing. A link or another

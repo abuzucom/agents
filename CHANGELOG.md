@@ -14,9 +14,22 @@ into the entry. Dates never decrease. Ask the active human when a date is in
 doubt.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.44.0] (2026-11-25)
+## [2.45.0] (2026-11-25)
 
 ### Added
+- `hooks/enforce_single_question.py` denies an `AskUserQuestion` call
+  with more than one question, fewer than two or more than four options,
+  an empty question or label, or a first option that is not the single
+  option marked `(Recommended)`.
+- `hooks/deny_mcp_github_writes.py` denies GitHub MCP comment, review,
+  merge, and auto-merge writes. Any present `labels` field denies, an
+  empty list included. A pull request that is not a draft
+  denies. Every other known MCP write asks.
+- `hooks/detect_prose_options.py` blocks one stop when the final message
+  offers choices in prose with no question call in the turn. The hook is
+  advisory and fails open.
+- `skills/interactive-decisions/SKILL.md` covers one choice per prompt with
+  one recommendation.
 - `scripts/delete_zone_path.py` prints one stdout line for each deleted
   operand. A failure names how many operands the helper deleted first. The
   helper docstring and the threat model state that deletion is not atomic.
@@ -24,6 +37,10 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   boundary.
 
 ### Fixed
+- `hooks/_git_probe.py` also refuses when the trusted Git resolver fails to
+  load or lacks `resolve_git`.
+- `hooks/prepare_session_workspace.py` docstring prose follows the style
+  rules.
 - `hooks/_zones.py` rejects `.` and empty path components. The gate and
   the delete helper now accept the same operands.
 - `hooks/_git_probe.py` runs the Git that `scripts/trusted_git.py`

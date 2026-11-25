@@ -1038,7 +1038,9 @@ The protected inventory covers:
   `hooks/primary-branch.txt`, `hooks/workflow-scripts.txt`, `hooks/_trust.py`,
   `hooks/trusted-owners.txt`, `hooks/enforce_pr_base.py`,
   `hooks/_test_runners.py`, `hooks/workflow-scripts.local.txt`,
-  `hooks/_git_probe.py`, `hooks/_zones.py`, `hooks/prepare_session_workspace.py`, and
+  `hooks/_git_probe.py`, `hooks/_zones.py`, `hooks/prepare_session_workspace.py`,
+  `hooks/enforce_single_question.py`, `hooks/deny_mcp_github_writes.py`,
+  `hooks/detect_prose_options.py`, and
   `hooks/claude-code-settings.example.json`.
 - Hook configurations:
   `.claude/settings.json`, `.agents/`, `.codex/hooks.json`,
@@ -1091,6 +1093,10 @@ Claude Code, Codex, and Gemini pass `session_id` to hooks. Their
 no native consent prompt. Its zone deletes still deny. Antigravity
 passes no session id. The zone helper stays denied there. Clients without hooks
 create the folders with `mkdir -p`.
+
+Ask each open choice through the client's question tool. Claude Code hooks
+check the `AskUserQuestion` shape and gate GitHub MCP writes. A Stop hook
+flags prose choices as advice. Other clients expose neither to hooks.
 
 ## Compaction events
 Claude and Codex report compaction through the session payload `source`
@@ -1180,8 +1186,9 @@ both. The post form exits 2 there and the read form still works.
 Comments have no Git equivalent. A failed comment operation has no fallback.
 Report the blocker to the active human and stop.
 
-GitHub MCP comment tools such as `add_issue_comment` bypass the wrapper. No
-gate observes those tools. Rule 17 still limits every comment to an
+GitHub MCP comment tools such as `add_issue_comment` bypass the wrapper.
+Claude Code's `deny_mcp_github_writes.py` hook denies them. Other clients
+lack that gate. Rule 17 still limits every comment to an
 active human request. Read-only GitHub MCP tools may fetch issues, PRs, and
 comments when the wrapper reports no authenticated account.
 
@@ -1257,8 +1264,8 @@ Rule 23 covers these surfaces:
 - REST and GraphQL label writes
 
 The GitHub gate denies the `gh` label options, `gh label`, and `gh api`
-mutating requests. No gate denies MCP label fields. The rule binds every
-client without that coverage.
+mutating requests. In Claude Code `hooks/deny_mcp_github_writes.py` denies
+MCP label fields. The rule binds every client without that coverage.
 
 The wrapper refuses deny verdicts. It runs ask verdicts without confirming
 consent. Clients without shell hooks receive no consent prompt.
