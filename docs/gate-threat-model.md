@@ -74,6 +74,8 @@ include the following actions:
   The helper opens every component through its parent descriptor with no
   link follow and deletes descriptor-relative. A swap after the gate check
   refuses the delete. Platforms without `dir_fd` support refuse the helper.
+  The tracked check runs the Git that `scripts/trusted_git.py` resolves.
+  A Git inside the repository never answers it.
   A target that holds a `.git` entry refuses. A linked worktree keeps its
   own index. `git worktree remove` handles worktrees and refuses a dirty
   tree.

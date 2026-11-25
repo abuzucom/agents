@@ -5,15 +5,24 @@ core.fsmonitor. The probe disables that hook, keeps an allowlisted
 environment, takes no optional locks, bounds time and output, and treats
 every failure as unknown. Callers then fail closed.
 
+The probe runs the Git that `scripts/trusted_git.py` resolves. That lookup
+skips relative PATH entries, links, and programs inside the repository. A
+repository cannot then supply a Git that hides tracked files.
+
 This module uses only the standard library and imports no gate module.
 """
+import functools
+import importlib.util
 import os
 import subprocess
+import sys
 import threading
+from pathlib import Path
 
 GIT_TIMEOUT_SECONDS = 5
 MAX_OUTPUT_BYTES = 256 * 1024
 READ_CHUNK_BYTES = 64 * 1024
+RESOLVER_PATH = Path(__file__).resolve().parent.parent / "scripts" / "trusted_git.py"
 # Only these variables reach Git. GIT_OPTIONAL_LOCKS=0 keeps a read from
 # contending for the index lock with another session's commit.
 ENVIRONMENT_KEYS = ("PATH", "SYSTEMROOT", "HOME", "USERPROFILE", "TMPDIR", "TEMP", "TMP")
@@ -82,12 +91,36 @@ def _run_bounded(command: list):
     return output[0]
 
 
+@functools.lru_cache(maxsize=1)
+def _load_resolver():
+    """Load the trusted Git resolver from this repository's scripts folder."""
+    spec = importlib.util.spec_from_file_location("_probe_trusted_git", RESOLVER_PATH)
+    if spec is None or spec.loader is None:
+        raise ImportError("trusted Git resolver is unavailable")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def _trusted_git(project_dir: str) -> str:
+    """Return an absolute Git executable outside the project, or "" when none qualifies."""
+    try:
+        return _load_resolver().resolve_git(project_dir)
+    except (OSError, ImportError) as error:
+        print(f"_git_probe: no trusted Git ({type(error).__name__})", file=sys.stderr)
+        return ""
+
+
 def tracked_paths(project_dir: str, paths: list):
     """Return the tracked files at or below the given repository-relative paths.
 
-    Returns None when Git fails, times out, or prints more than the cap.
+    Returns None when no trusted Git exists, or when Git fails, times out, or
+    prints more than the cap.
     """
-    command = ["git", "-C", project_dir, "-c", "core.fsmonitor=false", "ls-files", "-z",
+    git = _trusted_git(project_dir)
+    if not git:
+        return None
+    command = [git, "-C", project_dir, "-c", "core.fsmonitor=false", "ls-files", "-z",
                "--", *paths]
     stdout = _run_bounded(command)
     if stdout is None:

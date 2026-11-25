@@ -14,6 +14,13 @@ into the entry. Dates never decrease. Ask the active human when a date is in
 doubt.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.43.1] (2026-11-25)
+
+### Fixed
+- `hooks/_git_probe.py` runs the Git that `scripts/trusted_git.py`
+  resolves. A Git inside the repository never answers the zone tracked
+  check. A missing resolver or no trusted Git refuses the delete.
+
 ## [2.43.0] (2026-11-24)
 
 ### Added

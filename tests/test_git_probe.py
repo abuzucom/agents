@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """The hardened Git probe reports tracked paths or fails closed."""
+import os
 import subprocess
 import sys
 import tempfile
@@ -119,6 +120,39 @@ class TrackedPathsTest(unittest.TestCase):
         hanging = FakeProcess(FakeStream(b"tracked.txt\0"), hang=True)
         with patch.object(_git_probe.subprocess, "Popen", return_value=hanging):
             self.assertIsNone(_git_probe.tracked_paths(str(self.root), ["tracked.txt"]))
+
+    @unittest.skipIf(os.name == "nt", "The fake Git is a POSIX shell script")
+    def test_repository_git_ignored(self) -> None:
+        fake_bin = self.root / "bin"
+        fake_bin.mkdir()
+        fake_git = fake_bin / "git"
+        fake_git.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+        fake_git.chmod(0o755)
+        path = f"{fake_bin}{os.pathsep}{os.environ.get('PATH', '')}"
+        with patch.dict(_git_probe.os.environ, {"PATH": path}):
+            tracked = _git_probe.tracked_paths(str(self.root), ["tracked.txt", "loose.txt"])
+        self.assertEqual(tracked, frozenset({"tracked.txt"}))
+
+    def test_missing_trusted_git_fails(self) -> None:
+        with patch.object(_git_probe, "_trusted_git", return_value=""):
+            self.assertIsNone(_git_probe.tracked_paths(str(self.root), ["tracked.txt"]))
+
+    def test_unloadable_resolver_fails(self) -> None:
+        _git_probe._load_resolver.cache_clear()
+        self.addCleanup(_git_probe._load_resolver.cache_clear)
+        with patch.object(_git_probe.importlib.util, "spec_from_file_location", return_value=None):
+            self.assertEqual(_git_probe._trusted_git(str(self.root)), "")
+
+    def test_unresolved_git_fails(self) -> None:
+        class Resolver:
+            """Stand in for a resolver that finds no trusted Git."""
+
+            @staticmethod
+            def resolve_git(root: str) -> str:
+                raise FileNotFoundError(f"no trusted Git for {root}")
+
+        with patch.object(_git_probe, "_load_resolver", return_value=Resolver):
+            self.assertEqual(_git_probe._trusted_git(str(self.root)), "")
 
     def test_missing_git_fails(self) -> None:
         with patch.object(_git_probe.subprocess, "Popen", side_effect=FileNotFoundError("git")):
