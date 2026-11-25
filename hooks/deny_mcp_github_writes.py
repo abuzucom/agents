@@ -70,7 +70,8 @@ def write_decision(payload: dict) -> tuple:
         return "", ""
     if not isinstance(tool_input, dict):
         return "deny", MALFORMED_REASON
-    if tool_input.get(LABELS_FIELD):
+    # Any present labels field writes labels. An empty list clears every label.
+    if LABELS_FIELD in tool_input:
         return "deny", LABELS_REASON
     if action in COMMENT_ACTIONS:
         return "deny", COMMENT_REASON

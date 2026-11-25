@@ -74,6 +74,38 @@ class SingleQuestionTest(unittest.TestCase):
         self.assertEqual(code, POLICY_DENIAL_EXIT_CODE)
         self.assertIn("(Recommended)", parsed["hookSpecificOutput"]["permissionDecisionReason"])
 
+    def test_two_recommendations_deny(self) -> None:
+        code, _parsed, _ = run_hook(payload([question("A (Recommended)", "B (Recommended)")]))
+        self.assertEqual(code, POLICY_DENIAL_EXIT_CODE)
+
+    def test_late_recommendation_denies(self) -> None:
+        code, _parsed, _ = run_hook(payload([question("A", "B (Recommended)")]))
+        self.assertEqual(code, POLICY_DENIAL_EXIT_CODE)
+
+    def test_empty_question_text_denies(self) -> None:
+        for text in ("", "   ", 7):
+            with self.subTest(text=text):
+                entry = question("A (Recommended)", "B")
+                entry["question"] = text
+                code, _parsed, _ = run_hook(payload([entry]))
+                self.assertEqual(code, POLICY_DENIAL_EXIT_CODE)
+
+    def test_bad_options_deny(self) -> None:
+        for options in ("x", [1, 2], None):
+            with self.subTest(options=options):
+                entry = question("A (Recommended)", "B")
+                entry["options"] = options
+                code, _parsed, _ = run_hook(payload([entry]))
+                self.assertEqual(code, POLICY_DENIAL_EXIT_CODE)
+
+    def test_bad_label_denies(self) -> None:
+        for label in ("", "  ", None, 3):
+            with self.subTest(label=label):
+                entry = question("A (Recommended)", "B")
+                entry["options"][1]["label"] = label
+                code, _parsed, _ = run_hook(payload([entry]))
+                self.assertEqual(code, POLICY_DENIAL_EXIT_CODE)
+
     def test_malformed_input_denies(self) -> None:
         for raw in ("not json", payload("text"), payload([{"options": "x"}]),
                     payload([{"options": [1, 2]}]), payload([])):

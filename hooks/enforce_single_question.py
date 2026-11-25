@@ -4,7 +4,10 @@
 AGENTS.md requires one recommendation with its reason for each open choice,
 asked once. Claude Code registers this hook on PreToolUse for
 AskUserQuestion. A deny makes the agent write the question again. The hook
-checks shape only. Each option keeps its own wording.
+checks shape only. It requires one question with non-empty text and two to
+four options with non-empty labels. Exactly one label ends with
+`(Recommended)`, and that option comes first. The client validates the
+other fields against its own schema.
 
 Other clients expose no structured question tool to repository hooks. The
 `interactive-decisions` skill carries the rule there.
@@ -16,6 +19,7 @@ import _gate_core as core
 GATE = "enforce_single_question.py"
 QUESTION_TOOL = "AskUserQuestion"
 REQUIRED_QUESTIONS = 1
+REQUIRED_RECOMMENDATIONS = 1
 MIN_OPTIONS = 2
 MAX_OPTIONS = 4
 RECOMMENDED_SUFFIX = "(Recommended)"
@@ -27,10 +31,15 @@ RECOMMENDATION_REASON = (f"mark one option label with a trailing {RECOMMENDED_SU
                          "and put that option first")
 
 
-def _recommended(options: list) -> bool:
-    """Return whether any option label ends with the recommendation suffix."""
-    return any(isinstance(entry.get("label"), str)
-               and entry["label"].rstrip().endswith(RECOMMENDED_SUFFIX) for entry in options)
+def _filled(value) -> bool:
+    """Return whether a value is a string with visible text."""
+    return isinstance(value, str) and bool(value.strip())
+
+
+def _recommendation_first(labels: list) -> bool:
+    """Return whether exactly one label carries the suffix and that label comes first."""
+    marked = [label.rstrip().endswith(RECOMMENDED_SUFFIX) for label in labels]
+    return marked[0] and sum(marked) == REQUIRED_RECOMMENDATIONS
 
 
 def question_decision(payload: dict) -> tuple:
@@ -44,12 +53,17 @@ def question_decision(payload: dict) -> tuple:
     if len(questions) != REQUIRED_QUESTIONS:
         return "deny", COUNT_REASON
     entry = questions[0]
-    options = entry.get("options") if isinstance(entry, dict) else None
+    if not isinstance(entry, dict) or not _filled(entry.get("question")):
+        return "deny", MALFORMED_REASON
+    options = entry.get("options")
     if not isinstance(options, list) or not all(isinstance(item, dict) for item in options):
         return "deny", MALFORMED_REASON
     if not MIN_OPTIONS <= len(options) <= MAX_OPTIONS:
         return "deny", OPTIONS_REASON
-    if not _recommended(options):
+    labels = [item.get("label") for item in options]
+    if not all(_filled(label) for label in labels):
+        return "deny", MALFORMED_REASON
+    if not _recommendation_first(labels):
         return "deny", RECOMMENDATION_REASON
     return "", ""
 

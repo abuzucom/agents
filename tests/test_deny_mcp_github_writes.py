@@ -86,9 +86,12 @@ class GithubWriteHookTest(unittest.TestCase):
                                                               "labels": ["bug"]}))
                 self.assertEqual(verdict, "deny")
 
-    def test_empty_labels_do_not_deny(self) -> None:
-        _code, verdict, _ = run_hook(payload("issue_write", {"labels": []}))
-        self.assertEqual(verdict, "ask")
+    def test_empty_labels_deny(self) -> None:
+        for action in ("issue_write", "update_pull_request"):
+            for value in ([], None):
+                with self.subTest(action=action, value=value):
+                    _code, verdict, _ = run_hook(payload(action, {"labels": value}))
+                    self.assertEqual(verdict, "deny")
 
     def test_read_tools_pass(self) -> None:
         for action in ("get_me", "pull_request_read", "list_pull_requests", "get_file_contents"):

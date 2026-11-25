@@ -19,9 +19,11 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ### Added
 - `hooks/enforce_single_question.py` denies an `AskUserQuestion` call
   with more than one question, fewer than two or more than four options,
-  or no option marked `(Recommended)`.
+  an empty question or label, or a first option that is not the single
+  option marked `(Recommended)`.
 - `hooks/deny_mcp_github_writes.py` denies GitHub MCP comment, review,
-  merge, auto-merge, and label writes. A pull request that is not a draft
+  merge, and auto-merge writes. Any present `labels` field denies, an
+  empty list included. A pull request that is not a draft
   denies. Every other known MCP write asks.
 - `hooks/detect_prose_options.py` blocks one stop when the final message
   offers choices in prose with no question call in the turn. The hook is
