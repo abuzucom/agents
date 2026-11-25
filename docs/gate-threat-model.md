@@ -65,6 +65,32 @@ include the following actions:
 - `hooks/workflow-scripts.local.txt` adds adopter script entries. It stays
   out of the shared set. An entry that repeats a shared entry, a malformed
   line, or an oversized file denies every repository script call.
+- `scripts/delete_zone_path.py --session <id>` asks when every operand sits
+  strictly below the session's own `.scratch/<id>/` or `.worktrees/<id>/`.
+  The id must equal the hook payload `session_id`. Every shell `rm` and
+  every other helper call keep the opaque denial. The check refuses the zone root, the session folder
+  itself, another session's folder, a `..` escape, a glob, a trailing
+  slash, a link out of the zone, a tracked file, and an unknown Git state.
+  The helper opens every component through its parent descriptor with no
+  link follow and deletes descriptor-relative. A swap after the gate check
+  refuses the delete. Platforms without `dir_fd` support refuse the helper.
+  The tracked check runs the Git that `scripts/trusted_git.py` resolves.
+  A Git inside the repository never answers it.
+  A target that holds a `.git` entry refuses. A linked worktree keeps its
+  own index. `git worktree remove` handles worktrees and refuses a dirty
+  tree.
+  Each check runs before the delete, not atomically with it. A concurrent
+  writer that runs as the same user inside the session zone falls outside
+  the boundary. That writer can stage a file with `git add -f` or plant a
+  `.git` entry after the check. That writer can also delete the same files
+  directly. The helper therefore takes no index lock. A long delete would
+  otherwise block every other session's commits. A file staged inside the
+  window keeps its staged content in Git.
+- The helper deletes one operand at a time. Each deleted operand prints a
+  line on stdout. A failure names how many operands the helper deleted first.
+- `hooks/prepare_session_workspace.py` creates both zone folders at
+  session start through parent descriptors that follow no link. It
+  creates nothing on a platform without `dir_fd` support.
 - The infrastructure file tool gate denies direct reads and writes to protected
   credentials, Terraform files, and Kubernetes or Helm manifests. Broad Glob
   and Grep requests scan a bounded tree and deny when protected files appear.

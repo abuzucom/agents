@@ -16,6 +16,7 @@ import _gate_core as core
 import _bash_parser as bash_parser
 import _test_runners
 import _trust
+import _zones
 
 GATE = "_command_execution_gate.py"
 INSPECTABLE_PROGRAMS = frozenset({
@@ -188,6 +189,12 @@ JS_RUNNER_LOCKFILES = {"pnpm": "pnpm-lock.yaml", "yarn": "yarn.lock"}
 JS_RUNNER_CONFIGS = {"pnpm": (".npmrc",), "yarn": (".yarnrc", ".yarnrc.yml")}
 JS_TEST_SCRIPT = "test"
 JS_TEST_LIFECYCLE = ("pretest", "test", "posttest")
+DELETE_ZONE_SCRIPT = "scripts/delete_zone_path.py"
+ZONE_SESSION_OPTION = "--session"
+# The session option, its value, and at least one operand.
+ZONE_HELPER_MINIMUM_ARGUMENTS = 3
+ZONE_DELETE_REASON = ("Repository workflow requires execution consent. The zone delete helper "
+                      "deletes inside this session's own zone folder.")
 
 
 def segment_program_reason(segment: list) -> str:
@@ -611,7 +618,7 @@ def _trusted_api_read_accepted(arguments: tuple, project_dir: str) -> bool:
     return bool(path) and _api_read_path_safe(path)
 
 
-def _python_verdict(tokens: list, project_dir: str) -> tuple:
+def _python_verdict(tokens: list, project_dir: str, session_id: str = "") -> tuple:
     """Return (decision, reason, read-only) for one Python interpreter command."""
     if tokens[1:MODULE_LAUNCH_END] == ["-m", "unittest"]:
         accepted = _unittest_accepted(tokens[MODULE_LAUNCH_END:], project_dir)
@@ -623,6 +630,8 @@ def _python_verdict(tokens: list, project_dir: str) -> tuple:
     script, arguments = _python_script_call(tokens, project_dir)
     if not script:
         return "", "", False
+    if script == DELETE_ZONE_SCRIPT:
+        return _zone_helper_verdict(arguments, project_dir, session_id)
     if script == TRUSTED_GH_SCRIPT and arguments[:1] in (("comments",), ("comment",)):
         return _trusted_comment_verdict(arguments)
     if script == TRUSTED_GH_SCRIPT and _trusted_api_read_accepted(arguments, project_dir):
@@ -1007,7 +1016,23 @@ def _compiled_test_verdict(tokens: list, project_dir: str) -> tuple:
     return (ALLOW if _trusted_project(project_dir) else ASK), "", False
 
 
-def _program_verdict(tokens: list, project_dir: str) -> tuple:
+def _zone_helper_verdict(arguments: tuple, project_dir: str, session_id: str) -> tuple:
+    """Return (decision, reason, read-only) for the zone delete helper.
+
+    The helper asks only for this session's own id and operands that pass
+    the zone check. Any other call stays unrecognized. The opaque denial
+    then applies.
+    """
+    if len(arguments) < ZONE_HELPER_MINIMUM_ARGUMENTS or arguments[0] != ZONE_SESSION_OPTION:
+        return "", "", False
+    if arguments[1] != session_id or not _zones.valid_session_id(session_id):
+        return "", "", False
+    if not _zones.zone_delete_allowed(list(arguments[2:]), project_dir, session_id):
+        return "", "", False
+    return ASK, ZONE_DELETE_REASON, False
+
+
+def _program_verdict(tokens: list, project_dir: str, session_id: str = "") -> tuple:
     """Return (decision, reason, read-only) for one literal command by program."""
     program = tokens[0]
     if program == "npm":
@@ -1025,7 +1050,7 @@ def _program_verdict(tokens: list, project_dir: str) -> tuple:
     if program == PYTEST_PROGRAM:
         return _pytest_verdict(tokens[1:], project_dir, PYTEST_PROGRAM)
     if _python_program(program):
-        return _python_verdict(tokens, project_dir)
+        return _python_verdict(tokens, project_dir, session_id)
     if program == "make":
         matched = tokens[1] in MAKE_TARGETS and tokens[SUBCOMMAND_ARGUMENTS_INDEX:] in MAKE_ARGUMENTS
         if matched and tokens[1] == MAKE_TEST_TARGET and _trusted_project(project_dir):
@@ -1036,9 +1061,9 @@ def _program_verdict(tokens: list, project_dir: str) -> tuple:
     return "", "", False
 
 
-def _part_verdict(tokens: list, project_dir: str) -> tuple:
+def _part_verdict(tokens: list, project_dir: str, session_id: str = "") -> tuple:
     """Return (decision, reason, read-only) with consent text and PATH disclosure applied."""
-    decision, reason, read_only = _program_verdict(tokens, project_dir)
+    decision, reason, read_only = _program_verdict(tokens, project_dir, session_id)
     # Repository writers control a program that PATH resolves inside the repository.
     if decision == ALLOW and _repository_program_path(tokens[0], project_dir):
         decision = ASK
@@ -1047,10 +1072,10 @@ def _part_verdict(tokens: list, project_dir: str) -> tuple:
     return decision, reason, read_only
 
 
-def _workflow_verdict(command: str, project_dir: str) -> tuple:
+def _workflow_verdict(command: str, project_dir: str, session_id: str = "") -> tuple:
     """Return (decision, reason, read-only) for one command or an && chain."""
     parts = _command_parts(command)
-    verdicts = [_part_verdict(part, project_dir) for part in parts]
+    verdicts = [_part_verdict(part, project_dir, session_id) for part in parts]
     decisions = [verdict[0] for verdict in verdicts]
     if not verdicts:
         return "", "", False
@@ -1065,13 +1090,14 @@ def _workflow_verdict(command: str, project_dir: str) -> tuple:
     return ALLOW, "", read_only
 
 
-def workflow_decision(command: str, project_dir: str) -> tuple:
+def workflow_decision(command: str, project_dir: str, session_id: str = "") -> tuple:
     """Return ("allow", ""), ("ask", prompt), ("deny", reason), or ("", "").
 
     The command holds one literal workflow or an && chain of them. A chain
-    takes the strictest decision of its parts.
+    takes the strictest decision of its parts. `session_id` names the
+    caller's zone folders. Without it no delete is recognized.
     """
-    decision, reason, _read_only = _workflow_verdict(command, project_dir)
+    decision, reason, _read_only = _workflow_verdict(command, project_dir, session_id)
     return decision, reason
 
 

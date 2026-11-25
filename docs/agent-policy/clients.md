@@ -29,6 +29,12 @@ copies. Agents there run the branch checker manually. A setup script running
 `pre-commit install --hook-type pre-push` restores the pre-push check. Start
 each cloud session inside one repository. Its hooks then load natively.
 
+Claude Code, Codex, and Gemini pass `session_id` to hooks. Their
+`SessionStart` creates `.scratch/<id>/` and `.worktrees/<id>/`. Codex has
+no native consent prompt. Its zone deletes still deny. Antigravity
+passes no session id. The zone helper stays denied there. Clients without hooks
+create the folders with `mkdir -p`.
+
 ## Compaction events
 Claude and Codex report compaction through the session payload `source`
 field. The reinjection hook prepends a compaction directive to policy

@@ -81,6 +81,8 @@ browser token recovery, and incomplete policy loading.
 
 The gates route acts that need consent to the active human. Unattended sessions
 refuse those acts.
+Delete inside the session's own `.scratch/<id>/` or `.worktrees/<id>/` only
+through `scripts/delete_zone_path.py`. The helper routes to consent.
 
 Shell gates allow repeated `scripts/trusted_gh.py` calls and route
 `-c agents.githubFallback=confirmed` commands to consent without cross-process
@@ -173,7 +175,8 @@ The protected inventory covers:
   `hooks/require_consent.py`, `hooks/github-command-denylist.txt`,
   `hooks/primary-branch.txt`, `hooks/workflow-scripts.txt`, `hooks/_trust.py`,
   `hooks/trusted-owners.txt`, `hooks/enforce_pr_base.py`,
-  `hooks/_test_runners.py`, `hooks/workflow-scripts.local.txt`, and
+  `hooks/_test_runners.py`, `hooks/workflow-scripts.local.txt`,
+  `hooks/_git_probe.py`, `hooks/_zones.py`, `hooks/prepare_session_workspace.py`, and
   `hooks/claude-code-settings.example.json`.
 - Hook configurations:
   `.claude/settings.json`, `.agents/`, `.codex/hooks.json`,

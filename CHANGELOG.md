@@ -14,9 +14,37 @@ into the entry. Dates never decrease. Ask the active human when a date is in
 doubt.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.42.1] (2026-11-24)
+## [2.44.0] (2026-11-25)
 
 ### Added
+- `scripts/delete_zone_path.py` prints one stdout line for each deleted
+  operand. A failure names how many operands the helper deleted first. The
+  helper docstring and the threat model state that deletion is not atomic.
+  Concurrent same-user writers inside the session zone fall outside the
+  boundary.
+
+### Fixed
+- `hooks/_zones.py` rejects `.` and empty path components. The gate and
+  the delete helper now accept the same operands.
+- `hooks/_git_probe.py` runs the Git that `scripts/trusted_git.py`
+  resolves. A Git inside the repository never answers the zone tracked
+  check. A missing resolver or no trusted Git refuses the delete.
+
+## [2.43.0] (2026-11-24)
+
+### Added
+- `scripts/delete_zone_path.py` deletes inside the session's own
+  `.scratch/<id>/` or `.worktrees/<id>/` after a consent prompt. The
+  helper walks every path component through descriptors and follows no
+  link. Shell `rm` keeps the opaque program denial.
+  A target that holds a `.git` entry refuses. `git worktree remove`
+  handles linked worktrees.
+  `hooks/_zones.py` checks every operand. `hooks/_git_probe.py` rejects
+  tracked files with a hardened `git ls-files`. The probe streams Git
+  output under a fixed cap and discards stderr.
+- `hooks/prepare_session_workspace.py` creates both zone folders at
+  `SessionStart` in Claude Code, Codex, and Gemini.
+- `.gitignore` and `scripts/check_forbidden_paths.py` cover `.worktrees/`.
 - CI workflows run on every pull request base. A static branch filter
   cannot read `hooks/primary-branch.txt`. Gate integrity runs the base
   copy of `scripts/check_pr_base.py`. It fails a base outside the stable
@@ -94,6 +122,11 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   directly. Windows reports a file in place of the `hooks` folder as absent.
 - `tests/test_primary_pr_base.py` shows that a direct `gh pr create`
   without a base denies. Every direct gh call routes to the wrapper.
+
+### Fixed
+- `.gemini/settings.json` quotes `$GEMINI_PROJECT_DIR` in every hook
+  command. A project path with a space no longer splits into several
+  arguments. `tests/test_gemini_command_quoting.py` covers each command.
 
 ## [2.37.0] (2026-11-23)
 

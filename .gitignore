@@ -220,6 +220,7 @@ __marimo__/
 # Comment drafts for scripts/trusted_gh.py comment. Drafts never belong in commits.
 .comment-drafts/
 
-# Per-session scratch folders, handoffs included. scripts/check_forbidden_paths.py
-# blocks any commit that stages a path below this folder.
+# Per-session scratch and worktree folders, handoffs included.
+# scripts/check_forbidden_paths.py blocks any commit that stages a path below them.
 .scratch/
+.worktrees/

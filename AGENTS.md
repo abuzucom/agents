@@ -136,7 +136,8 @@ each act. The gate covers every target. Covered targets include:
 
 Follow the authorization procedure in `docs/agent-policy/enforcement.md`.
 Restate the exact command and every target. Wait for confirmation. Record the
-authorization, command, and execution time.
+authorization, command, and execution time. Zone deletes use
+`scripts/delete_zone_path.py`. It asks.
 
 **Refuse without a prompt.** The hooks refuse the targets and command families
 listed in `docs/agent-policy/enforcement.md`.

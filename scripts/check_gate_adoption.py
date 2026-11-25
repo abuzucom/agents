@@ -35,6 +35,7 @@ CLIENT_HOOKS = (
     "hooks/enforce_anti_delegation.py",
     "hooks/enforce_branch_name.py",
     "hooks/enforce_git_identity.py",
+    "hooks/prepare_session_workspace.py",
     f"hooks/{TRANSACTION_HOOK}",
     # The command execution gate denies every repository script without its list.
     "hooks/workflow-scripts.txt",
@@ -64,6 +65,7 @@ REQUIRED_CHECKERS = (
     "scripts/_pr_event.py",
     "scripts/_skill_sync.py",
     "scripts/check_forbidden_paths.py",
+    "scripts/delete_zone_path.py",
     "scripts/check_handoff_content.py",
     "scripts/check_shared_neutrality.py",
 )
@@ -113,6 +115,7 @@ REQUIRED_REGISTRATIONS = {
         "SessionStart": {SESSION_START_MATCHER},
         "PreToolUse": {EDIT_MATCHER},
     },
+    "prepare_session_workspace.py": {"SessionStart": {SESSION_START_MATCHER}},
     "reinject_agents_policy.py": {
         "SessionStart": {SESSION_START_MATCHER},
         "SubagentStart": {SUBAGENT_MATCHER},
