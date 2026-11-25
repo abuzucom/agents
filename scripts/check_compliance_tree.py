@@ -133,8 +133,11 @@ SECRET_INDEX_PATTERN = re.compile(r"secrets\s*\[", re.IGNORECASE)
 EVENT_EXPRESSION_PATTERN = re.compile(
     r"\$\{\{[^}]*\bgithub(?:\.event\b|\.head_ref\b|\s*\[|\s*\))", re.IGNORECASE)
 # A condition or a concurrency group evaluates event data without passing it
-# to a step, an action input, or the environment.
-EVENT_SAFE_KEYS = frozenset(("if", "concurrency"))
+# to a step, an action input, or the environment. Only these structural
+# fields qualify. A nested key with the same name gains no exemption.
+WORKFLOW_SAFE_KEYS = frozenset(("concurrency",))
+JOB_SAFE_KEYS = frozenset(("if", "concurrency"))
+STEP_SAFE_KEYS = frozenset(("if",))
 PERMISSION_SCOPES = frozenset((
     "actions", "attestations", "checks", "contents", "deployments", "discussions",
     "id-token", "issues", "models", "packages", "pages", "pull-requests",
@@ -833,24 +836,33 @@ def _reviewed_call_messages(job: dict, reusable_workflows: frozenset) -> set:
     return messages
 
 
+def _event_scan_roots(document: dict) -> list:
+    """Return every workflow value outside the structural condition and concurrency fields."""
+    roots = [item for key, item in document.items() if key not in WORKFLOW_SAFE_KEYS | {"jobs"}]
+    jobs = document.get("jobs")
+    if not isinstance(jobs, dict):
+        return roots + [jobs]
+    for job in jobs.values():
+        if not isinstance(job, dict):
+            roots.append(job)
+            continue
+        roots.extend(item for key, item in job.items() if key not in JOB_SAFE_KEYS | {"steps"})
+        steps = job.get("steps")
+        if not isinstance(steps, list):
+            roots.append(steps)
+            continue
+        for step in steps:
+            if isinstance(step, dict):
+                roots.extend(item for key, item in step.items() if key not in STEP_SAFE_KEYS)
+            else:
+                roots.append(step)
+    return roots
+
+
 def _event_data_outside_safe_keys(document: dict) -> bool:
     """Return whether event data appears anywhere but a condition or concurrency group."""
-    stack = [document]
-    visited = set()
-    while stack:
-        value = stack.pop()
-        if isinstance(value, str):
-            if EVENT_EXPRESSION_PATTERN.search(value):
-                return True
-            continue
-        if not isinstance(value, (dict, list)) or id(value) in visited:
-            continue
-        visited.add(id(value))
-        if isinstance(value, dict):
-            stack.extend(item for key, item in value.items() if key not in EVENT_SAFE_KEYS)
-        else:
-            stack.extend(value)
-    return False
+    return any(isinstance(value, str) and EVENT_EXPRESSION_PATTERN.search(value)
+               for value in _walk_values(_event_scan_roots(document)))
 
 
 def _reviewed_permission_messages(name: object, job: dict, write_scopes: frozenset) -> set:
