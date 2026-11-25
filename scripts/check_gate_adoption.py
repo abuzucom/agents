@@ -126,6 +126,9 @@ REQUIRED_REGISTRATIONS = {
     "block_destructive_cmd.py": {"PreToolUse": {"Cmd|CMD|CommandPrompt"}},
     "block_infrastructure_access.py": {"PreToolUse": {FILE_TOOL_MATCHER}},
     "enforce_pr_base.py": {"PreToolUse": {MCP_TOOL_MATCHER}},
+    "deny_mcp_github_writes.py": {"PreToolUse": {MCP_TOOL_MATCHER}},
+    "enforce_single_question.py": {"PreToolUse": {"AskUserQuestion"}},
+    "detect_prose_options.py": {"Stop": {""}},
 }
 
 

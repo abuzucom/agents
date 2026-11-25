@@ -35,6 +35,10 @@ no native consent prompt. Its zone deletes still deny. Antigravity
 passes no session id. The zone helper stays denied there. Clients without hooks
 create the folders with `mkdir -p`.
 
+Ask each open choice through the client's question tool. Claude Code hooks
+check the `AskUserQuestion` shape and gate GitHub MCP writes. A Stop hook
+flags prose choices as advice. Other clients expose neither to hooks.
+
 ## Compaction events
 Claude and Codex report compaction through the session payload `source`
 field. The reinjection hook prepends a compaction directive to policy

@@ -832,6 +832,8 @@ class SettingsWiringTest(unittest.TestCase):
         "enforce_git_identity.py": {"Bash"},
         "require_consent.py": {"Edit|Write|MultiEdit|NotebookEdit"},
         "enforce_pr_base.py": {"mcp__.*"},
+        "enforce_single_question.py": {"AskUserQuestion"},
+        "deny_mcp_github_writes.py": {"mcp__.*"},
     }
 
     @staticmethod

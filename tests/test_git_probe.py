@@ -143,6 +143,12 @@ class TrackedPathsTest(unittest.TestCase):
         with patch.object(_git_probe.importlib.util, "spec_from_file_location", return_value=None):
             self.assertEqual(_git_probe._trusted_git(str(self.root)), "")
 
+    def test_broken_resolver_fails(self) -> None:
+        for error in (SyntaxError("bad resolver"), AttributeError("no resolve_git")):
+            with self.subTest(error=type(error).__name__), \
+                    patch.object(_git_probe, "_load_resolver", side_effect=error):
+                self.assertEqual(_git_probe._trusted_git(str(self.root)), "")
+
     def test_unresolved_git_fails(self) -> None:
         class Resolver:
             """Stand in for a resolver that finds no trusted Git."""

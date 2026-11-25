@@ -97,6 +97,14 @@
               "claude"
             ],
             "timeout": 30
+          },
+          {
+            "type": "command",
+            "command": "python",
+            "args": [
+              "${CLAUDE_PROJECT_DIR}/hooks/detect_prose_options.py"
+            ],
+            "timeout": 30
           }
         ]
       }
@@ -277,6 +285,27 @@
             "command": "python",
             "args": [
               "${CLAUDE_PROJECT_DIR}/hooks/enforce_pr_base.py"
+            ],
+            "timeout": 30
+          },
+          {
+            "type": "command",
+            "command": "python",
+            "args": [
+              "${CLAUDE_PROJECT_DIR}/hooks/deny_mcp_github_writes.py"
+            ],
+            "timeout": 30
+          }
+        ]
+      },
+      {
+        "matcher": "AskUserQuestion",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python",
+            "args": [
+              "${CLAUDE_PROJECT_DIR}/hooks/enforce_single_question.py"
             ],
             "timeout": 30
           }
