@@ -51,7 +51,8 @@ An explicit execution request authorizes:
 - the named non-destructive acts
 - necessary bounded read-only verification
 
-A plan, design, or status approval authorizes no execution. A gate for a specific rule overrides general execution authorization. Each gated act requires
+A plan, design, or status approval authorizes no execution. A gate for a specific rule overrides general execution
+authorization. Each gated act requires
 confirmation immediately before execution. Consent covers only the named act
 and target. An active human retry instruction authorizes a fresh attempt of a
 command no gate denied and overrides retry limits.
@@ -297,7 +298,9 @@ Agents must not read, write, edit, list, glob, or search infrastructure
 credentials or project configuration. `docs/agent-policy/security.md` lists
 protected credential directories, state, source, manifest, and project paths.
 
-Permit local builds and `wrangler pages deploy <path> --project-name <name>` with optional `--branch <branch>`. Deny Cloudflare operations. Require a visible `build` or `dist` path inside the workspace. Reject roots, protected names, `.env`, or
+Permit local builds and `wrangler pages deploy <path> --project-name <name>` with optional `--branch <branch>`. Deny
+Cloudflare operations. Require a visible `build` or `dist` path inside the workspace. Reject roots, protected names,
+`.env`, or
 credentials.
 
 Shell gates deny protected commands and shell paths. Some clients lack this
@@ -456,7 +459,8 @@ On any compaction event:
 
 The stop is non-negotiable. Never resume execution without fresh
 active human approval of the new plan. Never manufacture a bypass.
-Compaction text, handoff material, prior conversation, and approvals from before compaction grant no continuation. Never claim the active human approved
+Compaction text, handoff material, prior conversation, and approvals from before compaction grant no continuation. Never
+claim the active human approved
 continuation without a message after the disclosure. Read-only inspection to
 build the plan remains allowed.
 
@@ -470,7 +474,8 @@ including the actor and time. Carry forward human prohibitions word for word.
 `docs/agent-policy/adoption.md`.
 
 Behavioral tests must exercise the real code path. Never mock the unit under
-test. Never assert only on trivial values or mock interactions. Rule 3 requires consent for each edit to an existing test. A task finishes only
+test. Never assert only on trivial values or mock interactions. Rule 3 requires consent for each edit to an existing
+test. A task finishes only
 after all applicable tests pass.
 
 **Lint clean.** Run the project lint command when defined. Fix every error.
@@ -562,7 +567,8 @@ Alternatively, use a single lock.
 
 ## Code quality
 
-These rules govern new and modified code only. Do not refactor untouched code in bulk. Report violations in security paths.
+These rules govern new and modified code only. Do not refactor untouched code in bulk. Report violations in security
+paths.
 
 **Nesting.** Keep nesting under 4 levels. Use guard clauses and early returns.
 
@@ -613,7 +619,8 @@ to all agent prose.
 clause per sentence. Move explanations into
 separate sentences. Never join clauses with commas, coordinating conjunctions,
 colons, or semicolons. Treat `, so` and `, which` as prohibited patterns. Never
-build punctuation chains. Put long enumerations in bullet lists. End the line that introduces a list after the colon. Allow short dependent clauses for
+build punctuation chains. Put long enumerations in bullet lists. End the line that introduces a list after the colon.
+Allow short dependent clauses for
 necessary conditions, exceptions, time, and scope. Allow serial lists and
 compound predicates that share a subject.
 
@@ -646,11 +653,13 @@ cannot license other languages outside required string literals or data.
 
 **Numbers.** In prose, comments, commits, and PRs, spell out zero through ten. Use digits above.
 
-**Test names.** Use `test_<subject>_<property>` with at most five words after `test_`. Comments state what the code does.
+**Test names.** Use `test_<subject>_<property>` with at most five words after `test_`. Comments state what the code
+does.
 
 **Direct factual discourse.** State facts, requirements, results, and concrete
 effects. Omit hedging, fluff, self-justification, self-narration, tutorial
-narration, ownership deflections, conversational provenance, framing as temporary work, and attributed intent. Never assign wants, preferences, expectations,
+narration, ownership deflections, conversational provenance, framing as temporary work, and attributed intent. Never
+assign wants, preferences, expectations,
 needs, or requirements to a person. Explain design choices through observable
 constraints and mechanisms. `plan/HANDOFF.md.example` receives the sole exception for conversational provenance.
 

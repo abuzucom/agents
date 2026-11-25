@@ -9,6 +9,7 @@ import subprocess
 import sys
 import tempfile
 from contextlib import contextmanager
+from dataclasses import dataclass
 from pathlib import Path
 from types import ModuleType
 
@@ -95,6 +96,40 @@ CHECKER_NAMES = (
     "check_local_paths",
 )
 BOT_REGISTRY_NAME = "trusted_bot_identities"
+PULL_TARGET_TOP_KEYS = frozenset(
+    {"name", True, "on", "concurrency", "permissions", "env", "jobs"})
+# The exemption manifest sits beside the trusted base checker, like the
+# local-path allowlist, so a pull request cannot widen its own exemptions.
+EXEMPTIONS_FILE = ".compliance-tree-exemptions.json"
+MAX_EXEMPTIONS_BYTES = 64 * 1024
+EXEMPTIONS_VERSION = 1
+EXEMPTION_KEYS = frozenset(("version", "pull_request_target", "rule7_excluded_trees"))
+REVIEWED_ENTRY_KEYS = frozenset(("secrets",))
+REVIEWED_WORKFLOW_PATTERN = re.compile(r"\.github/workflows/[A-Za-z0-9_-][A-Za-z0-9._-]*\.ya?ml\Z")
+SECRET_NAME_PATTERN = re.compile(r"[A-Za-z_][A-Za-z0-9_]*\Z")
+# Segments that start with a dot are refused, which also refuses `.` and
+# `..` traversal and every client configuration directory.
+TREE_SEGMENT_PATTERN = re.compile(r"[A-Za-z0-9_-][A-Za-z0-9._-]*\Z")
+TREE_WILDCARD = "*"
+PROTECTED_TREE_ROOTS = frozenset(("scripts", "hooks"))
+REVIEWED_TOP_PERMISSIONS = ({}, {"contents": "read"})
+SECRET_REFERENCE_PATTERN = re.compile(r"secrets\s*\.\s*([A-Za-z_][A-Za-z0-9_]*)", re.IGNORECASE)
+SECRET_INDEX_PATTERN = re.compile(r"secrets\s*\[", re.IGNORECASE)
+# Event fields such as titles and branch names carry attacker text. The
+# word boundary leaves github.event_name, which carries no such text.
+EVENT_EXPRESSION_PATTERN = re.compile(
+    r"\$\{\{[^}]*\b(?:github\.event|github\.head_ref)\b", re.IGNORECASE)
+
+
+@dataclass(frozen=True)
+class TreeExemptions:
+    """Reviewed exemptions that the trusted base branch declares."""
+
+    pull_target: dict
+    rule7_trees: tuple
+
+
+NO_EXEMPTIONS = TreeExemptions({}, ())
 
 
 def _sanitize(value: object) -> str:
@@ -134,6 +169,100 @@ def _load_trusted(name: str) -> ModuleType:
 def _load_checkers() -> dict[str, ModuleType]:
     """Load every checker from the orchestrator's own directory."""
     return {name: _load_trusted(name) for name in CHECKER_NAMES}
+
+
+def _trusted_root() -> Path:
+    """Return the repository root of the trusted checker copy."""
+    return Path(__file__).resolve().parent.parent
+
+
+def _manifest_error(detail: str) -> RuntimeError:
+    """Build one fail-closed manifest error with its recovery action."""
+    return RuntimeError(
+        f"{EXEMPTIONS_FILE} is invalid: {detail}. Fix: correct the manifest "
+        "on the base branch through a reviewed gate change.")
+
+
+def _read_exemptions_text(path: Path) -> str | None:
+    """Return the ASCII manifest text, or None when the manifest is absent."""
+    if path.is_symlink():
+        raise _manifest_error("the manifest must not be a symlink")
+    if not path.exists():
+        return None
+    if not path.is_file() or path.stat().st_size > MAX_EXEMPTIONS_BYTES:
+        raise _manifest_error(f"the manifest must be a regular file of at most {MAX_EXEMPTIONS_BYTES} bytes")
+    try:
+        return path.read_bytes().decode("ascii")
+    except UnicodeDecodeError as error:
+        raise _manifest_error("the manifest must be ASCII") from error
+
+
+def _parse_reviewed_workflows(value: object) -> dict:
+    """Map each reviewed workflow path to its allowed secret names."""
+    if not isinstance(value, dict):
+        raise _manifest_error("pull_request_target must be an object")
+    reviewed = {}
+    for path, entry in value.items():
+        if not REVIEWED_WORKFLOW_PATTERN.fullmatch(path):
+            raise _manifest_error(f"{_sanitize(path)} is not a workflow path")
+        if not isinstance(entry, dict) or set(entry) != REVIEWED_ENTRY_KEYS:
+            raise _manifest_error(f"{_sanitize(path)} must hold only a secrets list")
+        secrets = entry["secrets"]
+        if not isinstance(secrets, list) or not all(
+                isinstance(name, str) and SECRET_NAME_PATTERN.fullmatch(name) for name in secrets):
+            raise _manifest_error(f"{_sanitize(path)} secrets must be secret names")
+        reviewed[path] = frozenset(name.upper() for name in secrets)
+    return reviewed
+
+
+def _parse_tree_pattern(pattern: object) -> tuple:
+    """Split one `segment/.../` fixture tree pattern into checked segments."""
+    if not isinstance(pattern, str) or not pattern.endswith("/"):
+        raise _manifest_error("each excluded tree must be text that ends with /")
+    segments = tuple(pattern[:-1].split("/"))
+    for segment in segments:
+        if segment != TREE_WILDCARD and not TREE_SEGMENT_PATTERN.fullmatch(segment):
+            raise _manifest_error(f"{_sanitize(pattern)} holds an unsafe segment")
+    if segments[0] == TREE_WILDCARD or segments[0] in PROTECTED_TREE_ROOTS:
+        raise _manifest_error(f"{_sanitize(pattern)} must start below a literal unprotected directory")
+    return segments
+
+
+def load_exemptions(root: Path) -> TreeExemptions:
+    """Load the exemption manifest from one trusted root, or none when absent."""
+    text = _read_exemptions_text(root / EXEMPTIONS_FILE)
+    if text is None:
+        return NO_EXEMPTIONS
+    try:
+        document = json.loads(text)
+    except json.JSONDecodeError as error:
+        raise _manifest_error("the manifest is not JSON") from error
+    if not isinstance(document, dict) or not set(document) <= EXEMPTION_KEYS:
+        raise _manifest_error(f"the manifest allows only {sorted(EXEMPTION_KEYS)}")
+    version = document.get("version")
+    if type(version) is not int or version != EXEMPTIONS_VERSION:
+        raise _manifest_error(f"version must be {EXEMPTIONS_VERSION}")
+    trees = document.get("rule7_excluded_trees", [])
+    if not isinstance(trees, list):
+        raise _manifest_error("rule7_excluded_trees must be a list")
+    return TreeExemptions(
+        _parse_reviewed_workflows(document.get("pull_request_target", {})),
+        tuple(_parse_tree_pattern(pattern) for pattern in trees))
+
+
+def _tree_matches(segments: tuple, pattern: tuple) -> bool:
+    """Return whether a file path sits below one excluded tree pattern."""
+    if len(segments) <= len(pattern):
+        return False
+    return all(expected in (TREE_WILDCARD, actual) for expected, actual in zip(pattern, segments))
+
+
+def _rule7_excluded(path: str, exemptions: TreeExemptions | None) -> bool:
+    """Return whether the base manifest excludes a path from the Rule 7 scan."""
+    if exemptions is None:
+        return False
+    segments = tuple(path.split("/"))
+    return any(_tree_matches(segments, pattern) for pattern in exemptions.rule7_trees)
 
 
 def _is_within(path: Path, parent: Path) -> bool:
@@ -558,10 +687,72 @@ def _candidate_install_command(candidate_job) -> str:
     return TRUSTED_WHEEL_COMMAND
 
 
-def _pull_target_violations(document: dict, text: str, path: str) -> list[str]:
+def _reviewed_secret_messages(jobs: dict, text: str, allowed: frozenset) -> list[str]:
+    """Allow only secret references that the base manifest lists."""
+    messages = []
+    if SECRET_INDEX_PATTERN.search(text):
+        messages.append("indexes secrets")
+    if any(isinstance(job, dict) and job.get("secrets") == "inherit" for job in jobs.values()):
+        messages.append("inherits secrets")
+    referenced = {match.group(1).upper() for match in SECRET_REFERENCE_PATTERN.finditer(text)}
+    messages.extend(f"references unlisted secret {name}" for name in sorted(referenced - allowed))
+    return messages
+
+
+def _reviewed_step_messages(step: object) -> set:
+    """Refuse code checkout and event interpolation in one step."""
+    if not isinstance(step, dict):
+        return {"has a non-mapping step"}
+    messages = set()
+    uses = step.get("uses")
+    if isinstance(uses, str) and uses.lower().startswith("actions/checkout"):
+        messages.add("checks out code")
+    for value in _walk_values([step.get("run"), step.get("with")]):
+        if isinstance(value, str) and EVENT_EXPRESSION_PATTERN.search(value):
+            messages.add("interpolates event data in a step")
+    return messages
+
+
+def _reviewed_job_messages(jobs: dict) -> list[str]:
+    """Apply the reviewed step rules to every job."""
+    messages = set()
+    for job in jobs.values():
+        steps = job.get("steps", []) if isinstance(job, dict) else []
+        if not isinstance(steps, list):
+            messages.add("has a non-list steps value")
+            continue
+        for step in steps:
+            messages.update(_reviewed_step_messages(step))
+    return sorted(messages)
+
+
+def _reviewed_pull_target_violations(
+    document: dict, text: str, path: str, allowed: frozenset,
+) -> list[str]:
+    """Apply the documented rule set to a workflow the base manifest reviews."""
+    messages = []
+    if not set(document).issubset(PULL_TARGET_TOP_KEYS):
+        messages.append("has unsupported top-level keys")
+    if document.get("permissions") not in REVIEWED_TOP_PERMISSIONS:
+        messages.append("top-level permissions are not empty or contents: read")
+    jobs = document.get("jobs")
+    if not isinstance(jobs, dict) or not jobs:
+        messages.append("has no jobs mapping")
+        jobs = {}
+    messages.extend(_reviewed_secret_messages(jobs, text, allowed))
+    messages.extend(_reviewed_job_messages(jobs))
+    return [f"{path}: reviewed pull_request_target {message}" for message in messages]
+
+
+def _pull_target_violations(
+    document: dict, text: str, path: str, exemptions: TreeExemptions | None = None,
+) -> list[str]:
     """Require the exact closed privileged workflow execution surface."""
     if not _pull_target_trigger(document):
         return []
+    allowed = (exemptions or NO_EXEMPTIONS).pull_target.get(path)
+    if allowed is not None:
+        return _reviewed_pull_target_violations(document, text, path, allowed)
     raw_jobs = document.get("jobs")
     candidate_job = raw_jobs.get("immutable-compliance") if isinstance(raw_jobs, dict) else None
     install_command = _candidate_install_command(candidate_job)
@@ -600,9 +791,8 @@ def _pull_target_violations(document: dict, text: str, path: str) -> list[str]:
         {"immutable-compliance": expected_job},
         {"immutable-compliance": trusted_job},
     )
-    allowed_top_keys = {"name", True, "on", "concurrency", "permissions", "env", "jobs"}
     checks = (
-        (set(document).issubset(allowed_top_keys), "has unsupported top-level keys"),
+        (set(document).issubset(PULL_TARGET_TOP_KEYS), "has unsupported top-level keys"),
         (document.get("permissions") == {"contents": "read"}, "permissions are not read-only"),
         (document.get("env") == TRUSTED_ENVIRONMENT, "does not bind exact trusted inputs"),
         (job_schema_ok, "job schema is not trusted"),
@@ -616,6 +806,7 @@ def _pull_target_violations(document: dict, text: str, path: str) -> list[str]:
 
 def _workflow_violations(
     text: str, path: str, persist_checker: ModuleType,
+    exemptions: TreeExemptions | None = None,
 ) -> list[str]:
     """Check immutable actions and privileged workflow execution policy."""
     try:
@@ -626,12 +817,13 @@ def _workflow_violations(
     for document in documents:
         violations.extend(_action_violations(document, path))
         if isinstance(document, dict):
-            violations.extend(_pull_target_violations(document, text, path))
+            violations.extend(_pull_target_violations(document, text, path, exemptions))
     return violations
 
 
 def _scan_blob(
     path: str, text: str, mode: str, checkers: dict[str, ModuleType],
+    exemptions: TreeExemptions | None = None,
 ) -> list[str]:
     """Dispatch one decoded tracked blob to every applicable checker."""
     violations = list(
@@ -656,8 +848,8 @@ def _scan_blob(
         violations.extend(
             checkers["check_persist_credentials"].find_violations(text, path))
         violations.extend(_workflow_violations(
-            text, path, checkers["check_persist_credentials"]))
-    if Path(lower_path).suffix in CODE_SUFFIXES:
+            text, path, checkers["check_persist_credentials"], exemptions))
+    if Path(lower_path).suffix in CODE_SUFFIXES and not _rule7_excluded(path, exemptions):
         violations.extend(
             checkers["check_weak_hashing"].find_violations(text, path))
     is_dockerfile = name in ("dockerfile", "containerfile") or name.startswith(
@@ -714,7 +906,7 @@ def _local_path_violations(findings: list) -> list[str]:
 
 def _scan_tree(
     repo: Path, object_id: str, checkers: dict[str, ModuleType],
-    local_scanner: object | None = None,
+    local_scanner: object | None = None, exemptions: TreeExemptions | None = None,
 ) -> list[str]:
     """Scan all supported blobs and conflict markers in one exact object."""
     executable, safe_path = _resolve_git(repo)
@@ -742,7 +934,7 @@ def _scan_tree(
             raise RuntimeError(
                 f"tree content exceeds limit ({MAX_TOTAL_BLOB_BYTES} bytes)")
         text = _decode_blob(content)
-        violations.extend(_scan_blob(path, text, mode, checkers))
+        violations.extend(_scan_blob(path, text, mode, checkers, exemptions))
         if local_scanner is not None:
             violations.extend(_local_path_violations(
                 local_scanner.scan_text(text, path)
@@ -945,7 +1137,8 @@ def main() -> int:
         values["--tree"] = object_id
         checkers = _load_checkers()
         local_scanner = _local_path_scanner(checkers)
-        violations = _scan_tree(repo, object_id, checkers, local_scanner)
+        exemptions = load_exemptions(_trusted_root())
+        violations = _scan_tree(repo, object_id, checkers, local_scanner, exemptions)
         violations.extend(_scan_metadata(values, repo, checkers, local_scanner))
         return _report(violations)
     except (Exception, KeyboardInterrupt) as error:

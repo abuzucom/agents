@@ -541,6 +541,46 @@ lists each failure. Untracked files leave the worktree check clean.
 sentence that carries both a human directive and a command payload. A sentence
 that states the prohibition stays clean.
 
+### Compliance tree exemptions
+
+An adopter can declare reviewed exemptions in
+`.compliance-tree-exemptions.json` at the repository root. The checker reads
+the copy beside the trusted base checker only. A pull request cannot widen
+its own exemptions. `check_gate_pr_integrity.py` protects the path. A missing
+manifest exempts nothing. A malformed manifest fails the run.
+
+```json
+{
+  "version": 1,
+  "pull_request_target": {
+    ".github/workflows/persona-review-pr.yml": {"secrets": ["MODEL_KEY"]}
+  },
+  "rule7_excluded_trees": ["reviewers/*/eval/cases/"]
+}
+```
+
+A listed `pull_request_target` workflow passes these rules in place of exact
+template equality:
+
+- Top-level `permissions` is `{}` or `contents: read`.
+- No step uses `actions/checkout`.
+- No step `run` or `with` value interpolates `github.event` or
+  `github.head_ref` data.
+- Every `secrets.<NAME>` reference names a listed secret.
+- No job uses `secrets: inherit`. No text indexes `secrets[...]`.
+- Every external action uses a full commit SHA.
+
+The rule set reads workflow structure only. It parses no shell text. A `run` step can still fetch pull request code through `git` or
+`gh`. A job-level `uses:` reusable workflow runs with the caller's
+privileges. The rule set does not inspect that reusable workflow. Review
+both before listing a caller.
+
+Each `rule7_excluded_trees` pattern ends with `/`. A `*` segment matches one
+directory name. The first segment must be a literal directory outside
+`scripts/` and `hooks/`. The parser refuses a segment that starts with a
+dot. A matching file skips only the Rule 7 weak-hash scan. Secret, persist
+credential, container root, conflict marker, and local path scans still run.
+
 `check_hook_coverage.py --write-baseline` creates or refreshes
 `hook-coverage-baseline.json`. Python 3.12 and newer use local
 `sys.monitoring` events when the coverage tool slot remains available. Other
