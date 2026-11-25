@@ -14,9 +14,18 @@ into the entry. Dates never decrease. Ask the active human when a date is in
 doubt.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.43.1] (2026-11-25)
+## [2.44.0] (2026-11-25)
+
+### Added
+- `scripts/delete_zone_path.py` prints one stdout line for each deleted
+  operand. A failure names how many operands the helper deleted first. The
+  helper docstring and the threat model state that deletion is not atomic.
+  Concurrent same-user writers inside the session zone fall outside the
+  boundary.
 
 ### Fixed
+- `hooks/_zones.py` rejects `.` and empty path components. The gate and
+  the delete helper now accept the same operands.
 - `hooks/_git_probe.py` runs the Git that `scripts/trusted_git.py`
   resolves. A Git inside the repository never answers the zone tracked
   check. A missing resolver or no trusted Git refuses the delete.

@@ -23,6 +23,8 @@ SESSION_ID_PATTERN = re.compile(r"[A-Za-z0-9_-]{1,128}")
 GLOB_CHARACTERS = frozenset("*?[]{}")
 PARENT_DIRECTORY = ".."
 GIT_ENTRY = ".git"
+# The helper rejects these components too. Both must accept the same paths.
+REJECTED_COMPONENTS = frozenset({PARENT_DIRECTORY, GIT_ENTRY, ".", ""})
 # A larger tree refuses. The bound keeps the walk inside the hook time limit.
 MAX_WALK_ENTRIES = 100_000
 
@@ -37,7 +39,7 @@ def literal_operand(operand: str) -> bool:
     return (bool(operand) and not operand.startswith(("-", "/", "\\", "~"))
             and not GLOB_CHARACTERS.intersection(operand)
             and not operand.endswith(("/", "\\"))
-            and not {PARENT_DIRECTORY, GIT_ENTRY}.intersection(operand.replace("\\", "/").split("/"))
+            and not REJECTED_COMPONENTS.intersection(operand.replace("\\", "/").split("/"))
             and not os.path.isabs(operand))
 
 

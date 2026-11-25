@@ -98,6 +98,11 @@ class ZoneVerdictTest(unittest.TestCase):
                        check=True, timeout=GIT_TIMEOUT_SECONDS)
         self.assertEqual(self.decide(helper_command(f".scratch/{SESSION}/a.txt")), "")
 
+    def test_dot_and_empty_components_unmatched(self) -> None:
+        for operands in (f".scratch/{SESSION}/./a.txt", f".scratch/{SESSION}//a.txt"):
+            with self.subTest(operands=operands):
+                self.assertEqual(self.decide(helper_command(operands)), "")
+
     def test_git_tree_unmatched(self) -> None:
         (self.root / ".scratch" / SESSION / "run1" / "sub" / ".git").mkdir(parents=True)
         for operands in (f".scratch/{SESSION}/run1", f".scratch/{SESSION}/run1/sub/.git"):

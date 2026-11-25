@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 """The zone delete helper removes only untracked paths inside the session's own zones."""
+import contextlib
+import io
 import os
 import subprocess
 import sys
@@ -116,6 +118,24 @@ class DeleteZonePathTest(unittest.TestCase):
         (self.session_dir / "run1" / ".git" / "x").write_text("x", encoding="utf-8")
         self.assertEqual(self.delete(f".scratch/{SESSION}/run1/.git/x"), EXIT_INPUT_REFUSED)
         self.assertTrue((self.session_dir / "run1" / ".git" / "x").exists())
+
+    def test_success_reports_each_operand(self) -> None:
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            code = self.delete(f".scratch/{SESSION}/a.txt", f".scratch/{SESSION}/run1")
+        self.assertEqual(code, EXIT_DELETED)
+        self.assertEqual(output.getvalue().splitlines(),
+                         ["delete_zone_path: deleted operand 1", "delete_zone_path: deleted operand 2"])
+
+    def test_partial_failure_reports_deleted(self) -> None:
+        output = io.StringIO()
+        errors = io.StringIO()
+        with contextlib.redirect_stdout(output), contextlib.redirect_stderr(errors):
+            code = self.delete(f".scratch/{SESSION}/a.txt", f".scratch/{SESSION}/a.txt")
+        self.assertEqual(code, EXIT_WALK_REFUSED)
+        self.assertFalse((self.session_dir / "a.txt").exists())
+        self.assertEqual(output.getvalue().splitlines(), ["delete_zone_path: deleted operand 1"])
+        self.assertIn("deleted 1 of 2 operands first", errors.getvalue())
 
     def test_missing_target_refuses(self) -> None:
         self.assertEqual(self.delete(f".scratch/{SESSION}/absent"), EXIT_WALK_REFUSED)

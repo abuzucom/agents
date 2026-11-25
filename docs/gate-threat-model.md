@@ -79,11 +79,15 @@ include the following actions:
   A target that holds a `.git` entry refuses. A linked worktree keeps its
   own index. `git worktree remove` handles worktrees and refuses a dirty
   tree.
-  The tracked check and the delete stay separate steps. A file that
-  `git add -f` stages inside that window loses its working copy only.
-  Git keeps the staged content. `git checkout` restores the file.
-  The helper takes no index lock. A long delete would otherwise block
-  every other session's commits.
+  Each check runs before the delete, not atomically with it. A concurrent
+  writer that runs as the same user inside the session zone falls outside
+  the boundary. That writer can stage a file with `git add -f` or plant a
+  `.git` entry after the check. That writer can also delete the same files
+  directly. The helper therefore takes no index lock. A long delete would
+  otherwise block every other session's commits. A file staged inside the
+  window keeps its staged content in Git.
+- The helper deletes one operand at a time. Each deleted operand prints a
+  line on stdout. A failure names how many operands the helper deleted first.
 - `hooks/prepare_session_workspace.py` creates both zone folders at
   session start through parent descriptors that follow no link. It
   creates nothing on a platform without `dir_fd` support.

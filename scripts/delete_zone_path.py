@@ -9,6 +9,14 @@ component opens relative to its parent and follows no link. A swap of any
 component to a link after the gate check refuses the delete. A final link
 gets removed itself and its target stays.
 
+Deletion runs one operand at a time and is not atomic. Each deleted
+operand prints a line on stdout. A failure names how many operands the
+helper deleted first.
+
+The checks guard against a swapped link and a planted Git tree. A
+concurrent writer that runs as the same user inside the session zone falls
+outside that boundary. That writer can delete the files itself.
+
 Exit codes:
 - 0: every operand got deleted.
 - 1: the walk or the delete refused an operand.
@@ -220,8 +228,10 @@ def _delete_all(root_descriptor: int, components: list) -> int:
             return verdict
     for index, parts in enumerate(components, 1):
         if not _delete_one(root_descriptor, parts):
-            print(f"delete_zone_path: operand {index} refused.", file=sys.stderr)
+            print(f"delete_zone_path: operand {index} refused. The helper deleted "
+                  f"{index - 1} of {len(components)} operands first.", file=sys.stderr)
             return EXIT_WALK_REFUSED
+        print(f"delete_zone_path: deleted operand {index}")
     return EXIT_DELETED
 
 
