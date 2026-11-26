@@ -4,7 +4,7 @@
     "docs/enforcement-matrix.md": "b9d5a2fcf1d8aa8e1d22a707208cc4bf6fd44e21bd79a301aff1687ffae20444",
     "hooks/_bash_parser.py": "e5d35b99bc21ea94ea3f0cbc5e83da71359420fa60eeb0f1e7007259b6721f85",
     "hooks/_cmd_parser.py": "246febca4007230c77f0980bec98ee94e14e14b21d5dddf5567101a38c7d80b3",
-    "hooks/_gate_core.py": "142da58ce269a1328562b5df68ed50d614dbe5ca07c0bd410c01077381f88266",
+    "hooks/_gate_core.py": "c042f36823309696eec331516b71997915bc149b685512d837a8c0a36e702ce9",
     "hooks/_git_probe.py": "102376f55fe21f94b434a7843ad158a0dce55b9dbd5688e2e3f5b07ae1aa5c94",
     "hooks/_platform_policy.py": "c307db1286f61fa987bf898e9ec0843b33188ea56538a24d62fa0e98a968b24e",
     "hooks/_test_runners.py": "cf8db51dac329cbda8ee74fd5897f76504697cce102057014fad03ede997b3fa",
