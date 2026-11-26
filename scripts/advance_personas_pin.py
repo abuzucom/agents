@@ -11,14 +11,17 @@ The caller change therefore needs an immutable-compliance merge after review.
 Usage:
     python scripts/advance_personas_pin.py <version> <commit>
 
-Exit 0 means every pin site names the commit. Exit 1 means the pin sites
-disagree or lack the current pin, and no file changed. Exit 2 means a usage
-error.
+Exit 0 means every pin site names the commit. Exit 1 means a pin site is
+missing, the pin sites disagree, or a write failed. Exit 1 leaves every file
+as it was. Exit 2 means a usage error.
 """
 import hashlib
 import json
+import os
 import re
+import stat
 import sys
+import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -54,8 +57,38 @@ CALLER_VERSION = re.compile(r"# agents-personas ([0-9]+\.[0-9]+\.[0-9]+)\.")
 VERSION_PHRASES = ("agents-personas {}.", "version {}.")
 
 
+STAGING_PREFIX = ".pin-"
+
+
 class PinStateError(ValueError):
-    """The pin sites disagree or lack the current pin."""
+    """The pin sites disagree, lack the current pin, or miss a site."""
+
+
+class PinWriteError(OSError):
+    """A replacement failed after staging. Every replaced file was restored."""
+
+
+def validate_pin_sites(root: Path) -> None:
+    """Raise PinStateError unless every expected pin site exists.
+
+    Each wrapper call needs a `uses:` pin and a `personas_ref`. Each wiring
+    test needs one constant. The manifest keys must match the caller pins.
+    """
+    for name in WORKFLOW_FILES:
+        text = read_site(root, name)
+        uses = WRAPPER_PIN.findall(text)
+        refs = PERSONAS_REF_PIN.findall(text)
+        if not uses or len(uses) != len(refs):
+            raise PinStateError(f"{name} holds {len(uses)} uses: pins and {len(refs)} "
+                                "personas_ref values. Each wrapper call needs both")
+    for name in TEST_FILES:
+        if len(TEST_CONSTANT_PIN.findall(read_site(root, name))) != 1:
+            raise PinStateError(f"{name} needs exactly one PINNED_COMMIT constant")
+    caller_targets = {match.group(0) for match in WRAPPER_PIN.finditer(read_site(root, CALLER))}
+    manifest = json.loads(read_site(root, MANIFEST))
+    manifest_targets = set(manifest["pull_request_target"][CALLER]["reusable_workflows"])
+    if manifest_targets != caller_targets:
+        raise PinStateError(f"{MANIFEST} workflow keys differ from the {CALLER} uses: pins")
 
 
 def read_site(root: Path, name: str) -> str:
@@ -63,9 +96,42 @@ def read_site(root: Path, name: str) -> str:
     return (root / name).read_bytes().decode("utf-8")
 
 
-def write_site(root: Path, name: str, text: str) -> None:
-    """Write one pin site without line ending translation."""
-    (root / name).write_bytes(text.encode("utf-8"))
+def stage_site(root: Path, name: str, text: str) -> Path:
+    """Write one pin site to a temporary file beside its target and return the path."""
+    target = root / name
+    descriptor, temp_name = tempfile.mkstemp(prefix=STAGING_PREFIX, dir=target.parent)
+    with os.fdopen(descriptor, "wb") as handle:
+        handle.write(text.encode("utf-8"))
+    # mkstemp creates mode 0600. The replace must keep the target's mode.
+    os.chmod(temp_name, stat.S_IMODE(target.stat().st_mode))
+    return Path(temp_name)
+
+
+def replace_sites(root: Path, staged: dict, originals: dict) -> None:
+    """Move each staged file over its target, or restore every replaced target on failure."""
+    replaced = []
+    try:
+        for name, temp_path in staged.items():
+            os.replace(temp_path, root / name)
+            replaced.append(name)
+    except OSError as error:
+        for name in replaced:
+            (root / name).write_bytes(originals[name])
+        raise PinWriteError(f"replacing {name} failed ({error}); restored "
+                            f"{len(replaced)} replaced files") from error
+
+
+def write_sites(root: Path, updated: dict) -> None:
+    """Write every pin site or none. Staging stays beside each target for an atomic replace."""
+    originals = {name: (root / name).read_bytes() for name in updated}
+    staged = {}
+    try:
+        for name, text in updated.items():
+            staged[name] = stage_site(root, name, text)
+        replace_sites(root, staged, originals)
+    finally:
+        for temp_path in staged.values():
+            temp_path.unlink(missing_ok=True)
 
 
 def current_pin(root: Path) -> str:
@@ -114,6 +180,7 @@ def rewrite_manifest_digest(manifest_text: str, caller_text: str) -> str:
 
 def plan_update(root: Path, version: str, commit: str) -> dict:
     """Return the new text of every changed pin site without writing."""
+    validate_pin_sites(root)
     old_commit = current_pin(root)
     if old_commit == commit:
         return {}
@@ -149,8 +216,14 @@ def main(argv: list | None = None, root: Path = ROOT) -> int:
     except (OSError, KeyError, UnicodeDecodeError, json.JSONDecodeError, PinStateError) as error:
         print(f"error: {error}. No file changed.", file=sys.stderr)
         return STATE_FAILURE
-    for name, text in updated.items():
-        write_site(root, name, text)
+    try:
+        write_sites(root, updated)
+    except PinWriteError as error:
+        print(f"error: {error}. Every pin site holds its original bytes.", file=sys.stderr)
+        return STATE_FAILURE
+    except OSError as error:
+        print(f"error: staging failed ({error}). No file changed.", file=sys.stderr)
+        return STATE_FAILURE
     print(f"pinned agents-personas {version} at {commit} in {len(updated)} files")
     return 0
 
