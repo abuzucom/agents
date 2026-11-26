@@ -126,7 +126,7 @@ MAX_COMMENT_PAGE = 1000
 COMMENT_PAGE_ARGUMENT_COUNT = 2
 # `gh issue edit` and `gh issue create` call GraphQL. Some sessions block
 # GraphQL. Two exact body-file shapes run over REST instead. Any other option
-# leaves the command for gh unchanged.
+# leaves the command for gh unchanged, except with a relative body path.
 ISSUE_TITLE_OPTION = "--title"
 ISSUE_REST_OPTIONS = frozenset((COMMENT_BODY_OPTION, ISSUE_TITLE_OPTION))
 ISSUE_STDIN_BODY = "-"
@@ -142,6 +142,25 @@ PR_CREATE_OPTIONS = frozenset((COMMENT_BODY_OPTION, ISSUE_TITLE_OPTION, PR_BASE_
 ISSUE_CLOSE_REASON_OPTION = "--reason"
 ISSUE_CLOSE_REASONS = frozenset(("completed", "not_planned"))
 ISSUE_STATE_PREFIX_LENGTH = 3
+# gh accepts these body file spellings besides `--body-file <path>`.
+BODY_FILE_SHORT_OPTION = "-F"
+BODY_FILE_INLINE_PREFIX = COMMENT_BODY_OPTION + "="
+# Raw gh runs outside the repository and cannot resolve a relative body
+# path. A write shape with a relative body that leaves the REST mapping
+# fails closed. Each rule holds the accepted options and the required ones.
+RELATIVE_DRAFT_FORMS = {
+    ("issue", "create"): "issue create --title <text> --body-file .comment-drafts/<file>",
+    ("issue", "edit"): "issue edit <n> --body-file .comment-drafts/<file> [--title <text>]",
+    ("pr", "create"): "pr create --draft --title <text> --body-file .comment-drafts/<file>",
+    ("pr", "edit"): "pr edit <n> --body-file .comment-drafts/<file> [--title <text>]",
+}
+RELATIVE_DRAFT_RULES = {
+    ("issue", "create"): (ISSUE_REST_OPTIONS, (ISSUE_TITLE_OPTION,)),
+    ("issue", "edit"): (ISSUE_REST_OPTIONS, ()),
+    ("pr", "create"): (PR_CREATE_OPTIONS | {PR_DRAFT_FLAG}, (PR_DRAFT_FLAG, ISSUE_TITLE_OPTION)),
+    ("pr", "edit"): (ISSUE_REST_OPTIONS, ()),
+}
+MAX_REPORTED_OPTION = 40
 # The branch gate reads the same override file with the same rules.
 PRIMARY_BRANCH_FILE = Path("hooks") / "primary-branch.txt"
 DEFAULT_PRIMARY_BRANCH = "main"
@@ -931,6 +950,66 @@ def rest_write_request(repo_root, arguments: list[str]) -> tuple[list[str], str]
     return None
 
 
+def _body_file_value(options: list[str]) -> str | None:
+    """Return the first body file value in any gh spelling, or None when absent."""
+    for index, token in enumerate(options):
+        if token.startswith(BODY_FILE_INLINE_PREFIX):
+            return token[len(BODY_FILE_INLINE_PREFIX):]
+        if token in (COMMENT_BODY_OPTION, BODY_FILE_SHORT_OPTION) and index + 1 < len(options):
+            return options[index + 1]
+    return None
+
+
+def _first_refused_option(options: list[str], accepted: frozenset) -> str | None:
+    """Return the first option token outside an accepted set, skipping accepted values."""
+    index = 0
+    while index < len(options):
+        token = options[index]
+        if token == PR_DRAFT_FLAG and PR_DRAFT_FLAG in accepted:
+            index += 1
+            continue
+        if token in accepted:
+            index += 2
+            continue
+        if token.startswith("-"):
+            return token
+        index += 1
+    return None
+
+
+def _relative_draft_detail(command: tuple, options: list[str]) -> str:
+    """Return the reason one relative draft shape fell out of the REST mapping."""
+    accepted, required = RELATIVE_DRAFT_RULES[command]
+    refused = _first_refused_option(options, accepted)
+    if refused is not None:
+        return f"{refused[:MAX_REPORTED_OPTION]} is outside the REST form"
+    for name in required:
+        if name not in options:
+            return f"{name} is missing"
+    return "an option repeats or lacks a value"
+
+
+def refuse_relative_draft_passthrough(arguments: list[str]) -> None:
+    """Raise RestWriteError when a REST write shape with a relative body falls out of the mapping.
+
+    Raw gh runs from a private temporary directory outside the repository,
+    so a relative body path can never resolve there. A body on stdin or at
+    an absolute path still reaches gh unchanged.
+    """
+    command = tuple(arguments[:COMMAND_PATH_LENGTH])
+    if command not in RELATIVE_DRAFT_FORMS:
+        return
+    options = arguments[COMMAND_PATH_LENGTH:]
+    if command[1] == "edit":
+        options = options[1:]
+    body = _body_file_value(options)
+    if body is None or body == ISSUE_STDIN_BODY or os.path.isabs(body):
+        return
+    detail = _relative_draft_detail(command, options)
+    raise RestWriteError(f"{detail}; a relative body runs only as "
+                         f"`{RELATIVE_DRAFT_FORMS[command]}`. Use that form or an absolute path")
+
+
 def issue_url(output: str) -> str | None:
     """Return the html_url of a REST issue response, or None when absent."""
     try:
@@ -1009,6 +1088,8 @@ def _execute(repo_root, arguments: list[str], gate_core=None, input_text=None,
                       file=sys.stderr)
                 return POLICY_DENIAL_EXIT_CODE
             rest_request = rest_write_request(repo_root, arguments)
+            if rest_request is None:
+                refuse_relative_draft_passthrough(list(arguments))
         if rest_request is not None:
             effective_arguments, input_text = rest_request
         verify_account(repo_root)

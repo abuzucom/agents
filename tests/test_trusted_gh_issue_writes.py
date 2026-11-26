@@ -135,7 +135,11 @@ class IssueRestMappingTest(IssueWriteHarness):
 
 
 class IssueRestExclusionTest(IssueWriteHarness):
-    """Any option outside the approved shapes sends the command to gh unchanged."""
+    """Shapes outside the REST mapping reach gh unchanged unless the body is relative.
+
+    Raw gh runs outside the repository. A relative draft path cannot resolve
+    there, so those shapes exit 2 with no CLI call.
+    """
 
     def assert_unmapped(self, argv: list) -> None:
         """Assert one command reaches gh as an issue command with no REST mapping."""
@@ -146,7 +150,15 @@ class IssueRestExclusionTest(IssueWriteHarness):
         self.assertNotIn("api", self.calls[0])
         self.assertEqual(self.inputs, [None])
 
-    def test_excluded_edit_options_passthrough(self):
+    def assert_refused(self, argv: list, named: str) -> None:
+        """Assert one relative draft shape exits 2, names a token, and makes no CLI call."""
+        code, _stdout, stderr = self.run_wrapper(argv)
+        self.assertEqual(code, USAGE_EXIT_CODE)
+        self.assertIn(named, stderr)
+        self.assertEqual(self.calls, [])
+        self.assertEqual(self.account_checks, 0)
+
+    def test_excluded_edit_options_refused(self):
         extras = (
             ["--add-assignee", "someone"], ["--remove-assignee", "someone"],
             ["--milestone", "v1"], ["--remove-milestone"],
@@ -156,10 +168,10 @@ class IssueRestExclusionTest(IssueWriteHarness):
         for extra in extras:
             with self.subTest(extra=extra):
                 self.calls.clear()
-                self.inputs.clear()
-                self.assert_unmapped(["issue", "edit", "5", "--body-file", DRAFT_ARGUMENT, *extra])
+                self.assert_refused(
+                    ["issue", "edit", "5", "--body-file", DRAFT_ARGUMENT, *extra], extra[0])
 
-    def test_excluded_create_options_passthrough(self):
+    def test_excluded_create_options_refused(self):
         extras = (
             ["--assignee", "someone"], ["--milestone", "v1"], ["--project", "Board"],
             ["--template", "bug"], ["--web"],
@@ -167,19 +179,19 @@ class IssueRestExclusionTest(IssueWriteHarness):
         for extra in extras:
             with self.subTest(extra=extra):
                 self.calls.clear()
-                self.inputs.clear()
-                self.assert_unmapped(
-                    ["issue", "create", "--title", "T", "--body-file", DRAFT_ARGUMENT, *extra])
+                self.assert_refused(
+                    ["issue", "create", "--title", "T", "--body-file", DRAFT_ARGUMENT, *extra],
+                    extra[0])
 
     def test_stdin_body_passthrough(self):
         self.assert_unmapped(["issue", "edit", "5", "--body-file", "-"])
 
-    def test_untitled_create_passthrough(self):
-        self.assert_unmapped(["issue", "create", "--body-file", DRAFT_ARGUMENT])
+    def test_untitled_create_is_refused(self):
+        self.assert_refused(["issue", "create", "--body-file", DRAFT_ARGUMENT], "--title")
 
-    def test_explicit_repository_reaches_gh_unchanged(self):
-        self.assert_unmapped(
-            ["issue", "edit", "5", "--body-file", DRAFT_ARGUMENT, "--repo", REPOSITORY])
+    def test_explicit_repository_is_refused(self):
+        self.assert_refused(
+            ["issue", "edit", "5", "--body-file", DRAFT_ARGUMENT, "--repo", REPOSITORY], "--repo")
 
     def test_other_commands_passthrough(self):
         self.assert_unmapped(["issue", "view", "5"])

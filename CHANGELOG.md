@@ -14,7 +14,7 @@ into the entry. Dates never decrease. Ask the active human when a date is in
 doubt.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.50.0] (2026-11-26)
+## [2.50.1] (2026-11-26)
 
 ### Added
 - `scripts/plan_template_upgrade.py` prints the base branch consumers, the
@@ -78,6 +78,11 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - `hooks/workflow-scripts.txt` drops the four `scripts/release.py` forms.
 
 ### Fixed
+- `scripts/trusted_gh.py` refuses an issue or pull request write with a
+  relative `--body-file` that falls outside the REST forms. The error names
+  the refused option and the accepted form. It exits 2 and starts no `gh`
+  process. Raw `gh` runs outside the repository and cannot read that path.
+  A body from stdin or an absolute path still reaches `gh` unchanged.
 - `scripts/check_compliance_tree.py` adds a finding for a reviewed
   `pull_request_target` job value that is not a mapping.
 - `primary_branch()` in `hooks/_gate_core.py` closes its descriptor on
