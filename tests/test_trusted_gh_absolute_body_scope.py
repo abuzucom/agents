@@ -101,6 +101,8 @@ class AbsoluteBodyScopeTest(unittest.TestCase):
         self.assertEqual(code, USAGE_EXIT_CODE)
         self.assertEqual(self.calls, [])
 
+    @unittest.skipUnless(trusted_gh._safe_draft_open_supported(),
+                         "an absolute draft exits 2 without dir_fd and O_NOFOLLOW")
     def test_draft_absolute_body_passthrough(self):
         code, stderr = self.run_wrapper(
             ["issue", "create", "--title", "T", "--body-file", str(self.draft), "--web"])

@@ -69,6 +69,8 @@ class AttachedBodyFlagTest(unittest.TestCase):
                     self.assertEqual(code, USAGE_EXIT_CODE, stderr)
                     self.assertEqual(self.calls, [])
 
+    @unittest.skipUnless(trusted_gh._safe_draft_open_supported(),
+                         "an absolute draft exits 2 without dir_fd and O_NOFOLLOW")
     def test_attached_absolute_body_passthrough(self):
         for spelling in (f"-F{self.absolute}", f"-F={self.absolute}"):
             with self.subTest(spelling=spelling):

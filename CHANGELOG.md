@@ -94,7 +94,11 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   post any readable file. The wrapper reads that draft once without
   following a link and passes the bytes to `gh` on stdin. A swap of the
   draft after the check cannot change the posted body. A global option such
-  as `-R` before the command keeps every body check.
+  as `-R` before the command keeps every body check. A platform without
+  `dir_fd` and `O_NOFOLLOW` refuses an absolute draft with exit 2.
+- The draft reader refuses a draft with more than one hard link. A second
+  link can name a file outside `.comment-drafts/`. The check covers the
+  comment form, the REST forms, and the stdin handoff.
   Every body option counts, since `gh` keeps the last one. An edit number
   after the flags gets the same check. The attached `-F<path>` and
   `-F=<path>` spellings count as body options.

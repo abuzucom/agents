@@ -135,6 +135,8 @@ class NonRelativeBodyPassthroughTest(RelativeDraftHarness):
     def test_stdin_body_passthrough(self):
         self.assert_passthrough(["issue", "create", "--title", "T", "--body-file", "-", "--web"])
 
+    @unittest.skipUnless(trusted_gh._safe_draft_open_supported(),
+                         "an absolute draft exits 2 without dir_fd and O_NOFOLLOW")
     def test_absolute_body_passthrough(self):
         absolute = str(self.root / DRAFT_ARGUMENT)
         self.assert_passthrough(["issue", "create", "--title", "T", "--body-file", absolute,

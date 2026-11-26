@@ -734,8 +734,13 @@ def _read_draft_bytes(drafts: Path, name: str) -> bytes:
     finally:
         os.close(directory)
     with os.fdopen(descriptor, "rb") as handle:
-        if not stat.S_ISREG(os.fstat(handle.fileno()).st_mode):
+        status = os.fstat(handle.fileno())
+        if not stat.S_ISREG(status.st_mode):
             raise ValueError("comment draft is not a regular file")
+        # A second hard link can name a file that lives outside the drafts
+        # directory. The check runs on the descriptor that the read uses.
+        if status.st_nlink != 1:
+            raise ValueError("comment draft has more than one hard link")
         return handle.read(MAX_COMMENT_BYTES + 1)
 
 
@@ -1065,13 +1070,14 @@ def draft_stdin_handoff(repo_root, arguments: list[str],
     wrapper reads the draft once through a descriptor that follows no link.
     gh then reads the validated bytes on stdin and never opens the path. A
     swap of the draft after validation cannot change the posted body.
-    Without dir_fd and O_NOFOLLOW, the path still reaches gh unchanged.
+    The refusal already stops an absolute draft on a platform without
+    dir_fd and O_NOFOLLOW.
     """
     shape = _draft_write_shape(arguments)
     if shape is None:
         return None
     values = _body_file_values(shape[1])
-    if not values or values[-1] == ISSUE_STDIN_BODY or not _safe_draft_open_supported():
+    if not values or values[-1] == ISSUE_STDIN_BODY:
         return None
     text = _read_rest_body(repo_root, f"{COMMENT_DRAFT_DIRECTORY}/{Path(values[-1]).name}")
     delimiter = (effective_arguments.index("--") if "--" in effective_arguments
@@ -1103,6 +1109,11 @@ def refuse_relative_draft_passthrough(repo_root, arguments: list[str]) -> None:
     if not all(_is_draft_file(repo_root, value) for value in values):
         raise RestWriteError(f"an absolute body must be a regular file directly in "
                              f"{COMMENT_DRAFT_DIRECTORY}/. Move the draft there or pass it on stdin")
+    # Without a no-follow descriptor read, gh would open the checked path
+    # again later. A swap in between would reach gh unchecked.
+    if values and not _safe_draft_open_supported():
+        raise RestWriteError("an absolute body needs os.open dir_fd and O_NOFOLLOW support, "
+                             "which this platform lacks. Pass the body on stdin")
 
 
 def issue_url(output: str) -> str | None:
