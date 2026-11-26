@@ -14,9 +14,30 @@ into the entry. Dates never decrease. Ask the active human when a date is in
 doubt.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.45.1] (2026-11-25)
+## [2.46.0] (2026-11-25)
 
 ### Added
+- `scripts/check_compliance_tree.py` reads an optional
+  `.compliance-tree-exemptions.json` beside the trusted base checker. A
+  pull request copy never applies. A listed `pull_request_target` workflow
+  passes a reviewed rule set instead of exact template equality. The rule
+  set requires empty or `contents: read` top-level permissions. It refuses
+  checkout steps and event data interpolated into a step. It allows only
+  the secret names that the manifest lists for that path. It refuses
+  `secrets: inherit`, indexed secrets, and the whole `secrets` context.
+  Every job-level `uses:` value
+  must match a listed `reusable_workflows` entry. Event data appears only
+  in `if` conditions and `concurrency` groups. A job `write` scope needs
+  the entry's `permissions` map. Each entry pins the SHA-256 of the listed
+  workflow and of every bound local reusable workflow. The tree scan fails
+  on a changed pinned blob or an absent bound target. A deleted caller
+  runs no privileged job and needs no pin. A symlinked workflow fails the
+  existing symlink check. Action pinning still applies.
+  Listed `rule7_excluded_trees` patterns skip only the Rule 7 weak-hash
+  scan. A malformed, symlinked, or non-ASCII manifest fails closed.
+  `scripts/check_gate_pr_integrity.py` protects the manifest path.
+- `scripts/lint_style.py` reports every `AGENTS.md` line above 120
+  characters.
 - `hooks/enforce_single_question.py` denies an `AskUserQuestion` call
   with more than one question, fewer than two or more than four options,
   an empty question or label, or a first option that is not the single
@@ -43,6 +64,12 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   that repeats `AGENTS.md`. Every requirement stays stated once.
 
 ### Fixed
+- `AGENTS.md` wraps eight lines above 120 characters at a space. The words
+  stay identical.
+- `scripts/complete_gate_adoption.py` installs every skill copy that
+  `scripts/check_gate_adoption.py` requires. A failed install removes the
+  directories it created deepest first. The rollback no longer fails on a
+  parent that holds a sibling directory.
 - `hooks/_git_probe.py` also refuses when the trusted Git resolver fails to
   load or lacks `resolve_git`.
 - `hooks/prepare_session_workspace.py` docstring prose follows the style

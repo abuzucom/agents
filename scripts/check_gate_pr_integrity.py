@@ -30,6 +30,7 @@ PROTECTED_PREFIXES = (
     "skills/",
 )
 PROTECTED_FILES = frozenset({
+    ".compliance-tree-exemptions.json",
     ".github/CODEOWNERS",
     ".local-path-allowlist",
     ".pre-commit-config.yaml",
