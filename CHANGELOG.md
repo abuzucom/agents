@@ -14,6 +14,31 @@ into the entry. Dates never decrease. Ask the active human when a date is in
 doubt.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.47.0] (2026-11-26)
+
+### Changed
+- `security-review-pr.yml` calls the `abuzucom/agents-personas`
+  `foucault-security-review.yml` wrapper. `quality-review-pr.yml` calls the
+  `euler-quality-review.yml` wrapper. Both pin `uses:` and `personas_ref`
+  to agents-personas commit `c43f4592191b42b9f66072622b082fc2f4dc3217`
+  (0.22.0). The `abuzucom/foucault` and `abuzucom/euler` pins are gone.
+- The check runs carry the names `foucault / security` and
+  `euler / quality`. Branch protection that requires `security-review` or
+  `quality-review` needs the new names.
+- The engine publishes the skipped check for a fork pull request. Both
+  callers drop the caller fork jobs. Each caller skips a head with an
+  Actions check that already carries a `VERDICT:` title.
+
+### Removed
+- The vendored foucault adapter `ci/build_pr_case.py`, `ci/call_model.py`,
+  `ci/model_providers.json`, and `ci/run_model_command.py`. The
+  agents-personas engine supplies the adapter.
+- `scripts/check_pr_review_response.py` and its tests
+  `tests/test_check_pr_review_response.py`,
+  `tests/test_review_adapter_portable.py`, and
+  `tests/test_review_response_narration.py`. The engine validates each
+  reply.
+
 ## [2.46.0] (2026-11-25)
 
 ### Added

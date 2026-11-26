@@ -1,5 +1,15 @@
 name: security-review-pr
 
+# Runs the abuzucom/agents-personas foucault security review on this
+# repository's pull requests. The wrapper loads the engine, the foucault
+# policy, and the model adapter from the pinned agents-personas commit, so
+# this repository supplies no adapter files.
+#
+# The workflow_run trigger keeps this caller on default branch code. A pull
+# request cannot edit the reviewer. The engine publishes a skipped
+# "foucault / security" check for a fork pull request and withholds the
+# provider key from it.
+
 on:
   workflow_run:
     workflows: [Immutable Compliance]
@@ -10,15 +20,16 @@ concurrency:
   cancel-in-progress: true
 
 permissions:
-  checks: write
   contents: read
-  pull-requests: write
 
 jobs:
   resolve-pr:
     runs-on: ubuntu-latest
+    permissions:
+      checks: read
+      contents: read
+      pull-requests: read
     outputs:
-      same_repository: ${{ steps.resolve.outputs.same_repository }}
       already_reviewed: ${{ steps.resolve.outputs.already_reviewed }}
       pr_number: ${{ steps.resolve.outputs.pr_number }}
       base_sha: ${{ steps.resolve.outputs.base_sha }}
@@ -67,32 +78,28 @@ jobs:
               return;
             }
 
-            // One model call per head revision. A completed check run carrying
-            // a verdict means this head was already reviewed. A failed run
-            // carries no verdict, so a flaky review still retries.
+            // One model call per head revision. The engine reruns a passing
+            // review. The caller therefore skips a head with an Actions check
+            // that already carries a verdict title. A run that ends before a
+            // verdict uses another title. A flaky review then retries.
             const checkRuns = await github.paginate(
               github.rest.checks.listForRef,
               {
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 ref: headSha,
-                check_name: "security-review",
+                check_name: "foucault / security",
                 per_page: 100,
               },
             );
             const alreadyReviewed = checkRuns.some((run) =>
+              run.app?.slug === "github-actions" &&
               run.status === "completed" &&
-              /VERDICT: (APPROVE|BLOCK|NEEDS-HUMAN)\b/.test(
-                run.output?.summary || ""
+              /^VERDICT: (APPROVE|BLOCK|NEEDS-HUMAN)$/.test(
+                run.output?.title || ""
               )
             );
             core.setOutput("already_reviewed", alreadyReviewed ? "true" : "false");
-            core.setOutput(
-              "same_repository",
-              headRepository.full_name.toLowerCase() === baseRepository.toLowerCase()
-                ? "true"
-                : "false",
-            );
             core.setOutput("pr_number", String(pullRequest.number));
             core.setOutput("base_sha", pullRequest.base.sha);
             core.setOutput("head_sha", pullRequest.head.sha);
@@ -101,12 +108,17 @@ jobs:
 
   review:
     needs: resolve-pr
-    if: needs.resolve-pr.result == 'success' && needs.resolve-pr.outputs.same_repository == 'true' && needs.resolve-pr.outputs.already_reviewed != 'true'
-    uses: abuzucom/foucault/.github/workflows/security-review.yml@11e55cd691e9a2be086a4fb9378f490d4121e11c
+    if: needs.resolve-pr.result == 'success' && needs.resolve-pr.outputs.already_reviewed != 'true'
+    # The wrapper posts a pull request comment and publishes a check run.
+    permissions:
+      checks: write
+      contents: read
+      pull-requests: write
+    # agents-personas 0.22.0. Keep the uses: pin and personas_ref on the same
+    # commit.
+    uses: abuzucom/agents-personas/.github/workflows/foucault-security-review.yml@c43f4592191b42b9f66072622b082fc2f4dc3217
     with:
-      # Foucault 3.7.13 policy revision.
-      audit_ref: "11e55cd691e9a2be086a4fb9378f490d4121e11c"
-      model_call_command: "python3 ci/call_model.py"
+      personas_ref: "c43f4592191b42b9f66072622b082fc2f4dc3217"
       pr_comment: true
       fail_on_block: true
       pr_number: ${{ needs.resolve-pr.outputs.pr_number }}
@@ -116,13 +128,3 @@ jobs:
       head_repo_full_name: ${{ needs.resolve-pr.outputs.head_repo_full_name }}
     secrets:
       MODEL_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
-
-  fork-review-skipped:
-    needs: resolve-pr
-    if: needs.resolve-pr.result == 'success' && needs.resolve-pr.outputs.same_repository == 'false'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Explain skipped review
-        run: >-
-          echo "Model review skipped for a fork pull request because provider
-          secrets are not available to this job."

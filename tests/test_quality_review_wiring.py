@@ -8,11 +8,26 @@ import yaml
 
 ROOT = Path(__file__).resolve().parent.parent
 WORKFLOW_PATH = ROOT / ".github" / "workflows" / "quality-review-pr.yml"
-# Euler 0.9.0. The uses: pin and quality_ref must name this one commit.
-PINNED_COMMIT = "940c53a39b7cc7345b1f6232d43bec7c4d7623df"
-REUSABLE_WORKFLOW = "abuzucom/euler/.github/workflows/quality-review.yml"
+# agents-personas 0.22.0. The uses: pin and personas_ref must name this commit.
+PINNED_COMMIT = "c43f4592191b42b9f66072622b082fc2f4dc3217"
+REUSABLE_WORKFLOW = (
+    "abuzucom/agents-personas/.github/workflows/euler-quality-review.yml"
+)
+CHECK_NAME = "euler / quality"
 FULL_SHA = re.compile(r"[0-9a-f]{40}")
 UPSTREAM_WORKFLOWS = ("Convention Sync Check", "Immutable Compliance")
+RESOLVED_INPUTS = (
+    "pr_number",
+    "base_sha",
+    "head_sha",
+    "head_repo_url",
+    "head_repo_full_name",
+)
+REVIEW_PERMISSIONS = {
+    "checks": "write",
+    "contents": "read",
+    "pull-requests": "write",
+}
 
 
 class QualityReviewWiringTest(unittest.TestCase):
@@ -57,12 +72,36 @@ class QualityReviewWiringTest(unittest.TestCase):
         for upstream in UPSTREAM_WORKFLOWS:
             self.assertIn(f"'{upstream}'", script)
 
+    def test_review_skips_reviewed_head(self):
+        script = self.jobs["resolve"]["steps"][0]["with"]["script"]
+        self.assertIn(f"check_name: '{CHECK_NAME}'", script)
+        self.assertIn("VERDICT: (APPROVE|BLOCK|NEEDS-HUMAN)", script)
+
     def test_review_job_single_commit_pin(self):
         review_job = self.jobs["review"]
         self.assertEqual(
             review_job["uses"], f"{REUSABLE_WORKFLOW}@{PINNED_COMMIT}")
-        self.assertEqual(review_job["with"]["quality_ref"], PINNED_COMMIT)
+        self.assertEqual(review_job["with"]["personas_ref"], PINNED_COMMIT)
         self.assertTrue(FULL_SHA.fullmatch(PINNED_COMMIT))
+
+    def test_old_reviewer_absent(self):
+        self.assertNotIn("abuzucom/euler/", self.text)
+        self.assertNotIn("quality_ref", self.text)
+        review_with = self.jobs["review"]["with"]
+        self.assertNotIn("pr_title", review_with)
+        self.assertNotIn("pr_body", review_with)
+
+    def test_review_passes_resolved_pull(self):
+        review_with = self.jobs["review"]["with"]
+        for name in RESOLVED_INPUTS:
+            self.assertEqual(
+                review_with[name],
+                f"${{{{ needs.resolve.outputs.{name} }}}}",
+            )
+
+    def test_review_excludes_test_fixtures(self):
+        self.assertEqual(
+            self.jobs["review"]["with"]["exclude_paths"], "tests/**")
 
     def test_review_job_secret_mapping(self):
         self.assertEqual(
@@ -74,39 +113,28 @@ class QualityReviewWiringTest(unittest.TestCase):
     def test_review_job_fails_closed(self):
         self.assertTrue(self.jobs["review"]["with"]["fail_on_block"])
 
-    def test_same_repository_gating(self):
-        self.assertIn(
-            "needs.resolve.outputs.same_repository == 'true'",
-            self.jobs["review"]["if"],
-        )
+    def test_engine_owns_fork_skip(self):
+        # The engine publishes a skipped check for a fork pull request and
+        # withholds the provider key, so the caller holds no fork job.
+        self.assertNotIn("fork-review-skipped", self.jobs)
+        self.assertNotIn("fork_review", self.jobs["review"]["with"])
         reusable_calls = [
             name for name, job in self.jobs.items()
             if str(job.get("uses", "")).startswith(REUSABLE_WORKFLOW)
         ]
         self.assertEqual(reusable_calls, ["review"])
 
-    def test_fork_pull_request_skip(self):
-        fork_job = self.jobs["fork-review-skipped"]
-        self.assertNotIn("secrets", fork_job)
-        self.assertIn(
-            "needs.resolve.outputs.same_repository == 'false'", fork_job["if"])
-        self.assertIn("name: 'quality-review'", self.text)
-        self.assertIn("conclusion: 'skipped'", self.text)
-
     def test_jobs_declare_least_privilege_permissions(self):
         self.assertEqual(self.workflow["permissions"], {"contents": "read"})
         self.assertNotIn("write", self.jobs["resolve"]["permissions"].values())
         self.assertEqual(
-            self.jobs["fork-review-skipped"]["permissions"],
-            {"checks": "write"},
-        )
+            self.jobs["review"]["permissions"], REVIEW_PERMISSIONS)
 
     def test_github_script_actions_pinned(self):
-        for job_name in ("resolve", "fork-review-skipped"):
-            step = self.jobs[job_name]["steps"][0]
-            action, _, revision = step["uses"].partition("@")
-            self.assertEqual(action, "actions/github-script")
-            self.assertTrue(FULL_SHA.fullmatch(revision.split()[0]))
+        step = self.jobs["resolve"]["steps"][0]
+        action, _, revision = step["uses"].partition("@")
+        self.assertEqual(action, "actions/github-script")
+        self.assertTrue(FULL_SHA.fullmatch(revision.split()[0]))
 
 
 if __name__ == "__main__":

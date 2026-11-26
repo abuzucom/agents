@@ -1,48 +1,48 @@
 # Pull request security review
 
-This repository calls the `abuzucom/foucault` reusable model security review.
-Foucault's `docs/pr-security-review.md` owns the architecture and the trust
-boundary. This document records only the local wiring.
+This repository calls the `abuzucom/agents-personas` foucault security
+review. The `docs/` and `reviewers/foucault/` directories of agents-personas
+own the architecture and the trust boundary. This document records only the
+local wiring.
 
 ## What runs
 
 `.github/workflows/security-review-pr.yml` triggers on completion of the
 `Immutable Compliance` workflow, resolves the pull request from the workflow
-run head, and calls foucault's `security-review.yml`. The review loads
-`AUDIT.md` from foucault at the pinned revision, sends one review envelope to
-the configured provider, posts a fenced report, and publishes a
-`security-review` check run.
+run head, and calls the agents-personas `foucault-security-review.yml`
+wrapper. The wrapper loads the engine, the foucault prompt, and the model
+adapter from the pinned revision. It builds the review case without the
+provider key, sends each envelope to the configured provider, posts a fenced
+report, and publishes a `foucault / security` check run.
 
-The caller pins both the reusable workflow and `audit_ref` to foucault commit
-`11e55cd691e9a2be086a4fb9378f490d4121e11c`, release 3.7.13. Keeping one
+`.github/workflows/quality-review-pr.yml` calls the
+`euler-quality-review.yml` wrapper at the same revision after
+`Convention Sync Check` and `Immutable Compliance` both pass. It publishes a
+`euler / quality` check run.
+
+Both callers pin the reusable workflow and `personas_ref` to agents-personas
+commit `c43f4592191b42b9f66072622b082fc2f4dc3217`, version 0.22.0. Keeping one
 revision for both means the policy and its runner never diverge. Change the
 pin only on purpose. Record the change in `CHANGELOG.md`.
 
-`ci/build_pr_case.py`, `ci/run_model_command.py`, `ci/call_model.py`, and
-`ci/model_providers.json` come from that same foucault revision and run from
-this repository's checkout. Foucault supplies only `AUDIT.md` at
-runtime. `tests/test_review_adapter_portable.py` comes from the same revision
-and covers the copied scripts.
+This repository vendors no adapter or response validator. The engine
+supplies both from the pinned revision.
 
-`scripts/check_pr_review_response.py` is also copied from that revision. The
-reusable workflow's "Validate report structure" step runs it from the
-caller's checkout (not from the `.foucault` checkout that holds `AUDIT.md`).
-The script therefore lives in this repository's own `scripts/` directory.
-Foucault's own `docs/pr-security-review.md` omits this file from its adopter
-checklist. This repository flagged the gap upstream instead of assuming it
-away.
+Both callers set `fail_on_block: true`. A `BLOCK` verdict therefore fails the
+check. A `NEEDS-HUMAN` verdict warns and concludes neutral.
 
-The caller sets `fail_on_block: true`. A `BLOCK` or `NEEDS-HUMAN` verdict
-therefore fails the check.
+A pull request from a fork receives a skipped check from the engine and no
+provider secret.
 
-A pull request from a fork receives an explicit skip result and no provider
-secret.
+Each caller skips a head with a GitHub Actions check run that already
+carries a `VERDICT:` title. A run that ends before a verdict carries another
+title. The next event for that head then retries the review.
 
 The `workflow_run` trigger keeps the caller on default branch code. The
 review does not appear on a pull request's own checks list until GitHub
-finishes the `Immutable Compliance` run for that head and the caller starts.
-Find the `security-review-pr` run under the default branch in the Actions
-tab. `workflow_run` runs do not appear on the pull request branch.
+finishes the upstream run for that head and the caller starts. Find the
+`security-review-pr` run under the default branch in the Actions tab.
+`workflow_run` runs do not appear on the pull request branch.
 
 A `v*` tag push starts no foucault or euler review. Every tagged commit
 passed both reviews on its way to `main`.
@@ -52,24 +52,22 @@ passed both reviews on its way to `main`.
 The review stays idle until an active human adds the provider API key as a
 repository secret. No agent sets it, and no agent commits it.
 
-The active provider profile in `ci/model_providers.json` is Ollama with
-`kimi-k2.7-code`. The caller maps `secrets.OLLAMA_API_KEY` to the reusable
-workflow's `MODEL_API_KEY`.
+The active profile in the pinned `engine/model_providers.json` selects the
+provider. The callers
+map `secrets.OLLAMA_API_KEY` to the reusable workflow's `MODEL_API_KEY`.
 
 Add it under Settings, Secrets and variables, Actions, as `OLLAMA_API_KEY`.
 
-Until the secret exists, the `security-review` check fails. That failure is
-the absent secret, not a finding against the diff.
+Until the secret exists, the `foucault / security` and `euler / quality`
+checks fail. That failure reflects the absent secret. It reports no
+finding against the diff.
 
-To use another provider, change the active profile in
-`ci/model_providers.json` and the secret name in the caller's `secrets` block
-together. Provider endpoints stay allowlisted in the adapter.
+To use another provider, change the secret name in each caller's `secrets`
+block and pass a `model_call_command` adapter that the agents-personas
+documentation describes.
 
-## Adopter record filed upstream
+## Required checks
 
-Foucault's `adopters/README.md` asks each adopter to add `adopters/<repo>.md`
-in `abuzucom/foucault` recording the pinned revision and the reusable workflow
-wiring. `abuzucom/foucault#27` merged that record as `adopters/agents.md`. The
-record names adopter `abuzucom/agents`, `AUDIT.md` pinned at
-`62851df1ef177593adbb9e06b223f5a6dce66fc0`, the reusable workflow wired at the
-same commit, and no customization of `AUDIT.md`.
+Branch protection that required the `security-review` or `quality-review`
+check needs the `foucault / security` and `euler / quality` names. Repository
+files cannot change branch protection.
