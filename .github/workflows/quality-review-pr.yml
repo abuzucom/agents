@@ -125,11 +125,32 @@ jobs:
                 per_page: 100,
               },
             );
-            const alreadyReviewed = existingChecks.some((check) =>
+            const verdictChecks = existingChecks.filter((check) =>
               check.app?.slug === 'github-actions' &&
               check.status === 'completed' &&
               /^VERDICT: (APPROVE|BLOCK|NEEDS-HUMAN)$/.test(
                 check.output?.title || ''));
+
+            // Any workflow with checks: write can publish a verdict title.
+            // Only a check suite from this caller's own workflow_run
+            // execution runs default branch code. A pull request workflow
+            // runs with another event, so its check never marks the head.
+            const callerPath = '.github/workflows/quality-review-pr.yml';
+            const fromCaller = async (check) => {
+              const suiteId = check.check_suite?.id;
+              if (!suiteId) {
+                return false;
+              }
+              const { data } = await github.rest.actions.listWorkflowRunsForRepo({
+                ...context.repo,
+                check_suite_id: suiteId,
+                per_page: 100,
+              });
+              return data.workflow_runs.some((run) =>
+                run.event === 'workflow_run' && run.path === callerPath);
+            };
+            const callerVerdicts = await Promise.all(verdictChecks.map(fromCaller));
+            const alreadyReviewed = callerVerdicts.includes(true);
 
             core.setOutput('found', 'true');
             core.setOutput('pr_number', String(pull.number));

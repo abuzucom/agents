@@ -38,6 +38,15 @@ applicable denial or consent path.
 Agents never create, push, move, or delete Git tags. Agents never create,
 edit, publish, or delete releases.
 
+Tag auto-follow writes local tags during a fetch. The shell gates deny every
+`git fetch` and `git pull` without `--no-tags`. The gates also deny `--tags`,
+`--prune-tags`, a `tag` operand, a refspec destination in `refs/tags/`, and a
+`-c` override of `tagOpt`. `scripts/trusted_git.py fetch` always passes
+`--no-tags` and rejects a tag destination. Read a tag tree into a
+remote-tracking ref with this form:
+
+`python scripts/trusted_git.py fetch <repository> <remote> refs/tags/<tag>:refs/remotes/<name>/<tag>`
+
 Managed sandboxes may set `127.0.0.1:9`, `localhost:9`, or `[::1]:9` as a
 closed loopback proxy placeholder or block outbound sockets by default.
 `scripts/trusted_gh.py` strips loopback discard proxies on port 9 and reports

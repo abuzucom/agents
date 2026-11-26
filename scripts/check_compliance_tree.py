@@ -917,10 +917,14 @@ def _reviewed_job_messages(jobs: dict, reviewed: ReviewedWorkflow) -> list[str]:
     """Apply the reviewed call, permission, and step rules to every job."""
     messages = set()
     for name, job in jobs.items():
-        if isinstance(job, dict):
-            messages.update(_reviewed_call_messages(job, reviewed.reusable_workflows))
-            messages.update(_reviewed_permission_messages(name, job, reviewed.write_scopes))
-        steps = job.get("steps", []) if isinstance(job, dict) else []
+        # GitHub Actions rejects a job that is not a mapping, so the reviewed
+        # rule set fails closed on it instead of reading it as a stepless job.
+        if not isinstance(job, dict):
+            messages.add("has a non-mapping job value")
+            continue
+        messages.update(_reviewed_call_messages(job, reviewed.reusable_workflows))
+        messages.update(_reviewed_permission_messages(name, job, reviewed.write_scopes))
+        steps = job.get("steps", [])
         if not isinstance(steps, list):
             messages.add("has a non-list steps value")
             continue

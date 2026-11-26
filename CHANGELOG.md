@@ -14,9 +14,20 @@ into the entry. Dates never decrease. Ask the active human when a date is in
 doubt.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.49.0] (2026-11-26)
+## [2.50.0] (2026-11-26)
 
 ### Added
+- `scripts/plan_template_upgrade.py` prints the base branch consumers, the
+  CodeQL paths that a candidate removes, the prose findings in planned
+  commit messages and pull request bodies, and the merge order. It exits 1
+  on an expected failure. `hooks/workflow-scripts.txt` allows its two forms.
+- `skills/gate-adoption/SKILL.md` gains a template upgrade merge order
+  section and a source publishing tooling section. Its new step runs the
+  planner before the first push. `docs/agent-policy/adoption.md` points to
+  the skill.
+- `docs/agent-policy/github.md` documents the tag-safe fetch form.
+- `hooks/workflow-scripts.local.txt` in the source repository lists the four
+  `scripts/release.py` forms.
 - `persona-review-labels.yml` runs the `abuzucom/agents-personas` adorno,
   generay, and havel reviews when a pull request carries the matching
   `<persona>-scan-requested` label. Every wrapper and `personas_ref` pins
@@ -45,6 +56,26 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - The engine publishes the skipped check for a fork pull request. Both
   callers drop the caller fork jobs. Each caller skips a head with an
   Actions check that already carries a `VERDICT:` title.
+- Both review callers trust a prior `VERDICT:` check only when its check
+  suite belongs to a `workflow_run` execution of the caller file.
+  `security-review-pr.yml` grants `actions: read` to its resolve job.
+- The shell gates deny `git fetch` and `git pull` without `--no-tags`. The
+  same gates deny `--tags`, `--prune-tags`, a `tag` operand, a refspec
+  destination in `refs/tags/`, and a `-c` override of `tagOpt`.
+  `scripts/trusted_git.py fetch` always passes `--no-tags` and rejects a tag
+  destination.
+- `hooks/workflow-scripts.txt` drops the four `scripts/release.py` forms.
+
+### Fixed
+- `scripts/check_compliance_tree.py` adds a finding for a reviewed
+  `pull_request_target` job value that is not a mapping.
+- `primary_branch()` in `hooks/_gate_core.py` closes its descriptor on
+  every error path and converts each `OSError` to `ValueError`.
+- `hooks/enforce_pr_base.py` checks the primary branch for a
+  `create_pull_request` call without a `base`.
+- `hooks/detect_prose_options.py` closes its descriptor on an `os.fstat`
+  failure. A transcript tail that starts on a record boundary keeps its
+  first record.
 
 ### Removed
 - The vendored foucault adapter `ci/build_pr_case.py`, `ci/call_model.py`,

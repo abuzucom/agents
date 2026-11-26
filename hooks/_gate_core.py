@@ -613,6 +613,82 @@ def _git_tag_verdict(rest: list) -> tuple:
     return "", ""
 
 
+TAG_FETCH_REASON = ("git fetch or git pull that can write a local tag: agents never "
+                    "create, move, or delete Git tags. Add --no-tags and keep every "
+                    "refspec destination outside refs/tags/")
+TAG_SHORTHAND_KEYWORD = "tag"
+TAG_OPT_CONFIG = "tagopt"
+# fetch spells --tags as -t, --no-tags as -n, and --prune-tags as -P. pull
+# reads -n as --no-stat, so only fetch accepts the short --no-tags form.
+FETCH_TAGS_SHORT_FLAG = "t"
+FETCH_NO_TAGS_SHORT_FLAG = "n"
+FETCH_PRUNE_TAGS_SHORT_FLAG = "P"
+GIT_CONFIG_OPTION = "-c"
+FETCH_SUBCOMMANDS = frozenset({"fetch", "pull"})
+
+
+def _global_config_sets_tag_opt(global_args: list) -> bool:
+    """Return True when a git -c option before the subcommand sets a tagOpt value."""
+    for index, token in enumerate(global_args):
+        if token == GIT_CONFIG_OPTION and index + 1 < len(global_args):
+            value = global_args[index + 1]
+        elif token.startswith(GIT_CONFIG_OPTION) and not token.startswith("--"):
+            value = token[len(GIT_CONFIG_OPTION):]
+        elif long_option_matches(token, "--config-env"):
+            value = token.split("=", 1)[-1]
+        else:
+            continue
+        if TAG_OPT_CONFIG in value.split("=", 1)[0].casefold():
+            return True
+    return False
+
+
+def _fetch_flag_writes_tags(token: str) -> bool:
+    """Return True for one fetch or pull flag that fetches or prunes tags."""
+    if is_short_group(token):
+        return any(flag in token[1:] for flag in
+                   (FETCH_TAGS_SHORT_FLAG, FETCH_PRUNE_TAGS_SHORT_FLAG))
+    name = token.split("=", 1)[0]
+    if long_option_matches(name, "--tags"):
+        return True
+    # --prune is a complete option of its own and only prunes branches.
+    return name != "--prune" and long_option_matches(name, "--prune-tags")
+
+
+def _fetch_flag_blocks_tags(token: str, subcommand: str) -> bool:
+    """Return True for one flag that turns off tag auto-follow."""
+    if is_short_group(token):
+        return subcommand == "fetch" and FETCH_NO_TAGS_SHORT_FLAG in token[1:]
+    return long_option_matches(token.split("=", 1)[0], "--no-tags")
+
+
+def _refspec_writes_tag(operand: str) -> bool:
+    """Return True when a refspec destination lies in the tag namespace."""
+    if ":" not in operand:
+        return False
+    destination = operand.rsplit(":", 1)[1].casefold()
+    return destination.startswith(TAG_REF_PREFIX) or destination.startswith(TAG_SHORTHAND_PREFIX)
+
+
+def _git_fetch_tag_verdict(subcommand: str, rest: list, global_args: list) -> tuple:
+    """Return a deny for a fetch or pull that can write a local tag ref.
+
+    Tag auto-follow writes every tag that points into the fetched history,
+    so only an explicit --no-tags keeps the local tag namespace unchanged.
+    """
+    if _global_config_sets_tag_opt(global_args):
+        return "deny", TAG_FETCH_REASON
+    flags = [token for token in rest if token.startswith("-")]
+    operands = [token for token in rest if not token.startswith("-")]
+    if any(_fetch_flag_writes_tags(flag) for flag in flags):
+        return "deny", TAG_FETCH_REASON
+    if TAG_SHORTHAND_KEYWORD in operands or any(map(_refspec_writes_tag, operands)):
+        return "deny", TAG_FETCH_REASON
+    if not any(_fetch_flag_blocks_tags(flag, subcommand) for flag in flags):
+        return "deny", TAG_FETCH_REASON
+    return "", ""
+
+
 def _git_flag_verdict(subcommand: str, rest: list) -> tuple:
     """Return (decision, reason) for the subcommands one flag decides."""
     if subcommand == "reset" and any(
@@ -654,6 +730,11 @@ def git_verdict(args: list, cwd: str = "", environment: list = None,
         return resolved
     if subcommand == "push":
         return push_verdict(rest, cwd, args, environment)
+    if subcommand in FETCH_SUBCOMMANDS:
+        global_args = args[:len(args) - len(rest) - 1]
+        fetch_decision = _git_fetch_tag_verdict(subcommand, rest, global_args)
+        if fetch_decision[0]:
+            return fetch_decision
     alias_decision = alias_verdict("git", [subcommand] + rest)
     if alias_decision[0]:
         return alias_decision
@@ -4072,21 +4153,42 @@ def primary_branch(repository: str) -> str:
     except OSError as error:
         raise ValueError(
             f"hooks/primary-branch.txt cannot be opened ({type(error).__name__})") from error
-    opened_details = os.fstat(descriptor)
-    # A swap between lstat and open changes the file identity. fdopen rejects a
-    # directory descriptor, so these checks run on the raw descriptor first.
-    if (not stat.S_ISREG(opened_details.st_mode)
-            or (opened_details.st_dev, opened_details.st_ino)
-            != (link_details.st_dev, link_details.st_ino)):
-        os.close(descriptor)
-        raise ValueError("hooks/primary-branch.txt is not the regular file it named")
-    with os.fdopen(descriptor, "rb") as handle:
-        content = handle.read(MAX_PRIMARY_BRANCH_BYTES + 1)
+    content = _read_primary_descriptor(descriptor, link_details)
     lines = content.splitlines()
     name = lines[0].decode("ascii", errors="replace") if len(lines) == 1 else ""
     if len(content) > MAX_PRIMARY_BRANCH_BYTES or not is_primary_branch_name(name):
         raise ValueError("hooks/primary-branch.txt must hold one valid branch name")
     return name
+
+
+def _read_primary_descriptor(descriptor: int, link_details: os.stat_result) -> bytes:
+    """Read the primary branch file from an open descriptor and close it on every path.
+
+    Every OSError becomes ValueError, so callers that catch only ValueError
+    still fail closed.
+    """
+    try:
+        opened_details = os.fstat(descriptor)
+        # A swap between lstat and open changes the file identity. fdopen rejects a
+        # directory descriptor, so these checks run on the raw descriptor first.
+        if (not stat.S_ISREG(opened_details.st_mode)
+                or (opened_details.st_dev, opened_details.st_ino)
+                != (link_details.st_dev, link_details.st_ino)):
+            raise ValueError("hooks/primary-branch.txt is not the regular file it named")
+        handle = os.fdopen(descriptor, "rb")
+    except OSError as error:
+        os.close(descriptor)
+        raise ValueError(
+            f"hooks/primary-branch.txt cannot be read ({type(error).__name__})") from error
+    except ValueError:
+        os.close(descriptor)
+        raise
+    try:
+        with handle:
+            return handle.read(MAX_PRIMARY_BRANCH_BYTES + 1)
+    except OSError as error:
+        raise ValueError(
+            f"hooks/primary-branch.txt cannot be read ({type(error).__name__})") from error
 
 
 def stable_branches(repository: str) -> frozenset:

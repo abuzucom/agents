@@ -92,13 +92,13 @@ class TrustedGitRunnerTest(unittest.TestCase):
             self.assertEqual(
                 trusted_git._transport_arguments(
                     workspace, ["fetch", "repo", "origin"]),
-                ["-C", str(repository), "fetch", "origin"],
+                ["-C", str(repository), "fetch", "--no-tags", "origin"],
             )
             (workspace / ".git").mkdir()
             self.assertEqual(
                 trusted_git._transport_arguments(
                     workspace, ["fetch", ".", "origin"]),
-                ["-C", str(workspace), "fetch", "origin"],
+                ["-C", str(workspace), "fetch", "--no-tags", "origin"],
             )
             self.assertIsNone(
                 trusted_git._transport_arguments(

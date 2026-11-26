@@ -31,10 +31,6 @@ consent-write scripts/sync.py
 consent-write scripts/sync.py --write-shared
 consent-write scripts/sync.py --backfill-digests
 consent-write scripts/report_adoption_status.py --config <path> --index <path> --output <path>
-allow scripts/release.py check-tag <revision>
-consent-write scripts/release.py build <revision> <path>
-consent-write scripts/release.py notes <revision> <path>
-consent-write scripts/release.py notes <revision> <path> --since <revision>
 
 allow scripts/check_action_pins.py
 allow scripts/check_agent_prose_gate.py --base <revision> --head <revision>
@@ -81,3 +77,5 @@ allow scripts/check_test_first.py --base <revision> --head <revision>
 allow scripts/check_us_spelling.py <paths>
 allow scripts/check_weak_hashing.py <paths>
 allow scripts/lint_style.py
+allow scripts/plan_template_upgrade.py --base <revision>
+allow scripts/plan_template_upgrade.py --base <revision> --message <path>

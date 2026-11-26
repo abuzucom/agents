@@ -15,7 +15,8 @@ import _gate_core as core
 GATE = "enforce_pr_base.py"
 MCP_PREFIX = "mcp__"
 MCP_SEPARATOR = "__"
-PULL_REQUEST_TOOLS = frozenset({"create_pull_request", "update_pull_request"})
+CREATE_TOOL = "create_pull_request"
+PULL_REQUEST_TOOLS = frozenset({CREATE_TOOL, "update_pull_request"})
 BASE_FIELD = "base"
 MALFORMED_REASON = "the tool call could not be read, so the gate cannot check the pull request base"
 
@@ -33,13 +34,25 @@ def base_decision(payload: dict) -> tuple:
     tool_input = payload.get("tool_input")
     if not isinstance(tool_name, str) or not isinstance(tool_input, dict):
         return "deny", MALFORMED_REASON
-    if _tool_action(tool_name) not in PULL_REQUEST_TOOLS or BASE_FIELD not in tool_input:
+    action = _tool_action(tool_name)
+    if action not in PULL_REQUEST_TOOLS:
         return "", ""
+    repository = core.project_dir(payload)
+    if BASE_FIELD not in tool_input:
+        # An update without a base keeps the current base. A create without a
+        # base targets the GitHub default branch, so the gate checks the
+        # primary branch that the shell gates add in that case.
+        if action != CREATE_TOOL:
+            return "", ""
+        try:
+            base = core.primary_branch(repository)
+        except ValueError as error:
+            return "deny", f"{error}, so the gate cannot check the pull request base"
+        return core.pull_request_base_verdict(["pr", "create", "--base", base], repository)
     base = tool_input[BASE_FIELD]
     if not isinstance(base, str):
         return "deny", "the pull request base is not a branch name"
-    return core.pull_request_base_verdict(["pr", "create", "--base", base],
-                                          core.project_dir(payload))
+    return core.pull_request_base_verdict(["pr", "create", "--base", base], repository)
 
 
 def main() -> int:
