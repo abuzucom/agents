@@ -14,7 +14,17 @@ into the entry. Dates never decrease. Ask the active human when a date is in
 doubt.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.47.0] (2026-11-26)
+## [2.48.0] (2026-11-26)
+
+### Added
+- `.compliance-tree-exemptions.json` reviews
+  `.github/workflows/persona-review-labels.yml` as a `pull_request_target`
+  caller. The entry pins the caller SHA-256, allows only the
+  `OLLAMA_API_KEY` secret, binds the adorno, generay, and havel
+  agents-personas wrappers at commit
+  `c43f4592191b42b9f66072622b082fc2f4dc3217`, and grants `checks` and
+  `pull-requests` write. The caller lands in a later pull request. The
+  trusted scan reads this manifest from `main` only.
 
 ### Changed
 - `security-review-pr.yml` calls the `abuzucom/agents-personas`
