@@ -215,6 +215,18 @@ commit. The review gates on `BLOCK` verdicts. It reuses the
 check and no provider secret. `workflow_run` runs only the default branch
 copy of this file.
 
+`persona-review-labels.yml` runs the `abuzucom/agents-personas` adorno, generay,
+and havel reviews on `pull_request_target`. A job runs only when the pull
+request carries its `adorno-scan-requested`, `generay-scan-requested`, or
+`havel-scan-requested` label. Each new push to a labeled pull request
+reviews again. Removing the `stop-requested` label reviews the current head
+once. The caller pins every wrapper and `personas_ref` to the same commit as
+the always-on reviews. It runs no step and checks out nothing. The checks
+`adorno / ui`, `generay / time`, and `havel / privacy` stay optional in
+branch protection. `.compliance-tree-exemptions.json` pins the SHA-256 of
+the caller. An edit to the caller needs a manifest update on `main` first.
+A maintainer creates the three scan labels.
+
 `policy-size-report.yml` triggers after `Convention Sync Check` completes
 for a pull request that touches `AGENTS.md`, a supporting policy file, or a
 generated copy. It posts one comment with the byte count, limit, headroom,
