@@ -85,6 +85,30 @@ class PlanTemplateUpgradeTest(unittest.TestCase):
         self.assertEqual(code, plan_template_upgrade.EXPECTED_FAILURE)
         self.assertIn("CodeQL path keep.py", output)
 
+    def test_unusable_codeql_config_fails(self) -> None:
+        cases = {"missing": ("absent.yml", None), "malformed": ("bad.yml", "paths: [\n"),
+                 "non-mapping": ("list.yml", "- legacy\n")}
+        for label, (name, text) in cases.items():
+            with self.subTest(config=label):
+                if text is not None:
+                    (self.root / name).write_text(text, encoding="utf-8")
+                    _git(self.root, "add", name)
+                    _git(self.root, "commit", "--quiet", "-m", label)
+                base = _git(self.root, "rev-parse", "HEAD")
+                code, output = self.run_plan(["--base", base, "--codeql-config", name])
+                self.assertEqual(code, plan_template_upgrade.EXPECTED_FAILURE, output)
+                self.assertIn(f"CodeQL config {name}", output)
+
+    def test_ignored_path_removal_passes(self) -> None:
+        (self.root / "vendor").mkdir()
+        (self.root / "vendor" / "lib.py").write_text("z = 3\n", encoding="utf-8")
+        _git(self.root, "add", "--all")
+        _git(self.root, "commit", "--quiet", "-m", "vendor")
+        base = _git(self.root, "rev-parse", "HEAD")
+        _git(self.root, "rm", "--quiet", "-r", "vendor")
+        code, output = self.run_plan(["--base", base])
+        self.assertEqual(code, 0, output)
+
     def test_british_message_fails(self) -> None:
         code, output = self.run_plan(["--base", self.base, "--message", self.message(BRITISH_MESSAGE)])
         self.assertEqual(code, plan_template_upgrade.EXPECTED_FAILURE)

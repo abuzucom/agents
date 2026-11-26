@@ -30,7 +30,7 @@ SCRIPTS_DIRECTORY = Path(__file__).resolve().parent
 EXPECTED_FAILURE = 1
 USAGE_FAILURE = 2
 CODEQL_CONFIG = ".github/codeql/config.yml"
-CODEQL_PATH_KEYS = ("paths", "paths-ignore")
+CODEQL_PATHS_KEY = "paths"
 PROSE_CHECKERS = ("check_hedging.py", "check_us_spelling.py", "check_english_only.py")
 PROSE_TIMEOUT_SECONDS = 60
 # Each consumer runs from the base branch. Its owner action decides how a
@@ -78,23 +78,27 @@ def removed_paths(root: Path, base: str) -> list:
     return removed
 
 
-def codeql_paths(root: Path, base: str, config: str = CODEQL_CONFIG) -> list:
-    """Return the path entries of the base CodeQL configuration."""
+def codeql_paths(root: Path, base: str, config: str = CODEQL_CONFIG) -> tuple:
+    """Return (analyzed path entries, problem) for the base CodeQL configuration.
+
+    Only `paths` entries count. Removing a `paths-ignore` entry removes no
+    analysis coverage. An absent default file means CodeQL runs without a
+    configuration. A named file that is absent or unusable fails closed.
+    """
     text = git_output(root, ["show", f"{base}:{config}"])
-    if not text:
-        return []
+    if text is None:
+        problem = "" if config == CODEQL_CONFIG else f"CodeQL config {config} is absent on the base"
+        return [], problem
     try:
         document = yaml.safe_load(text)
     except yaml.YAMLError:
-        return []
-    if not isinstance(document, dict):
-        return []
-    entries = []
-    for key in CODEQL_PATH_KEYS:
-        values = document.get(key)
-        if isinstance(values, list):
-            entries.extend(value.rstrip("/") for value in values if isinstance(value, str))
-    return entries
+        return [], f"CodeQL config {config} is not valid YAML"
+    if document is None:
+        return [], ""
+    values = document.get(CODEQL_PATHS_KEY, []) if isinstance(document, dict) else None
+    if not isinstance(values, list):
+        return [], f"CodeQL config {config} holds no mapping with a paths list"
+    return [value.rstrip("/") for value in values if isinstance(value, str)], ""
 
 
 def candidate_tracks(root: Path, entry: str) -> bool:
@@ -106,15 +110,18 @@ def candidate_tracks(root: Path, entry: str) -> bool:
     return bool((git_output(root, ["ls-files", "--", entry]) or "").strip())
 
 
-def missing_codeql_paths(root: Path, base: str, config: str = CODEQL_CONFIG) -> list:
-    """Return base CodeQL path entries that the candidate removes entirely."""
+def codeql_failures(root: Path, base: str, config: str = CODEQL_CONFIG) -> list:
+    """Return one expected failure per removed CodeQL path or config problem."""
+    entries, problem = codeql_paths(root, base, config)
+    if problem:
+        return [problem]
     removed = removed_paths(root, base)
-    missing = []
-    for entry in codeql_paths(root, base, config):
+    failures = []
+    for entry in entries:
         touched = any(path == entry or path.startswith(entry + "/") for path in removed)
         if touched and not candidate_tracks(root, entry):
-            missing.append(entry)
-    return missing
+            failures.append(f"CodeQL path {entry} is in the base config and the candidate removes it")
+    return failures
 
 
 def prose_findings(message: Path) -> list:
@@ -144,8 +151,7 @@ def build_report(root: Path, base: str, messages: list,
     for workflow, checker, action in BASE_CONSUMERS:
         state = "present" if base_has_path(root, base, workflow) else "absent"
         lines.append(f"- {workflow} ({checker}): {state} on base. Owner action: {action}.")
-    failures = [f"CodeQL path {entry} is in the base config and the candidate removes it"
-                for entry in missing_codeql_paths(root, base, config)]
+    failures = codeql_failures(root, base, config)
     for message in messages:
         failures.extend(prose_findings(message))
     lines.append("Expected failures:")

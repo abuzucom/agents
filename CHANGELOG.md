@@ -69,7 +69,9 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `scripts/trusted_git.py fetch` always passes `--no-tags` and rejects a tag
   destination and a `tag` operand.
 - `scripts/plan_template_upgrade.py` reports a prose checker that times out
-  or cannot start as an expected failure.
+  or cannot start as an expected failure. A named CodeQL config that is
+  absent, malformed, or not a mapping is an expected failure. Only `paths`
+  entries count as analysis coverage.
 - `hooks/workflow-scripts.txt` drops the four `scripts/release.py` forms.
 
 ### Fixed
