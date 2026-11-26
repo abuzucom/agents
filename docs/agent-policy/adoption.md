@@ -71,6 +71,9 @@ Client settings live under `.agents/`, `.claude/`, `.codex/`, and `.gemini/`.
 Preserve checker flags, hook payloads, reusable workflows, and copied policy
 files.
 
+The `gate-adoption` skill holds the template upgrade merge order and the
+source publishing tooling rule.
+
 ## Scope decisions
 Keep helper functions and imports required by the request in scope.
 

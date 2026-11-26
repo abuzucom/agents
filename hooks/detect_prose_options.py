@@ -33,17 +33,25 @@ BLOCK_REASON = ("The final message asks the active human to choose in prose. Ask
 def _read_tail(path: str) -> str:
     """Return the decoded tail of one regular transcript file that is not a link."""
     descriptor = os.open(path, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0))
-    details = os.fstat(descriptor)
-    if not stat.S_ISREG(details.st_mode):
+    try:
+        details = os.fstat(descriptor)
+        if not stat.S_ISREG(details.st_mode):
+            raise OSError("transcript is not a regular file")
+        handle = os.fdopen(descriptor, "rb")
+    except OSError:
         os.close(descriptor)
-        raise OSError("transcript is not a regular file")
-    with os.fdopen(descriptor, "rb") as handle:
+        raise
+    with handle:
         start = max(0, details.st_size - TAIL_BYTES)
-        handle.seek(start)
-        data = handle.read(TAIL_BYTES)
-    lines = data.decode("utf-8", errors="replace").splitlines(keepends=True)
-    # A tail read can start inside a record. The first partial line drops.
-    return "".join(lines[1:] if start else lines)
+        # One byte before the tail shows whether the tail starts on a record
+        # boundary. Only a tail that starts inside a record drops its first line.
+        handle.seek(max(0, start - 1))
+        data = handle.read(TAIL_BYTES + (1 if start else 0))
+    if not start:
+        return data.decode("utf-8", errors="replace")
+    on_boundary = data[:1] == b"\n"
+    lines = data[1:].decode("utf-8", errors="replace").splitlines(keepends=True)
+    return "".join(lines if on_boundary else lines[1:])
 
 
 def _records(text: str) -> list:

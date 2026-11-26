@@ -26,6 +26,7 @@ jobs:
   resolve-pr:
     runs-on: ubuntu-latest
     permissions:
+      actions: read
       checks: read
       contents: read
       pull-requests: read
@@ -92,13 +93,35 @@ jobs:
                 per_page: 100,
               },
             );
-            const alreadyReviewed = checkRuns.some((run) =>
+            const verdictChecks = checkRuns.filter((run) =>
               run.app?.slug === "github-actions" &&
               run.status === "completed" &&
               /^VERDICT: (APPROVE|BLOCK|NEEDS-HUMAN)$/.test(
                 run.output?.title || ""
               )
             );
+
+            // Any workflow with checks: write can publish a verdict title.
+            // Only a check suite from this caller's own workflow_run
+            // execution runs default branch code. A pull request workflow
+            // runs with another event, so its check never marks the head.
+            const callerPath = ".github/workflows/security-review-pr.yml";
+            const fromCaller = async (check) => {
+              const suiteId = check.check_suite?.id;
+              if (!suiteId) {
+                return false;
+              }
+              const { data } = await github.rest.actions.listWorkflowRunsForRepo({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                check_suite_id: suiteId,
+                per_page: 100,
+              });
+              return data.workflow_runs.some((run) =>
+                run.event === "workflow_run" && run.path === callerPath);
+            };
+            const callerVerdicts = await Promise.all(verdictChecks.map(fromCaller));
+            const alreadyReviewed = callerVerdicts.includes(true);
             core.setOutput("already_reviewed", alreadyReviewed ? "true" : "false");
             core.setOutput("pr_number", String(pullRequest.number));
             core.setOutput("base_sha", pullRequest.base.sha);

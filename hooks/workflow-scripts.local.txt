@@ -1,0 +1,9 @@
+# Repository scripts that only the abuzucom/agents source repository ships.
+#
+# The line format matches hooks/workflow-scripts.txt. Adopters supply their
+# own publishing process, so the shared list names none of these forms.
+
+allow scripts/release.py check-tag <revision>
+consent-write scripts/release.py build <revision> <path>
+consent-write scripts/release.py notes <revision> <path>
+consent-write scripts/release.py notes <revision> <path> --since <revision>

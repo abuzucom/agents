@@ -31,8 +31,55 @@ Rule 18 makes adoption atomic across every client.
    - `python scripts/check_hook_coverage.py`
    - `python scripts/sync.py --check`
    - `python scripts/sync.py --check-shared`
+10. Before the first push, follow the template upgrade merge order below.
+    Run `python scripts/plan_template_upgrade.py --base <revision>`.
 
 A failed step keeps the last verified set.
+
+## Template upgrade merge order
+Base branch consumers judge a template upgrade pull request. A local pass
+cannot predict the consumer verdicts. These consumers read the base branch:
+
+- `immutable-conflict-check.yml` with `scripts/check_compliance_tree.py`
+- `gate-integrity.yml` with `scripts/check_gate_pr_integrity.py` and
+  `scripts/check_pr_base.py`
+- the agent prose gate in `agents-compliance.yml`. It scans whole gate
+  target files.
+- the CodeQL configuration named by the `github-codeql-config-file` property
+- every adopter `workflow_run` review caller
+- branch protection and rulesets on the base branch
+
+Before the first push:
+
+- Run `python scripts/plan_template_upgrade.py --base <revision>` with
+  `--message <path>` for each planned commit message and pull request body.
+- Run each base branch checker from a base checkout against the candidate.
+- Run the prose checkers on every gate target file of the candidate.
+- Report each expected failure to the active human with its owner action and
+  the planned order. Push nothing before that report.
+
+Merge the stack in this order:
+
+1. Prose fixes for the gate target files, against the base branch.
+2. Review caller changes, against the base branch.
+3. The template upgrade, on top.
+
+Rule 18 forbids a partial gate set. A base branch checker change lands only
+through one of these paths:
+
+- An owner merges past `immutable-compliance` after review.
+- A template release keeps the previous workflow schema valid for one
+  revision.
+
+Keep one `CHANGELOG.md` entry per UTC date across the stack. Each rebased
+layer merges its lines into the same-day entry under the highest version.
+
+## Source publishing tooling
+The source repository keeps `scripts/release.py`,
+`.github/workflows/release.yml`, and the release tests. Its
+`hooks/workflow-scripts.local.txt` lists the release forms. Each adopter
+supplies its own publishing process. The release wording rule of the agent
+prose gate applies to every adopter.
 
 ## Client map
 

@@ -532,7 +532,8 @@ class GitHubCliSafetyParityTest(unittest.TestCase):
         self.assertEqual(cmd(command), "ask")
 
     def test_local_git_transport_available(self):
-        for command in ("git fetch origin main", "git pull", "git push origin HEAD"):
+        for command in ("git fetch --no-tags --no-prune-tags origin main",
+                        "git pull --no-tags --no-prune", "git push origin HEAD"):
             with self.subTest(command=command):
                 self.assertEqual(bash(command), "")
                 self.assertEqual(powershell(command), "")
