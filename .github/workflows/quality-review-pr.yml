@@ -175,11 +175,11 @@ jobs:
       checks: write
       contents: read
       pull-requests: write
-    # agents-personas 0.22.0. Keep the uses: pin and personas_ref on the same
+    # agents-personas 1.0.0. Keep the uses: pin and personas_ref on the same
     # commit.
-    uses: abuzucom/agents-personas/.github/workflows/euler-quality-review.yml@c43f4592191b42b9f66072622b082fc2f4dc3217
+    uses: abuzucom/agents-personas/.github/workflows/euler-quality-review.yml@1649e5c9710fd85d6cca12006e344af27a5404a6
     with:
-      personas_ref: "c43f4592191b42b9f66072622b082fc2f4dc3217"
+      personas_ref: "1649e5c9710fd85d6cca12006e344af27a5404a6"
       pr_number: ${{ needs.resolve.outputs.pr_number }}
       base_sha: ${{ needs.resolve.outputs.base_sha }}
       head_sha: ${{ needs.resolve.outputs.head_sha }}

@@ -21,9 +21,17 @@ report, and publishes a `foucault / security` check run.
 `euler / quality` check run.
 
 Both callers pin the reusable workflow and `personas_ref` to agents-personas
-commit `c43f4592191b42b9f66072622b082fc2f4dc3217`, version 0.22.0. Keeping one
+commit `1649e5c9710fd85d6cca12006e344af27a5404a6`, version 1.0.0. Keeping one
 revision for both means the policy and its runner never diverge. Change the
 pin only on purpose. Record the change in `CHANGELOG.md`.
+
+After each tagged agents-personas release, run
+`python scripts/advance_personas_pin.py <version> <commit>`. Resolve the
+commit from the release tag first. The script rewrites every `uses:` pin,
+`personas_ref`, version comment, wiring test constant, this page, and the
+caller digest in `.compliance-tree-exemptions.json`. It changes no file when
+the pin sites disagree. Open a draft pull request with the result. The
+manifest change needs an immutable-compliance merge after review.
 
 This repository vendors no adapter or response validator. The engine
 supplies both from the pinned revision.

@@ -14,9 +14,23 @@ into the entry. Dates never decrease. Ask the active human when a date is in
 doubt.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.51.1] (2026-11-26)
+## [2.52.0] (2026-11-26)
 
 ### Added
+- `scripts/advance_personas_pin.py <version> <commit>` rewrites every
+  agents-personas `uses:` pin, `personas_ref`, version comment, wiring test
+  constant, `docs/pr-security-review.md`, and the persona label caller
+  digest in `.compliance-tree-exemptions.json`. It changes no file when the
+  pin sites disagree. Every `uses:` pin, `personas_ref`, and test constant
+  must name one commit. The script keeps each line ending as stored. It
+  hashes the caller with LF endings, as the trusted scan hashes the blob.
+  A missing `uses:` pin, `personas_ref`, test constant, or manifest key
+  stops the update. The script stages every write beside its target. A
+  failed replacement restores each replaced file. A new version on the
+  current commit still rewrites every version phrase. `docs/pr-security-review.md` names it as the step
+  after each tagged agents-personas release.
+- `tests/test_persona_caller_manifest_digest.py` checks that the manifest
+  digest and reusable workflow keys match the persona label caller.
 - `scripts/plan_template_upgrade.py` prints the base branch consumers, the
   CodeQL paths that a candidate removes, the prose findings in planned
   commit messages and pull request bodies, and the merge order. It exits 1
@@ -55,6 +69,12 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   only.
 
 ### Changed
+- `security-review-pr.yml`, `quality-review-pr.yml`, and
+  `persona-review-labels.yml` pin every agents-personas wrapper and
+  `personas_ref` to commit `1649e5c9710fd85d6cca12006e344af27a5404a6`
+  (1.0.0). `.compliance-tree-exemptions.json` binds the three label
+  wrappers at that commit and pins the new caller SHA-256. The wiring tests
+  and `docs/pr-security-review.md` name the same commit.
 - `security-review-pr.yml` calls the `abuzucom/agents-personas`
   `foucault-security-review.yml` wrapper. `quality-review-pr.yml` calls the
   `euler-quality-review.yml` wrapper. Both pin `uses:` and `personas_ref`
