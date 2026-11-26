@@ -1041,6 +1041,21 @@ def _strip_body_options(tokens: list[str]) -> list[str]:
     return stripped
 
 
+def _draft_write_shape(arguments: list[str]) -> tuple[tuple, list[str]] | None:
+    """Return the write command and the tokens after it, or None for other commands.
+
+    gh accepts global options such as `-R` before the command. The command
+    sits where repository context finds it, not at the first token.
+    """
+    position = _command_position(arguments)
+    if position is None:
+        return None
+    command = tuple(arguments[position:position + COMMAND_PATH_LENGTH])
+    if command not in RELATIVE_DRAFT_FORMS:
+        return None
+    return command, arguments[position + COMMAND_PATH_LENGTH:]
+
+
 def draft_stdin_handoff(repo_root, arguments: list[str],
                         effective_arguments: list[str]) -> tuple[list[str], str] | None:
     """Return gh arguments with `--body-file -` and the draft text, else None.
@@ -1052,9 +1067,10 @@ def draft_stdin_handoff(repo_root, arguments: list[str],
     swap of the draft after validation cannot change the posted body.
     Without dir_fd and O_NOFOLLOW, the path still reaches gh unchanged.
     """
-    if tuple(arguments[:COMMAND_PATH_LENGTH]) not in RELATIVE_DRAFT_FORMS:
+    shape = _draft_write_shape(arguments)
+    if shape is None:
         return None
-    values = _body_file_values(arguments[COMMAND_PATH_LENGTH:])
+    values = _body_file_values(shape[1])
     if not values or values[-1] == ISSUE_STDIN_BODY or not _safe_draft_open_supported():
         return None
     text = _read_rest_body(repo_root, f"{COMMENT_DRAFT_DIRECTORY}/{Path(values[-1]).name}")
@@ -1073,12 +1089,12 @@ def refuse_relative_draft_passthrough(repo_root, arguments: list[str]) -> None:
     as a regular file directly in the drafts directory. A body on stdin
     still reaches gh unchanged.
     """
-    command = tuple(arguments[:COMMAND_PATH_LENGTH])
-    if command not in RELATIVE_DRAFT_FORMS:
+    shape = _draft_write_shape(arguments)
+    if shape is None:
         return
     # gh accepts the edit number before or after the flags. The body scan
     # reads every token and needs no positional handling.
-    options = arguments[COMMAND_PATH_LENGTH:]
+    command, options = shape
     values = [value for value in _body_file_values(options) if value != ISSUE_STDIN_BODY]
     if any(_is_relative_body(value) for value in values):
         detail = _relative_draft_detail(command, options)

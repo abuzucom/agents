@@ -24,7 +24,7 @@ import trusted_gh
 REPOSITORY = "example-owner/example-repo"
 HEAD_BRANCH = "feat/example-change"
 DRAFT_TEXT = "Summary line.\n"
-SECRET_TEXT = "token\n"
+OUTSIDE_TEXT = "outside\n"
 STDIN_BODY = ["--body-file", "-"]
 SAFE_DRAFT_OPEN = trusted_gh._safe_draft_open_supported()
 NO_SAFE_DRAFT_OPEN = "this platform lacks dir_fd and O_NOFOLLOW, so the handoff cannot run"
@@ -45,8 +45,8 @@ class DraftStdinHandoffTest(unittest.TestCase):
         drafts.mkdir()
         self.draft = drafts / "body.md"
         self.draft.write_bytes(DRAFT_TEXT.encode("ascii"))
-        self.secret = self.root / "secret.txt"
-        self.secret.write_bytes(SECRET_TEXT.encode("ascii"))
+        self.outside = self.root / "outside.txt"
+        self.outside.write_bytes(OUTSIDE_TEXT.encode("ascii"))
         self.calls = []
         self.inputs = []
 
@@ -99,7 +99,7 @@ class DraftStdinHandoffTest(unittest.TestCase):
     def test_swap_after_check_ignored(self):
         def swap_draft():
             self.draft.unlink()
-            self.draft.symlink_to(self.secret)
+            self.draft.symlink_to(self.outside)
 
         code, stderr = self.run_wrapper(
             ["issue", "create", "--title", "T", "--body-file", str(self.draft), "--web"],
