@@ -151,7 +151,9 @@ class TranscriptTailBoundaryTest(unittest.TestCase):
         prefix = _record_line({"type": "user", "message": {"role": "user", "content": "go"}})
         with tempfile.TemporaryDirectory() as temporary:
             path = Path(temporary) / "transcript.jsonl"
-            path.write_text(prefix + tail, encoding="utf-8")
+            # Exact bytes keep the tail on a record boundary. Text mode on
+            # Windows writes CRLF and shifts every offset.
+            path.write_bytes((prefix + tail).encode("utf-8"))
             records = detect_prose_options._records(detect_prose_options._read_tail(str(path)))
         self.assertFalse(detect_prose_options.needs_question_tool(records))
 
