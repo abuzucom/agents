@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "pull_request_target": {
+    ".github/workflows/persona-review-labels.yml": {
+      "secrets": ["OLLAMA_API_KEY"],
+      "sha256": "18ed538151d05458419d2693b45f34b6e15fb27251ff18719a59a7d67bda2698",
+      "reusable_workflows": {
+        "abuzucom/agents-personas/.github/workflows/adorno-ui-review.yml@c43f4592191b42b9f66072622b082fc2f4dc3217": null,
+        "abuzucom/agents-personas/.github/workflows/generay-time-review.yml@c43f4592191b42b9f66072622b082fc2f4dc3217": null,
+        "abuzucom/agents-personas/.github/workflows/havel-privacy-review.yml@c43f4592191b42b9f66072622b082fc2f4dc3217": null
+      },
+      "permissions": {"checks": "write", "pull-requests": "write"}
+    }
+  }
+}
