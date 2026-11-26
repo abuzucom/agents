@@ -21,7 +21,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   agents-personas `uses:` pin, `personas_ref`, version comment, wiring test
   constant, `docs/pr-security-review.md`, and the persona label caller
   digest in `.compliance-tree-exemptions.json`. It changes no file when the
-  pin sites disagree. `docs/pr-security-review.md` names it as the step
+  pin sites disagree. Every `uses:` pin, `personas_ref`, and test constant
+  must name one commit. The script keeps each line ending as stored. `docs/pr-security-review.md` names it as the step
   after each tagged agents-personas release.
 - `tests/test_persona_caller_manifest_digest.py` checks that the manifest
   digest and reusable workflow keys match the persona label caller.

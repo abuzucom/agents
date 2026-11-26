@@ -42,6 +42,13 @@ VERSION_FILES = WORKFLOW_FILES + TEST_FILES + (REVIEW_DOC,)
 VERSION_PATTERN = re.compile(r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)")
 COMMIT_PATTERN = re.compile(r"[0-9a-f]{40}")
 WRAPPER_PIN = re.compile(r"abuzucom/agents-personas/\.github/workflows/[a-z-]+\.yml@([0-9a-f]{40})")
+# A wrapper runs from its uses: pin and loads policy from personas_ref. Both
+# fields and the test constants must name one commit.
+PERSONAS_REF_PIN = re.compile(r'personas_ref: "([0-9a-f]{40})"')
+TEST_CONSTANT_PIN = re.compile(r'PINNED_COMMIT = "([0-9a-f]{40})"')
+PIN_PATTERNS = {name: (WRAPPER_PIN, PERSONAS_REF_PIN) for name in WORKFLOW_FILES}
+PIN_PATTERNS.update({name: (TEST_CONSTANT_PIN,) for name in TEST_FILES})
+PIN_PATTERNS[MANIFEST] = (WRAPPER_PIN,)
 CALLER_VERSION = re.compile(r"# agents-personas ([0-9]+\.[0-9]+\.[0-9]+)\.")
 # Each version mention sits in one of these fixed phrases.
 VERSION_PHRASES = ("agents-personas {}.", "version {}.")
@@ -51,19 +58,31 @@ class PinStateError(ValueError):
     """The pin sites disagree or lack the current pin."""
 
 
+def read_site(root: Path, name: str) -> str:
+    """Return one pin site with its line endings exactly as stored."""
+    return (root / name).read_bytes().decode("utf-8")
+
+
+def write_site(root: Path, name: str, text: str) -> None:
+    """Write one pin site without line ending translation."""
+    (root / name).write_bytes(text.encode("utf-8"))
+
+
 def current_pin(root: Path) -> str:
-    """Return the one personas commit that every wrapper pin names."""
+    """Return the one personas commit that every uses: pin, personas_ref, and test constant names."""
     pins = set()
-    for name in WORKFLOW_FILES + (MANIFEST,):
-        pins.update(WRAPPER_PIN.findall((root / name).read_text(encoding="utf-8")))
+    for name, patterns in PIN_PATTERNS.items():
+        text = read_site(root, name)
+        for pattern in patterns:
+            pins.update(pattern.findall(text))
     if len(pins) != 1:
-        raise PinStateError(f"wrapper pins name {len(pins)} commits; align every pin site by hand first")
+        raise PinStateError(f"pin sites name {len(pins)} commits; align every pin site by hand first")
     return pins.pop()
 
 
 def current_version(root: Path) -> str:
     """Return the personas version that the caller comment names."""
-    match = CALLER_VERSION.search((root / CALLER).read_text(encoding="utf-8"))
+    match = CALLER_VERSION.search(read_site(root, CALLER))
     if match is None:
         raise PinStateError(f"{CALLER} lacks its agents-personas version comment")
     return match.group(1)
@@ -97,8 +116,7 @@ def plan_update(root: Path, version: str, commit: str) -> dict:
     pins, versions = (old_commit, commit), (current_version(root), version)
     updated = {}
     for name in PIN_FILES:
-        text = (root / name).read_text(encoding="utf-8")
-        updated[name] = rewrite_text(name, text, pins, versions)
+        updated[name] = rewrite_text(name, read_site(root, name), pins, versions)
     updated[MANIFEST] = rewrite_manifest_digest(updated[MANIFEST], updated[CALLER])
     return updated
 
@@ -124,11 +142,11 @@ def main(argv: list | None = None, root: Path = ROOT) -> int:
         return USAGE_FAILURE
     try:
         updated = plan_update(root, version, commit)
-    except (OSError, KeyError, json.JSONDecodeError, PinStateError) as error:
+    except (OSError, KeyError, UnicodeDecodeError, json.JSONDecodeError, PinStateError) as error:
         print(f"error: {error}. No file changed.", file=sys.stderr)
         return STATE_FAILURE
     for name, text in updated.items():
-        (root / name).write_text(text, encoding="utf-8")
+        write_site(root, name, text)
     print(f"pinned agents-personas {version} at {commit} in {len(updated)} files")
     return 0
 
