@@ -11,8 +11,15 @@ Usage:
     python scripts/plan_template_upgrade.py --base <revision>
         [--codeql-config <path>] [--message <path> ...]
 
-Exit 0 means no expected failure. Exit 1 means the report lists one or more
-expected failures. Exit 2 means a usage or Git error.
+The planner runs no base branch checker. It predicts one verdict from the
+diff alone. `check_gate_pr_integrity.py` requires the `gate-change-approved`
+label when the candidate changes a protected gate path. Every other consumer
+present on the base stays unresolved. Run those checkers by hand from a base
+checkout, as `skills/gate-adoption/SKILL.md` describes.
+
+Exit 0 means no expected failure and no unresolved consumer. Exit 1 means the
+report lists one or more expected failures. Exit 2 means a usage or Git
+error. Exit 3 means no expected failure but one or more unresolved consumers.
 """
 import argparse
 import subprocess
@@ -22,13 +29,18 @@ from pathlib import Path
 import yaml
 
 try:
-    from scripts import trusted_git
+    from scripts import check_gate_pr_integrity, trusted_git
 except ModuleNotFoundError:
+    import check_gate_pr_integrity
     import trusted_git
 
 SCRIPTS_DIRECTORY = Path(__file__).resolve().parent
 EXPECTED_FAILURE = 1
 USAGE_FAILURE = 2
+UNRESOLVED_CONSUMERS = 3
+# The approval label is the one base verdict that the diff alone predicts.
+LABEL_CHECKER = "scripts/check_gate_pr_integrity.py"
+MAX_LISTED_PATHS = 3
 CODEQL_CONFIG = ".github/codeql/config.yml"
 CODEQL_PATHS_KEY = "paths"
 PROSE_CHECKERS = ("check_hedging.py", "check_us_spelling.py", "check_english_only.py")
@@ -145,21 +157,68 @@ def prose_findings(message: Path) -> list:
     return findings
 
 
+def changed_paths(root: Path, base: str) -> list:
+    """Return every tracked path that differs from the base plus every untracked path."""
+    tracked = git_output(root, ["diff", "--name-only", "--no-renames", base, "--"]) or ""
+    untracked = git_output(root, ["ls-files", "--others", "--exclude-standard"]) or ""
+    return sorted(set(tracked.splitlines()) | set(untracked.splitlines()))
+
+
+def label_failure(root: Path, base: str) -> str:
+    """Return the predicted approval label failure, or an empty string when none applies."""
+    protected = [path for path in changed_paths(root, base)
+                 if check_gate_pr_integrity.requires_approval([path])]
+    if not protected:
+        return ""
+    listed = ", ".join(protected[:MAX_LISTED_PATHS])
+    more = len(protected) - MAX_LISTED_PATHS
+    suffix = f" and {more} more" if more > 0 else ""
+    return (f"{LABEL_CHECKER} requires the {check_gate_pr_integrity.APPROVAL_LABEL} label "
+            f"for protected paths {listed}{suffix}")
+
+
+def consumer_verdicts(root: Path, base: str) -> tuple:
+    """Return (consumer lines, predicted failures, unresolved consumers) for the base."""
+    lines, failures, unresolved = ["Base branch consumers:"], [], []
+    for workflow, checker, action in BASE_CONSUMERS:
+        present = base_has_path(root, base, workflow)
+        state = "present" if present else "absent"
+        lines.append(f"- {workflow} ({checker}): {state} on base. Owner action: {action}.")
+        if not present:
+            continue
+        if checker != LABEL_CHECKER:
+            unresolved.append(f"{workflow} ({checker}). Run it from a base checkout")
+            continue
+        failure = label_failure(root, base)
+        if failure:
+            failures.append(failure)
+    return lines, failures, unresolved
+
+
 def build_report(root: Path, base: str, messages: list,
                  config: str = CODEQL_CONFIG) -> tuple:
-    """Return (report lines, expected failure count) for one candidate."""
-    lines = ["Base branch consumers:"]
-    for workflow, checker, action in BASE_CONSUMERS:
-        state = "present" if base_has_path(root, base, workflow) else "absent"
-        lines.append(f"- {workflow} ({checker}): {state} on base. Owner action: {action}.")
-    failures = codeql_failures(root, base, config)
+    """Return (report lines, expected failure count) for one candidate.
+
+    `build_full_report` also returns the unresolved consumer count.
+    """
+    lines, failure_count, _unresolved_count = build_full_report(root, base, messages, config)
+    return lines, failure_count
+
+
+def build_full_report(root: Path, base: str, messages: list,
+                      config: str = CODEQL_CONFIG) -> tuple:
+    """Return (report lines, expected failure count, unresolved count) for one candidate."""
+    lines, failures, unresolved = consumer_verdicts(root, base)
+    failures.extend(codeql_failures(root, base, config))
     for message in messages:
         failures.extend(prose_findings(message))
     lines.append("Expected failures:")
     lines.extend(f"- {failure}" for failure in failures or ["none"])
+    lines.append("Unresolved consumers:")
+    lines.extend(f"- {consumer}" for consumer in unresolved or ["none"])
     lines.append("Merge order:")
     lines.extend(f"{index}. {step}" for index, step in enumerate(MERGE_ORDER, start=1))
-    return lines, len(failures)
+    return lines, len(failures), len(unresolved)
 
 
 def main(argv: list | None = None, root: Path | None = None) -> int:
@@ -184,10 +243,12 @@ def main(argv: list | None = None, root: Path | None = None) -> int:
         print(f"error: {missing[0]} is not a file. Pass an existing message file.",
               file=sys.stderr)
         return USAGE_FAILURE
-    lines, failure_count = build_report(repository, options.base, options.message,
-                                        options.codeql_config)
+    lines, failure_count, unresolved_count = build_full_report(
+        repository, options.base, options.message, options.codeql_config)
     print("\n".join(lines))
-    return EXPECTED_FAILURE if failure_count else 0
+    if failure_count:
+        return EXPECTED_FAILURE
+    return UNRESOLVED_CONSUMERS if unresolved_count else 0
 
 
 if __name__ == "__main__":
