@@ -47,7 +47,8 @@ class FetchRemoteTest(unittest.TestCase):
                 self.assertEqual(
                     trusted_git._transport_arguments(
                         workspace, ["fetch", "repo", remote, "refs/pull/1/head"]),
-                    ["-C", repository, "fetch", "--no-tags", remote, "refs/pull/1/head"])
+                    ["-C", repository, "fetch", "--no-tags", "--no-prune-tags", remote,
+                     "refs/pull/1/head"])
 
 
 class ChildEnvironmentTest(unittest.TestCase):

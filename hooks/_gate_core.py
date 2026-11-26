@@ -626,6 +626,16 @@ FETCH_PRUNE_TAGS_SHORT_FLAG = "P"
 GIT_CONFIG_OPTION = "-c"
 GIT_CONFIG_ENV_OPTION = "--config-env"
 FETCH_SUBCOMMANDS = frozenset({"fetch", "pull"})
+TAG_PRUNE_REASON = ("git fetch or git pull that can prune local tags through "
+                    "fetch.pruneTags: add --no-prune-tags to fetch, or --no-prune "
+                    "to pull")
+NO_PRUNE_TAGS_OPTION = "--no-prune-tags"
+# --no-prune is a complete option of its own. A prefix shorter than this
+# cannot name --no-prune-tags.
+NO_PRUNE_TAGS_MIN_PREFIX = "--no-prune-t"
+NO_PRUNE_OPTION = "--no-prune"
+PRUNE_OPTION = "--prune"
+PULL_PRUNE_SHORT_FLAG = "p"
 
 
 def _global_config_sets_tag_opt(global_args: list) -> bool:
@@ -665,6 +675,24 @@ def _fetch_flag_blocks_tags(token: str, subcommand: str) -> bool:
     return long_option_matches(token.split("=", 1)[0], "--no-tags")
 
 
+def _blocks_tag_pruning(flags: list, subcommand: str) -> bool:
+    """Return True when the flags turn off configured tag pruning.
+
+    `fetch.pruneTags` and `remote.<name>.pruneTags` delete local tags during
+    a pruning fetch even with --no-tags. fetch accepts --no-prune-tags. pull
+    rejects that option, so pull needs --no-prune and no later --prune.
+    """
+    names = [flag.split("=", 1)[0] for flag in flags]
+    if subcommand == "fetch":
+        return any(name.startswith(NO_PRUNE_TAGS_MIN_PREFIX)
+                   and NO_PRUNE_TAGS_OPTION.startswith(name) for name in names)
+    prune_positions = [index for index, (flag, name) in enumerate(zip(flags, names))
+                       if name == PRUNE_OPTION or (is_short_group(flag)
+                                                   and PULL_PRUNE_SHORT_FLAG in flag[1:])]
+    no_prune_positions = [index for index, name in enumerate(names) if name == NO_PRUNE_OPTION]
+    return bool(no_prune_positions) and max(no_prune_positions) > max(prune_positions, default=-1)
+
+
 def _refspec_writes_tag(operand: str) -> bool:
     """Return True when a refspec destination lies in the tag namespace."""
     if ":" not in operand:
@@ -689,6 +717,8 @@ def _git_fetch_tag_verdict(subcommand: str, rest: list, global_args: list) -> tu
         return "deny", TAG_FETCH_REASON
     if not any(_fetch_flag_blocks_tags(flag, subcommand) for flag in flags):
         return "deny", TAG_FETCH_REASON
+    if not _blocks_tag_pruning(flags, subcommand):
+        return "deny", TAG_PRUNE_REASON
     return "", ""
 
 

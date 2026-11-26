@@ -5653,14 +5653,14 @@
         "docs/agent-policy/adoption.md": "763c0bd5ba0e29dac5d60b5341470c67d5409ba9a9ac042d216286b7cedb599d",
         "docs/agent-policy/clients.md": "26237c361bd78beabf8402358186606f15ac2aacd0ffe18dddf82284ee0caf40",
         "docs/agent-policy/enforcement.md": "f8b17562e2e4e851eb2a2b5d65ca0a2af6a2f86e64f942245e0cd5f2c278688c",
-        "docs/agent-policy/github.md": "fbf1f32302b5a0fc425c3cd28bf313ed41453ade0373aae1e2feb536979d2ebf",
+        "docs/agent-policy/github.md": "b366a0bda268993aa4e35e63085d670c94368e9bcd043d642848327311965af8",
         "docs/agent-policy/security.md": "0d7e956e9093e1d17de96e35290159818846ad73ae53517918c67e9063f92faf"
       },
       "shared": {
         "docs/enforcement-matrix.md": "b9d5a2fcf1d8aa8e1d22a707208cc4bf6fd44e21bd79a301aff1687ffae20444",
         "hooks/_bash_parser.py": "e5d35b99bc21ea94ea3f0cbc5e83da71359420fa60eeb0f1e7007259b6721f85",
         "hooks/_cmd_parser.py": "246febca4007230c77f0980bec98ee94e14e14b21d5dddf5567101a38c7d80b3",
-        "hooks/_gate_core.py": "bb4c8d843cc537e696072fed073bed47baeec2792c852ed32bbdb26dc5d561ce",
+        "hooks/_gate_core.py": "142da58ce269a1328562b5df68ed50d614dbe5ca07c0bd410c01077381f88266",
         "hooks/_git_probe.py": "102376f55fe21f94b434a7843ad158a0dce55b9dbd5688e2e3f5b07ae1aa5c94",
         "hooks/_platform_policy.py": "c307db1286f61fa987bf898e9ec0843b33188ea56538a24d62fa0e98a968b24e",
         "hooks/_test_runners.py": "cf8db51dac329cbda8ee74fd5897f76504697cce102057014fad03ede997b3fa",

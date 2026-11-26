@@ -39,7 +39,8 @@ Agents never create, push, move, or delete Git tags. Agents never create,
 edit, publish, or delete releases.
 
 Tag auto-follow writes local tags during a fetch. The shell gates deny every
-`git fetch` and `git pull` without `--no-tags`. The gates also deny `--tags`,
+`git fetch` and `git pull` without `--no-tags`. Fetch also needs
+`--no-prune-tags`. Pull needs `--no-prune`. The gates also deny `--tags`,
 `--prune-tags`, a `tag` operand, a refspec destination in `refs/tags/`, and a
 `-c` or `--config-env` override of `tagOpt`. `scripts/trusted_git.py fetch` always passes
 `--no-tags` and rejects a tag destination. Read a tag tree into a

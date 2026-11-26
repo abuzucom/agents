@@ -93,12 +93,13 @@ def codeql_paths(root: Path, base: str, config: str = CODEQL_CONFIG) -> tuple:
         document = yaml.safe_load(text)
     except yaml.YAMLError:
         return [], f"CodeQL config {config} is not valid YAML"
-    if document is None:
+    named = config != CODEQL_CONFIG
+    if document is None and not named:
         return [], ""
     values = document.get(CODEQL_PATHS_KEY, []) if isinstance(document, dict) else None
-    if not isinstance(values, list):
-        return [], f"CodeQL config {config} holds no mapping with a paths list"
-    return [value.rstrip("/") for value in values if isinstance(value, str)], ""
+    if not isinstance(values, list) or not all(isinstance(value, str) for value in values):
+        return [], f"CodeQL config {config} holds no mapping with a list of path strings"
+    return [value.rstrip("/") for value in values], ""
 
 
 def candidate_tracks(root: Path, entry: str) -> bool:

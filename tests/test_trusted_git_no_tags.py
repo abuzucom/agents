@@ -40,7 +40,8 @@ class TrustedFetchNoTagsTest(unittest.TestCase):
         self.assertEqual(
             trusted_git._transport_arguments(
                 self.workspace, ["fetch", "repo", "origin", TAG_READ_REFSPEC]),
-            ["-C", self.repository, "fetch", "--no-tags", "origin", TAG_READ_REFSPEC])
+            ["-C", self.repository, "fetch", "--no-tags", "--no-prune-tags", "origin",
+             TAG_READ_REFSPEC])
 
 
 if __name__ == "__main__":

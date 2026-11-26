@@ -62,15 +62,18 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Both review callers trust a prior `VERDICT:` check only when its check
   suite belongs to a `workflow_run` execution of the caller file.
   `security-review-pr.yml` grants `actions: read` to its resolve job.
-- The shell gates deny `git fetch` and `git pull` without `--no-tags`. The
-  same gates deny `--tags`, `--prune-tags`, a `tag` operand, a refspec
+- The shell gates deny `git fetch` and `git pull` without `--no-tags`.
+  `fetch.pruneTags` deletes local tags under `--no-tags`. Fetch therefore
+  also needs `--no-prune-tags`. Pull rejects that option and needs
+  `--no-prune` with no later `--prune`. The same gates deny `--tags`, `--prune-tags`, a `tag` operand, a refspec
   destination in `refs/tags/`, and a `-c` or `--config-env` override of
   `tagOpt`.
-  `scripts/trusted_git.py fetch` always passes `--no-tags` and rejects a tag
-  destination and a `tag` operand.
+  `scripts/trusted_git.py fetch` always passes `--no-tags` and
+  `--no-prune-tags`. It rejects a tag destination and a `tag` operand.
 - `scripts/plan_template_upgrade.py` reports a prose checker that times out
   or cannot start as an expected failure. A named CodeQL config that is
-  absent, malformed, or not a mapping is an expected failure. Only `paths`
+  absent, empty, malformed, not a mapping, or holds a non-string path is an
+  expected failure. Only `paths`
   entries count as analysis coverage.
 - `hooks/workflow-scripts.txt` drops the four `scripts/release.py` forms.
 

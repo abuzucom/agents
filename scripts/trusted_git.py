@@ -59,6 +59,7 @@ RUNNER_FAILURE = 1
 CLONE_ARGUMENT_COUNT = 3
 FETCH_MINIMUM_ARGUMENT_COUNT = 2
 FETCH_NO_TAGS_OPTION = "--no-tags"
+FETCH_NO_PRUNE_TAGS_OPTION = "--no-prune-tags"
 TAG_DESTINATION_PREFIXES = ("refs/tags/", "tags/")
 TAG_REFSPEC_KEYWORD = "tag"
 # run_git config overrides may only neutralize filter drivers. A wider key
@@ -429,6 +430,9 @@ def _transport_arguments(workspace: Path, arguments: list[str]) -> list[str] | N
     if repository is None or not (repository / ".git").exists():
         return None
     _fetch, _repository, *remaining = arguments
+    # _literal refuses every value that starts with a dash. No caller option
+    # reaches git, so --tags, --prune-tags, -t, and -P cannot follow the
+    # inserted --no-tags and --no-prune-tags.
     if any(not _literal(value) for value in remaining):
         return None
     if remaining and not _fetch_remote(remaining[0]):
@@ -437,8 +441,10 @@ def _transport_arguments(workspace: Path, arguments: list[str]) -> list[str] | N
     refspecs = remaining[1:]
     if TAG_REFSPEC_KEYWORD in refspecs or any(map(_writes_tag_ref, refspecs)):
         return None
-    # Tag auto-follow writes local tags, and agents never create tags.
-    return ["-C", str(repository), "fetch", FETCH_NO_TAGS_OPTION, *remaining]
+    # Tag auto-follow writes local tags, and fetch.pruneTags deletes them.
+    # Agents never create or delete tags.
+    return ["-C", str(repository), "fetch", FETCH_NO_TAGS_OPTION,
+            FETCH_NO_PRUNE_TAGS_OPTION, *remaining]
 
 
 def _writes_tag_ref(refspec: str) -> bool:

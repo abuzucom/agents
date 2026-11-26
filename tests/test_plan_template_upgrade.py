@@ -87,7 +87,8 @@ class PlanTemplateUpgradeTest(unittest.TestCase):
 
     def test_unusable_codeql_config_fails(self) -> None:
         cases = {"missing": ("absent.yml", None), "malformed": ("bad.yml", "paths: [\n"),
-                 "non-mapping": ("list.yml", "- legacy\n")}
+                 "non-mapping": ("list.yml", "- legacy\n"), "empty": ("empty.yml", ""),
+                 "null": ("null.yml", "null\n"), "non-string": ("number.yml", "paths: [123]\n")}
         for label, (name, text) in cases.items():
             with self.subTest(config=label):
                 if text is not None:

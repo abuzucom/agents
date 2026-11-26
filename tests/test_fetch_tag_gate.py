@@ -33,13 +33,19 @@ TAG_WRITING_COMMANDS = (
     "git pull",
     "git pull -n origin main",
     "git pull --tags origin main",
+    "git fetch --no-tags origin main",
+    "git fetch --no-tags --no-prune origin main",
+    "git pull --no-tags origin main",
+    "git pull --no-tags --no-prune --prune origin main",
+    "git pull --no-tags --no-prune -p origin main",
 )
 TAG_FREE_COMMANDS = (
-    "git fetch --no-tags origin main",
-    "git fetch -n origin main",
-    "git fetch --no-tags --prune origin",
-    "git fetch --no-tags ./template refs/tags/v2.46.0:refs/remotes/template/v2.46.0",
-    "git pull --no-tags origin main",
+    "git fetch --no-tags --no-prune-tags origin main",
+    "git fetch -n --no-prune-tags origin main",
+    "git fetch --no-tags --no-prune-tags --prune origin",
+    "git fetch --no-tags --no-prune-tags ./template "
+    "refs/tags/v2.46.0:refs/remotes/template/v2.46.0",
+    "git pull --no-tags --no-prune origin main",
 )
 
 
