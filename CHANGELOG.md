@@ -37,6 +37,13 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `github-codeql-config-file` property value. A removed CodeQL path counts
   as missing when the candidate index tracks no file under it.
   `hooks/workflow-scripts.txt` allows its four forms.
+- `scripts/plan_template_upgrade.py` reports the `gate-change-approved`
+  label as an expected failure when `gate-integrity.yml` exists on the base
+  and the candidate changes a protected gate path. Untracked paths count.
+  Every other consumer present on the base appears under
+  `Unresolved consumers:`. Exit 3 means no expected failure and one or more
+  unresolved consumers. The docstring states that the planner runs no base
+  branch checker. `build_full_report()` returns the unresolved count.
 - `skills/gate-adoption/SKILL.md` gains a template upgrade merge order
   section and a source publishing tooling section. Its new step runs the
   planner before the first push. `docs/agent-policy/adoption.md` points to
