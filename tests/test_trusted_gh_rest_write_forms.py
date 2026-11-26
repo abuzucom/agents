@@ -164,21 +164,24 @@ class DraftPullCreateTest(RestWriteHarness):
 
 
 class DraftPullCreateExclusionTest(RestWriteHarness):
-    """Other `pr create` shapes reach gh unchanged or stay denied."""
+    """Other `pr create` shapes reach gh unchanged, stay denied, or fail closed.
 
-    def test_non_draft_passthrough(self):
-        self.assert_unmapped(["pr", "create", "--title", "T", "--body-file", DRAFT_ARGUMENT])
+    Raw gh runs outside the repository. A relative draft path cannot resolve
+    there, so those shapes exit 2 with no CLI call.
+    """
 
-    def test_untitled_passthrough(self):
-        self.assert_unmapped(["pr", "create", "--draft", "--body-file", DRAFT_ARGUMENT])
+    def test_non_draft_is_refused(self):
+        self.assert_refused(["pr", "create", "--title", "T", "--body-file", DRAFT_ARGUMENT])
 
-    def test_other_options_passthrough(self):
+    def test_untitled_is_refused(self):
+        self.assert_refused(["pr", "create", "--draft", "--body-file", DRAFT_ARGUMENT])
+
+    def test_other_options_refused(self):
         for extra in (["--fill"], ["--web"], ["--reviewer", "someone"],
                       ["--assignee", "someone"], ["--head", "other"], ["--body", "x"]):
             with self.subTest(extra=extra):
                 self.calls.clear()
-                self.inputs.clear()
-                self.assert_unmapped([*PR_CREATE, *extra])
+                self.assert_refused([*PR_CREATE, *extra])
 
     def test_stdin_body_passthrough(self):
         self.assert_unmapped(["pr", "create", "--draft", "--title", "T", "--body-file", "-"])
@@ -213,15 +216,14 @@ class PullEditTest(RestWriteHarness):
 
 
 class PullEditExclusionTest(RestWriteHarness):
-    """Other `pr edit` shapes reach gh unchanged or stay denied."""
+    """Other `pr edit` shapes reach gh unchanged, stay denied, or fail closed."""
 
-    def test_other_options_passthrough(self):
+    def test_other_options_refused(self):
         for extra in (["--base", "main"], ["--add-reviewer", "someone"],
                       ["--milestone", "v1"], ["--add-assignee", "someone"]):
             with self.subTest(extra=extra):
                 self.calls.clear()
-                self.inputs.clear()
-                self.assert_unmapped(["pr", "edit", "7", "--body-file", DRAFT_ARGUMENT, *extra])
+                self.assert_refused(["pr", "edit", "7", "--body-file", DRAFT_ARGUMENT, *extra])
 
     def test_bodyless_edit_passthrough(self):
         self.assert_unmapped(["pr", "edit", "7", "--title", "New title"])
