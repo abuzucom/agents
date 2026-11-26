@@ -102,9 +102,13 @@ def rewrite_text(name: str, text: str, pins: tuple, versions: tuple) -> str:
 
 
 def rewrite_manifest_digest(manifest_text: str, caller_text: str) -> str:
-    """Return the manifest text with the caller digest replaced."""
+    """Return the manifest text with the caller digest replaced.
+
+    The trusted compliance scan hashes the caller blob. `text: auto` stores
+    that blob with LF endings, so a CRLF checkout hashes after normalizing.
+    """
     entry = json.loads(manifest_text)["pull_request_target"][CALLER]
-    digest = hashlib.sha256(caller_text.encode("utf-8")).hexdigest()
+    digest = hashlib.sha256(caller_text.replace("\r\n", "\n").encode("utf-8")).hexdigest()
     return manifest_text.replace(entry["sha256"], digest)
 
 

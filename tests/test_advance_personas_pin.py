@@ -64,7 +64,7 @@ class AdvancePersonasPinTest(unittest.TestCase):
         self.run_update([NEW_VERSION, NEW_COMMIT])
         manifest = json.loads(self.read(advance_personas_pin.MANIFEST))
         entry = manifest["pull_request_target"][advance_personas_pin.CALLER]
-        caller = (self.root / advance_personas_pin.CALLER).read_bytes()
+        caller = (self.root / advance_personas_pin.CALLER).read_bytes().replace(b"\r\n", b"\n")
         self.assertEqual(entry["sha256"], hashlib.sha256(caller).hexdigest())
 
     def test_repeat_update_is_idempotent(self):

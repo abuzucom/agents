@@ -26,7 +26,10 @@ class PersonaCallerManifestTest(unittest.TestCase):
         self.caller_bytes = (ROOT / CALLER).read_bytes()
 
     def test_manifest_digest_matches_caller(self):
-        self.assertEqual(self.entry["sha256"], hashlib.sha256(self.caller_bytes).hexdigest())
+        # The trusted scan hashes the LF blob that `text: auto` stores. A
+        # Windows checkout holds CRLF, so the test hashes the stored form.
+        stored = self.caller_bytes.replace(b"\r\n", b"\n")
+        self.assertEqual(self.entry["sha256"], hashlib.sha256(stored).hexdigest())
 
     def test_manifest_workflows_match_caller(self):
         workflow = yaml.safe_load(self.caller_bytes.decode("utf-8"))
