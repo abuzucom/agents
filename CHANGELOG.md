@@ -84,7 +84,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   process. Raw `gh` runs outside the repository and cannot read that path.
   A body from stdin or an absolute path still reaches `gh` unchanged.
   Every body option counts, since `gh` keeps the last one. An edit number
-  after the flags gets the same check.
+  after the flags gets the same check. The attached `-F<path>` and
+  `-F=<path>` spellings count as body options.
 - `scripts/check_compliance_tree.py` adds a finding for a reviewed
   `pull_request_target` job value that is not a mapping.
 - `primary_branch()` in `hooks/_gate_core.py` closes its descriptor on

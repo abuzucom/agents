@@ -961,6 +961,9 @@ def _body_file_values(options: list[str]) -> list[str]:
             values.append(token[len(BODY_FILE_INLINE_PREFIX):])
         elif token in (COMMENT_BODY_OPTION, BODY_FILE_SHORT_OPTION) and index + 1 < len(options):
             values.append(options[index + 1])
+        elif token.startswith(BODY_FILE_SHORT_OPTION) and len(token) > len(BODY_FILE_SHORT_OPTION):
+            # gh parses `-F<path>` and `-F=<path>` as the short option with a value.
+            values.append(token[len(BODY_FILE_SHORT_OPTION):].removeprefix("="))
     return values
 
 
