@@ -1003,12 +1003,29 @@ def _relative_draft_detail(command: tuple, options: list[str]) -> str:
     return "an option repeats or lacks a value"
 
 
-def refuse_relative_draft_passthrough(arguments: list[str]) -> None:
-    """Raise RestWriteError when a REST write shape with a relative body falls out of the mapping.
+def _is_draft_file(repo_root, value: str) -> bool:
+    """Return whether one absolute body path names a regular file directly in the drafts directory.
+
+    Raw gh reads any readable file and posts its bytes. Only a non-link
+    regular file whose parent is the real, non-link drafts directory passes.
+    """
+    drafts = _find_git_entry(Path(repo_root)).parent / COMMENT_DRAFT_DIRECTORY
+    candidate = Path(value)
+    try:
+        if drafts.is_symlink() or os.path.realpath(candidate.parent) != os.path.realpath(drafts):
+            return False
+        return stat.S_ISREG(os.lstat(candidate).st_mode)
+    except OSError:
+        return False
+
+
+def refuse_relative_draft_passthrough(repo_root, arguments: list[str]) -> None:
+    """Raise RestWriteError when a write shape outside the REST mapping names an unsafe body.
 
     Raw gh runs from a private temporary directory outside the repository.
-    A relative body path never resolves there. A body on stdin or at an
-    absolute path still reaches gh unchanged.
+    A relative body path never resolves there. An absolute body passes only
+    as a regular file directly in the drafts directory. A body on stdin
+    still reaches gh unchanged.
     """
     command = tuple(arguments[:COMMAND_PATH_LENGTH])
     if command not in RELATIVE_DRAFT_FORMS:
@@ -1016,11 +1033,14 @@ def refuse_relative_draft_passthrough(arguments: list[str]) -> None:
     # gh accepts the edit number before or after the flags. The body scan
     # reads every token and needs no positional handling.
     options = arguments[COMMAND_PATH_LENGTH:]
-    if not any(_is_relative_body(value) for value in _body_file_values(options)):
-        return
-    detail = _relative_draft_detail(command, options)
-    raise RestWriteError(f"{detail}; a relative body runs only as "
-                         f"`{RELATIVE_DRAFT_FORMS[command]}`. Use that form or an absolute path")
+    values = [value for value in _body_file_values(options) if value != ISSUE_STDIN_BODY]
+    if any(_is_relative_body(value) for value in values):
+        detail = _relative_draft_detail(command, options)
+        raise RestWriteError(f"{detail}; a relative body runs only as "
+                             f"`{RELATIVE_DRAFT_FORMS[command]}`. Use that form or an absolute path")
+    if not all(_is_draft_file(repo_root, value) for value in values):
+        raise RestWriteError(f"an absolute body must be a regular file directly in "
+                             f"{COMMENT_DRAFT_DIRECTORY}/. Move the draft there or pass it on stdin")
 
 
 def issue_url(output: str) -> str | None:
@@ -1102,7 +1122,7 @@ def _execute(repo_root, arguments: list[str], gate_core=None, input_text=None,
                 return POLICY_DENIAL_EXIT_CODE
             rest_request = rest_write_request(repo_root, arguments)
             if rest_request is None:
-                refuse_relative_draft_passthrough(list(arguments))
+                refuse_relative_draft_passthrough(repo_root, list(arguments))
         if rest_request is not None:
             effective_arguments, input_text = rest_request
         verify_account(repo_root)

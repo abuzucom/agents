@@ -82,7 +82,9 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   relative `--body-file` that falls outside the REST forms. The error names
   the refused option and the accepted form. It exits 2 and starts no `gh`
   process. Raw `gh` runs outside the repository and cannot read that path.
-  A body from stdin or an absolute path still reaches `gh` unchanged.
+  A body from stdin still reaches `gh` unchanged. An absolute body must be
+  a regular file directly in `.comment-drafts/`. Raw `gh` would otherwise
+  post any readable file.
   Every body option counts, since `gh` keeps the last one. An edit number
   after the flags gets the same check. The attached `-F<path>` and
   `-F=<path>` spellings count as body options.
