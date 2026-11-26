@@ -950,14 +950,23 @@ def rest_write_request(repo_root, arguments: list[str]) -> tuple[list[str], str]
     return None
 
 
-def _body_file_value(options: list[str]) -> str | None:
-    """Return the first body file value in any gh spelling, or None when absent."""
+def _body_file_values(options: list[str]) -> list[str]:
+    """Return every body file value in any gh spelling.
+
+    gh keeps the last value of a repeated option. Each value therefore counts.
+    """
+    values = []
     for index, token in enumerate(options):
         if token.startswith(BODY_FILE_INLINE_PREFIX):
-            return token[len(BODY_FILE_INLINE_PREFIX):]
-        if token in (COMMENT_BODY_OPTION, BODY_FILE_SHORT_OPTION) and index + 1 < len(options):
-            return options[index + 1]
-    return None
+            values.append(token[len(BODY_FILE_INLINE_PREFIX):])
+        elif token in (COMMENT_BODY_OPTION, BODY_FILE_SHORT_OPTION) and index + 1 < len(options):
+            values.append(options[index + 1])
+    return values
+
+
+def _is_relative_body(value: str) -> bool:
+    """Return whether one body file value names a path relative to the working directory."""
+    return value != ISSUE_STDIN_BODY and not os.path.isabs(value)
 
 
 def _first_refused_option(options: list[str], accepted: frozenset) -> str | None:
@@ -980,6 +989,8 @@ def _first_refused_option(options: list[str], accepted: frozenset) -> str | None
 def _relative_draft_detail(command: tuple, options: list[str]) -> str:
     """Return the reason one relative draft shape fell out of the REST mapping."""
     accepted, required = RELATIVE_DRAFT_RULES[command]
+    if command[1] == "edit" and not (options and THREAD_NUMBER.fullmatch(options[0])):
+        return "the number must follow the edit subcommand"
     refused = _first_refused_option(options, accepted)
     if refused is not None:
         return f"{refused[:MAX_REPORTED_OPTION]} is outside the REST form"
@@ -992,18 +1003,17 @@ def _relative_draft_detail(command: tuple, options: list[str]) -> str:
 def refuse_relative_draft_passthrough(arguments: list[str]) -> None:
     """Raise RestWriteError when a REST write shape with a relative body falls out of the mapping.
 
-    Raw gh runs from a private temporary directory outside the repository,
-    so a relative body path can never resolve there. A body on stdin or at
-    an absolute path still reaches gh unchanged.
+    Raw gh runs from a private temporary directory outside the repository.
+    A relative body path never resolves there. A body on stdin or at an
+    absolute path still reaches gh unchanged.
     """
     command = tuple(arguments[:COMMAND_PATH_LENGTH])
     if command not in RELATIVE_DRAFT_FORMS:
         return
+    # gh accepts the edit number before or after the flags. The body scan
+    # reads every token and needs no positional handling.
     options = arguments[COMMAND_PATH_LENGTH:]
-    if command[1] == "edit":
-        options = options[1:]
-    body = _body_file_value(options)
-    if body is None or body == ISSUE_STDIN_BODY or os.path.isabs(body):
+    if not any(_is_relative_body(value) for value in _body_file_values(options)):
         return
     detail = _relative_draft_detail(command, options)
     raise RestWriteError(f"{detail}; a relative body runs only as "
