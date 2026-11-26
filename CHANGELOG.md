@@ -112,6 +112,10 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `.yml`, or `.json` name as protected without reading it. The Pages
   deployment check denies a UNC path. The protected write check resolves a
   UNC target lexically. `shared-files.json` records the new digest.
+- `scripts/advance_personas_pin.py` exits 3 when a replace and a restore
+  both fail. The error names each pin site that holds the new pin and
+  gives the `git checkout --` recovery command. The staging message that
+  claims no file changed runs only before any replace.
 - `scripts/trusted_gh.py` refuses an issue or pull request write with a
   relative `--body-file` that falls outside the REST forms. The error names
   the refused option and the accepted form. It exits 2 and starts no `gh`

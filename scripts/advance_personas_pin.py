@@ -13,7 +13,12 @@ Usage:
 
 Exit 0 means every pin site names the commit. Exit 1 means a pin site is
 missing, the pin sites disagree, or a write failed. Exit 1 leaves every file
-as it was. Exit 2 means a usage error.
+as it was. Exit 2 means a usage error. Exit 3 means a replace and a restore
+both failed. Some pin sites then hold the new pin. The error names each one.
+
+The files change one at a time, so no single step covers all of them. An
+interrupted run or an exit 3 can leave mixed pins. Run
+`git checkout -- <files>` on the named pin sites to recover.
 """
 import hashlib
 import json
@@ -27,6 +32,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 STATE_FAILURE = 1
 USAGE_FAILURE = 2
+PARTIAL_FAILURE = 3
 CALLER = ".github/workflows/persona-review-labels.yml"
 MANIFEST = ".compliance-tree-exemptions.json"
 WORKFLOW_FILES = (
@@ -66,6 +72,14 @@ class PinStateError(ValueError):
 
 class PinWriteError(OSError):
     """A replacement failed after staging. Every replaced file was restored."""
+
+
+class PinPartialWriteError(PinWriteError):
+    """A replacement failed and a restore failed too. Some files hold the new pin."""
+
+    def __init__(self, message: str, unrestored: list):
+        super().__init__(message)
+        self.unrestored = unrestored
 
 
 def validate_pin_sites(root: Path) -> None:
@@ -115,10 +129,24 @@ def replace_sites(root: Path, staged: dict, originals: dict) -> None:
             os.replace(temp_path, root / name)
             replaced.append(name)
     except OSError as error:
-        for name in replaced:
-            (root / name).write_bytes(originals[name])
+        unrestored = restore_sites(root, replaced, originals)
+        if unrestored:
+            raise PinPartialWriteError(
+                f"replacing {name} failed ({error}) and {len(unrestored)} restores failed",
+                unrestored) from error
         raise PinWriteError(f"replacing {name} failed ({error}); restored "
                             f"{len(replaced)} replaced files") from error
+
+
+def restore_sites(root: Path, replaced: list, originals: dict) -> list:
+    """Write each replaced file back and return the names whose restore failed."""
+    unrestored = []
+    for name in replaced:
+        try:
+            (root / name).write_bytes(originals[name])
+        except OSError:
+            unrestored.append(name)
+    return unrestored
 
 
 def write_sites(root: Path, updated: dict) -> None:
@@ -221,6 +249,11 @@ def main(argv: list | None = None, root: Path = ROOT) -> int:
         return STATE_FAILURE
     try:
         write_sites(root, updated)
+    except PinPartialWriteError as error:
+        names = " ".join(error.unrestored)
+        print(f"error: {error}. These pin sites hold the new pin: {names}. "
+              f"Recover with: git checkout -- {names}", file=sys.stderr)
+        return PARTIAL_FAILURE
     except PinWriteError as error:
         print(f"error: {error}. Every pin site holds its original bytes.", file=sys.stderr)
         return STATE_FAILURE
