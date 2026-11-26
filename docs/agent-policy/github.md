@@ -98,8 +98,8 @@ Sessions without GraphQL run these wrapper forms over REST. Each asks:
 - `run pr create --draft --title <text> --body-file <draft> [--base <b>]`
 - `run pr edit <n> --body-file <draft> [--title <text>]`
 `<draft>` names `.comment-drafts/<file>`. Other options reach `gh`
-unchanged. A refused draft exits 2. The PR base defaults to the primary
-branch.
+unchanged only with stdin or an absolute `<draft>` path. Other bodies exit
+2. A refused draft exits 2. The PR base defaults to the primary branch.
 
 ## Pull request base
 CI workflows run on every pull request base. Gate integrity runs the base

@@ -126,7 +126,7 @@ MAX_COMMENT_PAGE = 1000
 COMMENT_PAGE_ARGUMENT_COUNT = 2
 # `gh issue edit` and `gh issue create` call GraphQL. Some sessions block
 # GraphQL. Two exact body-file shapes run over REST instead. Any other option
-# leaves the command for gh unchanged.
+# leaves the command for gh unchanged, except with a relative body path.
 ISSUE_TITLE_OPTION = "--title"
 ISSUE_REST_OPTIONS = frozenset((COMMENT_BODY_OPTION, ISSUE_TITLE_OPTION))
 ISSUE_STDIN_BODY = "-"
@@ -142,6 +142,25 @@ PR_CREATE_OPTIONS = frozenset((COMMENT_BODY_OPTION, ISSUE_TITLE_OPTION, PR_BASE_
 ISSUE_CLOSE_REASON_OPTION = "--reason"
 ISSUE_CLOSE_REASONS = frozenset(("completed", "not_planned"))
 ISSUE_STATE_PREFIX_LENGTH = 3
+# gh accepts these body file spellings besides `--body-file <path>`.
+BODY_FILE_SHORT_OPTION = "-F"
+BODY_FILE_INLINE_PREFIX = COMMENT_BODY_OPTION + "="
+# Raw gh runs outside the repository and cannot resolve a relative body
+# path. A write shape with a relative body that leaves the REST mapping
+# fails closed. Each rule holds the accepted options and the required ones.
+RELATIVE_DRAFT_FORMS = {
+    ("issue", "create"): "issue create --title <text> --body-file .comment-drafts/<file>",
+    ("issue", "edit"): "issue edit <n> --body-file .comment-drafts/<file> [--title <text>]",
+    ("pr", "create"): "pr create --draft --title <text> --body-file .comment-drafts/<file>",
+    ("pr", "edit"): "pr edit <n> --body-file .comment-drafts/<file> [--title <text>]",
+}
+RELATIVE_DRAFT_RULES = {
+    ("issue", "create"): (ISSUE_REST_OPTIONS, (ISSUE_TITLE_OPTION,)),
+    ("issue", "edit"): (ISSUE_REST_OPTIONS, ()),
+    ("pr", "create"): (PR_CREATE_OPTIONS | {PR_DRAFT_FLAG}, (PR_DRAFT_FLAG, ISSUE_TITLE_OPTION)),
+    ("pr", "edit"): (ISSUE_REST_OPTIONS, ()),
+}
+MAX_REPORTED_OPTION = 40
 # The branch gate reads the same override file with the same rules.
 PRIMARY_BRANCH_FILE = Path("hooks") / "primary-branch.txt"
 DEFAULT_PRIMARY_BRANCH = "main"
@@ -715,8 +734,13 @@ def _read_draft_bytes(drafts: Path, name: str) -> bytes:
     finally:
         os.close(directory)
     with os.fdopen(descriptor, "rb") as handle:
-        if not stat.S_ISREG(os.fstat(handle.fileno()).st_mode):
+        status = os.fstat(handle.fileno())
+        if not stat.S_ISREG(status.st_mode):
             raise ValueError("comment draft is not a regular file")
+        # A second hard link can name a file that lives outside the drafts
+        # directory. The check runs on the descriptor that the read uses.
+        if status.st_nlink != 1:
+            raise ValueError("comment draft has more than one hard link")
         return handle.read(MAX_COMMENT_BYTES + 1)
 
 
@@ -931,6 +955,167 @@ def rest_write_request(repo_root, arguments: list[str]) -> tuple[list[str], str]
     return None
 
 
+def _body_file_values(options: list[str]) -> list[str]:
+    """Return every body file value in any gh spelling.
+
+    gh keeps the last value of a repeated option. Each value therefore counts.
+    """
+    values = []
+    for index, token in enumerate(options):
+        if token.startswith(BODY_FILE_INLINE_PREFIX):
+            values.append(token[len(BODY_FILE_INLINE_PREFIX):])
+        elif token in (COMMENT_BODY_OPTION, BODY_FILE_SHORT_OPTION) and index + 1 < len(options):
+            values.append(options[index + 1])
+        elif token.startswith(BODY_FILE_SHORT_OPTION) and len(token) > len(BODY_FILE_SHORT_OPTION):
+            # gh parses `-F<path>` and `-F=<path>` as the short option with a value.
+            values.append(token[len(BODY_FILE_SHORT_OPTION):].removeprefix("="))
+    return values
+
+
+def _is_relative_body(value: str) -> bool:
+    """Return whether one body file value names a path relative to the working directory."""
+    return value != ISSUE_STDIN_BODY and not os.path.isabs(value)
+
+
+def _first_refused_option(options: list[str], accepted: frozenset) -> str | None:
+    """Return the first option token outside an accepted set, skipping accepted values."""
+    index = 0
+    while index < len(options):
+        token = options[index]
+        if token == PR_DRAFT_FLAG and PR_DRAFT_FLAG in accepted:
+            index += 1
+            continue
+        if token in accepted:
+            index += 2
+            continue
+        if token.startswith("-"):
+            return token
+        index += 1
+    return None
+
+
+def _relative_draft_detail(command: tuple, options: list[str]) -> str:
+    """Return the reason one relative draft shape fell out of the REST mapping."""
+    accepted, required = RELATIVE_DRAFT_RULES[command]
+    if command[1] == "edit" and not (options and THREAD_NUMBER.fullmatch(options[0])):
+        return "the number must follow the edit subcommand"
+    refused = _first_refused_option(options, accepted)
+    if refused is not None:
+        return f"{refused[:MAX_REPORTED_OPTION]} is outside the REST form"
+    for name in required:
+        if name not in options:
+            return f"{name} is missing"
+    return "an option repeats or lacks a value"
+
+
+def _is_draft_file(repo_root, value: str) -> bool:
+    """Return whether one absolute body path names a regular file directly in the drafts directory.
+
+    Raw gh reads any readable file and posts its bytes. Only a non-link
+    regular file whose parent is the real, non-link drafts directory passes.
+    """
+    drafts = _find_git_entry(Path(repo_root)).parent / COMMENT_DRAFT_DIRECTORY
+    candidate = Path(value)
+    try:
+        if drafts.is_symlink() or os.path.realpath(candidate.parent) != os.path.realpath(drafts):
+            return False
+        return stat.S_ISREG(os.lstat(candidate).st_mode)
+    except OSError:
+        return False
+
+
+def _is_body_option(token: str) -> bool:
+    """Return whether one token carries its own body file value in an attached spelling."""
+    if token.startswith(BODY_FILE_INLINE_PREFIX):
+        return True
+    return token.startswith(BODY_FILE_SHORT_OPTION) and len(token) > len(BODY_FILE_SHORT_OPTION)
+
+
+def _strip_body_options(tokens: list[str]) -> list[str]:
+    """Return the tokens without any body file option or its value."""
+    stripped = []
+    index = 0
+    while index < len(tokens):
+        token = tokens[index]
+        if token in (COMMENT_BODY_OPTION, BODY_FILE_SHORT_OPTION):
+            index += 2
+            continue
+        if not _is_body_option(token):
+            stripped.append(token)
+        index += 1
+    return stripped
+
+
+def _draft_write_shape(arguments: list[str]) -> tuple[tuple, list[str]] | None:
+    """Return the write command and the tokens after it, or None for other commands.
+
+    gh accepts global options such as `-R` before the command. The command
+    sits where repository context finds it, not at the first token.
+    """
+    position = _command_position(arguments)
+    if position is None:
+        return None
+    command = tuple(arguments[position:position + COMMAND_PATH_LENGTH])
+    if command not in RELATIVE_DRAFT_FORMS:
+        return None
+    return command, arguments[position + COMMAND_PATH_LENGTH:]
+
+
+def draft_stdin_handoff(repo_root, arguments: list[str],
+                        effective_arguments: list[str]) -> tuple[list[str], str] | None:
+    """Return gh arguments with `--body-file -` and the draft text, else None.
+
+    Call this only after refuse_relative_draft_passthrough() accepts the
+    shape. gh keeps the last body value. When that value names a draft, the
+    wrapper reads the draft once through a descriptor that follows no link.
+    gh then reads the validated bytes on stdin and never opens the path. A
+    swap of the draft after validation cannot change the posted body.
+    The refusal already stops an absolute draft on a platform without
+    dir_fd and O_NOFOLLOW.
+    """
+    shape = _draft_write_shape(arguments)
+    if shape is None:
+        return None
+    values = _body_file_values(shape[1])
+    if not values or values[-1] == ISSUE_STDIN_BODY:
+        return None
+    text = _read_rest_body(repo_root, f"{COMMENT_DRAFT_DIRECTORY}/{Path(values[-1]).name}")
+    delimiter = (effective_arguments.index("--") if "--" in effective_arguments
+                 else len(effective_arguments))
+    option_tokens = _strip_body_options(effective_arguments[:delimiter])
+    return [*option_tokens, COMMENT_BODY_OPTION, ISSUE_STDIN_BODY,
+            *effective_arguments[delimiter:]], text
+
+
+def refuse_relative_draft_passthrough(repo_root, arguments: list[str]) -> None:
+    """Raise RestWriteError when a write shape outside the REST mapping names an unsafe body.
+
+    Raw gh runs from a private temporary directory outside the repository.
+    A relative body path never resolves there. An absolute body passes only
+    as a regular file directly in the drafts directory. A body on stdin
+    still reaches gh unchanged.
+    """
+    shape = _draft_write_shape(arguments)
+    if shape is None:
+        return
+    # gh accepts the edit number before or after the flags. The body scan
+    # reads every token and needs no positional handling.
+    command, options = shape
+    values = [value for value in _body_file_values(options) if value != ISSUE_STDIN_BODY]
+    if any(_is_relative_body(value) for value in values):
+        detail = _relative_draft_detail(command, options)
+        raise RestWriteError(f"{detail}; a relative body runs only as "
+                             f"`{RELATIVE_DRAFT_FORMS[command]}`. Use that form or an absolute path")
+    if not all(_is_draft_file(repo_root, value) for value in values):
+        raise RestWriteError(f"an absolute body must be a regular file directly in "
+                             f"{COMMENT_DRAFT_DIRECTORY}/. Move the draft there or pass it on stdin")
+    # Without a no-follow descriptor read, gh would open the checked path
+    # again later. A swap in between would reach gh unchecked.
+    if values and not _safe_draft_open_supported():
+        raise RestWriteError("an absolute body needs os.open dir_fd and O_NOFOLLOW support, "
+                             "which this platform lacks. Pass the body on stdin")
+
+
 def issue_url(output: str) -> str | None:
     """Return the html_url of a REST issue response, or None when absent."""
     try:
@@ -1009,6 +1194,12 @@ def _execute(repo_root, arguments: list[str], gate_core=None, input_text=None,
                       file=sys.stderr)
                 return POLICY_DENIAL_EXIT_CODE
             rest_request = rest_write_request(repo_root, arguments)
+            if rest_request is None:
+                refuse_relative_draft_passthrough(repo_root, list(arguments))
+                handoff = draft_stdin_handoff(repo_root, list(arguments),
+                                              list(effective_arguments))
+                if handoff is not None:
+                    effective_arguments, input_text = handoff
         if rest_request is not None:
             effective_arguments, input_text = rest_request
         verify_account(repo_root)
