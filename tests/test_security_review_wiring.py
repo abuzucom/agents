@@ -8,18 +8,25 @@ import yaml
 
 ROOT = Path(__file__).resolve().parent.parent
 WORKFLOW_PATH = ROOT / ".github" / "workflows" / "security-review-pr.yml"
-PINNED_COMMIT = "11e55cd691e9a2be086a4fb9378f490d4121e11c"
-FULL_SHA = re.compile(r"[0-9a-f]{40}")
-CI_ADAPTER_FILES = (
-    "ci/build_pr_case.py",
-    "ci/run_model_command.py",
-    "ci/call_model.py",
-    "ci/model_providers.json",
-    # Run by the reusable workflow from the caller's own checkout (not the
-    # separate .foucault checkout that holds AUDIT.md), so it must live in
-    # this repository's scripts/ directory, not ci/.
-    "scripts/check_pr_review_response.py",
+# agents-personas 0.22.0. The uses: pin and personas_ref must name this commit.
+PINNED_COMMIT = "c43f4592191b42b9f66072622b082fc2f4dc3217"
+REUSABLE_WORKFLOW = (
+    "abuzucom/agents-personas/.github/workflows/foucault-security-review.yml"
 )
+CHECK_NAME = "foucault / security"
+FULL_SHA = re.compile(r"[0-9a-f]{40}")
+RESOLVED_INPUTS = (
+    "pr_number",
+    "base_sha",
+    "head_sha",
+    "head_repo_url",
+    "head_repo_full_name",
+)
+REVIEW_PERMISSIONS = {
+    "checks": "write",
+    "contents": "read",
+    "pull-requests": "write",
+}
 
 
 class SecurityReviewWiringTest(unittest.TestCase):
@@ -28,6 +35,7 @@ class SecurityReviewWiringTest(unittest.TestCase):
     def setUp(self):
         self.text = WORKFLOW_PATH.read_text(encoding="utf-8")
         self.workflow = yaml.safe_load(self.text)
+        self.jobs = self.workflow["jobs"]
 
     def test_workflow_parses_and_exists(self):
         self.assertTrue(WORKFLOW_PATH.is_file())
@@ -41,47 +49,62 @@ class SecurityReviewWiringTest(unittest.TestCase):
         self.assertIn("types: [completed]", self.text)
 
     def test_review_commit_pinning(self):
-        review_job = self.workflow["jobs"]["review"]
-        uses = review_job["uses"]
-        audit_ref = review_job["with"]["audit_ref"]
+        review_job = self.jobs["review"]
         self.assertEqual(
-            uses,
-            f"abuzucom/foucault/.github/workflows/security-review.yml@{PINNED_COMMIT}",
-        )
-        self.assertEqual(audit_ref, PINNED_COMMIT)
+            review_job["uses"], f"{REUSABLE_WORKFLOW}@{PINNED_COMMIT}")
+        self.assertEqual(review_job["with"]["personas_ref"], PINNED_COMMIT)
         self.assertTrue(FULL_SHA.fullmatch(PINNED_COMMIT))
 
+    def test_old_reviewer_absent(self):
+        self.assertNotIn("abuzucom/foucault/", self.text)
+        self.assertNotIn("audit_ref", self.text)
+        self.assertNotIn("ci/call_model.py", self.text)
+
+    def test_review_passes_resolved_pull(self):
+        review_with = self.jobs["review"]["with"]
+        for name in RESOLVED_INPUTS:
+            self.assertEqual(
+                review_with[name],
+                f"${{{{ needs.resolve-pr.outputs.{name} }}}}",
+            )
+
     def test_review_secret_mapping(self):
-        review_job = self.workflow["jobs"]["review"]
         self.assertEqual(
-            review_job["secrets"],
+            self.jobs["review"]["secrets"],
             {"MODEL_API_KEY": "${{ secrets.OLLAMA_API_KEY }}"},
         )
         self.assertNotIn("secrets: inherit", self.text)
 
     def test_review_fails_closed(self):
-        review_job = self.workflow["jobs"]["review"]
-        self.assertTrue(review_job["with"]["fail_on_block"])
+        self.assertTrue(self.jobs["review"]["with"]["fail_on_block"])
 
-    def test_fork_no_provider_secret(self):
-        fork_job = self.workflow["jobs"]["fork-review-skipped"]
-        self.assertNotIn("secrets", fork_job)
-        self.assertIn("same_repository == 'false'", fork_job["if"])
+    def test_review_skips_reviewed_head(self):
+        self.assertIn(
+            "needs.resolve-pr.outputs.already_reviewed != 'true'",
+            self.jobs["review"]["if"],
+        )
+        script = self.jobs["resolve-pr"]["steps"][0]["with"]["script"]
+        self.assertIn(f'check_name: "{CHECK_NAME}"', script)
+        self.assertIn("VERDICT: (APPROVE|BLOCK|NEEDS-HUMAN)", script)
+
+    def test_engine_owns_fork_skip(self):
+        # The engine publishes a skipped check for a fork pull request and
+        # withholds the provider key, so the caller holds no fork job.
+        self.assertNotIn("fork-review-skipped", self.jobs)
+        self.assertNotIn("fork_review", self.jobs["review"]["with"])
+
+    def test_jobs_declare_least_privilege_permissions(self):
+        self.assertEqual(self.workflow["permissions"], {"contents": "read"})
+        self.assertNotIn(
+            "write", self.jobs["resolve-pr"]["permissions"].values())
+        self.assertEqual(
+            self.jobs["review"]["permissions"], REVIEW_PERMISSIONS)
 
     def test_github_script_sha_pin(self):
-        resolve_job = self.workflow["jobs"]["resolve-pr"]
-        step = resolve_job["steps"][0]
+        step = self.jobs["resolve-pr"]["steps"][0]
         action, _, revision = step["uses"].partition("@")
         self.assertEqual(action, "actions/github-script")
         self.assertTrue(FULL_SHA.fullmatch(revision.split()[0]))
-
-    def test_ci_adapter_files_exist(self):
-        self.assertIn("python3 ci/call_model.py", self.text)
-        for relative_path in CI_ADAPTER_FILES:
-            self.assertTrue(
-                (ROOT / relative_path).is_file(),
-                f"missing vendored adapter file: {relative_path}",
-            )
 
 
 if __name__ == "__main__":

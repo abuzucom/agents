@@ -199,20 +199,21 @@ failure can still fail the step. An infrastructure failure can still fail the
 step. The workflow disables pull request comments.
 
 `security-review-pr.yml` triggers after `Immutable Compliance` completes and
-calls the `abuzucom/foucault` reusable model security review, pinned to one
-commit SHA for both the workflow and its audit revision. The review gates on
-`BLOCK` and `NEEDS-HUMAN` verdicts and skips fork pull requests. Fork pull
-requests receive no provider secret. See `docs/pr-security-review.md` for the
-pinned revision, the required `OLLAMA_API_KEY` repository secret, and why the
-check fails until the repository has that secret.
+calls the `abuzucom/agents-personas` foucault security review wrapper. One
+commit SHA pins both the wrapper and its `personas_ref`. The review gates on
+`BLOCK` verdicts. `NEEDS-HUMAN` warns and concludes neutral. Fork pull
+requests receive a skipped check and no provider secret. See
+`docs/pr-security-review.md` for the pinned revision, the required
+`OLLAMA_API_KEY` repository secret, and why the check fails until the
+repository has that secret.
 
 `quality-review-pr.yml` triggers after `Convention Sync Check` and
 `Immutable Compliance` both pass for a pull request head. It calls the
-`abuzucom/euler` reusable quality review, pinned to one commit SHA for both
-the workflow and its `quality_ref`. The review gates on `BLOCK` and
-`NEEDS-HUMAN` verdicts. It reuses the `OLLAMA_API_KEY` repository secret.
-Fork pull requests receive a skipped check and no provider secret.
-`workflow_run` runs only the default branch copy of this file.
+`abuzucom/agents-personas` euler quality review wrapper at the same pinned
+commit. The review gates on `BLOCK` verdicts. It reuses the
+`OLLAMA_API_KEY` repository secret. Fork pull requests receive a skipped
+check and no provider secret. `workflow_run` runs only the default branch
+copy of this file.
 
 `policy-size-report.yml` triggers after `Convention Sync Check` completes
 for a pull request that touches `AGENTS.md`, a supporting policy file, or a

@@ -1,9 +1,9 @@
 name: quality-review-pr
 
-# Runs the abuzucom/euler quality review on this repository's pull requests
-# beside the foucault security review. The euler reusable workflow loads its
-# policy and its own adapter from the pinned euler commit, so this repository
-# supplies no adapter files.
+# Runs the abuzucom/agents-personas euler quality review on this repository's
+# pull requests beside the foucault security review. The wrapper loads the
+# engine, the euler policy, and the model adapter from the pinned
+# agents-personas commit, so this repository supplies no adapter files.
 #
 # The workflow_run trigger keeps this caller on default branch code. A pull
 # request cannot edit the reviewer. The caller subscribes to the Convention
@@ -12,8 +12,9 @@ name: quality-review-pr
 # revision. Either workflow can finish first, so the caller reads both results
 # and starts the review on the later pass.
 #
-# Fork pull requests receive a skipped quality-review check and no provider
-# secret. The security review applies the same fork rule.
+# The engine publishes a skipped "euler / quality" check for a fork pull
+# request and withholds the provider key from it. The security review applies
+# the same fork rule.
 
 on:
   workflow_run:
@@ -41,12 +42,11 @@ jobs:
       pull-requests: read
     outputs:
       found: ${{ steps.pr.outputs.found }}
-      same_repository: ${{ steps.pr.outputs.same_repository }}
-      number: ${{ steps.pr.outputs.number }}
+      pr_number: ${{ steps.pr.outputs.pr_number }}
       base_sha: ${{ steps.pr.outputs.base_sha }}
       head_sha: ${{ steps.pr.outputs.head_sha }}
-      title: ${{ steps.pr.outputs.title }}
-      body: ${{ steps.pr.outputs.body }}
+      head_repo_url: ${{ steps.pr.outputs.head_repo_url }}
+      head_repo_full_name: ${{ steps.pr.outputs.head_repo_full_name }}
       tests_passed: ${{ steps.pr.outputs.tests_passed }}
       compliance_passed: ${{ steps.pr.outputs.compliance_passed }}
       already_reviewed: ${{ steps.pr.outputs.already_reviewed }}
@@ -76,13 +76,10 @@ jobs:
 
             const pull = matches[0];
             const headRepository = pull.head?.repo;
-            if (!headRepository?.full_name) {
+            if (!headRepository?.full_name || !headRepository.clone_url) {
               core.setFailed('pull request head repository metadata is unavailable');
               return;
             }
-            const baseRepository = `${context.repo.owner}/${context.repo.repo}`;
-            const sameRepository =
-              headRepository.full_name.toLowerCase() === baseRepository.toLowerCase();
 
             // The most recent run of each upstream workflow decides the
             // outcome, so a failed re-run does not inherit an earlier success.
@@ -114,42 +111,32 @@ jobs:
 
             // Every workflow-authored check run carries the GitHub Actions
             // app, so a check run from a foreign app never marks this head
-            // as reviewed. Euler 0.9.0 publishes the verdict in the check
-            // title and ends without a verdict on a provider failure or a
-            // timeout. A no-verdict ending leaves the head unmarked, so the
-            // next same-head event retries the review. Keep the title strings
-            // in lockstep with the pinned euler release.
+            // as reviewed. The engine titles a verdict check "VERDICT: <v>"
+            // and reruns a passing review. A run that ends before a verdict
+            // uses another title and leaves the head unmarked, so the next
+            // same-head event retries the review. Keep the title pattern in
+            // lockstep with the pinned agents-personas engine.
             const existingChecks = await github.paginate(
               github.rest.checks.listForRef,
               {
                 ...context.repo,
                 ref: headSha,
-                check_name: 'quality-review',
+                check_name: 'euler / quality',
                 per_page: 100,
               },
             );
-            const alreadyReviewed = existingChecks.some((check) => {
-              if (check.app?.slug !== 'github-actions') {
-                return false;
-              }
-              if (check.status !== 'completed') {
-                return false;
-              }
-              if (check.conclusion === 'failure') {
-                const title = check.output?.title || '';
-                return title.startsWith('Euler quality review: ') &&
-                  title !== 'Euler quality review: no verdict';
-              }
-              return ['success', 'neutral', 'skipped'].includes(check.conclusion);
-            });
+            const alreadyReviewed = existingChecks.some((check) =>
+              check.app?.slug === 'github-actions' &&
+              check.status === 'completed' &&
+              /^VERDICT: (APPROVE|BLOCK|NEEDS-HUMAN)$/.test(
+                check.output?.title || ''));
 
             core.setOutput('found', 'true');
-            core.setOutput('same_repository', sameRepository ? 'true' : 'false');
-            core.setOutput('number', String(pull.number));
+            core.setOutput('pr_number', String(pull.number));
             core.setOutput('base_sha', pull.base.sha);
             core.setOutput('head_sha', pull.head.sha);
-            core.setOutput('title', pull.title || '');
-            core.setOutput('body', (pull.body || '').slice(0, 65536));
+            core.setOutput('head_repo_url', headRepository.clone_url);
+            core.setOutput('head_repo_full_name', headRepository.full_name);
             core.setOutput('tests_passed', testsPassed ? 'true' : 'false');
             core.setOutput('compliance_passed', compliancePassed ? 'true' : 'false');
             core.setOutput('already_reviewed', alreadyReviewed ? 'true' : 'false');
@@ -159,58 +146,26 @@ jobs:
     if: >-
       needs.resolve.outputs.found == 'true' &&
       needs.resolve.outputs.already_reviewed == 'false' &&
-      needs.resolve.outputs.same_repository == 'true' &&
       needs.resolve.outputs.tests_passed == 'true' &&
       needs.resolve.outputs.compliance_passed == 'true'
-    # The euler reusable workflow downloads its review artifact, posts a pull
-    # request comment, and publishes a check run. The job grants each
-    # permission that the reusable workflow uses.
+    # The wrapper posts a pull request comment and publishes a check run.
+    # The job grants each permission that the reusable workflow uses.
     permissions:
-      actions: read
       checks: write
       contents: read
       pull-requests: write
-    # Euler 0.9.0. Keep the uses: pin and quality_ref on the same commit.
-    uses: abuzucom/euler/.github/workflows/quality-review.yml@940c53a39b7cc7345b1f6232d43bec7c4d7623df
+    # agents-personas 0.22.0. Keep the uses: pin and personas_ref on the same
+    # commit.
+    uses: abuzucom/agents-personas/.github/workflows/euler-quality-review.yml@c43f4592191b42b9f66072622b082fc2f4dc3217
     with:
-      pr_number: ${{ fromJSON(needs.resolve.outputs.number) }}
+      personas_ref: "c43f4592191b42b9f66072622b082fc2f4dc3217"
+      pr_number: ${{ needs.resolve.outputs.pr_number }}
       base_sha: ${{ needs.resolve.outputs.base_sha }}
       head_sha: ${{ needs.resolve.outputs.head_sha }}
-      pr_title: ${{ needs.resolve.outputs.title }}
-      pr_body: ${{ needs.resolve.outputs.body }}
-      quality_ref: 940c53a39b7cc7345b1f6232d43bec7c4d7623df
+      head_repo_url: ${{ needs.resolve.outputs.head_repo_url }}
+      head_repo_full_name: ${{ needs.resolve.outputs.head_repo_full_name }}
       fail_on_block: true
       # The test suite holds destructive command fixtures for the gates.
       exclude_paths: "tests/**"
     secrets:
       MODEL_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
-
-  fork-review-skipped:
-    needs: resolve
-    if: >-
-      needs.resolve.outputs.found == 'true' &&
-      needs.resolve.outputs.already_reviewed == 'false' &&
-      needs.resolve.outputs.same_repository == 'false' &&
-      needs.resolve.outputs.tests_passed == 'true' &&
-      needs.resolve.outputs.compliance_passed == 'true'
-    runs-on: ubuntu-latest
-    permissions:
-      checks: write
-    steps:
-      - name: Publish skip result
-        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
-        env:
-          HEAD_SHA: ${{ needs.resolve.outputs.head_sha }}
-        with:
-          script: |
-            await github.rest.checks.create({
-              ...context.repo,
-              name: 'quality-review',
-              head_sha: process.env.HEAD_SHA,
-              status: 'completed',
-              conclusion: 'skipped',
-              output: {
-                title: 'Skipped for fork pull request',
-                summary: 'Fork pull requests receive no provider secret, so the quality review does not run.',
-              },
-            });
