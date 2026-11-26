@@ -14,7 +14,7 @@ into the entry. Dates never decrease. Ask the active human when a date is in
 doubt.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.51.0] (2026-11-26)
+## [2.52.0] (2026-11-26)
 
 ### Added
 - `scripts/advance_personas_pin.py <version> <commit>` rewrites every
@@ -26,7 +26,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   hashes the caller with LF endings, as the trusted scan hashes the blob.
   A missing `uses:` pin, `personas_ref`, test constant, or manifest key
   stops the update. The script stages every write beside its target. A
-  failed replacement restores each replaced file. `docs/pr-security-review.md` names it as the step
+  failed replacement restores each replaced file. A new version on the
+  current commit still rewrites every version phrase. `docs/pr-security-review.md` names it as the step
   after each tagged agents-personas release.
 - `tests/test_persona_caller_manifest_digest.py` checks that the manifest
   digest and reusable workflow keys match the persona label caller.

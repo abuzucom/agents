@@ -182,9 +182,12 @@ def plan_update(root: Path, version: str, commit: str) -> dict:
     """Return the new text of every changed pin site without writing."""
     validate_pin_sites(root)
     old_commit = current_pin(root)
-    if old_commit == commit:
+    old_version = current_version(root)
+    # A tag can name a new version on the same commit. Only an unchanged
+    # commit and version leave every file as it is.
+    if (old_commit, old_version) == (commit, version):
         return {}
-    pins, versions = (old_commit, commit), (current_version(root), version)
+    pins, versions = (old_commit, commit), (old_version, version)
     updated = {}
     for name in PIN_FILES:
         updated[name] = rewrite_text(name, read_site(root, name), pins, versions)
