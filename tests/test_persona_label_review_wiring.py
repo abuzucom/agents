@@ -8,8 +8,8 @@ import yaml
 
 ROOT = Path(__file__).resolve().parent.parent
 WORKFLOW_PATH = ROOT / ".github" / "workflows" / "persona-review-labels.yml"
-# agents-personas 0.22.0. Every uses: pin and personas_ref names this commit.
-PINNED_COMMIT = "c43f4592191b42b9f66072622b082fc2f4dc3217"
+# agents-personas 1.0.0. Every uses: pin and personas_ref names this commit.
+PINNED_COMMIT = "1649e5c9710fd85d6cca12006e344af27a5404a6"
 WRAPPER_PREFIX = "abuzucom/agents-personas/.github/workflows/"
 PERSONA_WRAPPERS = {
     "adorno": "adorno-ui-review.yml",
