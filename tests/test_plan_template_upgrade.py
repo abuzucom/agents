@@ -6,6 +6,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 import plan_template_upgrade
@@ -64,10 +65,39 @@ class PlanTemplateUpgradeTest(unittest.TestCase):
         self.assertEqual(code, plan_template_upgrade.EXPECTED_FAILURE)
         self.assertIn("CodeQL path legacy", output)
 
+    def test_empty_leftover_directory_fails(self) -> None:
+        _git(self.root, "rm", "--quiet", "-r", "legacy")
+        (self.root / "legacy").mkdir()
+        code, output = self.run_plan(["--base", self.base])
+        self.assertEqual(code, plan_template_upgrade.EXPECTED_FAILURE)
+        self.assertIn("CodeQL path legacy", output)
+
+    def test_custom_codeql_config_fails(self) -> None:
+        custom = self.root / "security" / "codeql.yml"
+        custom.parent.mkdir()
+        custom.write_text("paths:\n  - keep.py\n", encoding="utf-8")
+        _git(self.root, "add", "--all")
+        _git(self.root, "commit", "--quiet", "-m", "custom config")
+        base = _git(self.root, "rev-parse", "HEAD")
+        _git(self.root, "rm", "--quiet", "keep.py")
+        code, output = self.run_plan(
+            ["--base", base, "--codeql-config", "security/codeql.yml"])
+        self.assertEqual(code, plan_template_upgrade.EXPECTED_FAILURE)
+        self.assertIn("CodeQL path keep.py", output)
+
     def test_british_message_fails(self) -> None:
         code, output = self.run_plan(["--base", self.base, "--message", self.message(BRITISH_MESSAGE)])
         self.assertEqual(code, plan_template_upgrade.EXPECTED_FAILURE)
         self.assertIn("check_us_spelling.py reports findings", output)
+
+    def test_checker_timeout_reports_failure(self) -> None:
+        def time_out(*_args, **_kwargs):
+            raise subprocess.TimeoutExpired("checker", plan_template_upgrade.PROSE_TIMEOUT_SECONDS)
+
+        with patch.object(plan_template_upgrade.subprocess, "run", time_out):
+            findings = plan_template_upgrade.prose_findings(Path(self.message(CLEAN_MESSAGE)))
+        self.assertEqual(len(findings), len(plan_template_upgrade.PROSE_CHECKERS))
+        self.assertIn("did not finish", findings[0])
 
     def test_option_shaped_base_rejected(self) -> None:
         code, _output = self.run_plan(["--base=--output=x"])

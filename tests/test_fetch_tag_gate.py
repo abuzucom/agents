@@ -13,6 +13,7 @@ TAG_OPT_GLOBALS = (
     ["-c", "remote.origin.tagOpt=--tags"],
     ["-cremote.origin.tagopt=--tags"],
     ["--config-env=remote.origin.tagOpt=TAG_SETTING"],
+    ["--config-env", "remote.origin.tagOpt=TAG_SETTING"],
 )
 UNRELATED_GLOBALS = (["-c", "core.quotepath=false"], ["-C", "."], ["-c"])
 
@@ -28,6 +29,7 @@ TAG_WRITING_COMMANDS = (
     "git fetch --no-tags --prune-tags origin",
     "git fetch -nP origin",
     "git -c remote.origin.tagOpt=--tags fetch --no-tags origin",
+    "git --config-env remote.origin.tagOpt=TAG_SETTING fetch --no-tags origin",
     "git pull",
     "git pull -n origin main",
     "git pull --tags origin main",

@@ -29,6 +29,13 @@ class TrustedFetchNoTagsTest(unittest.TestCase):
                 self.assertIsNone(trusted_git._transport_arguments(
                     self.workspace, ["fetch", "repo", "origin", refspec]))
 
+    def test_tag_writing_arguments_rejected(self) -> None:
+        for arguments in (["origin", "--tags"], ["origin", "main", "--prune-tags"],
+                          ["origin", "-t"], ["origin", "-P"], ["origin", "tag", "v1.0.0"]):
+            with self.subTest(arguments=arguments):
+                self.assertIsNone(trusted_git._transport_arguments(
+                    self.workspace, ["fetch", "repo", *arguments]))
+
     def test_tag_read_passes_no_tags(self) -> None:
         self.assertEqual(
             trusted_git._transport_arguments(

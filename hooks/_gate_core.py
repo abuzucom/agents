@@ -624,13 +624,16 @@ FETCH_TAGS_SHORT_FLAG = "t"
 FETCH_NO_TAGS_SHORT_FLAG = "n"
 FETCH_PRUNE_TAGS_SHORT_FLAG = "P"
 GIT_CONFIG_OPTION = "-c"
+GIT_CONFIG_ENV_OPTION = "--config-env"
 FETCH_SUBCOMMANDS = frozenset({"fetch", "pull"})
 
 
 def _global_config_sets_tag_opt(global_args: list) -> bool:
     """Return True when a git -c option before the subcommand sets a tagOpt value."""
     for index, token in enumerate(global_args):
-        if token == GIT_CONFIG_OPTION and index + 1 < len(global_args):
+        # git reads the -c and --config-env value from the next argument
+        # when the option stands alone.
+        if token in (GIT_CONFIG_OPTION, GIT_CONFIG_ENV_OPTION) and index + 1 < len(global_args):
             value = global_args[index + 1]
         elif token.startswith(GIT_CONFIG_OPTION) and not token.startswith("--"):
             value = token[len(GIT_CONFIG_OPTION):]

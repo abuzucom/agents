@@ -60,6 +60,7 @@ CLONE_ARGUMENT_COUNT = 3
 FETCH_MINIMUM_ARGUMENT_COUNT = 2
 FETCH_NO_TAGS_OPTION = "--no-tags"
 TAG_DESTINATION_PREFIXES = ("refs/tags/", "tags/")
+TAG_REFSPEC_KEYWORD = "tag"
 # run_git config overrides may only neutralize filter drivers. A wider key
 # such as core.pager or credential.helper would let a caller run a program.
 CONFIG_OVERRIDE_SECTION = "filter"
@@ -432,7 +433,9 @@ def _transport_arguments(workspace: Path, arguments: list[str]) -> list[str] | N
         return None
     if remaining and not _fetch_remote(remaining[0]):
         return None
-    if any(_writes_tag_ref(refspec) for refspec in remaining[1:]):
+    # git reads `tag <name>` as refs/tags/<name>:refs/tags/<name>.
+    refspecs = remaining[1:]
+    if TAG_REFSPEC_KEYWORD in refspecs or any(map(_writes_tag_ref, refspecs)):
         return None
     # Tag auto-follow writes local tags, and agents never create tags.
     return ["-C", str(repository), "fetch", FETCH_NO_TAGS_OPTION, *remaining]

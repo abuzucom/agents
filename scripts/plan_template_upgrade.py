@@ -8,7 +8,8 @@ consumer, flags CodeQL paths that the candidate deletes, and runs the prose
 checkers on planned commit messages and pull request bodies.
 
 Usage:
-    python scripts/plan_template_upgrade.py --base <revision> [--message <path> ...]
+    python scripts/plan_template_upgrade.py --base <revision>
+        [--codeql-config <path>] [--message <path> ...]
 
 Exit 0 means no expected failure. Exit 1 means the report lists one or more
 expected failures. Exit 2 means a usage or Git error.
@@ -77,9 +78,9 @@ def removed_paths(root: Path, base: str) -> list:
     return removed
 
 
-def codeql_paths(root: Path, base: str) -> list:
+def codeql_paths(root: Path, base: str, config: str = CODEQL_CONFIG) -> list:
     """Return the path entries of the base CodeQL configuration."""
-    text = git_output(root, ["show", f"{base}:{CODEQL_CONFIG}"])
+    text = git_output(root, ["show", f"{base}:{config}"])
     if not text:
         return []
     try:
@@ -96,13 +97,22 @@ def codeql_paths(root: Path, base: str) -> list:
     return entries
 
 
-def missing_codeql_paths(root: Path, base: str) -> list:
+def candidate_tracks(root: Path, entry: str) -> bool:
+    """Return whether the candidate index tracks any file at or below a path.
+
+    An empty or untracked directory left in the working tree does not count,
+    because CodeQL reads the tracked tree.
+    """
+    return bool((git_output(root, ["ls-files", "--", entry]) or "").strip())
+
+
+def missing_codeql_paths(root: Path, base: str, config: str = CODEQL_CONFIG) -> list:
     """Return base CodeQL path entries that the candidate removes entirely."""
     removed = removed_paths(root, base)
     missing = []
-    for entry in codeql_paths(root, base):
+    for entry in codeql_paths(root, base, config):
         touched = any(path == entry or path.startswith(entry + "/") for path in removed)
-        if touched and not (root / entry).exists():
+        if touched and not candidate_tracks(root, entry):
             missing.append(entry)
     return missing
 
@@ -111,23 +121,31 @@ def prose_findings(message: Path) -> list:
     """Return one line per prose checker that reports a finding in a message file."""
     findings = []
     for checker in PROSE_CHECKERS:
-        result = subprocess.run(
-            [sys.executable, str(SCRIPTS_DIRECTORY / checker), str(message)],
-            capture_output=True, text=True, timeout=PROSE_TIMEOUT_SECONDS, check=False)
+        try:
+            result = subprocess.run(
+                [sys.executable, str(SCRIPTS_DIRECTORY / checker), str(message)],
+                capture_output=True, text=True, timeout=PROSE_TIMEOUT_SECONDS, check=False)
+        except (subprocess.TimeoutExpired, OSError) as error:
+            # A checker that cannot finish counts as an expected failure, so
+            # the report still lists every consumer and the merge order.
+            findings.append(f"{checker} did not finish on {message.name} "
+                            f"({type(error).__name__}). Run it by hand before the push")
+            continue
         output = (result.stdout + result.stderr).strip()
         if output or result.returncode != 0:
             findings.append(f"{checker} reports findings in {message.name}")
     return findings
 
 
-def build_report(root: Path, base: str, messages: list) -> tuple:
+def build_report(root: Path, base: str, messages: list,
+                 config: str = CODEQL_CONFIG) -> tuple:
     """Return (report lines, expected failure count) for one candidate."""
     lines = ["Base branch consumers:"]
     for workflow, checker, action in BASE_CONSUMERS:
         state = "present" if base_has_path(root, base, workflow) else "absent"
         lines.append(f"- {workflow} ({checker}): {state} on base. Owner action: {action}.")
     failures = [f"CodeQL path {entry} is in the base config and the candidate removes it"
-                for entry in missing_codeql_paths(root, base)]
+                for entry in missing_codeql_paths(root, base, config)]
     for message in messages:
         failures.extend(prose_findings(message))
     lines.append("Expected failures:")
@@ -143,6 +161,10 @@ def main(argv: list | None = None, root: Path | None = None) -> int:
     parser.add_argument("--base", required=True, help="base branch revision")
     parser.add_argument("--message", action="append", default=[], type=Path,
                         help="planned commit message or pull request body file")
+    # The github-codeql-config-file repository property names the path. Reading
+    # the property needs a GitHub API call, so the operator passes its value.
+    parser.add_argument("--codeql-config", default=CODEQL_CONFIG,
+                        help="base CodeQL configuration path")
     options = parser.parse_args(argv)
     repository = (root or Path.cwd()).resolve()
     # Git would read a leading dash as an option, not as a revision.
@@ -155,7 +177,8 @@ def main(argv: list | None = None, root: Path | None = None) -> int:
         print(f"error: {missing[0]} is not a file. Pass an existing message file.",
               file=sys.stderr)
         return USAGE_FAILURE
-    lines, failure_count = build_report(repository, options.base, options.message)
+    lines, failure_count = build_report(repository, options.base, options.message,
+                                        options.codeql_config)
     print("\n".join(lines))
     return EXPECTED_FAILURE if failure_count else 0
 

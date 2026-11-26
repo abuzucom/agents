@@ -79,3 +79,5 @@ allow scripts/check_weak_hashing.py <paths>
 allow scripts/lint_style.py
 allow scripts/plan_template_upgrade.py --base <revision>
 allow scripts/plan_template_upgrade.py --base <revision> --message <path>
+allow scripts/plan_template_upgrade.py --base <revision> --codeql-config <path>
+allow scripts/plan_template_upgrade.py --base <revision> --codeql-config <path> --message <path>

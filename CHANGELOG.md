@@ -20,7 +20,10 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - `scripts/plan_template_upgrade.py` prints the base branch consumers, the
   CodeQL paths that a candidate removes, the prose findings in planned
   commit messages and pull request bodies, and the merge order. It exits 1
-  on an expected failure. `hooks/workflow-scripts.txt` allows its two forms.
+  on an expected failure. `--codeql-config <path>` takes the
+  `github-codeql-config-file` property value. A removed CodeQL path counts
+  as missing when the candidate index tracks no file under it.
+  `hooks/workflow-scripts.txt` allows its four forms.
 - `skills/gate-adoption/SKILL.md` gains a template upgrade merge order
   section and a source publishing tooling section. Its new step runs the
   planner before the first push. `docs/agent-policy/adoption.md` points to
@@ -61,9 +64,12 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `security-review-pr.yml` grants `actions: read` to its resolve job.
 - The shell gates deny `git fetch` and `git pull` without `--no-tags`. The
   same gates deny `--tags`, `--prune-tags`, a `tag` operand, a refspec
-  destination in `refs/tags/`, and a `-c` override of `tagOpt`.
+  destination in `refs/tags/`, and a `-c` or `--config-env` override of
+  `tagOpt`.
   `scripts/trusted_git.py fetch` always passes `--no-tags` and rejects a tag
-  destination.
+  destination and a `tag` operand.
+- `scripts/plan_template_upgrade.py` reports a prose checker that times out
+  or cannot start as an expected failure.
 - `hooks/workflow-scripts.txt` drops the four `scripts/release.py` forms.
 
 ### Fixed
