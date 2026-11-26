@@ -1019,6 +1019,52 @@ def _is_draft_file(repo_root, value: str) -> bool:
         return False
 
 
+def _is_body_option(token: str) -> bool:
+    """Return whether one token carries its own body file value in an attached spelling."""
+    if token.startswith(BODY_FILE_INLINE_PREFIX):
+        return True
+    return token.startswith(BODY_FILE_SHORT_OPTION) and len(token) > len(BODY_FILE_SHORT_OPTION)
+
+
+def _strip_body_options(tokens: list[str]) -> list[str]:
+    """Return the tokens without any body file option or its value."""
+    stripped = []
+    index = 0
+    while index < len(tokens):
+        token = tokens[index]
+        if token in (COMMENT_BODY_OPTION, BODY_FILE_SHORT_OPTION):
+            index += 2
+            continue
+        if not _is_body_option(token):
+            stripped.append(token)
+        index += 1
+    return stripped
+
+
+def draft_stdin_handoff(repo_root, arguments: list[str],
+                        effective_arguments: list[str]) -> tuple[list[str], str] | None:
+    """Return gh arguments with `--body-file -` and the draft text, else None.
+
+    Call this only after refuse_relative_draft_passthrough() accepts the
+    shape. gh keeps the last body value. When that value names a draft, the
+    wrapper reads the draft once through a descriptor that follows no link.
+    gh then reads the validated bytes on stdin and never opens the path. A
+    swap of the draft after validation cannot change the posted body.
+    Without dir_fd and O_NOFOLLOW, the path still reaches gh unchanged.
+    """
+    if tuple(arguments[:COMMAND_PATH_LENGTH]) not in RELATIVE_DRAFT_FORMS:
+        return None
+    values = _body_file_values(arguments[COMMAND_PATH_LENGTH:])
+    if not values or values[-1] == ISSUE_STDIN_BODY or not _safe_draft_open_supported():
+        return None
+    text = _read_rest_body(repo_root, f"{COMMENT_DRAFT_DIRECTORY}/{Path(values[-1]).name}")
+    delimiter = (effective_arguments.index("--") if "--" in effective_arguments
+                 else len(effective_arguments))
+    option_tokens = _strip_body_options(effective_arguments[:delimiter])
+    return [*option_tokens, COMMENT_BODY_OPTION, ISSUE_STDIN_BODY,
+            *effective_arguments[delimiter:]], text
+
+
 def refuse_relative_draft_passthrough(repo_root, arguments: list[str]) -> None:
     """Raise RestWriteError when a write shape outside the REST mapping names an unsafe body.
 
@@ -1123,6 +1169,10 @@ def _execute(repo_root, arguments: list[str], gate_core=None, input_text=None,
             rest_request = rest_write_request(repo_root, arguments)
             if rest_request is None:
                 refuse_relative_draft_passthrough(repo_root, list(arguments))
+                handoff = draft_stdin_handoff(repo_root, list(arguments),
+                                              list(effective_arguments))
+                if handoff is not None:
+                    effective_arguments, input_text = handoff
         if rest_request is not None:
             effective_arguments, input_text = rest_request
         verify_account(repo_root)

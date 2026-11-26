@@ -91,7 +91,9 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   process. Raw `gh` runs outside the repository and cannot read that path.
   A body from stdin still reaches `gh` unchanged. An absolute body must be
   a regular file directly in `.comment-drafts/`. Raw `gh` would otherwise
-  post any readable file.
+  post any readable file. The wrapper reads that draft once without
+  following a link and passes the bytes to `gh` on stdin. A swap of the
+  draft after the check cannot change the posted body.
   Every body option counts, since `gh` keeps the last one. An edit number
   after the flags gets the same check. The attached `-F<path>` and
   `-F=<path>` spellings count as body options.
