@@ -14,7 +14,25 @@ into the entry. Dates never decrease. Ask the active human when a date is in
 doubt.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.52.1] (2026-11-26)
+## [2.52.1] (2026-11-27)
+
+### Fixed
+- `hooks/_gate_core.py` classifies a UNC path from command text lexically
+  without filesystem access. `is_unc_path()` recognizes `\\host\share` and
+  the `\\?\UNC\` and `\\.\UNC\` device forms. Other `\\?\` and `\\.\`
+  device paths stay local. The infrastructure check treats a UNC `.yaml`,
+  `.yml`, or `.json` name as protected without reading it. The Pages
+  deployment check denies a UNC path. The protected write check resolves a
+  UNC target lexically. `shared-files.json` records the new digest.
+- `scripts/advance_personas_pin.py` exits 3 when a replace and a restore
+  both fail. The error names each pin site that holds the new pin and
+  gives the `git checkout --` recovery command. The staging message that
+  claims no file changed runs only before any replace.
+- `docs/agent-policy/github.md` states that an absolute `<draft>` reaches
+  `gh` only on a system with `O_NOFOLLOW`. The refused draft rule joins the
+  sentence for other bodies.
+
+## [2.52.0] (2026-11-26)
 
 ### Added
 - `scripts/advance_personas_pin.py <version> <commit>` rewrites every
@@ -105,17 +123,6 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - `hooks/workflow-scripts.txt` drops the four `scripts/release.py` forms.
 
 ### Fixed
-- `hooks/_gate_core.py` classifies a UNC path from command text lexically
-  without filesystem access. `is_unc_path()` recognizes `\\host\share` and
-  the `\\?\UNC\` and `\\.\UNC\` device forms. Other `\\?\` and `\\.\`
-  device paths stay local. The infrastructure check treats a UNC `.yaml`,
-  `.yml`, or `.json` name as protected without reading it. The Pages
-  deployment check denies a UNC path. The protected write check resolves a
-  UNC target lexically. `shared-files.json` records the new digest.
-- `scripts/advance_personas_pin.py` exits 3 when a replace and a restore
-  both fail. The error names each pin site that holds the new pin and
-  gives the `git checkout --` recovery command. The staging message that
-  claims no file changed runs only before any replace.
 - `scripts/trusted_gh.py` refuses an issue or pull request write with a
   relative `--body-file` that falls outside the REST forms. The error names
   the refused option and the accepted form. It exits 2 and starts no `gh`
