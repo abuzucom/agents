@@ -123,6 +123,8 @@ SHARED_FILES = [
     "tests/test_deletion_zones.py",
     "tests/test_gemini_command_quoting.py",
     "tests/test_deny_mcp_github_writes.py",
+    "tests/test_deny_mcp_unlisted_actions.py",
+    "tests/test_mcp_gate_registration.py",
     "tests/test_enforce_single_question.py",
     "tests/test_detect_prose_options.py",
     "tests/test_question_hook_wiring.py",

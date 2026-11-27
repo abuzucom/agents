@@ -1101,7 +1101,7 @@ passes no session id. The zone helper stays denied there. Clients without hooks
 create the folders with `mkdir -p`.
 
 Ask each open choice through the client's question tool. Claude Code hooks
-check the `AskUserQuestion` shape and gate GitHub MCP writes. A Stop hook
+check the `AskUserQuestion` shape. A Stop hook
 flags prose choices as advice. Other clients expose neither to hooks.
 
 ## Compaction events
@@ -1200,11 +1200,11 @@ both. The post form exits 2 there and the read form still works.
 Comments have no Git equivalent. A failed comment operation has no fallback.
 Report the blocker to the active human and stop.
 
-GitHub MCP comment tools such as `add_issue_comment` bypass the wrapper.
-Claude Code's `deny_mcp_github_writes.py` hook denies them. Other clients
-lack that gate. Rule 17 still limits every comment to an
-active human request. Read-only GitHub MCP tools may fetch issues, PRs, and
-comments when the wrapper reports no authenticated account.
+GitHub MCP `add_issue_comment` and `update_issue_comment` bypass the
+wrapper. `deny_mcp_github_writes.py` asks for consent on each call in
+Claude Code and Antigravity. Codex, Gemini, and unattended sessions deny
+them. Other MCP comment and review tools deny. Rule 17 still limits every
+comment to an active human request.
 
 ## REST write forms
 Sessions without GraphQL run these wrapper forms over REST. Each asks:
@@ -1279,8 +1279,9 @@ Rule 23 covers these surfaces:
 - REST and GraphQL label writes
 
 The GitHub gate denies the `gh` label options, `gh label`, and `gh api`
-mutating requests. In Claude Code `hooks/deny_mcp_github_writes.py` denies
-MCP label fields. The rule binds every client without that coverage.
+mutating requests. In Claude Code, Codex, Gemini, and Antigravity
+`hooks/deny_mcp_github_writes.py` denies MCP label fields. The rule binds
+every client without that coverage.
 
 The wrapper refuses deny verdicts. It runs ask verdicts without confirming
 consent. Clients without shell hooks receive no consent prompt.

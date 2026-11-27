@@ -12,6 +12,8 @@ GATE_PROBES = (
     ("block_destructive_powershell.py", "PowerShell", 2, ()),
     ("block_destructive_cmd.py", "Cmd", 2, ()),
     ("enforce_gate_adoption.py", "Bash", 0, ("--client", "claude")),
+    # Codex has no working ask, so a destructive MCP name must exit 2 there.
+    ("deny_mcp_github_writes.py", "mcp__github__delete_repository", 2, ("--client", "codex")),
 )
 DIAGNOSTIC_LIMIT = 160
 
