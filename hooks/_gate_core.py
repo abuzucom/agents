@@ -1283,7 +1283,7 @@ def cloudflare_pages_verdict(program: str, args: list, cwd: str = "") -> tuple:
         return "deny", "only Wrangler Pages deployment is allowed"
 
     deploy_path = args[PAGES_DEPLOY_PATH_INDEX]
-    if deploy_path.startswith("-") or is_ambiguous(deploy_path):
+    if deploy_path.startswith("-") or is_ambiguous(deploy_path) or is_unc_path(deploy_path):
         return "deny", "Pages deployment path must be a literal workspace path"
     root = os.path.realpath(os.path.abspath(cwd or os.getcwd()))
     resolved_path = os.path.realpath(os.path.abspath(os.path.join(root, deploy_path)))
@@ -1366,6 +1366,43 @@ def _infrastructure_manifest_text(path: str) -> str:
         return ""
 
 
+UNC_PREFIX = "\\\\"
+# `\\?\` and `\\.\` name local devices. Their `UNC` forms name another host.
+LOCAL_DEVICE_PREFIXES = ("\\\\?\\", "\\\\.\\")
+REMOTE_DEVICE_PREFIXES = ("\\\\?\\unc\\", "\\\\.\\unc\\")
+
+
+def is_unc_path(path: str, windows: bool = None) -> bool:
+    """Return whether a path names a file on another host.
+
+    The check reads the text alone. A path with a backslash in its leading
+    pair is UNC on every platform. A pure `//host/share` path is UNC only on
+    Windows. POSIX reads it as a local path.
+    """
+    if windows is None:
+        windows = os.name == "nt"
+    if not windows and path.startswith("//"):
+        return False
+    unified = path.replace("/", "\\")
+    if not unified.startswith(UNC_PREFIX):
+        return False
+    lowered = unified.casefold()
+    return lowered.startswith(REMOTE_DEVICE_PREFIXES) or not lowered.startswith(LOCAL_DEVICE_PREFIXES)
+
+
+def resolve_untrusted_path(candidate: str, base: str) -> str:
+    """Return the resolved form of a path from command text.
+
+    A UNC path resolves lexically through ntpath. Resolving or opening it
+    would contact the host that the command text names. Any other path
+    resolves against the base directory as before.
+    """
+    if is_unc_path(candidate):
+        return ntpath.normpath(candidate)
+    absolute = candidate if os.path.isabs(candidate) else os.path.join(base or os.getcwd(), candidate)
+    return os.path.realpath(os.path.abspath(absolute))
+
+
 def strip_windows_drive(normalized: str) -> str:
     """Return a normalized path without a leading `/<letter>:` segment.
 
@@ -1394,8 +1431,8 @@ def is_protected_infrastructure_path(path: str, cwd: str = "", content: str = ""
     candidate = path.strip().strip('"').strip("'")
     if not candidate or candidate.startswith("-"):
         return False
-    absolute = candidate if os.path.isabs(candidate) else os.path.join(cwd or os.getcwd(), candidate)
-    resolved = os.path.realpath(os.path.abspath(absolute))
+    remote = is_unc_path(candidate)
+    resolved = resolve_untrusted_path(candidate, cwd)
     normalized = "/" + resolved.replace("\\", "/").casefold().strip("/")
     padded = normalized + ("/" if not normalized.endswith("/") else "")
     basename = normalized.rsplit("/", 1)[-1]
@@ -1422,6 +1459,10 @@ def is_protected_infrastructure_path(path: str, cwd: str = "", content: str = ""
     if basename.startswith("pulumi.") and basename.endswith((".yaml", ".yml", ".json")):
         return True
     if basename.endswith((".yaml", ".yml", ".json")):
+        # A remote manifest stays unread. Reading it would contact the host
+        # that the command text names, so the check fails closed instead.
+        if remote and not content:
+            return True
         manifest = content or _infrastructure_manifest_text(resolved)
         lowered = manifest.casefold()
         return (("apiversion:" in lowered and "kind:" in lowered)
@@ -2128,8 +2169,7 @@ def _protected_path(path: str, cwd: str) -> bool:
     if not cleaned or is_ambiguous(cleaned):
         return False
     root = os.path.realpath(cwd or ".")
-    candidate = cleaned if os.path.isabs(cleaned) else os.path.join(root, cleaned)
-    candidate = os.path.realpath(candidate)
+    candidate = resolve_untrusted_path(cleaned, root)
     try:
         relative = os.path.relpath(candidate, root)
     except ValueError:

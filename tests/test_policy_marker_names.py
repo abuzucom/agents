@@ -14,6 +14,8 @@ import unittest
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
+# Only the source repository ships this file. Adopters omit it.
+SOURCE_MARKER = REPO_ROOT / "docs" / "agent-policy" / "source-orientation.md"
 sys.path.insert(0, str(REPO_ROOT / "scripts"))
 
 import prose_policy
@@ -86,6 +88,7 @@ class MarkerNameTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             run_adoptable(content)
 
+    @unittest.skipUnless(SOURCE_MARKER.is_file(), "source orientation ships only in the source repository")
     def test_live_policy_uses_new_markers(self):
         policy = (REPO_ROOT / "AGENTS.md").read_text(encoding="utf-8")
         orientation = (REPO_ROOT / "docs/agent-policy/source-orientation.md").read_text(

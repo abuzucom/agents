@@ -13,6 +13,9 @@ from tests.test_command_execution_gate import GATE_NAME, _load_gate_module
 from tests.test_enforce_branch_name import HOOK_PATH, REPO_ROOT
 
 PROJECT_DIR = str(REPO_ROOT)
+# The listed script check skips these scripts when the source marker is absent.
+SOURCE_MARKER = REPO_ROOT / "docs" / "agent-policy" / "source-orientation.md"
+SOURCE_ONLY_SCRIPTS = frozenset(("scripts/report_adoption_status.py",))
 SCRIPT_LIST_NAME = "workflow-scripts.txt"
 TIMEOUT_SECONDS = 15
 BLOCKING_EXIT_CODE = 2
@@ -271,7 +274,10 @@ class WorkflowScriptListTest(unittest.TestCase):
     def test_every_listed_script_exists(self) -> None:
         entries = self.gate._load_workflow_scripts()
         self.assertTrue(entries)
+        source_repository = SOURCE_MARKER.is_file()
         for script, _pattern, _verdict in entries:
+            if script in SOURCE_ONLY_SCRIPTS and not source_repository:
+                continue
             with self.subTest(script=script):
                 self.assertTrue((REPO_ROOT / script).is_file())
 
