@@ -14,7 +14,12 @@ into the entry. Dates never decrease. Ask the active human when a date is in
 doubt.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.52.1] (2026-11-27)
+## [2.52.2] (2026-11-27)
+
+### Changed
+- `adopters/1a2n-web-visualizer.md` records the adopter's upgrade to
+  `e05985f`. The record lists the taken and declined files, the current
+  drift, and the drift that template version 2.52.1 resolves.
 
 ### Fixed
 - `hooks/_gate_core.py` classifies a UNC path from command text lexically
