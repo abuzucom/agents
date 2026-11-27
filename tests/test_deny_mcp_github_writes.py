@@ -14,15 +14,15 @@ REPOSITORY_ROOT = Path(__file__).resolve().parent.parent
 HOOK_PATH = REPOSITORY_ROOT / "hooks" / "deny_mcp_github_writes.py"
 HOOK_TIMEOUT_SECONDS = 15
 POLICY_DENIAL_EXIT_CODE = 2
-DENIED_ACTIONS = ("add_issue_comment", "add_reply_to_pull_request_comment",
+DENIED_ACTIONS = ("add_reply_to_pull_request_comment",
                   "pull_request_review_write", "add_comment_to_pending_review",
-                  "update_issue_comment", "merge_pull_request", "enable_pr_auto_merge",
+                  "merge_pull_request", "enable_pr_auto_merge",
                   "create_pull_request_with_copilot")
 ASKED_ACTIONS = ("push_files", "create_or_update_file", "delete_file", "fork_repository",
                  "create_repository", "create_branch", "issue_write", "sub_issue_write",
                  "resolve_review_thread", "unresolve_review_thread", "request_copilot_review",
                  "assign_copilot_to_issue", "actions_run_trigger", "update_pull_request_branch",
-                 "disable_pr_auto_merge")
+                 "disable_pr_auto_merge", "add_issue_comment", "update_issue_comment")
 
 
 def run_hook(raw: str):
@@ -54,7 +54,8 @@ class GithubWriteHookTest(unittest.TestCase):
                 self.assertEqual((code, verdict), (POLICY_DENIAL_EXIT_CODE, "deny"))
 
     def test_comment_denial_names_wrapper(self) -> None:
-        _code, _verdict, reason = run_hook(payload("add_issue_comment", {"body": "x"}))
+        _code, _verdict, reason = run_hook(payload("add_reply_to_pull_request_comment",
+                                                   {"body": "x"}))
         self.assertIn("scripts/trusted_gh.py comment", reason)
 
     def test_asked_actions(self) -> None:

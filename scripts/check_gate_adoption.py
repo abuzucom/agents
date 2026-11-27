@@ -89,6 +89,15 @@ TRANSACTION_CONFIGS = {
     "antigravity": (".agents/hooks.json", "PreToolUse", "*"),
     "gemini": (".gemini/settings.json", "BeforeTool", ".*"),
 }
+# Clients that expose MCP calls to hooks register the MCP write gate with
+# their own flag. Each matcher selects only MCP tools, so other tool calls
+# start no extra process. Claude registers it through REQUIRED_REGISTRATIONS.
+MCP_GATE_HOOK = "deny_mcp_github_writes.py"
+MCP_GATE_CONFIGS = {
+    "codex": (".codex/hooks.json", "PreToolUse", "^mcp__.*"),
+    "antigravity": (".agents/hooks.json", "PreToolUse", "^(call_mcp_tool|mcp_.+)$"),
+    "gemini": (".gemini/settings.json", "BeforeTool", "^mcp_.*"),
+}
 SESSION_START_MATCHER = "startup|resume|clear|compact|fork"
 SUBAGENT_MATCHER = "Explore|Plan"
 EDIT_MATCHER = "Edit|Write|MultiEdit|NotebookEdit"
@@ -310,10 +319,10 @@ def _group_commands(group: dict) -> list[str]:
     return commands
 
 
-def check_transaction_registrations(root: Path) -> list[str]:
-    """Require the transaction gate under every adopted client pre-tool event."""
+def _client_registration_findings(root: Path, configs: dict, hook: str) -> list[str]:
+    """Require `hook --client <client>` under each client's event and matcher."""
     findings = []
-    for client, (relative, event, matcher) in TRANSACTION_CONFIGS.items():
+    for client, (relative, event, matcher) in configs.items():
         path = root / relative
         try:
             document = json.loads(path.read_text(encoding="utf-8"))
@@ -321,7 +330,7 @@ def check_transaction_registrations(root: Path) -> list[str]:
             findings.append(f"{client} configuration {relative} is unreadable: {error}")
             continue
         groups = _event_groups_recursive(document, event)
-        expected = f"{TRANSACTION_HOOK} --client {client}"
+        expected = f"{hook} --client {client}"
         registered = any(
             str(group.get("matcher", "")) == matcher
             and any(expected in command for command in _group_commands(group))
@@ -329,10 +338,20 @@ def check_transaction_registrations(root: Path) -> list[str]:
         )
         if not registered:
             findings.append(
-                f"{client} does not register {TRANSACTION_HOOK} under "
+                f"{client} does not register {hook} under "
                 f"{event} with matcher {matcher!r}"
             )
     return findings
+
+
+def check_transaction_registrations(root: Path) -> list[str]:
+    """Require the transaction gate under every adopted client pre-tool event."""
+    return _client_registration_findings(root, TRANSACTION_CONFIGS, TRANSACTION_HOOK)
+
+
+def check_mcp_gate_registrations(root: Path) -> list[str]:
+    """Require the MCP write gate under every client that exposes MCP calls."""
+    return _client_registration_findings(root, MCP_GATE_CONFIGS, MCP_GATE_HOOK)
 
 
 def _check_document(name: str, document: dict) -> list[str]:
@@ -383,6 +402,7 @@ def main(argv: list) -> int:
     findings += check_hook_imports(root)
     findings += check_registrations(root)
     findings += check_transaction_registrations(root)
+    findings += check_mcp_gate_registrations(root)
     findings += check_skill_files(root)
     if not options.fast:
         findings += check_skill_content(root)

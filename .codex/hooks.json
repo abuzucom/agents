@@ -63,6 +63,17 @@
             "timeout": 30
           }
         ]
+      },
+      {
+        "matcher": "^mcp__.*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python hooks/deny_mcp_github_writes.py --client codex",
+            "commandWindows": "python hooks/deny_mcp_github_writes.py --client codex",
+            "timeout": 30
+          }
+        ]
       }
     ]
   }

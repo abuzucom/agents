@@ -25,7 +25,7 @@ calling a tier 1 checker.
 | Writes below `skills/` route to consent | `hooks/require_consent.py`, `hooks/_gate_core.py` |
 | Adoption stays complete on every tool call | `hooks/enforce_gate_adoption.py` with `--fast` |
 | One question with one recommendation per call | `hooks/enforce_single_question.py` |
-| GitHub MCP comments, merges, labels, and non-draft PRs deny | `hooks/deny_mcp_github_writes.py` |
+| GitHub MCP review comments, merges, labels, and non-draft PRs deny. Issue comments ask | `hooks/deny_mcp_github_writes.py` |
 | Prose choices without a question call block one stop (advisory) | `hooks/detect_prose_options.py` |
 
 Multi-repository cloud sessions load no repository hooks.

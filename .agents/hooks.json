@@ -32,6 +32,16 @@
             "timeout": 30
           }
         ]
+      },
+      {
+        "matcher": "^(call_mcp_tool|mcp_.+)$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python ../hooks/deny_mcp_github_writes.py --client antigravity",
+            "timeout": 30
+          }
+        ]
       }
     ]
   }

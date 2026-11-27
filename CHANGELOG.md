@@ -14,14 +14,41 @@ into the entry. Dates never decrease. Ask the active human when a date is in
 doubt.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.52.2] (2026-11-27)
+## [2.53.0] (2026-11-27)
+
+### Added
+- `hooks/deny_mcp_github_writes.py` accepts `--client` with `claude`,
+  `codex`, `gemini`, or `antigravity`. The default stays `claude`. Each
+  client receives its native response. Codex and Gemini offer hooks no
+  working ask. An ask denies on both clients. Antigravity asks with
+  `force_ask`.
+- `.codex/hooks.json`, `.gemini/settings.json`, and `.agents/hooks.json`
+  register the MCP write gate with an MCP-only matcher. Codex and Gemini
+  load a changed project hook only after a person trusts it.
+- `scripts/check_gate_adoption.py` requires the MCP write gate
+  registration for Codex, Gemini, and Antigravity.
+  `scripts/check_hook_launchers.py` probes the gate for a Codex deny.
 
 ### Changed
+- `add_issue_comment` and `update_issue_comment` ask for consent at each
+  call instead of denying. The other MCP comment and review tools still
+  deny. `docs/agent-policy/github.md`, `docs/agent-policy/clients.md`, and
+  `docs/enforcement-matrix.md` record the per-client coverage.
 - `adopters/1a2n-web-visualizer.md` records the adopter's upgrade to
   `e05985f`. The record lists the taken and declined files, the current
   drift, and the drift that template version 2.52.1 resolves.
 
 ### Fixed
+- `hooks/deny_mcp_github_writes.py` gives every MCP action an explicit
+  verdict (#193). An unlisted action named with a destructive verb denies.
+  The verbs are `delete_`, `merge_`, `archive_`, `transfer_`, `remove_`,
+  `destroy_`, `wipe_`, `purge_`, `drop_`, `erase_`, and `revoke_`.
+  A verified read passes only on a server named `github` or
+  `plugin_engineering_github`. The MCP configuration names each server.
+  A tool name binds nothing, since the server picks it. Every other action
+  asks on every MCP server. Reasons carry no tool or server name. An
+  `mcp__` name with an empty action, such as `mcp__github__`, denies as
+  malformed instead of passing unchecked.
 - `hooks/_gate_core.py` classifies a UNC path from command text lexically
   without filesystem access. `is_unc_path()` recognizes `\\host\share` and
   the `\\?\UNC\` and `\\.\UNC\` device forms. Other `\\?\` and `\\.\`

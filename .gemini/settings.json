@@ -60,6 +60,17 @@
             "timeout": 30000
           }
         ]
+      },
+      {
+        "matcher": "^mcp_.*",
+        "hooks": [
+          {
+            "name": "mcp-write-gate",
+            "type": "command",
+            "command": "python \"$GEMINI_PROJECT_DIR\"/hooks/deny_mcp_github_writes.py --client gemini",
+            "timeout": 30000
+          }
+        ]
       }
     ]
   }
