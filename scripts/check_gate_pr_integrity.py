@@ -19,6 +19,11 @@ HUMAN_ACTOR_TYPE = "User"
 STALE_APPROVAL_MESSAGE = (
     f"the {APPROVAL_LABEL} label predates the latest push. Review the current "
     "head, then remove and re-add the label")
+# A label alone shows no time of approval. Without the timeline the check
+# cannot tell a current approval from one applied before the latest push.
+MISSING_TIMELINE_MESSAGE = (
+    f"protected gate changes need the approval timeline to verify the {APPROVAL_LABEL} "
+    "label. Pass --timeline-json from the gate integrity workflow")
 PROTECTED_PREFIXES = (
     "hooks/",
     ".claude/",
@@ -155,7 +160,9 @@ def _approval_failure(paths: list[str], labels: list[str], timeline) -> str:
         return ""
     if not has_approval_label(labels):
         return f"protected gate changes require the {APPROVAL_LABEL} label"
-    if timeline is not None and not approval_is_current(timeline):
+    if timeline is None:
+        return MISSING_TIMELINE_MESSAGE
+    if not approval_is_current(timeline):
         return STALE_APPROVAL_MESSAGE
     return ""
 
