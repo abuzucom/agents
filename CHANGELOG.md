@@ -31,6 +31,12 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - `docs/agent-policy/github.md` states that an absolute `<draft>` reaches
   `gh` only on a system with `O_NOFOLLOW`. The refused draft rule joins the
   sentence for other bodies.
+- Three template tests skip the source repository assertions in an
+  adopter. The source orientation marker
+  `docs/agent-policy/source-orientation.md` decides. The marker name test,
+  the release script list test, and the `report_adoption_status.py` entry
+  in the workflow script check keep every assertion in the source
+  repository.
 
 ## [2.52.0] (2026-11-26)
 
