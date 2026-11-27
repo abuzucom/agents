@@ -14,7 +14,7 @@ into the entry. Dates never decrease. Ask the active human when a date is in
 doubt.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.53.0] (2026-11-27)
+## [2.53.1] (2026-11-27)
 
 ### Added
 - `hooks/deny_mcp_github_writes.py` accepts `--client` with `claude`,
@@ -39,6 +39,10 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   drift, and the drift that template version 2.52.1 resolves.
 
 ### Fixed
+- `scripts/check_gate_pr_integrity.py` fails a protected gate change that
+  arrives without `--timeline-json` (#194). A present label alone shows no
+  approval time. The check cannot tell it from a label applied before the
+  latest push. An unprotected change still passes without a timeline.
 - `hooks/deny_mcp_github_writes.py` gives every MCP action an explicit
   verdict (#193). An unlisted action named with a destructive verb denies.
   The verbs are `delete_`, `merge_`, `archive_`, `transfer_`, `remove_`,

@@ -89,6 +89,7 @@ SHARED_FILES = [
     "tests/test_check_hook_launchers.py",
     "tests/test_check_local_paths.py",
     "tests/test_check_gate_pr_integrity.py",
+    "tests/test_gate_approval_timeline_required.py",
     "tests/test_enforce_gate_adoption.py",
     "tests/test_gate_adoption_transaction.py",
     "tests/test_platform_policy.py",

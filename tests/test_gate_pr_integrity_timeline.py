@@ -120,8 +120,8 @@ class TimelineCliTest(unittest.TestCase):
         path.write_text(json.dumps(document), encoding="utf-8")
         return str(path)
 
-    def test_label_presence_without_flag(self) -> None:
-        self.assertEqual(self.run_main(["hooks/x.py"], [LABEL], []), 0)
+    def test_label_without_timeline_fails(self) -> None:
+        self.assertEqual(self.run_main(["hooks/x.py"], [LABEL], []), 1)
 
     def test_stale_label_fails_with_flag(self) -> None:
         path = self.timeline_file(timeline([labeled(BEFORE_PUSH)]))
