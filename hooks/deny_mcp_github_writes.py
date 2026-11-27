@@ -4,7 +4,8 @@
 Review comment and reply tools deny. `add_issue_comment` and
 `update_issue_comment` ask for consent at each call. Merges, auto-merge, a
 pull request that is not a draft, and any label field deny under Rules 5
-and 23. Every other known write asks. Verified GitHub reads pass. Every
+and 23. Every other known write asks. A verified read passes only on a
+server in `READ_SERVERS`. Every
 action outside those lists gets an explicit verdict: a destructive name
 denies and anything else asks. `core.decide` turns an ask into a deny in
 unattended modes.
@@ -51,6 +52,7 @@ MCP_SEPARATOR = "__"
 FLAT_MCP_PREFIX = "mcp_"
 FLAT_SEPARATOR = "_"
 ANTIGRAVITY_MCP_TOOL = "call_mcp_tool"
+ANTIGRAVITY_SERVER_FIELD = "ServerName"
 ANTIGRAVITY_TOOL_FIELD = "ToolName"
 ANTIGRAVITY_ARGUMENTS_FIELD = "Arguments"
 # Gemini truncates sanitized MCP tool names past 63 characters. A longer
@@ -80,6 +82,10 @@ READ_ACTIONS = frozenset({
     "pull_request_read", "search_code", "search_issues", "search_pull_requests",
     "search_repositories", "search_users",
 })
+# A read passes only on these server names. The user's MCP configuration
+# names each server, so a hostile server cannot pick a name from this list.
+# A tool name alone binds nothing, since the server chooses it.
+READ_SERVERS = frozenset({"github", "plugin_engineering_github"})
 CREATE_PULL_REQUEST = "create_pull_request"
 UPDATE_PULL_REQUEST = "update_pull_request"
 KNOWN_ACTIONS = (COMMENT_ACTIONS | CONSENT_COMMENT_ACTIONS | DENIED_ACTIONS | ASKED_ACTIONS
@@ -101,6 +107,8 @@ ASK_REASON = "Repository workflow requires execution consent. The GitHub MCP too
 DESTRUCTIVE_REASON = "the MCP tool name marks a destructive action the gate never clears"
 UNLISTED_REASON = ("Repository workflow requires execution consent. The MCP tool is not on the "
                    "gate's verified read list")
+READ_SERVER_REASON = ("Repository workflow requires execution consent. A read passes without "
+                      "consent only on a GitHub MCP server")
 NO_CONSENT_REASON = "This client offers the hook no consent prompt, so the gate denies."
 
 
@@ -124,28 +132,32 @@ def _flat_candidates(name: str) -> tuple:
 
 
 def _prefixed_call(payload: dict):
-    """Return (candidates, input) for an `mcp__` name, or None for another tool."""
+    """Return (server, candidates, input) for an `mcp__` name, or None for another tool."""
     tool_name = payload.get("tool_name")
     if not isinstance(tool_name, str):
         raise MalformedCall
     action = _tool_action(tool_name)
     if not action:
         return None
-    return (action,), payload.get("tool_input")
+    server, separator, _tool = tool_name[len(MCP_PREFIX):].rpartition(MCP_SEPARATOR)
+    return (server if separator else ""), (action,), payload.get("tool_input")
 
 
 def _flat_call(payload: dict):
-    """Return (candidates, input) for a Gemini `mcp_` name, or None for another tool."""
+    """Return (server, candidates, input) for a Gemini `mcp_` name, or None otherwise.
+
+    The server stays empty, because no split of a flat name recovers it.
+    """
     tool_name = payload.get("tool_name")
     if not isinstance(tool_name, str):
         raise MalformedCall
     if not tool_name.startswith(FLAT_MCP_PREFIX):
         return None
-    return _flat_candidates(tool_name[len(FLAT_MCP_PREFIX):]), payload.get("tool_input")
+    return "", _flat_candidates(tool_name[len(FLAT_MCP_PREFIX):]), payload.get("tool_input")
 
 
 def _antigravity_call(payload: dict):
-    """Return (candidates, input) for an Antigravity MCP call, or None for another tool."""
+    """Return (server, candidates, input) for an Antigravity MCP call, or None otherwise."""
     call = payload.get("toolCall")
     if not isinstance(call, dict) or not isinstance(call.get("name"), str):
         raise MalformedCall
@@ -156,9 +168,11 @@ def _antigravity_call(payload: dict):
         action = args.get(ANTIGRAVITY_TOOL_FIELD)
         if not isinstance(action, str) or not action:
             raise MalformedCall
-        return (action,), args.get(ANTIGRAVITY_ARGUMENTS_FIELD, {})
+        server = args.get(ANTIGRAVITY_SERVER_FIELD)
+        return ((server if isinstance(server, str) else ""), (action,),
+                args.get(ANTIGRAVITY_ARGUMENTS_FIELD, {}))
     if name.startswith(FLAT_MCP_PREFIX):
-        return _flat_candidates(name[len(FLAT_MCP_PREFIX):]), args
+        return "", _flat_candidates(name[len(FLAT_MCP_PREFIX):]), args
     return None
 
 
@@ -175,8 +189,10 @@ def _pull_request_decision(action: str, tool_input: dict) -> tuple:
     return "ask", ASK_REASON
 
 
-def _known_decision(action: str, tool_input: dict) -> tuple:
+def _known_decision(server: str, action: str, tool_input: dict) -> tuple:
     """Return (decision, reason) for one action on the gate's known lists."""
+    if action in READ_ACTIONS:
+        return ("", "") if server in READ_SERVERS else ("ask", READ_SERVER_REASON)
     if action in COMMENT_ACTIONS:
         return "deny", COMMENT_REASON
     if action in CONSENT_COMMENT_ACTIONS:
@@ -185,9 +201,7 @@ def _known_decision(action: str, tool_input: dict) -> tuple:
         return "deny", DENIED_REASON
     if action in (CREATE_PULL_REQUEST, UPDATE_PULL_REQUEST):
         return _pull_request_decision(action, tool_input)
-    if action in ASKED_ACTIONS:
-        return "ask", ASK_REASON
-    return "", ""
+    return "ask", ASK_REASON
 
 
 def _unknown_decision(candidates: tuple) -> tuple:
@@ -205,7 +219,7 @@ def write_decision(payload: dict, client: str = CLAUDE) -> tuple:
         return "deny", MALFORMED_REASON
     if call is None:
         return "", ""
-    candidates, tool_input = call
+    server, candidates, tool_input = call
     if not isinstance(tool_input, dict):
         return "deny", MALFORMED_REASON
     # Any present labels field writes labels. An empty list clears every label.
@@ -213,7 +227,7 @@ def write_decision(payload: dict, client: str = CLAUDE) -> tuple:
         return "deny", LABELS_REASON
     action = next((candidate for candidate in candidates if candidate in KNOWN_ACTIONS), "")
     if action:
-        return _known_decision(action, tool_input)
+        return _known_decision(server, action, tool_input)
     return _unknown_decision(candidates)
 
 

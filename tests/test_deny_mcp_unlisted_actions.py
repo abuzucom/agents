@@ -67,6 +67,11 @@ PAYLOAD_BUILDERS = {
     "gemini": gemini_payload,
     "antigravity": antigravity_lazy_payload,
 }
+# Clients whose payload names the server apart from the tool. Only these can
+# bind a verified read to the GitHub server name.
+SERVER_BOUND_BUILDERS = {client: build for client, build in PAYLOAD_BUILDERS.items()
+                         if client != "gemini"}
+IMPERSONATING_SERVERS = ("octo", "Claude_Docs", "github_evil")
 
 
 def run_hook(client: str, payload: dict):
@@ -95,10 +100,25 @@ class ClassifierTest(unittest.TestCase):
                     self.assertEqual(decision, "ask")
 
     def test_verified_reads_pass(self) -> None:
-        for client, build in PAYLOAD_BUILDERS.items():
+        for client, build in SERVER_BOUND_BUILDERS.items():
             for action in READ_ACTIONS:
                 with self.subTest(client=client, action=action):
                     self.assertEqual(gate.write_decision(build(action), client), ("", ""))
+
+    def test_impersonated_reads_ask(self) -> None:
+        for client, build in PAYLOAD_BUILDERS.items():
+            for server in IMPERSONATING_SERVERS:
+                for action in gate.READ_ACTIONS:
+                    with self.subTest(client=client, server=server, action=action):
+                        decision, _ = gate.write_decision(build(action, server), client)
+                        self.assertEqual(decision, "ask")
+
+    def test_flat_reads_ask(self) -> None:
+        for build, client in ((gemini_payload, "gemini"),
+                              (antigravity_eager_payload, "antigravity")):
+            with self.subTest(client=client):
+                decision, _ = gate.write_decision(build("list_issues"), client)
+                self.assertEqual(decision, "ask")
 
     def test_any_server_unlisted_asks(self) -> None:
         for client, build in PAYLOAD_BUILDERS.items():
@@ -126,7 +146,7 @@ class ClassifierTest(unittest.TestCase):
                               (antigravity_eager_payload, "antigravity")):
             with self.subTest(client=client):
                 cases = (("merge_pull_request", "deny"), ("delete_file", "ask"),
-                         ("list_issues", ""))
+                         ("list_issues", "ask"))
                 for action, expected in cases:
                     decision, _ = gate.write_decision(build(action, "my_gh_server"), client)
                     self.assertEqual(decision, expected)
@@ -240,10 +260,14 @@ class NativeOutputTest(unittest.TestCase):
         self.assertEqual((code, json.loads(stdout)["decision"]), (0, "deny"))
 
     def test_reads_print_nothing(self) -> None:
-        for client, build in PAYLOAD_BUILDERS.items():
+        for client, build in SERVER_BOUND_BUILDERS.items():
             with self.subTest(client=client):
                 code, stdout, _ = run_hook(client, build("list_issues"))
                 self.assertEqual((code, stdout), (0, ""))
+
+    def test_gemini_read_denies(self) -> None:
+        code, stdout, _ = run_hook("gemini", gemini_payload("list_issues"))
+        self.assertEqual((code, json.loads(stdout)["decision"]), (0, "deny"))
 
     def test_malformed_input_denies_natively(self) -> None:
         cases = (("claude", POLICY_DENIAL_EXIT_CODE), ("codex", POLICY_DENIAL_EXIT_CODE),
