@@ -40,7 +40,9 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 - `hooks/deny_mcp_github_writes.py` gives every MCP action an explicit
-  verdict (#193). A destructive name such as `delete_repository` denies.
+  verdict (#193). An unlisted action named with a destructive verb denies.
+  The verbs are `delete_`, `merge_`, `archive_`, `transfer_`, `remove_`,
+  `destroy_`, `wipe_`, `purge_`, `drop_`, `erase_`, and `revoke_`.
   A verified read passes only on a server named `github` or
   `plugin_engineering_github`. The MCP configuration names each server.
   A tool name binds nothing, since the server picks it. Every other action

@@ -125,6 +125,7 @@ SHARED_FILES = [
     "tests/test_deny_mcp_github_writes.py",
     "tests/test_deny_mcp_unlisted_actions.py",
     "tests/test_deny_mcp_empty_action.py",
+    "tests/test_deny_mcp_destructive_verbs.py",
     "tests/test_mcp_gate_registration.py",
     "tests/test_enforce_single_question.py",
     "tests/test_detect_prose_options.py",

@@ -90,8 +90,11 @@ CREATE_PULL_REQUEST = "create_pull_request"
 UPDATE_PULL_REQUEST = "update_pull_request"
 KNOWN_ACTIONS = (COMMENT_ACTIONS | CONSENT_COMMENT_ACTIONS | DENIED_ACTIONS | ASKED_ACTIONS
                  | READ_ACTIONS | {CREATE_PULL_REQUEST, UPDATE_PULL_REQUEST})
+# Verbs that remove data, history, or access a consent prompt cannot restore.
+# An unlisted action with one of these prefixes denies instead of asking.
 # Compared against the casefolded action, so a case variant still denies.
-DESTRUCTIVE_PREFIXES = ("delete_", "merge_", "archive_", "transfer_")
+DESTRUCTIVE_PREFIXES = ("delete_", "merge_", "archive_", "transfer_", "remove_", "destroy_",
+                        "wipe_", "purge_", "drop_", "erase_", "revoke_")
 MALFORMED_REASON = "the gate cannot read the tool call or check it"
 USAGE_REASON = "the gate received an unknown --client value and cannot check the call"
 ERROR_REASON = "the gate raised an unexpected error. The gate cannot clear this call"
@@ -117,9 +120,7 @@ class MalformedCall(ValueError):
 
 
 def _tool_action(tool_name: str) -> str:
-    """Return the tool name after the MCP server prefix, or an empty string."""
-    if not tool_name.startswith(MCP_PREFIX):
-        return ""
+    """Return the text after the last `__` of a name the caller found prefixed."""
     return tool_name.rsplit(MCP_SEPARATOR, 1)[-1]
 
 
