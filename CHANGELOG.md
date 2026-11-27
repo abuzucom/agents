@@ -44,7 +44,9 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   A verified read passes only on a server named `github` or
   `plugin_engineering_github`. The MCP configuration names each server.
   A tool name binds nothing, since the server picks it. Every other action
-  asks on every MCP server. Reasons carry no tool or server name.
+  asks on every MCP server. Reasons carry no tool or server name. An
+  `mcp__` name with an empty action, such as `mcp__github__`, denies as
+  malformed instead of passing unchecked.
 - `hooks/_gate_core.py` classifies a UNC path from command text lexically
   without filesystem access. `is_unc_path()` recognizes `\\host\share` and
   the `\\?\UNC\` and `\\.\UNC\` device forms. Other `\\?\` and `\\.\`

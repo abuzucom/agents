@@ -136,9 +136,13 @@ def _prefixed_call(payload: dict):
     tool_name = payload.get("tool_name")
     if not isinstance(tool_name, str):
         raise MalformedCall
-    action = _tool_action(tool_name)
-    if not action:
+    if not tool_name.startswith(MCP_PREFIX):
         return None
+    action = _tool_action(tool_name)
+    # A prefixed name with no action, such as `mcp__github__`, is still an MCP
+    # call. Treating it as a non-MCP tool would let it pass unchecked.
+    if not action:
+        raise MalformedCall
     server, separator, _tool = tool_name[len(MCP_PREFIX):].rpartition(MCP_SEPARATOR)
     return (server if separator else ""), (action,), payload.get("tool_input")
 
