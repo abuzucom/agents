@@ -102,10 +102,17 @@ confirm the diagnosis. Repair or remove inaccessible stale fixture directories
 only with active human authorization. Do not weaken, skip, or edit tests. Do
 not make elevation a routine CI requirement.
 
-`scripts/run_tests.py` verifies test IDs before running four concurrent class
-shards. Each class has a 300-second timeout. Persistent workers have a
-30-second deadline. Failures retain a nonzero exit. `unittest` defines
+`scripts/run_tests.py` verifies test IDs before running concurrent class
+shards. It runs four at once by default and up to 32 with
+`AGENTS_TEST_WORKERS`. Each class has a 30-second timeout. Resource-heavy classes have a
+180-second timeout. Failures retain a nonzero exit. `unittest` defines
 discovery.
+
+`AGENTS_TEST_WORKERS` sets the worker count from 1 to 32 with a default of 4.
+`AGENTS_TEST_SHARD_TIMEOUT_SECONDS` sets the class timeout from 1 to 600
+seconds with a default of 30. A resource class never drops below the longer
+resource timeout. `scripts/run_tests.py` and `scripts/check_hook_coverage.py` read both
+variables. An invalid value exits 2 before any shard starts.
 
 ### GitHub Access
 
@@ -622,9 +629,11 @@ credential, container root, conflict marker, and local path scans still run.
 `check_hook_coverage.py --write-baseline` creates or refreshes
 `hook-coverage-baseline.json`. Python 3.12 and newer use local
 `sys.monitoring` events when the coverage tool slot remains available. Other
-runtimes use a `sys.settrace` fallback limited to the target. The checker runs up to
-four test classes concurrently. It reports class starts, class results, and
-30-second progress heartbeats. Each class has a 300-second timeout. A timeout
+runtimes use a `sys.settrace` fallback limited to the target. The checker runs
+four test classes concurrently by default and up to 32 with
+`AGENTS_TEST_WORKERS`. It reports class starts, class results, and
+10-second progress heartbeats. Each class has a 30-second timeout.
+Resource-heavy classes have a 180-second timeout. A timeout
 terminates its test process tree and fails the check.
 `check_secrets_heuristic.py` is not an entropy-based scanner.
 `check_english_only.py` and `check_hedging.py` use keyword heuristics instead

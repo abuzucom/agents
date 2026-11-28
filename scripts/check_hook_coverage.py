@@ -19,6 +19,7 @@ import concurrent.futures
 import io
 import json
 import os
+import re
 import signal
 import shutil
 import subprocess
@@ -39,6 +40,17 @@ TARGET = "hooks"
 TRACER_DIR = os.path.join("tools", "hook-trace")
 DEFAULT_WORKERS = 4
 TEST_SHARD_TIMEOUT_SECONDS = 30
+# A slow runner, such as a loaded Windows host, can push a healthy shard past
+# the default limit. These variables let an adopter tune both values without
+# editing this shared file, so shared digests stay equal across repositories.
+WORKERS_VARIABLE = "AGENTS_TEST_WORKERS"
+TIMEOUT_VARIABLE = "AGENTS_TEST_SHARD_TIMEOUT_SECONDS"
+WORKER_RANGE = (1, 32)
+TIMEOUT_RANGE = (1, 600)
+# ASCII digits only. int() also accepts surrounding whitespace and non-ASCII
+# digits, which would let a malformed value through.
+LIMIT_PATTERN = re.compile(r"[0-9]{1,4}")
+USAGE_ERROR_EXIT_CODE = 2
 RESOURCE_SHARD_TIMEOUT_SECONDS = 180
 PROGRESS_INTERVAL_SECONDS = 10
 PROCESS_SHUTDOWN_TIMEOUT_SECONDS = 5
@@ -533,15 +545,50 @@ def _drive_test_shards(executor: concurrent.futures.Executor,
     return []
 
 
-def measure(root: str) -> dict:
-    """Run the suite under the tracer and return the unreached counts."""
+class ShardLimitError(ValueError):
+    """A shard limit variable holds a value outside its documented range."""
+
+
+def _read_limit(environment: dict, name: str, default: int, bounds: tuple) -> int:
+    """Return one limit from `environment`, or `default` when the variable is unset."""
+    raw = environment.get(name)
+    if raw is None:
+        return default
+    lower, upper = bounds
+    # The message omits the value. An unchecked value could carry a line break
+    # that forges a log line.
+    if not LIMIT_PATTERN.fullmatch(raw) or not lower <= int(raw) <= upper:
+        raise ShardLimitError(
+            f"{name} must be a whole number from {lower} to {upper}. "
+            f"Set it inside that range or unset it to use the default")
+    return int(raw)
+
+
+def read_test_limits(environment: dict) -> tuple:
+    """Return (worker count, shard timeout seconds) from the environment."""
+    workers = _read_limit(environment, WORKERS_VARIABLE, DEFAULT_WORKERS, WORKER_RANGE)
+    timeout = _read_limit(environment, TIMEOUT_VARIABLE, TEST_SHARD_TIMEOUT_SECONDS,
+                          TIMEOUT_RANGE)
+    return workers, timeout
+
+
+def measure(root: str, workers: int | None = None,
+            timeout: float | None = None) -> dict:
+    """Run the suite under the tracer and return the unreached counts.
+
+    A missing worker count or timeout comes from the environment limits.
+    """
+    if workers is None or timeout is None:
+        environment_workers, environment_timeout = read_test_limits(os.environ)
+        workers = environment_workers if workers is None else workers
+        timeout = environment_timeout if timeout is None else timeout
     out_dir = tempfile.mkdtemp(prefix="hook-coverage-")
     try:
         environment = dict(os.environ)
         environment["PYTHONPATH"] = os.path.join(root, TRACER_DIR)
         environment["HOOK_COVERAGE_TARGET"] = os.path.join(root, TARGET)
         environment["HOOK_COVERAGE_OUT"] = out_dir
-        problems = run_test_shards(root, environment)
+        problems = run_test_shards(root, environment, workers=workers, timeout=timeout)
         if problems:
             print("the suite failed under tracing, so coverage says nothing:",
                   file=sys.stderr)
@@ -628,6 +675,12 @@ def parse_arguments(argv: list) -> argparse.Namespace:
 def main(argv: list) -> int:
     """Measure, then either record the result or check it. Return an exit code."""
     arguments = parse_arguments(argv)
+    # Validate before any shard starts. measure() rereads the same values.
+    try:
+        read_test_limits(os.environ)
+    except ShardLimitError as error:
+        print(f"error: {error}", file=sys.stderr)
+        return USAGE_ERROR_EXIT_CODE
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     actual = measure(root)
     if arguments.write_baseline:

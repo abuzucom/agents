@@ -121,13 +121,14 @@ def main(argv: list[str]) -> int:
             flush=True,
         )
         return USAGE_ERROR_EXIT_CODE
+    try:
+        workers, timeout = shard_runner.read_test_limits(os.environ)
+    except shard_runner.ShardLimitError as error:
+        print(f"error: {error}", file=sys.stderr, flush=True)
+        return USAGE_ERROR_EXIT_CODE
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     started = time.monotonic()
-    result = run_suite(
-        root,
-        workers=shard_runner.DEFAULT_WORKERS,
-        timeout=shard_runner.TEST_SHARD_TIMEOUT_SECONDS,
-    )
+    result = run_suite(root, workers=workers, timeout=timeout)
     elapsed = time.monotonic() - started
     print(f"test suite finished in {elapsed:.1f}s", flush=True)
     return result
