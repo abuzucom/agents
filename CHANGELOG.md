@@ -14,9 +14,14 @@ into the entry. Dates never decrease. Ask the active human when a date is in
 doubt.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.54.4] (2026-11-28)
+## [2.54.5] (2026-11-28)
 
 ### Added
+- `docs/codeql-triage.md` traces each of the nine CodeQL alerts that
+  template files raise in an adopter (#190). Six logging alerts reach only
+  fixed or sanitized text. Two storage alerts write test fixtures without
+  credentials. The untrusted checkout alert runs no head code. No alert
+  marks a real defect. The README links the file.
 - `AGENTS_TEST_WORKERS` and `AGENTS_TEST_SHARD_TIMEOUT_SECONDS` set the
   test shard worker count and class timeout (#191). Workers range from
   1 to 32 with a default of 4. The timeout ranges from 1 to 600 seconds
