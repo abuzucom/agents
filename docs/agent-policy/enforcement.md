@@ -1,11 +1,4 @@
 # Enforcement
-Repository hooks provide defense in depth. They remain reviewable and
-disableable. A repository writer can alter hooks and `.claude/settings.json`.
-Tamper resistance requires an external harness, filesystem isolation, or
-server-side controls.
-
-The gates read command shape. They lack telemetry on event streams, rates, volume, and login correlation.
-
 Adopt every gate with its registrations, shared modules, tests, and checkers.
 Missing artifacts indicate incomplete adoption. Complete the adoption and run
 the recovery check.
@@ -48,32 +41,11 @@ Treat these outcomes as transaction failures:
   conceal an omission.
 - A candidate replaces the last verified working set before full verification.
 
-`hooks/enforce_gate_adoption.py` calls `scripts/check_gate_adoption.py` before
-ordinary work on Claude Code, Codex, Gemini, and Antigravity. The hook permits
-only questions, fixed verification, read-only discovery, writes below
-`.gate-staging/`, and a staged transaction when the check fails. Staging writes
-must resolve below that directory. Run `python scripts/complete_gate_adoption.py --candidate
-.gate-staging/<candidate>` from the adoption root. The installer verifies the
-staged candidate before writing. It replaces every other artifact first.
-It replaces client registrations last. An interrupted installation remains
-recoverable through the same bounded command. A copy failure restores every
-prior target before the installer returns failure.
+Run `python scripts/complete_gate_adoption.py --candidate
+.gate-staging/<candidate>` from the adoption root.
 
-Antigravity recovery accepts `view_file`, `list_dir`, `find_by_name`, and
-`grep_search`. It accepts `write_to_file` and `replace_file_content` only when
-`TargetFile` resolves below `.gate-staging/`.
-`scripts/check_hook_launchers.py` launches the transaction hook through every
-configured launcher. `scripts/check_hook_coverage.py` requires test reachability.
-
-`gate-integrity.yml` uses read-only `pull_request` execution and checks out the
-exact base and head revisions. The job executes no pull request code. Without a base
-checker, the job requires the label.
-It runs the base branch copy of `scripts/check_gate_pr_integrity.py` against the pull request
-diff. Protected gate changes require the `gate-change-approved` label from a
+Protected gate changes require the `gate-change-approved` label from a
 person after the latest push. Case variants of protected paths also count.
-The same job runs the base copy of `scripts/check_pr_base.py`. It fails a
-base outside the stable branches. Configure GitHub branch protection to
-require this job. Repository files cannot enforce the branch rule.
 
 The gates refuse destructive commands, unsafe infrastructure access, direct
 GitHub CLI lookup, unsafe GitHub HTTP substitutes, credential manager access,
@@ -83,10 +55,6 @@ The gates route acts that need consent to the active human. Unattended sessions
 refuse those acts.
 Delete inside the session's own `.scratch/<id>/` or `.worktrees/<id>/` only
 through `scripts/delete_zone_path.py`. The helper routes to consent.
-
-Shell gates allow repeated `scripts/trusted_gh.py` calls and route
-`-c agents.githubFallback=confirmed` commands to consent without cross-process
-state. Repository hooks cannot force a tool call when a model refuses in prose.
 
 Designed denials, prompts, refusals, blocks of opaque commands, and exit code 2 on
 missing shared modules are policy outcomes. They are not defects.
@@ -106,11 +74,6 @@ Policy files must use LF line endings in the working tree. The policy size
 checker validates the checked-out bytes and rejects CRLF line endings.
 
 ## Windows test environment
-Hooks must not label execution as elevated without a client runtime approval
-result. Missing or contradictory approval metadata fails closed. Repository
-hooks cannot inspect client prose when the client API hides it. An external
-harness must enforce those claims.
-
 A defect report about a designed denial includes the exact input, contradictory policy
 text, and a reproduction. Report a blocked file, command, and message. A
 blocking gate does not authorize another act.
@@ -120,39 +83,11 @@ platform policy, shared gate, and parity test files. Register Bash, PowerShell,
 and available CMD `PreToolUse` matchers. Require matching Git and destructive
 verdicts across all shell gates.
 
-`scripts/check_banned_agents.py` checks commit authors, committers,
-`Co-authored-by` trailers, `Assisted-by` trailers, pull request descriptions,
-and pull request authors against blanket vendor denylists, specific models,
-and wildcard patterns. The checker cannot identify hidden agent use under a
-human identity. Platform controls apply separately.
-
 ## Agent prose gate
-`scripts/check_us_spelling.py`, `scripts/check_english_only.py`,
-`scripts/check_hedging.py`, and `scripts/check_pull_request_message.py`
-stay advisory for human prose. `scripts/check_agent_prose_gate.py`
-fails on the same findings for commits or pull requests that disclose
-agent authorship through the Rule 14 `Assisted-by`/`Co-authored-by`
-trailer (`check_commit_attribution.py::has_agent_label`) or a matching
-pull request description line. Undisclosed agent authorship stays
-invisible to this signal. `check_banned_agents.py` shares that gap. Never
-remove or edit that trailer to evade this gate. Fix the flagged prose
-instead. The `pr-checks` job in `agents-compliance.yml` runs this gate on
-every pull request, drafts included. No repository hook runs it.
-
-In `scripts/prose_bans.txt`, each nonempty policy line defines one exact word
-or phrase. Section headers define scope. Add entries without changing checker
-logic. The denylist source receives the sole exemption from scanning itself. The
-handoff exemption section skips matches only for `plan/HANDOFF.md.example`.
-
-`check_us_spelling.py` flags British variants such as `-our`,
-`-ise`/`-isation`, `-re`, and doubled consonants before a suffix.
-
-`scripts/check_hedging.py` reports voice, sentence, discourse, escape sequence,
-and vocabulary findings as warnings.
-`scripts/check_hedging.py` prose findings always return exit code 0. Unreadable
-policy data and unsafe metadata return exit code 1. Pattern checks provide
-advisory coverage. Human review covers semantic paraphrases and complex
-grammar.
+`scripts/check_agent_prose_gate.py` fails agent-labeled commits and pull
+requests on the advisory prose findings. CI runs it on every pull request,
+drafts included. Never remove or edit the Rule 14 trailer to evade this
+gate. Fix the flagged prose instead.
 
 ## Protected files and hook inventory
 Modifying hook files or `scripts/banned_models.txt` can never be inferred,

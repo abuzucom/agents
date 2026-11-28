@@ -2,6 +2,7 @@
   "note": "SHA-256 of every file that must stay byte-identical across the repositories adopting these gates. Line endings are normalized before hashing. Regenerate with scripts/sync.py --write-shared and commit the result in every one of them.",
   "shared": {
     "docs/enforcement-matrix.md": "0f037f1af0dec8bd87cd1d72d63a3133325b7aab200e8338bccdecc0d998f60e",
+    "docs/gate-internals.md": "44d77cbc69a8b02624d7fd5ea375bd0440c55070f8fbfc3b25fa29e7bc9066fc",
     "hooks/_bash_parser.py": "e5d35b99bc21ea94ea3f0cbc5e83da71359420fa60eeb0f1e7007259b6721f85",
     "hooks/_cmd_parser.py": "246febca4007230c77f0980bec98ee94e14e14b21d5dddf5567101a38c7d80b3",
     "hooks/_gate_core.py": "c042f36823309696eec331516b71997915bc149b685512d837a8c0a36e702ce9",

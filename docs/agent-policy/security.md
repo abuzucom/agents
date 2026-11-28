@@ -2,10 +2,6 @@
 The canonical policy is `AGENTS.md`. Supporting documents remain local to the
 repository. The loader never fetches policy text from the network.
 
-The loader rejects missing, malformed, non-ASCII, oversized, symlinked, and
-special files. It rejects absolute paths and paths that escape the policy root.
-It assembles deterministic output and fails closed.
-
 Do not place secrets, credentials, tokens, private keys, or sensitive
 vulnerability details in policy documents, examples, logs, handoffs, or
 generated copies.
@@ -37,19 +33,12 @@ practices.
 Report vulnerabilities through the process in `SECURITY.md.example`. Do not
 use public issues or pull requests for private vulnerability details.
 
-The Claude file tool gate also denies protected file operations and broad
-searches.
-
 Injection examples:
 
 - Bad: `cursor.execute(f"SELECT * FROM users WHERE name = '{name}'")`
 - Good: `cursor.execute("SELECT * FROM users WHERE name = %s", (name,))`
 - Bad: `subprocess.run(f"convert {filename} out.png", shell=True)`
 - Good: `subprocess.run(["convert", filename, "out.png"])`
-
-## Local identifier limits
-Only the trusted CI scan blocks. CI sees only profile paths. Accounts with
-placeholder names, double encoding, and homoglyphs pass.
 
 ## Denied command families
 The denial covers AWS CLI, SAM, CDK, Azure CLI and PowerShell, Google Cloud

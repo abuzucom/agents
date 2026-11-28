@@ -54,6 +54,7 @@ Each checker covers only its inspected files and behavior.
 | `scripts/check_pull_request_message.py` | Safe advisory pull request title and body checks |
 | `skills/` | Canonical agent procedures. `scripts/sync.py` copies each one to `.claude/skills/` and `.agents/skills/` |
 | `docs/enforcement-matrix.md` | Enforcement tier of every skill rule |
+| `docs/gate-internals.md` | How the gates, checkers, and installers work, outside the assembled policy |
 | `hooks/` | Agent lifecycle, consent, and command gates |
 | `.claude/settings.json` | Live hook registrations for this repository |
 | `hooks/claude-code-settings.example.json` | Hook registrations for adopters |
@@ -1106,6 +1107,7 @@ comments after filling verified repository values.
 - [Canonical instructions](AGENTS.md)
 - [Adoption drift policy](DRIFT.md)
 - [Gate threat model](docs/gate-threat-model.md)
+- [Gate internals](docs/gate-internals.md)
 - [Handoff template](plan/HANDOFF.md.example)
 - [Security policy template](SECURITY.md.example)
 - [Contribution guide template](CONTRIBUTING.md.example)
