@@ -40,8 +40,11 @@ class SkillRequirementTest(unittest.TestCase):
     def test_symlinked_skill_copy_rejected(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary) / "tree"
-            shutil.copytree(REPOSITORY_ROOT, root, symlinks=True,
-                            ignore=shutil.ignore_patterns(".git", ".scratch", "__pycache__"))
+            (root / "scripts").mkdir(parents=True)
+            shutil.copy2(REPOSITORY_ROOT / check_gate_adoption.SKILL_MODULE,
+                         root / check_gate_adoption.SKILL_MODULE)
+            for skill_root in check_gate_adoption.SKILL_ROOTS:
+                shutil.copytree(REPOSITORY_ROOT / skill_root, root / skill_root, symlinks=True)
             name = _skill_sync.SKILLS[0]
             outside = Path(temporary) / "outside.md"
             for relative in (_skill_sync.canonical_path(name), _skill_sync.copy_paths(name)[0]):
