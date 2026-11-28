@@ -102,8 +102,9 @@ confirm the diagnosis. Repair or remove inaccessible stale fixture directories
 only with active human authorization. Do not weaken, skip, or edit tests. Do
 not make elevation a routine CI requirement.
 
-`scripts/run_tests.py` verifies test IDs before running four concurrent class
-shards. Each class has a 30-second timeout. Resource-heavy classes have a
+`scripts/run_tests.py` verifies test IDs before running concurrent class
+shards. It runs four at once by default and up to 32 with
+`AGENTS_TEST_WORKERS`. Each class has a 30-second timeout. Resource-heavy classes have a
 180-second timeout. Failures retain a nonzero exit. `unittest` defines
 discovery.
 
@@ -628,8 +629,9 @@ credential, container root, conflict marker, and local path scans still run.
 `check_hook_coverage.py --write-baseline` creates or refreshes
 `hook-coverage-baseline.json`. Python 3.12 and newer use local
 `sys.monitoring` events when the coverage tool slot remains available. Other
-runtimes use a `sys.settrace` fallback limited to the target. The checker runs up to
-four test classes concurrently. It reports class starts, class results, and
+runtimes use a `sys.settrace` fallback limited to the target. The checker runs
+four test classes concurrently by default and up to 32 with
+`AGENTS_TEST_WORKERS`. It reports class starts, class results, and
 10-second progress heartbeats. Each class has a 30-second timeout.
 Resource-heavy classes have a 180-second timeout. A timeout
 terminates its test process tree and fails the check.
