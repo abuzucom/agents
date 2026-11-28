@@ -41,10 +41,14 @@ CLAUDE = "claude"
 CODEX = "codex"
 GEMINI = "gemini"
 ANTIGRAVITY = "antigravity"
-CLIENTS = frozenset({CLAUDE, CODEX, GEMINI, ANTIGRAVITY})
+# The pi extension sends Claude-shaped payloads and turns an ask into a pi
+# confirmation dialog.
+PI = "pi"
+CLIENTS = frozenset({CLAUDE, CODEX, GEMINI, ANTIGRAVITY, PI})
 CLIENT_OPTION = "--client"
 # Neither client offers a consent prompt a hook can request.
 DENY_ONLY_CLIENTS = frozenset({CODEX, GEMINI})
+NATIVE_ASK_CLIENTS = frozenset({CLAUDE, PI})
 JSON_DECISION_CLIENTS = frozenset({GEMINI, ANTIGRAVITY})
 ANTIGRAVITY_ASK = "force_ask"
 MCP_PREFIX = "mcp__"
@@ -182,7 +186,7 @@ def _antigravity_call(payload: dict):
 
 
 CALL_READERS = {CLAUDE: _prefixed_call, CODEX: _prefixed_call, GEMINI: _flat_call,
-                ANTIGRAVITY: _antigravity_call}
+                ANTIGRAVITY: _antigravity_call, PI: _prefixed_call}
 
 
 def _pull_request_decision(action: str, tool_input: dict) -> tuple:
@@ -242,7 +246,7 @@ def emit_decision(client: str, payload: dict, decision: str, reason: str) -> int
         return 0
     if decision == "ask" and client in DENY_ONLY_CLIENTS:
         decision, reason = "deny", f"{reason.rstrip('.')}. {NO_CONSENT_REASON}"
-    if client == CLAUDE:
+    if client in NATIVE_ASK_CLIENTS:
         return core.decide(GATE, payload, decision, reason)
     if client not in JSON_DECISION_CLIENTS:
         return core.emit(GATE, decision, reason)

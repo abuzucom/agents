@@ -51,6 +51,9 @@ SHORT_OPTION_LENGTH = 2
 MIN_CHILD_PATH_PARTS = 2
 MIN_GEMINI_PLAN_PATH_PARTS = 3
 QUESTION_TOOLS = frozenset({"AskUserQuestion", "ask_question"})
+# The pi extension sends Claude-shaped payloads and shows a consent dialog
+# for an ask, so pi requests recovery consent the same way Claude does.
+NATIVE_ASK_CLIENTS = ("claude", "pi")
 SHELL_TOOLS = frozenset({
     "Bash", "CMD", "Cmd", "CommandPrompt", "PowerShell",
     "run_command", "run_shell_command",
@@ -754,7 +757,7 @@ def request_recovery_authorization(
 def _request_authorization(client: str, payload: dict, authorization_reason: str,
                            gate: str = GATE) -> int:
     """Use native consent where supported and preserve unattended denial."""
-    if client == "claude":
+    if client in NATIVE_ASK_CLIENTS:
         return core.decide(gate, payload, "ask", authorization_reason)
     if client in ("gemini", "antigravity"):
         print(json.dumps({"decision": "ask", "reason": authorization_reason}))
@@ -1285,7 +1288,7 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--client",
-        choices=("claude", "codex", "gemini", "antigravity"),
+        choices=("claude", "codex", "gemini", "antigravity", "pi"),
         default="claude",
     )
     args = parser.parse_args()

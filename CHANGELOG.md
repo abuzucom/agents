@@ -14,9 +14,17 @@ into the entry. Dates never decrease. Ask the active human when a date is in
 doubt.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.54.4] (2026-11-28)
+## [2.55.0] (2026-11-28)
 
 ### Added
+- The five client-aware hooks accept `--client pi`:
+  `enforce_gate_adoption.py`, `enforce_branch_name.py`,
+  `enforce_anti_delegation.py`, `deny_mcp_github_writes.py`, and
+  `reinject_agents_policy.py`. pi reads the Claude input and output shapes.
+  An ask stays an ask in an interactive pi session. An unattended pi
+  session denies it. pi receives the complete policy context that Codex
+  receives. No file registers pi yet. No pi gate is active.
+  `tests/test_pi_client_support.py` covers each hook.
 - `AGENTS_TEST_WORKERS` and `AGENTS_TEST_SHARD_TIMEOUT_SECONDS` set the
   test shard worker count and class timeout (#191). Workers range from
   1 to 32 with a default of 4. The timeout ranges from 1 to 600 seconds
