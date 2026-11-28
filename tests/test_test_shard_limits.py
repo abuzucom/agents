@@ -70,7 +70,7 @@ class EntryPointTest(unittest.TestCase):
 
     def test_run_tests_rejects_bad_value(self) -> None:
         stderr = io.StringIO()
-        with patch.dict("os.environ", {WORKERS: "0"}), \
+        with patch.dict("os.environ", {WORKERS: "0", TIMEOUT: str(CUSTOM_TIMEOUT)}), \
                 patch.object(run_tests, "run_suite") as run_suite, \
                 contextlib.redirect_stderr(stderr):
             self.assertEqual(run_tests.main([]), USAGE_EXIT_CODE)
@@ -88,7 +88,7 @@ class EntryPointTest(unittest.TestCase):
 
     def test_coverage_rejects_bad_value(self) -> None:
         stderr = io.StringIO()
-        with patch.dict("os.environ", {TIMEOUT: "601"}), \
+        with patch.dict("os.environ", {WORKERS: str(CUSTOM_WORKERS), TIMEOUT: "601"}), \
                 patch.object(coverage, "measure") as measure, \
                 contextlib.redirect_stderr(stderr):
             self.assertEqual(coverage.main([]), USAGE_EXIT_CODE)

@@ -14,7 +14,7 @@ into the entry. Dates never decrease. Ask the active human when a date is in
 doubt.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.54.2] (2026-11-28)
+## [2.54.3] (2026-11-28)
 
 ### Added
 - `AGENTS_TEST_WORKERS` and `AGENTS_TEST_SHARD_TIMEOUT_SECONDS` set the
@@ -32,6 +32,10 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   300-second class timeout and a 30-second heartbeat. Both README
   passages name four concurrent classes as the default and 32 as the
   `AGENTS_TEST_WORKERS` ceiling.
+- The two rejection tests in `tests/test_test_shard_limits.py` set both
+  limit variables. An inherited invalid value no longer decides which
+  variable the error names. The active human approved the edit under
+  Rule 3.
 
 ## [2.53.1] (2026-11-27)
 
