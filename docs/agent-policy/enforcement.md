@@ -47,6 +47,10 @@ Run `python scripts/complete_gate_adoption.py --candidate
 Protected gate changes require the `gate-change-approved` label from a
 person after the latest push. Case variants of protected paths also count.
 
+The gates refuse destructive commands, unsafe infrastructure access, direct
+GitHub CLI lookup, unsafe GitHub HTTP substitutes, credential manager access,
+browser token recovery, and incomplete policy loading.
+
 The gates route acts that need consent to the active human. Unattended sessions
 refuse those acts.
 Delete inside the session's own `.scratch/<id>/` or `.worktrees/<id>/` only
@@ -73,6 +77,11 @@ checker validates the checked-out bytes and rejects CRLF line endings.
 A defect report about a designed denial includes the exact input, contradictory policy
 text, and a reproduction. Report a blocked file, command, and message. A
 blocking gate does not authorize another act.
+
+The destructive gate set includes the Bash, PowerShell, CMD, shared parser,
+platform policy, shared gate, and parity test files. Register Bash, PowerShell,
+and available CMD `PreToolUse` matchers. Require matching Git and destructive
+verdicts across all shell gates.
 
 ## Agent prose gate
 `scripts/check_agent_prose_gate.py` fails agent-labeled commits and pull
@@ -116,3 +125,13 @@ The protected inventory covers:
   `.gemini/settings.json`, and `.git/hooks/`.
 - Denylist configuration:
   `scripts/banned_models.txt`.
+
+Claude Code's consent hook reads paths. New test files do not prompt. Existing
+test edits prompt. A final `ExistingTest = None` assignment can disable a
+check on raw text. The Bash gate also protects existing tests reached by
+redirects, `tee`, `sed -i`, `cp`, or `mv`.
+
+Adopt the consent hook with `hooks/require_consent.py`, `hooks/_gate_core.py`,
+its test, and the `.claude/settings.json` `PreToolUse` registration for
+`Edit|Write|MultiEdit|NotebookEdit`. Adopt the matching Bash protection. Do not
+adopt one gate without the other.

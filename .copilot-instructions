@@ -764,6 +764,20 @@ Avoid random or opaque names such as `chore/kind-thompson`.
 Do not leave `TODO`, `FIXME`, `XXX`, `HACK`, `later`, stubbed bodies, bare
 `pass`, `...`, or unexplained `NotImplementedError`.
 
+Install `scripts/check_branch_name.py`. Register it in pre-push and supported
+client hooks. Run its tests in CI and pre-commit. Dependabot receives its
+documented exemption from branch and commit message rules through trusted metadata.
+Copy `scripts/trusted_bot_identities.py` with it. That registry lists every
+bot exempt from branch rules. A third-party bot also needs its account ID in the event.
+
+Branch adoption copies `scripts/check_branch_name.py`,
+`scripts/read_git_state.py`, `scripts/trusted_git.py`,
+`hooks/enforce_branch_name.py`, `hooks/_command_execution_gate.py`,
+`hooks/_gate_core.py`, and `hooks/_bash_parser.py`. Register pre-push and every observable supported
+client event. Claude also registers `SessionStart`, `UserPromptSubmit`, `Stop`,
+and `SubagentStop`. Run `tests/test_enforce_branch_name.py` in CI and
+pre-commit. Agent hooks use `--strict-agent-preflight`.
+
 Preserve license attribution and source metadata. Do not require
 uncontrolled mirrors to report usage or divergence to this repository.
 
@@ -803,6 +817,11 @@ trusted wrapper. A GitHub connector account request qualifies. Derive
 values and obtain approval before setting them in the current repository.
 Never set them globally. If no authenticated account source exists, show at most five
 untrusted candidates from at most 50 commits. Never select one automatically.
+
+Copy `scripts/check_git_identity.py` and `scripts/trusted_gh.py`. Register the
+checker as a pre-commit hook. Claude Code also copies
+`hooks/enforce_git_identity.py` and registers it for `SessionStart` and
+`PreToolUse` on `Bash`. Required pull request CI runs the checker.
 
 When a commit already carries the wrong identity, report the defect and stop.
 Correcting the identity rewrites history. A wrong author field
@@ -868,6 +887,10 @@ Run `python scripts/complete_gate_adoption.py --candidate
 Protected gate changes require the `gate-change-approved` label from a
 person after the latest push. Case variants of protected paths also count.
 
+The gates refuse destructive commands, unsafe infrastructure access, direct
+GitHub CLI lookup, unsafe GitHub HTTP substitutes, credential manager access,
+browser token recovery, and incomplete policy loading.
+
 The gates route acts that need consent to the active human. Unattended sessions
 refuse those acts.
 Delete inside the session's own `.scratch/<id>/` or `.worktrees/<id>/` only
@@ -894,6 +917,11 @@ checker validates the checked-out bytes and rejects CRLF line endings.
 A defect report about a designed denial includes the exact input, contradictory policy
 text, and a reproduction. Report a blocked file, command, and message. A
 blocking gate does not authorize another act.
+
+The destructive gate set includes the Bash, PowerShell, CMD, shared parser,
+platform policy, shared gate, and parity test files. Register Bash, PowerShell,
+and available CMD `PreToolUse` matchers. Require matching Git and destructive
+verdicts across all shell gates.
 
 ## Agent prose gate
 `scripts/check_agent_prose_gate.py` fails agent-labeled commits and pull
@@ -937,6 +965,16 @@ The protected inventory covers:
   `.gemini/settings.json`, and `.git/hooks/`.
 - Denylist configuration:
   `scripts/banned_models.txt`.
+
+Claude Code's consent hook reads paths. New test files do not prompt. Existing
+test edits prompt. A final `ExistingTest = None` assignment can disable a
+check on raw text. The Bash gate also protects existing tests reached by
+redirects, `tee`, `sed -i`, `cp`, or `mv`.
+
+Adopt the consent hook with `hooks/require_consent.py`, `hooks/_gate_core.py`,
+its test, and the `.claude/settings.json` `PreToolUse` registration for
+`Edit|Write|MultiEdit|NotebookEdit`. Adopt the matching Bash protection. Do not
+adopt one gate without the other.
 # Client lifecycle
 Every client follows the matching skill in `skills/`.
 
@@ -1082,6 +1120,11 @@ Rule 23 covers these surfaces:
 - `gh label` commands
 - GitHub MCP tools that carry a `labels` field
 - REST and GraphQL label writes
+
+The GitHub gate denies the `gh` label options, `gh label`, and `gh api`
+mutating requests. In Claude Code, Codex, Gemini, and Antigravity
+`hooks/deny_mcp_github_writes.py` denies MCP label fields. The rule binds
+every client without that coverage.
 
 The wrapper refuses deny verdicts. It runs ask verdicts without confirming
 consent. Clients without shell hooks receive no consent prompt.

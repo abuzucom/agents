@@ -72,6 +72,20 @@ Avoid random or opaque names such as `chore/kind-thompson`.
 Do not leave `TODO`, `FIXME`, `XXX`, `HACK`, `later`, stubbed bodies, bare
 `pass`, `...`, or unexplained `NotImplementedError`.
 
+Install `scripts/check_branch_name.py`. Register it in pre-push and supported
+client hooks. Run its tests in CI and pre-commit. Dependabot receives its
+documented exemption from branch and commit message rules through trusted metadata.
+Copy `scripts/trusted_bot_identities.py` with it. That registry lists every
+bot exempt from branch rules. A third-party bot also needs its account ID in the event.
+
+Branch adoption copies `scripts/check_branch_name.py`,
+`scripts/read_git_state.py`, `scripts/trusted_git.py`,
+`hooks/enforce_branch_name.py`, `hooks/_command_execution_gate.py`,
+`hooks/_gate_core.py`, and `hooks/_bash_parser.py`. Register pre-push and every observable supported
+client event. Claude also registers `SessionStart`, `UserPromptSubmit`, `Stop`,
+and `SubagentStop`. Run `tests/test_enforce_branch_name.py` in CI and
+pre-commit. Agent hooks use `--strict-agent-preflight`.
+
 Preserve license attribution and source metadata. Do not require
 uncontrolled mirrors to report usage or divergence to this repository.
 
@@ -111,6 +125,11 @@ trusted wrapper. A GitHub connector account request qualifies. Derive
 values and obtain approval before setting them in the current repository.
 Never set them globally. If no authenticated account source exists, show at most five
 untrusted candidates from at most 50 commits. Never select one automatically.
+
+Copy `scripts/check_git_identity.py` and `scripts/trusted_gh.py`. Register the
+checker as a pre-commit hook. Claude Code also copies
+`hooks/enforce_git_identity.py` and registers it for `SessionStart` and
+`PreToolUse` on `Bash`. Required pull request CI runs the checker.
 
 When a commit already carries the wrong identity, report the defect and stop.
 Correcting the identity rewrites history. A wrong author field

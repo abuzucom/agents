@@ -14,7 +14,7 @@ into the entry. Dates never decrease. Ask the active human when a date is in
 doubt.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.54.5] (2026-11-28)
+## [2.54.6] (2026-11-28)
 
 ### Added
 - `AGENTS_TEST_WORKERS` and `AGENTS_TEST_SHARD_TIMEOUT_SECONDS` set the
@@ -27,11 +27,18 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Changed
 - `docs/gate-internals.md` holds the gate, checker, and installer internals
-  that left the assembled policy. The move covers 29 approved items from
+  that left the assembled policy. The move covers 23 approved items from
   `docs/agent-policy/clients.md`, `enforcement.md`, `adoption.md`,
   `github.md`, and `security.md`. Every rule an agent acts on stays in the
   policy. `AGENTS.md` stays unchanged. The assembled policy shrinks from
-  65,514 to 53,507 bytes. `README.md` links the new file.
+  65,514 to 55,930 bytes. `README.md` links the new file.
+- Six approved items stay in the policy after review. Three of the six back
+  `AGENTS.md` pointers: the refusal list for Rule 2, the identity checker
+  registrations for Rule 14, and the label coverage for Rule 23. Three
+  define complete adoption: the destructive gate set, the consent hook
+  pairing, and the branch checker registrations.
+  `tests/test_policy_pointer_targets.py` requires the file behind each
+  `AGENTS.md` pointer to hold the promised text.
 
 ### Fixed
 - `README.md` states the shard timeouts from the code. Each class has a

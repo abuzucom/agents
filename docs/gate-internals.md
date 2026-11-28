@@ -1,9 +1,10 @@
 # Gate internals
 
 This file describes how the repository gates, checkers, and installers
-work. The assembled agent policy does not include it. The binding rules
-live in `AGENTS.md` and `docs/agent-policy/`. A conflict resolves in favor
-of the policy.
+work. The assembled agent policy does not include it. The imperative notes
+below address hook authors, client configuration, and repository owners.
+No agent rule lives here. Agent rules live in `AGENTS.md` and
+`docs/agent-policy/`. A conflict resolves in favor of the policy.
 
 ## Threat model
 Repository hooks provide defense in depth. They remain reviewable and
@@ -13,10 +14,6 @@ server-side controls.
 
 The gates read command shape. They lack telemetry on event streams, rates,
 volume, and login correlation.
-
-The gates refuse destructive commands, unsafe infrastructure access, direct
-GitHub CLI lookup, unsafe GitHub HTTP substitutes, credential manager access,
-browser token recovery, and incomplete policy loading.
 
 Shell gates allow repeated `scripts/trusted_gh.py` calls and route
 `-c agents.githubFallback=confirmed` commands to consent without cross-process
@@ -112,42 +109,6 @@ files.
 The `gate-adoption` skill holds the template upgrade merge order and the
 source publishing tooling rule.
 
-## Gate inventories
-The destructive gate set includes the Bash, PowerShell, CMD, shared parser,
-platform policy, shared gate, and parity test files. Register Bash, PowerShell,
-and available CMD `PreToolUse` matchers. Require matching Git and destructive
-verdicts across all shell gates.
-
-Install `scripts/check_branch_name.py`. Register it in pre-push and supported
-client hooks. Run its tests in CI and pre-commit. Dependabot receives its
-documented exemption from branch and commit message rules through trusted metadata.
-Copy `scripts/trusted_bot_identities.py` with it. That registry lists every
-bot exempt from branch rules. A third-party bot also needs its account ID in the event.
-
-Branch adoption copies `scripts/check_branch_name.py`,
-`scripts/read_git_state.py`, `scripts/trusted_git.py`,
-`hooks/enforce_branch_name.py`, `hooks/_command_execution_gate.py`,
-`hooks/_gate_core.py`, and `hooks/_bash_parser.py`. Register pre-push and every observable supported
-client event. Claude also registers `SessionStart`, `UserPromptSubmit`, `Stop`,
-and `SubagentStop`. Run `tests/test_enforce_branch_name.py` in CI and
-pre-commit. Agent hooks use `--strict-agent-preflight`.
-
-Copy `scripts/check_git_identity.py` and `scripts/trusted_gh.py`. Register the
-checker as a pre-commit hook. Claude Code also copies
-`hooks/enforce_git_identity.py` and registers it for `SessionStart` and
-`PreToolUse` on `Bash`. Required pull request CI runs the checker.
-
-## Consent hook
-Claude Code's consent hook reads paths. New test files do not prompt. Existing
-test edits prompt. A final `ExistingTest = None` assignment can disable a
-check on raw text. The Bash gate also protects existing tests reached by
-redirects, `tee`, `sed -i`, `cp`, or `mv`.
-
-Adopt the consent hook with `hooks/require_consent.py`, `hooks/_gate_core.py`,
-its test, and the `.claude/settings.json` `PreToolUse` registration for
-`Edit|Write|MultiEdit|NotebookEdit`. Adopt the matching Bash protection. Do not
-adopt one gate without the other.
-
 ## Gate integrity CI
 `gate-integrity.yml` uses read-only `pull_request` execution and checks out the
 exact base and head revisions. The job executes no pull request code. Without a
@@ -241,12 +202,6 @@ closed on an unusable file. Coverage:
 ## Checkout credentials
 The default `true` writes `GITHUB_TOKEN` to the runner Git configuration. Any
 later step or third-party action can read it.
-
-## Labels
-The GitHub gate denies the `gh` label options, `gh label`, and `gh api`
-mutating requests. In Claude Code, Codex, Gemini, and Antigravity
-`hooks/deny_mcp_github_writes.py` denies MCP label fields. The rule binds
-every client without that coverage.
 
 ## Policy loader
 The loader rejects missing, malformed, non-ASCII, oversized, symlinked, and
