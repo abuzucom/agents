@@ -14,9 +14,14 @@ into the entry. Dates never decrease. Ask the active human when a date is in
 doubt.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.55.0] (2026-11-28)
+## [2.55.1] (2026-11-28)
 
 ### Added
+- `docs/codeql-triage.md` traces each of the nine CodeQL alerts that
+  template files raise in an adopter (#190). Six logging alerts reach only
+  fixed or sanitized text. Two storage alerts write test fixtures without
+  credentials. The untrusted checkout alert runs no head code. No alert
+  marks a real defect. The README links the file.
 - The five client-aware hooks accept `--client pi`:
   `enforce_gate_adoption.py`, `enforce_branch_name.py`,
   `enforce_anti_delegation.py`, `deny_mcp_github_writes.py`, and
