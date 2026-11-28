@@ -14,7 +14,7 @@ into the entry. Dates never decrease. Ask the active human when a date is in
 doubt.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.54.0] (2026-11-28)
+## [2.54.1] (2026-11-28)
 
 ### Added
 - `AGENTS_TEST_WORKERS` and `AGENTS_TEST_SHARD_TIMEOUT_SECONDS` set the
@@ -24,6 +24,12 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `scripts/check_hook_coverage.py` read both. An invalid value exits 2
   before any shard starts. The message names the variable and omits the
   value.
+
+### Fixed
+- `README.md` states the shard timeouts from the code. Each class has a
+  30-second timeout. Resource-heavy classes have a 180-second timeout.
+  Progress heartbeats arrive every 10 seconds. The earlier text named a
+  300-second class timeout and a 30-second heartbeat.
 
 ## [2.53.1] (2026-11-27)
 
