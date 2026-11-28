@@ -125,6 +125,8 @@ The protected inventory covers:
   `.gemini/settings.json`, and `.git/hooks/`.
 - Denylist configuration:
   `scripts/banned_models.txt`.
+- Pi gate chain:
+  the `broker/` directory and the `pi/` directory below `integrations/`.
 
 Claude Code's consent hook reads paths. New test files do not prompt. Existing
 test edits prompt. A final `ExistingTest = None` assignment can disable a
