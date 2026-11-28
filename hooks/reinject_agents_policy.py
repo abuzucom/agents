@@ -483,7 +483,9 @@ def run_hook(args: argparse.Namespace, payload: dict) -> int:
         if claude_copy.replace("\r\n", "\n") != policy.replace("\r\n", "\n"):
             raise ValueError("CLAUDE.md is not synchronized with AGENTS.md")
         return emit_claude(payload, policy, digest, args.chunk_index)
-    if args.client == "codex":
+    # pi loads AGENTS.md natively. Its extension injects this complete context
+    # through pi.sendMessage(), the same hookSpecificOutput shape Codex reads.
+    if args.client in ("codex", "pi"):
         return emit_codex(payload, policy, digest)
     if args.client == "gemini":
         return emit_gemini(payload, policy, digest)
@@ -496,7 +498,7 @@ def main() -> int:
     parser.add_argument(
         "--client",
         required=True,
-        choices=("claude", "codex", "gemini", "antigravity"),
+        choices=("claude", "codex", "gemini", "antigravity", "pi"),
     )
     parser.add_argument("--chunk-index", type=int, default=0)
     args = parser.parse_args()

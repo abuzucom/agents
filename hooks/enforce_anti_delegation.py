@@ -160,7 +160,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--client",
-        choices=("claude", "codex", "gemini", "antigravity"),
+        choices=("claude", "codex", "gemini", "antigravity", "pi"),
         default="claude",
     )
     args = parser.parse_args(argv)
