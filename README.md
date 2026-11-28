@@ -107,6 +107,12 @@ shards. Each class has a 300-second timeout. Persistent workers have a
 30-second deadline. Failures retain a nonzero exit. `unittest` defines
 discovery.
 
+`AGENTS_TEST_WORKERS` sets the worker count from 1 to 32 with a default of 4.
+`AGENTS_TEST_SHARD_TIMEOUT_SECONDS` sets the class timeout from 1 to 600
+seconds with a default of 30. A resource class never drops below the longer
+resource timeout. `scripts/run_tests.py` and `scripts/check_hook_coverage.py` read both
+variables. An invalid value exits 2 before any shard starts.
+
 ### GitHub Access
 
 Run hosted GitHub operations through:

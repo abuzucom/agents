@@ -14,6 +14,17 @@ into the entry. Dates never decrease. Ask the active human when a date is in
 doubt.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.54.0] (2026-11-28)
+
+### Added
+- `AGENTS_TEST_WORKERS` and `AGENTS_TEST_SHARD_TIMEOUT_SECONDS` set the
+  test shard worker count and class timeout (#191). Workers range from
+  1 to 32 with a default of 4. The timeout ranges from 1 to 600 seconds
+  with a default of 30. `scripts/run_tests.py` and
+  `scripts/check_hook_coverage.py` read both. An invalid value exits 2
+  before any shard starts. The message names the variable and omits the
+  value.
+
 ## [2.53.1] (2026-11-27)
 
 ### Added
