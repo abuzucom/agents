@@ -33,6 +33,9 @@ PROTECTED_PREFIXES = (
     ".github/workflows/",
     "docs/agent-policy/",
     "skills/",
+    # The pi decision broker and the pi extension gate every pi tool call.
+    "broker/",
+    "integrations/pi/",
 )
 PROTECTED_FILES = frozenset({
     ".compliance-tree-exemptions.json",

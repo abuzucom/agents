@@ -14,7 +14,7 @@ into the entry. Dates never decrease. Ask the active human when a date is in
 doubt.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.55.0] (2026-11-28)
+## [2.55.1] (2026-11-28)
 
 ### Added
 - The five client-aware hooks accept `--client pi`:
@@ -34,6 +34,13 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   value.
 
 ### Changed
+- `broker/` and `integrations/pi/` join the protected paths ahead of the
+  pi gate chain. `scripts/check_gate_pr_integrity.py` requires the
+  approval label for both. `hooks/_gate_core.py` and
+  `hooks/require_consent.py` route shell and file tool writes there to
+  consent. `docs/agent-policy/enforcement.md` lists both in the protected
+  inventory. No file exists there yet.
+  `tests/test_pi_gate_path_protection.py` covers each gate.
 - `docs/gate-internals.md` holds the gate, checker, and installer internals
   that left the assembled policy. The move covers 23 approved items from
   `docs/agent-policy/clients.md`, `enforcement.md`, `adoption.md`,

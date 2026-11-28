@@ -2032,7 +2032,7 @@ POWERSHELL_WRITE_PARAMETERS = {
 }
 PROTECTED_PATH_PARTS = frozenset({
     "hooks", ".claude", "scripts", ".agents", ".codex", ".gemini", ".git",
-    "skills",
+    "skills", "broker", "integrations",
 })
 # The canonical policy, its synced copies, and supporting policy documents
 # load as agent instructions.
