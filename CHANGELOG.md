@@ -14,7 +14,7 @@ into the entry. Dates never decrease. Ask the active human when a date is in
 doubt.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.54.3] (2026-11-28)
+## [2.54.4] (2026-11-28)
 
 ### Added
 - `AGENTS_TEST_WORKERS` and `AGENTS_TEST_SHARD_TIMEOUT_SECONDS` set the
@@ -36,6 +36,12 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   limit variables. An inherited invalid value no longer decides which
   variable the error names. The active human approved the edit under
   Rule 3.
+- `test_symlinked_skill_copy_rejected` copies only the skill module and
+  the three skill roots that `check_skill_files()` reads (#189). Its run
+  time no longer grows with unrelated adopter content such as
+  `node_modules/`. The assertions stay unchanged. The active human
+  approved the edit under Rule 3. `shared-files.json` records the new
+  digest.
 
 ## [2.53.1] (2026-11-27)
 

@@ -79,7 +79,7 @@
     "tests/test_prepare_session_workspace.py": "d9bd81bb0e5e780d9fcbec846d8d6ced46c2749c465e91003eaa873bc8d60468",
     "tests/test_primary_pr_base.py": "10b00f92ac2bfd7dc2046313e67bd5b0dda6f96d55d09febc4c6d06cf35e5b3c",
     "tests/test_question_hook_wiring.py": "7c5e57ed55faa3caef679ad275d1e72ef5be6d2e57a98688120b426bf7066fbf",
-    "tests/test_skill_adoption_required.py": "6dee848a84220ddaad80b7f9f12c910266558e58debc1680a951945209c09c0d",
+    "tests/test_skill_adoption_required.py": "c6f563579ad856f59ad0ac5e875c224127abee98b2ab5dada37a4cf8d453ced3",
     "tests/test_skill_command_forms.py": "bfe62a6a85a119111b1726aef67c54b4af37aead123506997fded6f236263b22",
     "tests/test_skill_module_not_executed.py": "41f9f933a731f2ce773268fa128268e990e22f6ff340ffb0f7c979f4d07cf193",
     "tests/test_skill_path_protection.py": "e536a11ba85941fa401b10a1b4770ac9e28c14460cbe3a8dda1c2e774c740feb",
