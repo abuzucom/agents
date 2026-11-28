@@ -14,7 +14,7 @@ into the entry. Dates never decrease. Ask the active human when a date is in
 doubt.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.54.6] (2026-11-28)
+## [2.54.7] (2026-11-28)
 
 ### Added
 - `AGENTS_TEST_WORKERS` and `AGENTS_TEST_SHARD_TIMEOUT_SECONDS` set the
@@ -39,6 +39,9 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   pairing, and the branch checker registrations.
   `tests/test_policy_pointer_targets.py` requires the file behind each
   `AGENTS.md` pointer to hold the promised text.
+- `scripts/sync.py` lists `docs/gate-internals.md` as a shared file.
+  Adopters receive the file that `docs/agent-policy/clients.md` names.
+  `shared-files.json` records the digest.
 
 ### Fixed
 - `README.md` states the shard timeouts from the code. Each class has a
