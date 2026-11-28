@@ -94,6 +94,7 @@ SHARED_FILES = [
     "tests/test_gate_adoption_transaction.py",
     "tests/test_platform_policy.py",
     "docs/enforcement-matrix.md",
+    "docs/gate-internals.md",
     "scripts/_skill_sync.py",
     "scripts/check_forbidden_paths.py",
     "scripts/check_handoff_content.py",

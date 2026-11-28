@@ -50,29 +50,6 @@ copies directly.
 Record the canonical revision in controlled adopters. Keep local policy changes
 separate from generated copies. Use a draft pull request for outbound
 changes.
-Create `docs/project-orientation.md` for the adopter's own commands, protected
-paths, architecture, entry points, and operational notes. Keep source repository
-facts out of that file. The synchronization and reinjection tools append it to
-the policy copies and adoptable output.
-
-The source repository may provide
-`docs/agent-policy/source-orientation.md`. Its content must use the
-`source orientation:start` and `source orientation:end` markers. Content between those
-markers reaches local policy copies but never adoptable output. An adopter may
-lack that marked content. Missing adopter orientation content fails closed.
-
-Supporting files must remain regular files within the repository. Keep them
-ASCII and below the policy size limit. Synchronization rejects missing,
-oversized, non-ASCII, or escaping supporting files.
-
-The source repository uses `scripts/sync.py` for copies and digests of shared files. `scripts/check_*.py` supplies portable checks. `hooks/` supplies
-client enforcement. `tests/` covers checks, hooks, distribution, and wiring.
-Client settings live under `.agents/`, `.claude/`, `.codex/`, and `.gemini/`.
-Preserve checker flags, hook payloads, reusable workflows, and copied policy
-files.
-
-The `gate-adoption` skill holds the template upgrade merge order and the
-source publishing tooling rule.
 
 ## Scope decisions
 Keep helper functions and imports required by the request in scope.
